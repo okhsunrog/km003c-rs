@@ -35,30 +35,29 @@ struct Cli {
 
 
 fn setup_logging(log_file_path: Option<PathBuf>) -> Result<Option<WorkerGuard>> {
+    // --- CONSOLE LAYER CONFIGURATION ---
     let console_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stdout)
-        .with_span_events(FmtSpan::CLOSE)
-        .with_thread_ids(true);
+        .with_target(false)      // <-- Don't include the module path.
+        .with_thread_ids(false)    // <-- Don't include the thread ID.
+        .without_time();           // <-- Let's also remove the timestamp for an even cleaner look.
 
     let (file_layer, guard) = if let Some(path) = log_file_path {
         info!("Logging to file: {:?}", path);
-
-        // --- CORRECTED LOGIC ---
-        // 1. Get the parent directory of the provided path.
         let log_dir = path.parent().unwrap_or_else(|| std::path::Path::new("."));
-
-        // 2. Get the filename from the provided path.
         let file_name = path.file_name().unwrap_or_else(|| std::ffi::OsStr::new("capture.log"));
-
-        // 3. Ensure the directory exists.
         std::fs::create_dir_all(log_dir)?;
 
-        // 4. Set up the rolling file appender.
         let file_appender = tracing_appender::rolling::daily(log_dir, file_name);
         let (non_blocking_writer, guard) = tracing_appender::non_blocking(file_appender);
+
+        // --- FILE LAYER CONFIGURATION ---
         let layer = tracing_subscriber::fmt::layer()
             .with_writer(non_blocking_writer)
-            .with_ansi(false); // No colors in files
+            .with_ansi(false)        // No colors in files
+            .with_target(false)      // Also disable for file logs
+            .with_thread_ids(false); // Also disable for file logs
+
         (Some(layer), Some(guard))
     } else {
         (None, None)
