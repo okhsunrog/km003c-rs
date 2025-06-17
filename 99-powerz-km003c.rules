@@ -1,0 +1,5 @@
+# POWER-Z KM003C
+SUBSYSTEM=="usb", ATTR{idVendor}=="5fc9", ATTR{idProduct}=="0063", MODE="0666", GROUP="plugdev", TAG+="uaccess"
+
+
+

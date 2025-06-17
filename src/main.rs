@@ -1,5 +1,4 @@
-use nusb::list_devices;
-use nusb::transfer::EndpointType; // Corrected import based on provided docs
+use nusb::{Interface, transfer::RequestBuffer};
 use tracing::{error, info, warn};
 use tracing_subscriber;
 
@@ -15,160 +14,100 @@ async fn main() {
         KM003C_VID, KM003C_PID
     );
 
-    match list_devices() {
-        Ok(devices_iter) => {
-            let km003c_device_info = devices_iter
-                .into_iter()
-                .find(|d| d.vendor_id() == KM003C_VID && d.product_id() == KM003C_PID);
+    let Some(device_info) = nusb::list_devices()
+        .unwrap()
+        .find(|d| d.vendor_id() == KM003C_VID && d.product_id() == KM003C_PID)
+    else {
+        warn!("POWER-Z KM003C not found.");
+        return;
+    };
 
-            if let Some(device_info) = km003c_device_info {
-                info!("POWER-Z KM003C Found!");
-                info!(
-                    "  VID: {:#06x}, PID: {:#06x}, Bus: {:03}, Address: {:03}",
-                    device_info.vendor_id(),
-                    device_info.product_id(),
-                    device_info.bus_number(),
-                    device_info.device_address()
-                );
-                if let Some(manufacturer) = device_info.manufacturer_string() {
-                    info!("  Manufacturer: {}", manufacturer);
-                }
-                if let Some(product) = device_info.product_string() {
-                    info!("  Product: {}", product);
-                }
-                if let Some(serial) = device_info.serial_number() {
-                    info!("  Serial: {}", serial);
-                }
-                info!("  Speed: {:?}", device_info.speed());
+    info!("POWER-Z KM003C Found!");
 
-                let interfaces_vec: Vec<_> = device_info.interfaces().cloned().collect();
-                info!(
-                    "  Interfaces reported by DeviceInfo (summary): {:?}",
-                    interfaces_vec
-                );
+    let device = device_info.open().expect("Failed to open device");
+    let interface_number = 0;
 
-                match device_info.open() {
-                    Ok(device_handle) => {
-                        info!("\nDevice Opened. Inspecting active configuration and endpoints:");
+    // This is the correct method for Linux to handle kernel drivers.
+    // It detaches the driver (if any) and claims the interface in one step.
+    info!(
+        "Attempting to detach kernel driver and claim Interface #{}",
+        interface_number
+    );
+    match device.detach_and_claim_interface(interface_number) {
+        Ok(interface) => {
+            info!("Interface #{} claimed successfully.", interface_number);
+            run_communication(&interface).await;
+            info!(
+                "Communication finished. Interface and kernel driver will be handled automatically when program ends."
+            );
+        }
+        Err(e) => {
+            error!(
+                "Could not detach and claim interface #{}: {:?}",
+                interface_number, e
+            );
+            error!(
+                "Please ensure your udev rule is correct (with TAG+='uaccess') and has been reloaded."
+            );
+        }
+    }
+}
 
-                        match device_handle.active_configuration() {
-                            Ok(active_config) => {
-                                info!(
-                                    "  Active Configuration Value (bConfigurationValue): {}",
-                                    active_config.configuration_value()
-                                );
-                                info!(
-                                    "  Max Power: {} mA",
-                                    active_config.max_power() as u16 * 2
-                                );
-                                let attributes = active_config.attributes();
-                                let is_self_powered = (attributes & 0x40) != 0;
-                                let can_remote_wakeup = (attributes & 0x20) != 0;
-                                info!("  Attributes (bmAttributes): {:#04x}", attributes);
-                                info!("    Self Powered: {}", is_self_powered);
-                                info!("    Remote Wakeup: {}", can_remote_wakeup);
+/// This function handles the actual data transfer with the device.
+async fn run_communication(interface: &Interface) {
+    // --- Define the Command and Endpoints ---
+    let command_to_send = vec![0x0C, 0x00, 0x02, 0x00];
 
-                                info!(
-                                    "    Number of Interface Groups in active config: {}",
-                                    active_config.interfaces().count()
-                                );
+    // From the initial device enumeration:
+    // Interface 0, USER/WINUSB
+    let out_endpoint = 0x01;
+    let in_endpoint = 0x81;
 
-                                for interface_group in active_config.interfaces() {
-                                    info!("    -----------------------------------");
-                                    // Iterate over InterfaceAltSettings within this group
-                                    for setting_desc in interface_group.alt_settings() {
-                                        info!(
-                                            "      Interface Number: {}",
-                                            setting_desc.interface_number()
-                                        );
-                                        info!(
-                                            "      Alternate Setting: {}",
-                                            setting_desc.alternate_setting()
-                                        );
-                                        info!(
-                                            "        Interface Class: {:#04x}",
-                                            setting_desc.class()
-                                        );
-                                        info!(
-                                            "        Interface SubClass: {:#04x}",
-                                            setting_desc.subclass()
-                                        );
-                                        info!(
-                                            "        Interface Protocol: {:#04x}",
-                                            setting_desc.protocol()
-                                        );
-                                        // Corrected method name: string_index
-                                        if let Some(if_string_idx) = setting_desc.string_index() {
-                                            // Fetching the string descriptor:
-                                            // use std::time::Duration;
-                                            // const DEFAULT_LANGUAGE_ID: u16 = 0x0409;
-                                            // const STRING_FETCH_TIMEOUT: Duration = Duration::from_millis(100);
-                                            // match device_handle.get_string_descriptor(if_string_idx, DEFAULT_LANGUAGE_ID, STRING_FETCH_TIMEOUT) {
-                                            //     Ok(s) => info!("        Interface String: {}", s),
-                                            //     Err(_) => info!("        Interface String Index: {} (fetch failed or no string for lang)", if_string_idx),
-                                            // }
-                                            info!("        Interface String Index: {}", if_string_idx);
-                                        } else {
-                                            info!("        Interface String Index: None");
-                                        }
+    info!(
+        "Sending GET_STATUS command: {:02x?} to endpoint {:#04x}",
+        command_to_send, out_endpoint
+    );
 
-                                        info!(
-                                            "        Endpoints in this setting: {}",
-                                            setting_desc.endpoints().count()
-                                        );
-                                        for endpoint_desc in setting_desc.endpoints() {
-                                            let ep_addr = endpoint_desc.address();
-                                            // Corrected direction check: Bit 7 (0x80) for IN
-                                            let direction = if (ep_addr & 0x80) != 0 { "IN" } else { "OUT" };
-                                            // Corrected transfer type matching
-                                            let transfer_type_str =
-                                                match endpoint_desc.transfer_type() {
-                                                    EndpointType::Control => "Control",
-                                                    EndpointType::Isochronous => "Isochronous",
-                                                    EndpointType::Bulk => "Bulk",
-                                                    EndpointType::Interrupt => "Interrupt",
-                                                };
-                                            info!(
-                                                // Corrected address: just ep_addr, or ep_addr & 0x7F for number only
-                                                "          Endpoint Address: {:#04x} (Number: {:#04x}, Direction: {})",
-                                                ep_addr,
-                                                ep_addr & 0x7F, // Mask direction bit to get number
-                                                direction
-                                            );
-                                            info!(
-                                                "            Transfer Type: {}",
-                                                transfer_type_str
-                                            );
-                                            info!(
-                                                "            Max Packet Size: {}",
-                                                endpoint_desc.max_packet_size()
-                                            );
-                                            info!(
-                                                "            Interval: {}",
-                                                endpoint_desc.interval()
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                error!("  Failed to get active configuration: {:?}", e);
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        error!(
-                            "Failed to open KM003C device: {:?}. Check permissions (udev rules on Linux).",
-                            e
-                        );
+    // --- Step 1: Write the command ---
+    // The `bulk_out` method takes a Vec<u8> and returns a TransferFuture.
+    let write_future = interface.bulk_out(out_endpoint, command_to_send);
+
+    // We use .await to wait for the asynchronous operation to complete.
+    match write_future.await.into_result() {
+        Ok(_) => {
+            info!("Successfully wrote command.");
+
+            // --- Step 2: Read the response ---
+            // The `bulk_in` method takes a RequestBuffer (which can be created from a length)
+            // and returns a TransferFuture. We ask for up to 64 bytes.
+            let read_future = interface.bulk_in(in_endpoint, RequestBuffer::new(64));
+
+            info!(
+                "Waiting to read response from Endpoint #{:#04x}...",
+                in_endpoint
+            );
+            match read_future.await.into_result() {
+                Ok(data) => {
+                    info!("SUCCESS! Received {} bytes.", data.len());
+                    if !data.is_empty() {
+                        let response_hex = data
+                            .iter()
+                            .map(|b| format!("{:02x}", b))
+                            .collect::<Vec<String>>()
+                            .join(" ");
+                        info!("Response data: [{}]", response_hex);
+                        info!("Communication with KM003C is working!");
+                    } else {
+                        warn!("Received 0 bytes, but the read was successful.");
                     }
                 }
-            } else {
-                warn!("POWER-Z KM003C not found.");
+                Err(e) => {
+                    error!("Failed to read from IN endpoint: {:?}", e);
+                }
             }
         }
         Err(e) => {
-            error!("Error listing USB devices: {:?}", e);
+            error!("Failed to write to OUT endpoint: {:?}", e);
         }
     }
 }
