@@ -197,20 +197,6 @@ pub enum CommandType {
     Authenticate = 0x44, // Likely has a complex payload
 }
 
-/// Represents the `att` (Attribute) field of the command header.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u16)]
-pub enum Attribute {
-    None = 0x0000,
-    Adc = 0x0001,
-    AdcQueue = 0x0002,
-    AdcQueue10k = 0x0004,
-    Settings = 0x0008,
-    PdPacket = 0x0010,
-    PdStatus = 0x0020,
-    SwitchToPdAnalyzer = 0x0200, // Note: This is a guess, 512 in decimal
-}
-
 /// Represents the supported sample rates for the Data Recorder mode.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -360,6 +346,60 @@ impl TryFrom<u8> for CommandType {
             x if x == CommandType::SetRecorderMode as u8 => Ok(CommandType::SetRecorderMode),
             x if x == CommandType::Authenticate as u8 => Ok(CommandType::Authenticate),
             _ => Err(()),
+        }
+    }
+}
+
+// src/protocol.rs
+
+// ... (all the code before the Attribute enum) ...
+
+/// Represents the `att` (Attribute) field of the command header.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u16)]
+pub enum Attribute {
+    None = 0x0000,
+    Adc = 0x0001,
+    AdcQueue = 0x0002,
+    AdcQueue10k = 0x0004,
+    Settings = 0x0008,
+    PdPacket = 0x0010,
+    PdStatus = 0x0020,
+    SwitchToPdAnalyzer = 0x0200, // Note: This is a guess, 512 in decimal
+    // Add an Unknown variant to handle the unlisted attributes like 0x0101, 0x0400 etc.
+    Unknown(u16),
+}
+
+// And the new impl block
+impl Attribute {
+    pub fn from_u16(val: u16) -> Self {
+        match val {
+            0x0000 => Self::None,
+            0x0001 => Self::Adc,
+            0x0002 => Self::AdcQueue,
+            0x0004 => Self::AdcQueue10k,
+            0x0008 => Self::Settings,
+            0x0010 => Self::PdPacket,
+            0x0020 => Self::PdStatus,
+            0x0200 => Self::SwitchToPdAnalyzer,
+            // For any other value, store it in the Unknown variant.
+            other => Self::Unknown(other),
+        }
+    }
+
+    pub fn to_u16(&self) -> u16 {
+        match self {
+            // For each field-less variant, return its explicit integer value.
+            Self::None => 0x0000,
+            Self::Adc => 0x0001,
+            Self::AdcQueue => 0x0002,
+            Self::AdcQueue10k => 0x0004,
+            Self::Settings => 0x0008,
+            Self::PdPacket => 0x0010,
+            Self::PdStatus => 0x0020,
+            Self::SwitchToPdAnalyzer => 0x0200,
+            // For the variant with data, return the contained value.
+            Self::Unknown(val) => *val,
         }
     }
 }

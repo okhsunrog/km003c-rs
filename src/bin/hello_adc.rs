@@ -1,15 +1,35 @@
-// src/bin/hello_adc.rs
-
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, bail};
 use bytes::Bytes;
-use nusb::{Device, Interface, transfer::RequestBuffer};
+use nusb::{Interface, transfer::RequestBuffer};
 use std::time::Duration;
+use tokio::time::sleep;
 use tracing::{error, info, warn};
 use tracing_subscriber;
 
 use km003c_rs::protocol::{
     Attribute, CommandType, ENDPOINT_IN, ENDPOINT_OUT, PID, SensorDataPacket, VID,
 };
+
+const AUTH_PAYLOAD_1: &[u8] = &[
+    0x33, 0xf8, 0x86, 0x0c, 0x00, 0x54, 0x28, 0x8c, 0xdc, 0x7e, 0x52, 0x72, 0x98, 0x26, 0x87, 0x2d,
+    0xd1, 0x8b, 0x53, 0x9a, 0x39, 0xc4, 0x07, 0xd5, 0xc0, 0x63, 0xd9, 0x11, 0x02, 0xe3, 0x6a, 0x9e,
+];
+const AUTH_PAYLOAD_2: &[u8] = &[
+    0x63, 0x6b, 0xea, 0xf3, 0xf0, 0x85, 0x65, 0x06, 0xee, 0xe9, 0xa2, 0x7e, 0x89, 0x72, 0x2d, 0xcf,
+    0xd1, 0x8b, 0x53, 0x9a, 0x39, 0xc4, 0x07, 0xd5, 0xc0, 0x63, 0xd9, 0x11, 0x02, 0xe3, 0x6a, 0x9e,
+];
+const AUTH_PAYLOAD_3: &[u8] = &[
+    0xc5, 0x11, 0x67, 0xae, 0x61, 0x3a, 0x6d, 0x46, 0xec, 0x84, 0xa6, 0xbd, 0xe8, 0xbd, 0x46, 0x2a,
+    0xd1, 0x8b, 0x53, 0x9a, 0x39, 0xc4, 0x07, 0xd5, 0xc0, 0x63, 0xd9, 0x11, 0x02, 0xe3, 0x6a, 0x9e,
+];
+const AUTH_PAYLOAD_4: &[u8] = &[
+    0x9c, 0x40, 0x9d, 0xeb, 0xc8, 0xdf, 0x53, 0xb8, 0x3b, 0x06, 0x6c, 0x31, 0x52, 0x50, 0xd0, 0x5c,
+    0xd1, 0x8b, 0x53, 0x9a, 0x39, 0xc4, 0x07, 0xd5, 0xc0, 0x63, 0xd9, 0x11, 0x02, 0xe3, 0x6a, 0x9e,
+];
+const SET_RECORDER_MODE_PAYLOAD: &[u8] = &[
+    0x4b, 0xe3, 0x63, 0x6c, 0x40, 0xbc, 0x10, 0x29, 0x89, 0x50, 0x96, 0xaa, 0xa3, 0xd2, 0x4f, 0xb7,
+    0xf0, 0x9b, 0x3f, 0xfb, 0x91, 0xb6, 0x51, 0xf1, 0x58, 0x2d, 0x0c, 0x27, 0xe4, 0x8d, 0x43, 0xa2,
+];
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -41,53 +61,114 @@ async fn run() -> Result<()> {
 
     let mut comms = DeviceComms::new(interface);
 
-    // --- Step 1: Connect ---
+    info!("--- Starting Connection Handshake ---");
     comms
         .send_command(CommandType::Connect, Attribute::None, None)
         .await?;
     comms.expect_response(CommandType::Accept).await?;
-    info!("Handshake complete.");
 
-    // --- Step 2: Request Data (First part of a two-part request) ---
-    info!("Requesting data (part 1)...");
+    info!("--- Starting Authentication Replay ---");
     comms
-        .send_command(CommandType::GetData, Attribute::Adc, None)
+        .send_command(
+            CommandType::Authenticate,
+            Attribute::from_u16(0x0101),
+            Some(AUTH_PAYLOAD_1),
+        )
         .await?;
-    let ack_response = comms.expect_response(CommandType::StatusA).await?;
-    info!(data=?format!("{ack_response:02x?}"), "Received ACK from device. It should now be ready to send data.");
+    comms.read_and_discard().await?;
+    comms.read_and_discard().await?;
 
-    // --- Step 3: Fetch the Prepared Data (Hypothesis) ---
-    // Let's try sending the exact same command again to see if it now returns the data.
-    info!("Fetching prepared data (part 2)...");
     comms
-        .send_command(CommandType::GetData, Attribute::Adc, None)
+        .send_command(
+            CommandType::Authenticate,
+            Attribute::from_u16(0x0101),
+            Some(AUTH_PAYLOAD_2),
+        )
         .await?;
-    let data_response = comms.read_response().await?;
+    comms.read_and_discard().await?;
+    comms.read_and_discard().await?;
 
-    // Now, we expect the 52-byte sensor data packet (still prefixed with a StatusA header)
-    if data_response.len() >= 56 && data_response[0] == CommandType::StatusA as u8 {
-        let sensor_bytes = Bytes::from(data_response.slice(4..));
-        match SensorDataPacket::try_from(sensor_bytes) {
-            Ok(packet) => {
-                info!("Successfully parsed Sensor Data Packet:\n{}", packet);
+    comms
+        .send_command(
+            CommandType::Authenticate,
+            Attribute::from_u16(0x0101),
+            Some(AUTH_PAYLOAD_3),
+        )
+        .await?;
+    comms.read_and_discard().await?;
+    comms.read_and_discard().await?;
+
+    comms
+        .send_command(
+            CommandType::Authenticate,
+            Attribute::from_u16(0x0101),
+            Some(AUTH_PAYLOAD_4),
+        )
+        .await?;
+    comms.read_and_discard().await?;
+    comms.read_and_discard().await?;
+    info!("--- Authentication Replay Complete ---");
+
+    info!("--- Setting Recorder Mode ---");
+    comms
+        .send_command(
+            CommandType::SetRecorderMode,
+            Attribute::from_u16(0x0200),
+            Some(SET_RECORDER_MODE_PAYLOAD),
+        )
+        .await?;
+    comms.read_and_discard().await?;
+
+    info!("--- Initial Info Dump ---");
+    comms
+        .send_command(CommandType::GetData, Attribute::PdPacket, None)
+        .await?;
+    comms.read_and_discard().await?;
+
+    comms
+        .send_command(CommandType::GetData, Attribute::from_u16(0x0400), None)
+        .await?;
+    comms.read_and_discard().await?;
+
+    info!("--- Stopping Stream for Clean State ---");
+    comms
+        .send_command(CommandType::StopStream, Attribute::None, None)
+        .await?;
+    comms.expect_response(CommandType::Accept).await?;
+
+    info!("--- Entering Final Data Polling Loop ---");
+    for _ in 0..10 {
+        comms
+            .send_command(CommandType::GetData, Attribute::AdcQueue, None)
+            .await?;
+        let response = comms.read_response().await?;
+
+        // --- FINAL, CORRECTED PARSING LOGIC ---
+        if response.len() == 52 {
+            // This is the direct SensorDataPacket we want.
+            let sensor_bytes = Bytes::from(response.slice(..));
+            match SensorDataPacket::try_from(sensor_bytes) {
+                Ok(packet) => info!("Parsed Sensor Data Packet:\n{}", packet),
+                Err(e) => warn!(error = %e, "Failed to parse 52-byte polling response"),
             }
-            Err(e) => {
-                bail!("Failed to parse sensor data from response: {}", e);
+        } else if response.len() >= 56 && response[0] == CommandType::StatusA as u8 {
+            // This handles the case of a StatusA-prefixed packet (like the initial info dump).
+            let sensor_bytes = Bytes::from(response.slice(4..));
+            match SensorDataPacket::try_from(sensor_bytes) {
+                Ok(packet) => info!("Parsed Sensor Data Packet (from StatusA):\n{}", packet),
+                Err(e) => warn!(error = %e, "Failed to parse sensor data from StatusA response"),
             }
+        } else {
+            // This is for any other unexpected response.
+            warn!(len=response.len(), data=?format!("{response:02x?}"), "Received unexpected response during polling");
         }
-    } else {
-        bail!(
-            "Received unexpected response when fetching data: len={}, data={:02x?}",
-            data_response.len(),
-            data_response
-        );
+        sleep(Duration::from_millis(200)).await;
     }
 
     info!("Communication finished successfully.");
     Ok(())
 }
 
-/// A helper struct to manage stateful communication with the device.
 struct DeviceComms {
     interface: Interface,
     transaction_id: u8,
@@ -101,8 +182,6 @@ impl DeviceComms {
         }
     }
 
-    // ... inside impl DeviceComms ...
-
     async fn send_command(
         &mut self,
         cmd: CommandType,
@@ -111,7 +190,9 @@ impl DeviceComms {
     ) -> Result<()> {
         self.transaction_id = self.transaction_id.wrapping_add(1);
         let mut command = vec![cmd as u8, self.transaction_id];
-        command.extend_from_slice(&(attr as u16).to_le_bytes());
+
+        command.extend_from_slice(&attr.to_u16().to_le_bytes());
+
         if let Some(p) = payload {
             command.extend_from_slice(p);
         }
@@ -123,10 +204,10 @@ impl DeviceComms {
                 .into_result()
                 .context("USB write transfer failed")?,
             Err(_) => bail!("Timeout during USB write operation"),
-        }; // <--- ADD THE SEMICOLON HERE
-
+        };
         Ok(())
     }
+
     async fn read_response(&self) -> Result<Bytes> {
         let read_transfer = self.interface.bulk_in(ENDPOINT_IN, RequestBuffer::new(512));
         let data = match tokio::time::timeout(Duration::from_secs(1), read_transfer).await {
@@ -151,13 +232,18 @@ impl DeviceComms {
             );
         }
         if response[1] != self.transaction_id {
-            bail!(
+            warn!(
                 "Mismatched transaction ID. Expected {}, got {}",
-                self.transaction_id,
-                response[1]
+                self.transaction_id, response[1]
             );
         }
         info!(id=response[1], response=?expected_cmd, "Received expected response");
         Ok(response)
+    }
+
+    async fn read_and_discard(&self) -> Result<()> {
+        let response = self.read_response().await?;
+        info!(len = response.len(), "Discarding response packet.");
+        Ok(())
     }
 }

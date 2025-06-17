@@ -1,0 +1,7 @@
+2025-06-17T23:17:28.417360Z  INFO Starting tshark live capture... interface=usbmon0 device_address=38
+2025-06-17T23:17:30.654797Z  INFO Parsed Command direction="Host -> Device" id=1 command="Connect" attribute="0x0000"
+2025-06-17T23:17:30.658990Z  INFO Parsed ACK direction="Device -> Host" id=1 response="Accept"
+2025-06-17T23:17:30.660298Z  INFO Parsed Command direction="Host -> Device" id=2 command="GetData" attribute="0x0001"
+2025-06-17T23:17:30.664362Z  INFO Parsed ACK direction="Device -> Host" id=2 response="StatusA"
+2025-06-17T23:17:30.666053Z  INFO Parsed Command direction="Host -> Device" id=3 command="GetData" attribute="0x0001"
+2025-06-17T23:17:30.671472Z  INFO Parsed ACK direction="Device -> Host" id=3 response="StatusA"
