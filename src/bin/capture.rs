@@ -1,21 +1,17 @@
-// src/bin/capture.rs
-
-// src/bin/capture.rs
-
-use anyhow::Result;
+use anyhow::{Context, Result}; // <-- Add `Context` to the import
 use bytes::Bytes;
 use clap::Parser;
-use rtshark::RTSharkBuilder; // <- Corrected: RTShark is not directly used
+use rtshark::RTSharkBuilder;
+use std::fs::File; // <-- Make sure this is here from the last change
 use std::path::PathBuf;
 use std::process;
 use tokio;
-use tracing::{error, info, warn}; // <- Corrected: Level is not directly used
+use tracing::{error, info, warn};
 use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
 // Use our shared library for parsing.
 use km003c_rs::protocol::{CommandType, SensorDataPacket};
-
 /// A real-time USB protocol analyzer for the POWER-Z KM003C, powered by tshark.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -33,36 +29,36 @@ struct Cli {
     log_file: Option<PathBuf>,
 }
 
-
 fn setup_logging(log_file_path: Option<PathBuf>) -> Result<Option<WorkerGuard>> {
-    // --- CONSOLE LAYER CONFIGURATION ---
     let console_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stdout)
-        .with_target(false)      // <-- Don't include the module path.
-        .with_thread_ids(false)    // <-- Don't include the thread ID.
-        .without_time();           // <-- Let's also remove the timestamp for an even cleaner look.
+        .with_target(false)
+        .with_thread_ids(false)
+        .without_time();
 
     let (file_layer, guard) = if let Some(path) = log_file_path {
+        // --- CORRECTED LOGIC FOR A SINGLE, NON-ROTATING FILE ---
         info!("Logging to file: {:?}", path);
-        let log_dir = path.parent().unwrap_or_else(|| std::path::Path::new("."));
-        let file_name = path.file_name().unwrap_or_else(|| std::ffi::OsStr::new("capture.log"));
-        std::fs::create_dir_all(log_dir)?;
 
-        let file_appender = tracing_appender::rolling::daily(log_dir, file_name);
-        let (non_blocking_writer, guard) = tracing_appender::non_blocking(file_appender);
+        // 1. Create the file with the exact name provided.
+        // This will create it if it doesn't exist, or overwrite it if it does.
+        let log_file = File::create(&path)
+            .with_context(|| format!("Failed to create log file at: {:?}", path))?;
 
-        // --- FILE LAYER CONFIGURATION ---
+        // 2. Create the non-blocking writer from the standard file handle.
+        let (non_blocking_writer, guard) = tracing_appender::non_blocking(log_file);
+
         let layer = tracing_subscriber::fmt::layer()
             .with_writer(non_blocking_writer)
-            .with_ansi(false)        // No colors in files
-            .with_target(false)      // Also disable for file logs
-            .with_thread_ids(false); // Also disable for file logs
+            .with_ansi(false)
+            .with_target(false)
+            .with_thread_ids(false); // Keep timestamps in the file log for context
 
         (Some(layer), Some(guard))
     } else {
         (None, None)
     };
-    
+
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .or_else(|_| tracing_subscriber::EnvFilter::try_new("info"))?;
 
@@ -91,7 +87,10 @@ async fn main() -> Result<()> {
 
 async fn run_capture(device_address: u8, interface: String) -> Result<()> {
     // Build the tshark command with dynamic filters.
-    let display_filter = format!("usb.device_address == {} && usb.transfer_type == 0x03", device_address);
+    let display_filter = format!(
+        "usb.device_address == {} && usb.transfer_type == 0x03",
+        device_address
+    );
     let builder = RTSharkBuilder::builder()
         .input_path(&interface)
         .live_capture()
@@ -100,7 +99,7 @@ async fn run_capture(device_address: u8, interface: String) -> Result<()> {
     info!(%interface, %device_address, "Starting tshark live capture...");
 
     let mut rtshark = builder.spawn()?;
-    
+
     while let Some(packet) = rtshark.read().unwrap_or(None) {
         let mut direction: Option<u32> = None;
         let mut payload_hex: Option<String> = None;
@@ -128,7 +127,8 @@ async fn run_capture(device_address: u8, interface: String) -> Result<()> {
 
 /// Parses the raw byte payload and logs the structured data.
 fn parse_and_log_payload(direction: u32, data: Vec<u8>) {
-    if direction == 0 { // Host -> Device (OUT)
+    if direction == 0 {
+        // Host -> Device (OUT)
         if data.len() < 4 {
             warn!(len = data.len(), "Received OUT packet with < 4 bytes");
             return;
@@ -137,8 +137,8 @@ fn parse_and_log_payload(direction: u32, data: Vec<u8>) {
         let transaction_id = data[1];
         let attribute_val = u16::from_le_bytes([data[2], data[3]]);
         let command = match CommandType::try_from(command_type_val) {
-             Ok(cmd) => format!("{:?}", cmd),
-             Err(_) => format!("Unknown({:#04x})", command_type_val),
+            Ok(cmd) => format!("{:?}", cmd),
+            Err(_) => format!("Unknown({:#04x})", command_type_val),
         };
 
         info!(
@@ -148,7 +148,8 @@ fn parse_and_log_payload(direction: u32, data: Vec<u8>) {
             attribute = format!("{:#06x}", attribute_val),
             "Parsed Command"
         );
-    } else { // Device -> Host (IN)
+    } else {
+        // Device -> Host (IN)
         if data.len() == 52 {
             let bytes = Bytes::from(data);
             match SensorDataPacket::try_from(bytes) {
@@ -158,16 +159,16 @@ fn parse_and_log_payload(direction: u32, data: Vec<u8>) {
         } else if data.len() >= 56 && data.get(0) == Some(&(CommandType::StatusA as u8)) {
             // This is a StatusA header followed by sensor data
             let sensor_bytes = Bytes::from(data[4..].to_vec());
-             match SensorDataPacket::try_from(sensor_bytes) {
+            match SensorDataPacket::try_from(sensor_bytes) {
                 Ok(packet) => info!("Parsed Sensor Data Packet (from StatusA):\n{}", packet),
                 Err(e) => warn!(error = %e, "Failed to parse sensor data from StatusA response"),
-             }
+            }
         } else if data.len() == 4 {
             let response_type_val = data[0];
             let transaction_id = data[1];
             let response = match CommandType::try_from(response_type_val) {
-                 Ok(cmd) => format!("{:?}", cmd),
-                 Err(_) => format!("Unknown({:#04x})", response_type_val),
+                Ok(cmd) => format!("{:?}", cmd),
+                Err(_) => format!("Unknown({:#04x})", response_type_val),
             };
             info!(
                 direction = "Device -> Host",

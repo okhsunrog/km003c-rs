@@ -57,10 +57,7 @@ async fn main() {
                                     "  Active Configuration Value (bConfigurationValue): {}",
                                     active_config.configuration_value()
                                 );
-                                info!(
-                                    "  Max Power: {} mA",
-                                    active_config.max_power() as u16 * 2
-                                );
+                                info!("  Max Power: {} mA", active_config.max_power() as u16 * 2);
                                 let attributes = active_config.attributes();
                                 let is_self_powered = (attributes & 0x40) != 0;
                                 let can_remote_wakeup = (attributes & 0x20) != 0;
@@ -107,7 +104,10 @@ async fn main() {
                                             //     Ok(s) => info!("        Interface String: {}", s),
                                             //     Err(_) => info!("        Interface String Index: {} (fetch failed or no string for lang)", if_string_idx),
                                             // }
-                                            info!("        Interface String Index: {}", if_string_idx);
+                                            info!(
+                                                "        Interface String Index: {}",
+                                                if_string_idx
+                                            );
                                         } else {
                                             info!("        Interface String Index: None");
                                         }
@@ -119,7 +119,8 @@ async fn main() {
                                         for endpoint_desc in setting_desc.endpoints() {
                                             let ep_addr = endpoint_desc.address();
                                             // Corrected direction check: Bit 7 (0x80) for IN
-                                            let direction = if (ep_addr & 0x80) != 0 { "IN" } else { "OUT" };
+                                            let direction =
+                                                if (ep_addr & 0x80) != 0 { "IN" } else { "OUT" };
                                             // Corrected transfer type matching
                                             let transfer_type_str =
                                                 match endpoint_desc.transfer_type() {
