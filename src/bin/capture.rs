@@ -1,30 +1,65 @@
-use pcap::{Device, Capture};
+use rtshark::{RTShark, RTSharkBuilder};
+use std::process;
+use tokio; // tokio is still needed for the #[tokio::main] macro
+use tracing::{error, info, warn, Level};
+use tracing_subscriber;
 
-fn main() {
-    // 1. Find the device named "usbmon3"
-    // We use .expect() for a minimal example, but in real code, you should handle errors gracefully.
-    let main_device = Device::list()
-        .expect("Failed to list devices")
-        .into_iter()
-        .find(|d| d.name == "usbmon3")
-        .expect("usbmon3 device not found. Is the module loaded and do you have permissions?");
 
-    println!("Found device: {:?}", main_device.desc);
+#[tokio::main]
+async fn main() {
+    // Initialize the tracing subscriber.
+    tracing_subscriber::fmt()
+        .with_max_level(Level::INFO)
+        .with_target(false)
+        .init();
 
-    // 2. Open a capture handle on the device.
-    // In a real application, you would configure the capture (e.g., with .promisc())
-    // before calling .open(). We use .expect() again for simplicity.
-    let mut cap = Capture::from_device(main_device)
-        .expect("Failed to create capture from device")
-        .open()
-        .expect("Failed to open capture");
+    // Build the tshark command.
+    let builder = RTSharkBuilder::builder()
+        .input_path("usbmon3")
+        .live_capture()
+        .display_filter("usb.device_address == 31 && usb.transfer_type == 0x03");
 
-    println!("\nCapturing on usbmon3... Press Ctrl+C to stop.");
+    info!("Starting tshark live capture on usbmon3...");
+    info!("Waiting for USB traffic from device 31...");
 
-    // 3. Loop and print packets.
-    // The `next_packet()` method will wait for the next packet to arrive.
-    while let Ok(packet) = cap.next_packet() {
-        // The `Packet` struct derives `Debug`, so we can print it directly.
-        println!("{:?}", packet);
+    // Spawn tshark as a child process.
+    let mut rtshark: RTShark = builder.spawn().unwrap_or_else(|e| {
+        error!(error = %e, "Failed to start tshark. Is it installed and in your PATH?");
+        process::exit(1);
+    });
+
+    // Loop and read from tshark.
+    // The .read() method is synchronous/blocking, so no .await is needed.
+    while let Some(packet) = rtshark.read().unwrap_or_else(|e| {
+        error!(error = %e, "Error parsing tshark output stream.");
+        None
+    }) {
+        let mut direction: Option<u32> = None;
+        let mut payload: Option<String> = None;
+
+        if let Some(usb_layer) = packet.layer_name("usb") {
+            if let Some(dir_field) = usb_layer.metadata("usb.endpoint_address.direction") {
+                direction = dir_field.value().parse().ok();
+            }
+            if let Some(payload_field) = usb_layer.metadata("usb.capdata") {
+                payload = Some(payload_field.value().to_string());
+            }
+        } else {
+            warn!("Received a packet that did not contain a USB layer.");
+            continue;
+        }
+
+        if let (Some(dir), Some(data)) = (direction, payload) {
+            let direction_str = if dir == 0 { "Host -> Device" } else { "Device -> Host" };
+            
+            info!(
+                direction = direction_str,
+                bytes = data.len() / 2,
+                payload = data,
+                "Application data captured"
+            );
+        }
     }
+
+    info!("tshark process finished.");
 }
