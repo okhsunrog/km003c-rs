@@ -1,5 +1,3 @@
-mod protocol;
-
 use nusb::{Interface, transfer::RequestBuffer};
 use tracing::{error, info, warn};
 use tracing_subscriber;
