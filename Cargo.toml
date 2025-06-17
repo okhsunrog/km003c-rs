@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+bytes = "1.10.1"
 futures-lite = "2.6.0"
 nusb = "0.1.14"
 tokio = { version = "1.45", features = ["full"] }
