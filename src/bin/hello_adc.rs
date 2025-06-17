@@ -54,6 +54,16 @@ async fn run() -> Result<()> {
     );
 
     let device = device_info.open().context("Failed to open USB device")?;
+
+        // --- THIS IS THE CRUCIAL FIX ---
+    info!("Performing USB device reset to ensure a clean state...");
+    device.reset().context("Failed to reset the USB device. It may be in use or in a bad state.")?;
+    // A small delay after reset can help the device and OS to re-initialize properly.
+    sleep(Duration::from_millis(100)).await;
+    // --- END OF FIX ---
+
+
+
     let interface = device
         .detach_and_claim_interface(0)
         .context("Failed to claim interface")?;
