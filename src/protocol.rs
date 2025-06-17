@@ -35,7 +35,6 @@
 use bytes::{Buf, Bytes};
 use std::convert::TryFrom;
 use std::fmt;
-use std::time::Duration;
 
 // --- Constants ---
 
@@ -188,10 +187,12 @@ impl fmt::Display for SensorDataPacket {
 pub enum CommandType {
     Connect = 0x02,
     Accept = 0x05,
+    Rejected = 0x06,
     GetData = 0x0C,
     GetFile = 0x0E,
     StopStream = 0x0F,
     SetConfig = 0x10,
+    StatusA = 0x41,
     SetRecorderMode = 0x4C,
     Authenticate = 0x44, // Likely has a complex payload
 }
@@ -303,7 +304,7 @@ pub enum PdmPdType {
 pub enum PdmEmarker {
     Off = 0,
     V20A5 = 1,
-    V50A5_EPR = 2,
+    V50A5Epr = 2,
     La135A6_75 = 3,
 }
 
@@ -341,4 +342,24 @@ pub enum DataPollingMode {
     Adc10k,
     /// Poll for PD packets (and piggy-backed sensor data).
     PdSniffer,
+}
+
+impl TryFrom<u8> for CommandType {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            x if x == CommandType::Connect as u8 => Ok(CommandType::Connect),
+            x if x == CommandType::Accept as u8 => Ok(CommandType::Accept),
+            x if x == CommandType::Rejected as u8 => Ok(CommandType::Rejected),
+            x if x == CommandType::GetData as u8 => Ok(CommandType::GetData),
+            x if x == CommandType::GetFile as u8 => Ok(CommandType::GetFile),
+            x if x == CommandType::StopStream as u8 => Ok(CommandType::StopStream),
+            x if x == CommandType::SetConfig as u8 => Ok(CommandType::SetConfig),
+            x if x == CommandType::StatusA as u8 => Ok(CommandType::StatusA),
+            x if x == CommandType::SetRecorderMode as u8 => Ok(CommandType::SetRecorderMode),
+            x if x == CommandType::Authenticate as u8 => Ok(CommandType::Authenticate),
+            _ => Err(()),
+        }
+    }
 }

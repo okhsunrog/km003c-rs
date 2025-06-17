@@ -1,113 +1,128 @@
-use nusb::{Interface, transfer::RequestBuffer};
+// src/bin/hello_adc.rs
+
+use anyhow::{anyhow, bail, Context, Result};
+use bytes::Bytes;
+use nusb::{transfer::RequestBuffer, Device, Interface};
+use std::time::Duration;
 use tracing::{error, info, warn};
 use tracing_subscriber;
 
-const KM003C_VID: u16 = 0x5FC9;
-const KM003C_PID: u16 = 0x0063;
+use km003c_rs::protocol::{
+    Attribute, CommandType, SensorDataPacket, ENDPOINT_IN, ENDPOINT_OUT, PID, VID,
+};
 
 #[tokio::main]
-async fn main() {
-    tracing_subscriber::fmt::init();
-
-    info!(
-        "Searching for POWER-Z KM003C (VID: {:#06x}, PID: {:#06x})...",
-        KM003C_VID, KM003C_PID
-    );
-
-    let Some(device_info) = nusb::list_devices()
-        .unwrap()
-        .find(|d| d.vendor_id() == KM003C_VID && d.product_id() == KM003C_PID)
-    else {
-        warn!("POWER-Z KM003C not found.");
-        return;
-    };
-
-    info!("POWER-Z KM003C Found!");
-
-    let device = device_info.open().expect("Failed to open device");
-    let interface_number = 0;
-
-    // This is the correct method for Linux to handle kernel drivers.
-    // It detaches the driver (if any) and claims the interface in one step.
-    info!(
-        "Attempting to detach kernel driver and claim Interface #{}",
-        interface_number
-    );
-    match device.detach_and_claim_interface(interface_number) {
-        Ok(interface) => {
-            info!("Interface #{} claimed successfully.", interface_number);
-            run_communication(&interface).await;
-            info!(
-                "Communication finished. Interface and kernel driver will be handled automatically when program ends."
-            );
-        }
-        Err(e) => {
-            error!(
-                "Could not detach and claim interface #{}: {:?}",
-                interface_number, e
-            );
-            error!(
-                "Please ensure your udev rule is correct (with TAG+='uaccess') and has been reloaded."
-            );
-        }
+async fn main() -> Result<()> {
+    tracing_subscriber::fmt().with_target(false).init();
+    if let Err(e) = run().await {
+        error!("Application failed: {:?}", e);
+        std::process::exit(1);
     }
+    Ok(())
 }
 
-/// This function handles the actual data transfer with the device.
-async fn run_communication(interface: &Interface) {
-    // --- Define the Command and Endpoints ---
-    let command_to_send = vec![0x0C, 0x00, 0x02, 0x00];
 
-    // From the initial device enumeration:
-    // Interface 0, USER/WINUSB
-    let out_endpoint = 0x01;
-    let in_endpoint = 0x81;
+async fn run() -> Result<()> {
+    info!("Searching for POWER-Z KM003C...");
+    let device_info = nusb::list_devices()
+        .context("Failed to list USB devices")?
+        .find(|d| d.vendor_id() == VID && d.product_id() == PID)
+        .context("POWER-Z KM003C not found. Is it connected?")?;
+    info!(bus = device_info.bus_number(), addr = device_info.device_address(), "Found device");
 
-    info!(
-        "Sending GET_STATUS command: {:02x?} to endpoint {:#04x}",
-        command_to_send, out_endpoint
-    );
+    let device = device_info.open().context("Failed to open USB device")?;
+    let interface = device.detach_and_claim_interface(0).context("Failed to claim interface")?;
+    info!("Interface claimed successfully.");
 
-    // --- Step 1: Write the command ---
-    // The `bulk_out` method takes a Vec<u8> and returns a TransferFuture.
-    let write_future = interface.bulk_out(out_endpoint, command_to_send);
+    let mut comms = DeviceComms::new(interface);
 
-    // We use .await to wait for the asynchronous operation to complete.
-    match write_future.await.into_result() {
-        Ok(_) => {
-            info!("Successfully wrote command.");
+    // --- Step 1: Connect ---
+    comms.send_command(CommandType::Connect, Attribute::None, None).await?;
+    comms.expect_response(CommandType::Accept).await?;
+    info!("Handshake complete.");
 
-            // --- Step 2: Read the response ---
-            // The `bulk_in` method takes a RequestBuffer (which can be created from a length)
-            // and returns a TransferFuture. We ask for up to 64 bytes.
-            let read_future = interface.bulk_in(in_endpoint, RequestBuffer::new(64));
+    // --- Step 2: Request Data (First part of a two-part request) ---
+    info!("Requesting data (part 1)...");
+    comms.send_command(CommandType::GetData, Attribute::Adc, None).await?;
+    let ack_response = comms.expect_response(CommandType::StatusA).await?;
+    info!(data=?format!("{ack_response:02x?}"), "Received ACK from device. It should now be ready to send data.");
 
-            info!(
-                "Waiting to read response from Endpoint #{:#04x}...",
-                in_endpoint
-            );
-            match read_future.await.into_result() {
-                Ok(data) => {
-                    info!("SUCCESS! Received {} bytes.", data.len());
-                    if !data.is_empty() {
-                        let response_hex = data
-                            .iter()
-                            .map(|b| format!("{:02x}", b))
-                            .collect::<Vec<String>>()
-                            .join(" ");
-                        info!("Response data: [{}]", response_hex);
-                        info!("Communication with KM003C is working!");
-                    } else {
-                        warn!("Received 0 bytes, but the read was successful.");
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to read from IN endpoint: {:?}", e);
-                }
-            }
+    // --- Step 3: Fetch the Prepared Data (Hypothesis) ---
+    // Let's try sending the exact same command again to see if it now returns the data.
+    info!("Fetching prepared data (part 2)...");
+    comms.send_command(CommandType::GetData, Attribute::Adc, None).await?;
+    let data_response = comms.read_response().await?;
+
+    // Now, we expect the 52-byte sensor data packet (still prefixed with a StatusA header)
+    if data_response.len() >= 56 && data_response[0] == CommandType::StatusA as u8 {
+        let sensor_bytes = Bytes::from(data_response.slice(4..));
+        match SensorDataPacket::try_from(sensor_bytes) {
+           Ok(packet) => {
+               info!("Successfully parsed Sensor Data Packet:\n{}", packet);
+           }
+           Err(e) => {
+               bail!("Failed to parse sensor data from response: {}", e);
+           }
         }
-        Err(e) => {
-            error!("Failed to write to OUT endpoint: {:?}", e);
+    } else {
+        bail!("Received unexpected response when fetching data: len={}, data={:02x?}", data_response.len(), data_response);
+    }
+
+    info!("Communication finished successfully.");
+    Ok(())
+}
+
+/// A helper struct to manage stateful communication with the device.
+struct DeviceComms {
+    interface: Interface,
+    transaction_id: u8,
+}
+
+impl DeviceComms {
+    fn new(interface: Interface) -> Self {
+        Self { interface, transaction_id: 0 }
+    }
+
+// ... inside impl DeviceComms ...
+
+    async fn send_command(&mut self, cmd: CommandType, attr: Attribute, payload: Option<&[u8]>) -> Result<()> {
+        self.transaction_id = self.transaction_id.wrapping_add(1);
+        let mut command = vec![cmd as u8, self.transaction_id];
+        command.extend_from_slice(&(attr as u16).to_le_bytes());
+        if let Some(p) = payload {
+            command.extend_from_slice(p);
         }
+
+        info!(id=self.transaction_id, command=?cmd, attribute=?attr, "Sending command");
+        let write_transfer = self.interface.bulk_out(ENDPOINT_OUT, command);
+        match tokio::time::timeout(Duration::from_secs(1), write_transfer).await {
+            Ok(completion) => completion.into_result().context("USB write transfer failed")?,
+            Err(_) => bail!("Timeout during USB write operation"),
+        }; // <--- ADD THE SEMICOLON HERE
+
+        Ok(())
+    }
+    async fn read_response(&self) -> Result<Bytes> {
+        let read_transfer = self.interface.bulk_in(ENDPOINT_IN, RequestBuffer::new(512));
+        let data = match tokio::time::timeout(Duration::from_secs(1), read_transfer).await {
+            Ok(completion) => completion.into_result().context("USB read transfer failed")?,
+            Err(_) => bail!("Timeout during USB read operation"),
+        };
+        Ok(Bytes::from(data))
+    }
+
+    async fn expect_response(&self, expected_cmd: CommandType) -> Result<Bytes> {
+        let response = self.read_response().await?;
+        if response.len() < 4 {
+            bail!("Response too short: {} bytes", response.len());
+        }
+        if response[0] != expected_cmd as u8 {
+            bail!("Expected response {:?}, but got {:#04x}", expected_cmd, response[0]);
+        }
+        if response[1] != self.transaction_id {
+            bail!("Mismatched transaction ID. Expected {}, got {}", self.transaction_id, response[1]);
+        }
+        info!(id=response[1], response=?expected_cmd, "Received expected response");
+        Ok(response)
     }
 }
