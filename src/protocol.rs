@@ -121,6 +121,7 @@ impl TryFrom<Bytes> for SensorDataPacket {
     }
 }
 
+
 /// Provides convenient, human-readable methods for the sensor data.
 impl SensorDataPacket {
     pub fn vbus_v(&self) -> f64 {
@@ -132,14 +133,25 @@ impl SensorDataPacket {
     pub fn power_w(&self) -> f64 {
         self.vbus_v() * self.ibus_a()
     }
+    
+    // --- NEW: Absolute value methods ---
+    pub fn abs_ibus_a(&self) -> f64 {
+        self.ibus_a().abs()
+    }
+    pub fn abs_power_w(&self) -> f64 {
+        self.power_w().abs()
+    }
+
+    // --- FIX: Correct the divisor based on the 0.1mV unit ---
     pub fn vdp_v(&self) -> f64 {
-        self.vdp_mv as f64 / 1_000.0
+        self.vdp_mv as f64 / 10_000.0 // Raw value is in 0.1 mV, so divide by 1000 * 10
     }
     pub fn vdm_v(&self) -> f64 {
-        self.vdm_mv as f64 / 1_000.0
+        self.vdm_mv as f64 / 10_000.0 // Raw value is in 0.1 mV, so divide by 1000 * 10
     }
+
     pub fn vcc1_v(&self) -> f64 {
-        self.vcc1_tenth_mv as f64 * 0.1 / 1_000.0
+        self.vcc1_tenth_mv as f64 / 10_000.0 // Same logic as Vdp/Vdm
     }
 
     /// Returns the temperature in degrees Celsius.
@@ -155,16 +167,17 @@ impl fmt::Display for SensorDataPacket {
     // A nice, formatted display for logging
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "┌──────────────────────────────────────────┐")?;
+        // --- FIX: Use the new absolute value methods ---
         writeln!(
             f,
             "│ VBUS: {:>8.4} V │ IBus: {:>8.4} A │",
             self.vbus_v(),
-            self.ibus_a()
+            self.abs_ibus_a()
         )?;
         writeln!(
             f,
             "│ Power: {:>6.3} W │ Temp: {:>7.2} °C      │",
-            self.power_w(),
+            self.abs_power_w(),
             self.temperature_celsius()
         )?;
         writeln!(f, "├──────────────────────────────────────────┤")?;
