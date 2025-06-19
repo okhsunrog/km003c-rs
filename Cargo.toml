@@ -13,6 +13,7 @@ futures-lite = "2.6.0"
 hex = "0.4.3"
 nusb = "0.1.14"
 rtshark = "3.2.0"
+thiserror = "2.0.12"
 tokio = { version = "1.45", features = ["full"] }
 tracing = "0.1.41"
 tracing-appender = "0.2.3"
