@@ -7,12 +7,12 @@ use tokio::{signal, time::sleep};
 use tracing::{debug, error, info, warn};
 use tracing_subscriber;
 
-// Cleaned up use statements
+// Use the clean, powerful protocol types
 use km003c_rs::protocol::{
     Attribute, CommandType, Direction, ENDPOINT_IN, ENDPOINT_OUT, PID, Packet, VID,
 };
 
-// ... (CONST PAYLOADS remain the same) ...
+// Handshake payloads are just the data part, the header is built dynamically.
 const AUTH_PAYLOAD_1: &[u8] = &[
     0x33, 0xf8, 0x86, 0x0c, 0x00, 0x54, 0x28, 0x8c, 0xdc, 0x7e, 0x52, 0x72, 0x98, 0x26, 0x87, 0x2d,
     0xd1, 0x8b, 0x53, 0x9a, 0x39, 0xc4, 0x07, 0xd5, 0xc0, 0x63, 0xd9, 0x11, 0x02, 0xe3, 0x6a, 0x9e,
@@ -34,10 +34,11 @@ const SET_RECORDER_MODE_PAYLOAD: &[u8] = &[
     0xf0, 0x9b, 0x3f, 0xfb, 0x91, 0xb6, 0x51, 0xf1, 0x58, 0x2d, 0x0c, 0x27, 0xe4, 0x8d, 0x43, 0xa2,
 ];
 
+/// A simple logger to stream and display ADC data from a POWER-Z KM003C.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    /// Run continuously until Ctrl+C is pressed, instead of for a fixed number of samples.
+    /// Run continuously until Ctrl+C is pressed.
     #[arg(short, long)]
     continuous: bool,
     /// Number of samples to fetch if not running continuously.
@@ -121,33 +122,33 @@ async fn run(cli: Cli) -> Result<()> {
 async fn perform_startup_sequence(comms: &mut DeviceComms) -> Result<()> {
     info!("--- Starting Connection Handshake ---");
     comms
-        .transact(CommandType::Connect, Attribute::None, None)
+        .transact_and_discard(CommandType::Connect, Attribute::None, None)
         .await?;
 
     info!("--- Starting Authentication Replay ---");
     comms
-        .transact(
+        .transact_and_discard(
             CommandType::Authenticate,
             Attribute::Unknown(0x0101),
             Some(AUTH_PAYLOAD_1),
         )
         .await?;
     comms
-        .transact(
+        .transact_and_discard(
             CommandType::Authenticate,
             Attribute::Unknown(0x0101),
             Some(AUTH_PAYLOAD_2),
         )
         .await?;
     comms
-        .transact(
+        .transact_and_discard(
             CommandType::Authenticate,
             Attribute::Unknown(0x0101),
             Some(AUTH_PAYLOAD_3),
         )
         .await?;
     comms
-        .transact(
+        .transact_and_discard(
             CommandType::Authenticate,
             Attribute::Unknown(0x0101),
             Some(AUTH_PAYLOAD_4),
@@ -156,36 +157,41 @@ async fn perform_startup_sequence(comms: &mut DeviceComms) -> Result<()> {
     info!("--- Authentication Replay Complete ---");
 
     info!("--- Setting Recorder Mode ---");
+    // THIS IS THE CORRECT, EXPLICIT HANDLING
+    // We call a special version of transact because we know this command has a non-standard response ID.
     comms
-        .transact(
+        .transact_with_expected_id(
             CommandType::CommandWithPayload,
             Attribute::Unknown(0x0200),
             Some(SET_RECORDER_MODE_PAYLOAD),
+            0, // We explicitly expect the response to have transaction ID 0
         )
         .await?;
 
     info!("--- Initial Info Dump ---");
     comms
-        .transact(CommandType::GetData, Attribute::PdPacket, None)
+        .transact_and_discard(CommandType::GetData, Attribute::PdPacket, None)
         .await?;
     comms
-        .transact(CommandType::GetData, Attribute::Unknown(0x0400), None)
+        .transact_and_discard(CommandType::GetData, Attribute::Unknown(0x0400), None)
         .await?;
 
     info!("--- Stopping Stream for Clean State ---");
     comms
-        .transact(CommandType::StopStream, Attribute::None, None)
+        .transact_and_discard(CommandType::StopStream, Attribute::None, None)
         .await?;
 
     Ok(())
 }
 
+/// A helper struct to manage stateful communication with the device.
 struct DeviceComms {
     interface: Interface,
     transaction_id: u8,
 }
 
 impl DeviceComms {
+    // ... new, next_id, build_command_bytes, send_bytes are correct ...
     fn new(interface: Interface) -> Self {
         Self {
             interface,
@@ -225,26 +231,7 @@ impl DeviceComms {
         Ok(())
     }
 
-    async fn read_packet(&self) -> Result<Packet> {
-        let read_transfer = self.interface.bulk_in(ENDPOINT_IN, RequestBuffer::new(512));
-
-        // Correctly handle the nested Results.
-        // 1. await the timeout, which returns Result<Completion, Elapsed>
-        // 2. Use `context` for a better error message if it times out, and `?` to propagate.
-        // 3. The result is a `Completion`, call `into_result()` which returns Result<Vec<u8>, TransferError>
-        // 4. Use `?` again to propagate any USB transfer errors.
-        let data = tokio::time::timeout(Duration::from_secs(1), read_transfer)
-            .await
-            .context("Timeout waiting for USB read")?
-            .into_result()?;
-
-        debug!(bytes = hex::encode(&data), "USB Read");
-        Ok(Packet::from_bytes(
-            Bytes::from(data),
-            Direction::DeviceToHost,
-        ))
-    }
-    
+    // A helper for transact_and_discard
     pub async fn transact(
         &mut self,
         cmd: CommandType,
@@ -252,62 +239,71 @@ impl DeviceComms {
         payload: Option<&[u8]>,
     ) -> Result<Vec<Packet>> {
         let id = self.next_id();
-        let command_bytes = Self::build_command_bytes(id, cmd, attr, payload);
+        self.transact_with_expected_id(cmd, attr, payload, id).await
+    }
+
+    // A helper to just run a transaction and ignore the result, used for most of the startup sequence.
+    async fn transact_and_discard(
+        &mut self,
+        cmd: CommandType,
+        attr: Attribute,
+        payload: Option<&[u8]>,
+    ) -> Result<()> {
+        self.transact(cmd, attr, payload).await?;
+        Ok(())
+    }
+
+    // THE MAIN TRANSACTION FUNCTION, NOW WITH AN EXPECTED ID
+    pub async fn transact_with_expected_id(
+        &mut self,
+        cmd: CommandType,
+        attr: Attribute,
+        payload: Option<&[u8]>,
+        expected_id: u8,
+    ) -> Result<Vec<Packet>> {
+        let send_id = if cmd == CommandType::CommandWithPayload {
+            self.next_id() // Use a real ID for the command itself
+        } else {
+            expected_id
+        };
+
+        let command_bytes = Self::build_command_bytes(send_id, cmd, attr, payload);
         self.send_bytes(command_bytes).await?;
 
         let mut responses = Vec::new();
-        let mut has_final_response = false;
 
+        // Loop to read all parts of a response.
         loop {
-            let read_transfer = self.interface.bulk_in(ENDPOINT_IN, RequestBuffer::new(512));
-
-            // THIS IS THE CORRECTED MATCH BLOCK
-            let data = match tokio::time::timeout(Duration::from_millis(100), read_transfer).await {
-                // The future timed out.
-                Err(_timeout_error) => {
-                    if has_final_response {
-                        // We received a valid response and then silence. This is a successful end.
-                        break;
-                    } else {
-                        // We've been waiting for the first response and got nothing. A real timeout.
-                        bail!("Timeout waiting for a response to command {:?}", cmd);
+            let packet =
+                match tokio::time::timeout(Duration::from_secs(1), self.read_raw_packet()).await {
+                    Ok(Ok(p)) => p,              // Got packet successfully
+                    Ok(Err(e)) => return Err(e), // USB error
+                    Err(_) => {
+                        // Timeout
+                        if !responses.is_empty() {
+                            // Timeout after getting at least one response is OK.
+                            break;
+                        } else {
+                            // Timeout waiting for the very first response.
+                            bail!(
+                                "Timeout waiting for response to {:?} (sent ID {}, expected ID {})",
+                                cmd,
+                                send_id,
+                                expected_id
+                            );
+                        }
                     }
-                }
-                // The future completed in time, giving a Completion object.
-                Ok(completion) => {
-                    // Now we extract the data from the completion, handling potential transfer errors.
-                    completion
-                        .into_result()
-                        .context("USB read transfer failed")?
-                }
-            };
-
-            if data.is_empty() {
-                // If we got an empty packet and have a response, we can consider the transaction done.
-                if has_final_response {
-                    break;
-                }
-                continue;
-            }
-
-            debug!(bytes = hex::encode(&data), "USB Read");
-            let packet = Packet::from_bytes(Bytes::from(data), Direction::DeviceToHost);
+                };
 
             let is_relevant = match &packet {
-                Packet::Acknowledge { header, .. } => header.transaction_id == id,
-                Packet::GenericResponse { header, .. } => header.transaction_id == id,
-                Packet::SensorData(sd) => {
-                    let header_bytes = sd.header.to_le_bytes();
-                    header_bytes.get(1) == Some(&id)
-                }
+                Packet::Acknowledge { header, .. } => header.transaction_id == expected_id,
+                Packet::GenericResponse { header, .. } => header.transaction_id == expected_id,
+                Packet::SensorData(sd) => sd.header.to_le_bytes().get(1) == Some(&expected_id),
+                Packet::DataChunk(_) => true, // Always keep associated data chunks.
                 _ => false,
             };
 
-            if !matches!(packet, Packet::DataChunk(_)) {
-                has_final_response = true;
-            }
-
-            if matches!(packet, Packet::DataChunk(_)) || is_relevant {
+            if is_relevant {
                 responses.push(packet);
             } else {
                 warn!(
@@ -315,14 +311,35 @@ impl DeviceComms {
                     packet
                 );
             }
+
+            // If the relevant packet is not a DataChunk, we can stop.
+            if is_relevant && !matches!(responses.last().unwrap(), Packet::DataChunk(_)) {
+                // But wait a tiny bit to see if a DataChunk follows
+                if tokio::time::timeout(Duration::from_millis(50), self.read_raw_packet())
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+            }
         }
 
         info!(
             ?cmd,
             ?attr,
-            "Transaction complete, received {} response packets",
+            "Transaction complete, received {} relevant response packet(s)",
             responses.len()
         );
         Ok(responses)
+    }
+
+    async fn read_raw_packet(&self) -> Result<Packet> {
+        let read_transfer = self.interface.bulk_in(ENDPOINT_IN, RequestBuffer::new(512));
+        let data = read_transfer.await.into_result()?;
+        debug!(bytes = hex::encode(&data), "USB Read");
+        Ok(Packet::from_bytes(
+            Bytes::from(data),
+            Direction::DeviceToHost,
+        ))
     }
 }
