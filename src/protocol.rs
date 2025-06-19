@@ -116,7 +116,7 @@ impl Packet {
                     kind: AckType::Rejected,
                 },
 
-                CommandType::StatusA => {
+                CommandType::DataResponse => {
                     // Check for large structured payloads inside StatusA
                     if payload_bytes.len() >= 188 {
                         if let Ok(info) = DeviceInfoBlock::try_from(payload_bytes.clone()) {
@@ -199,7 +199,7 @@ pub struct SensorDataPacket {
     pub ibus_ori_avg_ua: i32,
     pub temp_raw: i16,
     pub vcc1_tenth_mv: u16,
-    pub vcc2_raw: u16, // Renamed from vcc2_tenth_mv for clarity as per table
+    pub vcc2_raw: u16,
     pub vdp_mv: u16,
     pub vdm_mv: u16,
     pub vdd_raw: u16,
@@ -318,7 +318,6 @@ impl TryFrom<Bytes> for DeviceInfoBlock {
     }
 }
 
-// FIX the CommandType enum and its impl
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum CommandType {
@@ -334,16 +333,17 @@ pub enum CommandType {
     SetConfig = 0x10,
     ResetConfig = 0x11,
     GetDeviceInfo = 0x40,
-    StatusA = 0x41,
+    DataResponse = 0x41, // RENAMED from StatusA
     Serial = 0x43,
     Authenticate = 0x44,
-    DataWithPayload = 0x48,
     CommandWithPayload = 0x4C,
 
+    // Known handshake/response types
     ResponseC4 = 0xC4,
     Response75 = 0x75,
 }
 
+// --- CHANGE: try_from for CommandType updated ---
 impl TryFrom<u8> for CommandType {
     type Error = ();
     fn try_from(value: u8) -> Result<Self, Self::Error> {
@@ -360,10 +360,9 @@ impl TryFrom<u8> for CommandType {
             0x10 => Ok(Self::SetConfig),
             0x11 => Ok(Self::ResetConfig),
             0x40 => Ok(Self::GetDeviceInfo),
-            0x41 => Ok(Self::StatusA),
+            0x41 => Ok(Self::DataResponse), // RENAMED
             0x43 => Ok(Self::Serial),
             0x44 => Ok(Self::Authenticate),
-            0x48 => Ok(Self::DataWithPayload),
             0x4C => Ok(Self::CommandWithPayload),
             0xC4 => Ok(Self::ResponseC4),
             0x75 => Ok(Self::Response75),
@@ -372,8 +371,7 @@ impl TryFrom<u8> for CommandType {
     }
 }
 
-/// Represents the `att` (Attribute) field of the command header.
-// ... (Attribute enum and its impls remain the same) ...
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Attribute {
     None,
@@ -381,17 +379,17 @@ pub enum Attribute {
     AdcQueue,
     AdcQueue10k,
     Settings,
-    PdPacket,
+    GetDeviceInfo, // RENAMED from PdPacket (0x0010)
     PdStatus,
     QcPacket,
     Timestamp,
     Serial,
     Auth,
-    DeviceInfo,
-    /// An attribute not listed in the known values.
+    PollPdEvents, // NEW (0x2000)
     Unknown(u16),
 }
 
+// --- CHANGE: from<u16> for Attribute updated ---
 impl From<u16> for Attribute {
     fn from(val: u16) -> Self {
         match val {
@@ -400,13 +398,13 @@ impl From<u16> for Attribute {
             0x0002 => Self::AdcQueue,
             0x0004 => Self::AdcQueue10k,
             0x0008 => Self::Settings,
-            0x0010 => Self::PdPacket,
+            0x0010 => Self::GetDeviceInfo, // RENAMED
             0x0020 => Self::PdStatus,
             0x0040 => Self::QcPacket,
             0x0080 => Self::Timestamp,
             0x0180 => Self::Serial,
             0x0200 => Self::Auth,
-            0x1000 => Self::DeviceInfo,
+            0x2000 => Self::PollPdEvents, // NEW
             other => Self::Unknown(other),
         }
     }
@@ -420,17 +418,18 @@ impl From<Attribute> for u16 {
             Attribute::AdcQueue => 0x0002,
             Attribute::AdcQueue10k => 0x0004,
             Attribute::Settings => 0x0008,
-            Attribute::PdPacket => 0x0010,
+            Attribute::GetDeviceInfo => 0x0010, // RENAMED
             Attribute::PdStatus => 0x0020,
             Attribute::QcPacket => 0x0040,
             Attribute::Timestamp => 0x0080,
             Attribute::Serial => 0x0180,
             Attribute::Auth => 0x0200,
-            Attribute::DeviceInfo => 0x1000,
+            Attribute::PollPdEvents => 0x2000, // NEW
             Attribute::Unknown(val) => val,
         }
     }
 }
+
 /// Represents the supported sample rates for the Data Recorder mode.
 // ... (SampleRate enum and its impls remain the same) ...
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -467,5 +466,26 @@ impl fmt::Display for SampleRate {
             SampleRate::Sps10000 => write!(f, "10 kSPS"),
             SampleRate::Unknown(v) => write!(f, "Unknown ({})", v),
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PdPacket {
+    // For now, we just wrap the raw data. Later, we can parse fields from this.
+    pub raw_data: Bytes,
+}
+
+impl TryFrom<Bytes> for PdPacket {
+    type Error = std::io::Error;
+
+    fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
+        // A simple length check. We can make this more robust later.
+        if bytes.is_empty() {
+             return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "PD packet cannot be empty",
+            ));
+        }
+        Ok(Self { raw_data: bytes })
     }
 }

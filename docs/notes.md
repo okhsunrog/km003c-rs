@@ -63,3 +63,23 @@ functions to take a look at:
 
 Need to create a good and clean protocol.md
 Need to write tests for protocol that will interact with the device
+
+Next Steps (Suggestions)
+
+    Clean up simple_logger: You can now remove the transact_and_discard function and simply call transact in the startup sequence, ignoring the Result. The logic is the same, but it's one less function to maintain.
+
+    Flesh out the Packet enum: The GenericResponse payloads are your next frontier.
+
+        The response to GetData with PdPacket is clearly the DeviceInfoBlock. You can enhance Packet::from_bytes to parse this structure when header.attribute == Attribute::PdPacket.
+
+        The responses to Authenticate are crypto blobs. You could create an AuthResponse struct to hold them.
+
+    Create a High-Level Device struct: This would be the public API for your library.
+
+        Device::connect() -> Result<Self>: Handles finding the USB device and creating the DeviceComms.
+
+        Device::initialize() -> Result<()>: Runs the entire perform_startup_sequence.
+
+        Device::poll_sensor_data() -> Result<SensorDataPacket>: Runs one iteration of the polling loop.
+
+        This abstracts away all the transact calls and protocol details from the end user of your library.

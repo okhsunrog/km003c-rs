@@ -169,12 +169,8 @@ async fn perform_startup_sequence(comms: &mut DeviceComms) -> Result<()> {
         .await?;
 
     info!("--- Initial Info Dump ---");
-    comms
-        .transact_and_discard(CommandType::GetData, Attribute::PdPacket, None)
-        .await?;
-    comms
-        .transact_and_discard(CommandType::GetData, Attribute::Unknown(0x0400), None)
-        .await?;
+    comms.transact_and_discard(CommandType::GetData, Attribute::GetDeviceInfo, None).await?;
+    comms.transact_and_discard(CommandType::GetData, Attribute::Unknown(0x0400), None).await?;
 
     info!("--- Stopping Stream for Clean State ---");
     comms

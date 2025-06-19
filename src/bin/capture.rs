@@ -14,7 +14,7 @@ use tracing::{debug, error, info, warn};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-use km003c_rs::protocol::{Direction, Packet};
+use km003c_rs::protocol::{Direction, Packet, PdPacket, DeviceInfoBlock};
 
 /// A struct to hold a parsed packet along with its tshark frame number.
 #[derive(Debug, Clone)]
@@ -306,22 +306,48 @@ fn cleanup_transactions(transactions: &mut HashMap<u8, Transaction>) {
 }
 
 fn print_transaction(id: &u8, t: &Transaction) {
+    // Print the request as before
     if let Some(req) = &t.request {
-        // Use a more compact format for the request line
-        info!(
-            "ID: {:<3} | Request  (F:{:<4}) | {:?}",
-            id, req.frame_num, req.packet
-        );
+        info!("ID: {:<3} | Request  (F:{:<4}) | {:?}", id, req.frame_num, req.packet);
     } else {
         warn!("ID: {:<3} | Orphaned Response(s)", id);
     }
 
     if !t.responses.is_empty() {
         for res in &t.responses {
-            info!(
-                "       | Response (F:{:<4}) | {:?}",
-                res.frame_num, res.packet
-            );
+            // Get the attribute from the original request to give context to the response.
+            let request_attribute = t.request.as_ref()
+                .and_then(|req| get_packet_header(&req.packet))
+                .map(|h| h.attribute);
+
+            // --- NEW CONTEXT-AWARE PARSING LOGIC ---
+            let mut handled = false;
+            if let Packet::GenericResponse { payload, .. } = &res.packet {
+                match request_attribute {
+                    // If the request was to get device info...
+                    Some(km003c_rs::protocol::Attribute::GetDeviceInfo) => {
+                        if let Ok(info) = DeviceInfoBlock::try_from(payload.clone()) {
+                            info!("       | Response (F:{:<4}) | DeviceInfo({:?})", res.frame_num, info);
+                            handled = true;
+                        }
+                    }
+                    // If the request was to poll for PD events or status...
+                    Some(km003c_rs::protocol::Attribute::PollPdEvents) 
+                    | Some(km003c_rs::protocol::Attribute::PdStatus) => {
+                        if let Ok(pd_packet) = PdPacket::try_from(payload.clone()) {
+                            info!("       | Response (F:{:<4}) | PowerDelivery({:?})", res.frame_num, pd_packet);
+                            handled = true;
+                        }
+                    }
+                    // Add more context-aware cases here in the future
+                    _ => {}
+                }
+            }
+
+            // If the packet wasn't handled by a special case, print its generic form.
+            if !handled {
+                info!("       | Response (F:{:<4}) | {:?}", res.frame_num, res.packet);
+            }
         }
     } else if t.request.is_some() {
         info!("       | Response (---)          | No response received (timed out).");
