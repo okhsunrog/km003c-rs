@@ -122,6 +122,7 @@ async fn run_capture(device_address: u8, interface: String) -> Result<()> {
     println!("--------------------------------------------------------------------------------");
 
     let mut transactions: HashMap<u8, Transaction> = HashMap::new();
+    let mut last_transaction_id: Option<u8> = None; // <-- NEW: Track the last ID seen
 
     let display_filter = format!(
         "usb.device_address == {} && usb.transfer_type == 0x03 && usb.capdata",
@@ -138,7 +139,8 @@ async fn run_capture(device_address: u8, interface: String) -> Result<()> {
 
     while let Ok(packet_option) = rtshark.read() {
         if let Some(p) = packet_option {
-            process_rtshark_packet(p, &mut transactions);
+            // Pass the mutable Option to the processor
+            process_rtshark_packet(p, &mut transactions, &mut last_transaction_id);
         } else {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
@@ -150,7 +152,6 @@ async fn run_capture(device_address: u8, interface: String) -> Result<()> {
     }
 
     info!("tshark stream finished. Printing remaining transactions...");
-    // One final cleanup to print everything left.
     transactions.retain(|id, t| {
         print_transaction(id, t);
         false
@@ -160,36 +161,36 @@ async fn run_capture(device_address: u8, interface: String) -> Result<()> {
     Ok(())
 }
 
-fn process_rtshark_packet(packet: RtSharkPacket, transactions: &mut HashMap<u8, Transaction>) {
+// In capture.rs
+
+fn process_rtshark_packet(
+    packet: RtSharkPacket,
+    transactions: &mut HashMap<u8, Transaction>,
+    last_transaction_id: &mut Option<u8>, // Now mutable to update it
+) {
+    // 1. Extract raw data from the tshark packet
     let frame_num = packet
         .layer_name("frame")
         .and_then(|f| f.metadata("frame.number"))
         .and_then(|n| n.value().parse().ok())
         .unwrap_or(0);
 
-    let Some(usb_layer) = packet.layer_name("usb") else {
-        return;
-    };
+    let Some(usb_layer) = packet.layer_name("usb") else { return };
 
-    let direction_str = usb_layer
-        .metadata("usb.endpoint_address.direction")
-        .map(|d| d.value());
-    let direction = match direction_str.as_deref() {
+    let direction = match usb_layer.metadata("usb.endpoint_address.direction").map(|d| d.value()).as_deref() {
         Some("0") => Direction::HostToDevice,
         Some("1") => Direction::DeviceToHost,
         _ => return,
     };
 
-    let Some(payload_hex) = usb_layer.metadata("usb.capdata").map(|p| p.value()) else {
-        return;
-    };
+    let Some(payload_hex) = usb_layer.metadata("usb.capdata").map(|p| p.value()) else { return };
 
     let Ok(data) = hex::decode(payload_hex.replace(':', "")) else {
         error!(frame = frame_num, "Failed to decode hex payload");
         return;
     };
 
-    // --- NEW: Log raw data at DEBUG level ---
+    // 2. Log the raw bytes at DEBUG level (for -v flag)
     debug!(
         frame = frame_num,
         len = data.len(),
@@ -198,6 +199,7 @@ fn process_rtshark_packet(packet: RtSharkPacket, transactions: &mut HashMap<u8, 
         "Raw captured packet"
     );
 
+    // 3. Parse the raw bytes into our high-level `Packet` enum
     let bytes = Bytes::from(data);
     let parsed_packet = Packet::from_bytes(bytes, direction);
 
@@ -206,41 +208,58 @@ fn process_rtshark_packet(packet: RtSharkPacket, transactions: &mut HashMap<u8, 
         packet: parsed_packet,
     };
 
-    match &captured.packet {
-        Packet::Command(header, _) => {
-            let transaction = transactions.entry(header.transaction_id).or_default();
+    // 4. Determine how to handle the packet based on whether it has a header
+    if let Some(header) = get_packet_header(&captured.packet) {
+        // --- CASE A: The packet HAS a header ---
+        // This is the easy case. We use the header's ID to find the transaction.
+        let id = header.transaction_id;
+        let transaction = transactions.entry(id).or_default();
+
+        if direction == Direction::HostToDevice {
             if transaction.request.is_some() {
-                warn!(
-                    id = header.transaction_id,
-                    "Received new request for a pending transaction. Overwriting."
-                );
+                warn!(id, "Received a new request for a pending transaction. Overwriting.");
             }
             transaction.request = Some(captured);
-            transaction.last_updated = Instant::now();
-        }
-        Packet::Acknowledge { header, .. } | Packet::GenericResponse { header, .. } => {
-            let transaction = transactions.entry(header.transaction_id).or_default();
+        } else {
             transaction.responses.push(captured);
-            transaction.last_updated = Instant::now();
         }
-        Packet::SensorData(_) | Packet::DeviceInfo(_) => {
-            if let Some(header) = get_packet_header(&captured.packet) {
-                let transaction = transactions.entry(header.transaction_id).or_default();
-                transaction.responses.push(captured);
-                transaction.last_updated = Instant::now();
-            } else {
+        transaction.last_updated = Instant::now();
+
+        // IMPORTANT: We remember this ID as the most recently seen one.
+        *last_transaction_id = Some(id);
+
+    } else {
+        // --- CASE B: The packet does NOT have a header ---
+        // This applies to unsolicited streams and header-less continuation packets.
+        match captured.packet {
+            Packet::DataChunk(_) => {
+                // It's a DataChunk. Let's try to associate it with the last known transaction.
+                // This is the key for grouping multi-part handshake responses.
+                if let Some(id) = last_transaction_id {
+                    if let Some(transaction) = transactions.get_mut(id) {
+                        transaction.responses.push(captured);
+                        transaction.last_updated = Instant::now();
+                        // Early return since we've handled it.
+                        return;
+                    }
+                }
+                // If we couldn't associate it, it's truly an orphan.
+                // Fall through to print it as an unsolicited packet.
                 print_unsolicited_packet(captured);
             }
-        }
-        Packet::DataChunk(_) => {
-            // This is a header-less data chunk, like the second part of a handshake.
-            // For now, we print it immediately. In the future, we could try to
-            // associate it with the most recent transaction.
-            print_unsolicited_packet(captured);
-        }
-        Packet::Unknown { .. } => {
-            // Log the parsed (but unknown) packet at WARN level
-            warn!("Failed to parse packet: {:?}", captured.packet);
+            Packet::SensorData(_) => {
+                // SensorData packets from the stream have no header and are always unsolicited.
+                print_unsolicited_packet(captured);
+            }
+            Packet::Unknown { .. } => {
+                // A truly unknown packet format.
+                warn!("Failed to parse packet: {:?}", captured.packet);
+            }
+            // Other cases without headers (like Command, Acknowledge) are not logically
+            // possible due to the parser's design, but we can handle them defensively.
+            _ => {
+                warn!("Unhandled header-less packet: {:?}", captured.packet);
+            }
         }
     }
 }
