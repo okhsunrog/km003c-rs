@@ -191,7 +191,19 @@ impl KM003C {
         ))
     }
 
-    /// A generic transaction that expects the response ID to match the request ID.
+    /// A convenient wrapper for fire-and-forget commands.
+    async fn transact_and_discard(
+        &mut self,
+        cmd: CommandType,
+        attr: Attribute,
+        payload: Option<&[u8]>,
+    ) -> Result<(), Error> {
+        self.transact(cmd, attr, payload).await?;
+        Ok(())
+    }
+
+    /// The single, definitive transaction function.
+    /// It sends a command and greedily reads all responses until a short pause.
     async fn transact(
         &mut self,
         cmd: CommandType,
@@ -201,89 +213,76 @@ impl KM003C {
         let id = self.next_id();
         let command_bytes = Self::build_command_bytes(id, cmd, attr, payload);
         self.send_bytes(command_bytes).await?;
-        self.read_all_responses(cmd, id).await
-    }
 
-    /// A convenient wrapper for fire-and-forget commands during startup.
-    async fn transact_and_discard(
-        &mut self,
-        cmd: CommandType,
-        attr: Attribute,
-        payload: Option<&[u8]>,
-    ) -> Result<(), Error> {
-        // Handle the one special case command with the weird response ID
-        if cmd == CommandType::CommandWithPayload && attr == Attribute::Unknown(0x0200) {
-            let send_id = self.next_id();
-            let command_bytes = Self::build_command_bytes(send_id, cmd, attr, payload);
-            self.send_bytes(command_bytes).await?;
-            // We expect a response with ID 0, and we don't care about its contents.
-            self.read_all_responses(cmd, 0).await?;
-        } else {
-            self.transact(cmd, attr, payload).await?;
-        }
-        Ok(())
-    }
-
-    /// The core response-reading logic. Greedily reads all packets for a transaction.
-    async fn read_all_responses(
-        &self,
-        cmd: CommandType,
-        expected_id: u8,
-    ) -> Result<Vec<Packet>, Error> {
         let mut responses = Vec::new();
 
         // 1. Wait for the first packet with a standard timeout.
-        match self
+        let first_packet = match self
             .read_packet_with_timeout(Duration::from_millis(250))
             .await
         {
-            Ok(p) => responses.push(p),
+            Ok(p) => p,
             Err(e) => {
-                return Err(Error::Protocol(format!(
-                    "Timeout waiting for initial response to {:?}: {}",
-                    cmd, e
-                )));
+                // Check if the error is from a timeout
+                if e.to_string().contains("deadline has elapsed") {
+                    return Err(Error::Protocol(format!(
+                        "Timeout waiting for initial response to {:?}",
+                        cmd
+                    )));
+                }
+                return Err(e);
             }
         };
+        responses.push(first_packet);
 
-        // 2. Greedily read any subsequent packets with a short timeout.
+        // 2. Greedily read subsequent packets with a short timeout.
         loop {
             match self
                 .read_packet_with_timeout(Duration::from_millis(50))
                 .await
             {
                 Ok(packet) => responses.push(packet),
-                Err(_) => break, // A timeout here is the normal and expected end of a transaction.
+                // A timeout here is the normal and expected end of a transaction.
+                Err(_) => break,
             }
         }
 
-        // 3. Filter the collected responses for relevance.
+        // 3. Filter the collected responses for relevance. This is the critical logic fix.
+        let expected_id =
+            if cmd == CommandType::CommandWithPayload && attr == Attribute::Unknown(0x0200) {
+                0
+            } else {
+                id
+            };
+
         let relevant_responses: Vec<Packet> = responses
             .into_iter()
             .filter(|p| {
-                let get_id = |h: &crate::protocol::CommandHeader| h.transaction_id;
-
-                let is_id_match = match p {
+                match p {
+                    // These packets have a header we can check
                     Packet::Acknowledge { header, .. } | Packet::GenericResponse { header, .. } => {
-                        get_id(header) == expected_id
+                        header.transaction_id == expected_id
                     }
+                    // SensorData packets can be part of a response, check their internal ID
                     Packet::SensorData(sd) => sd.header.to_le_bytes().get(1) == Some(&expected_id),
+                    // DataChunks are always considered relevant if they appear in the response burst.
+                    Packet::DataChunk(_) => true,
+                    // Anything else is not relevant.
                     _ => false,
-                };
-
-                matches!(p, Packet::DataChunk(_)) || is_id_match
+                }
             })
             .collect();
 
         if relevant_responses.is_empty() {
             warn!(
-                "Transaction for {:?} (expected ID {}) completed but no relevant response packets were found.",
-                cmd, expected_id
+                "Transaction for {:?} (sent ID {}, expected ID {}) completed but no relevant response packets were found.",
+                cmd, id, expected_id
             );
         } else {
             info!(
-                "Transaction for {:?} (expected ID {}) complete, received {} relevant response packet(s)",
+                "Transaction for {:?} (sent ID {}, expected ID {}) complete, received {} relevant response packet(s)",
                 cmd,
+                id,
                 expected_id,
                 relevant_responses.len()
             );
