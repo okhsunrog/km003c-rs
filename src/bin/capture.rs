@@ -201,42 +201,86 @@ fn run_capture(cli: Cli) -> Result<()> {
     Ok(())
 }
 
+
 fn process_rtshark_packet(
     packet: RtSharkPacket,
     transactions: &mut HashMap<u8, Transaction>,
     last_transaction_id: &mut Option<u8>,
 ) {
-    let frame_num = packet.layer_name("frame").and_then(|f| f.metadata("frame.number")).and_then(|n| n.value().parse().ok()).unwrap_or(0);
-    let Some(usb_layer) = packet.layer_name("usb") else { return };
-    let direction = match usb_layer.metadata("usb.endpoint_address.direction").map(|d| d.value()).as_deref() {
+    // 1. Extract raw data from the tshark packet (no changes here)
+    let frame_num = packet
+        .layer_name("frame")
+        .and_then(|f| f.metadata("frame.number"))
+        .and_then(|n| n.value().parse().ok())
+        .unwrap_or(0);
+
+    let Some(usb_layer) = packet.layer_name("usb") else {
+        return;
+    };
+
+    let direction = match usb_layer
+        .metadata("usb.endpoint_address.direction")
+        .map(|d| d.value())
+        .as_deref()
+    {
         Some("0") => Direction::HostToDevice,
         Some("1") => Direction::DeviceToHost,
         _ => return,
     };
-    let Some(payload_hex) = usb_layer.metadata("usb.capdata").map(|p| p.value()) else { return };
+
+    let Some(payload_hex) = usb_layer.metadata("usb.capdata").map(|p| p.value()) else {
+        return;
+    };
+
     let Ok(data) = hex::decode(payload_hex.replace(':', "")) else {
         error!(frame = frame_num, "Failed to decode hex payload");
         return;
     };
     
     debug!(frame = frame_num, len = data.len(), hex = hex::encode(&data), ?direction, "Raw captured packet");
-    
+
     let bytes = Bytes::from(data);
     let parsed_packet = Packet::from_bytes(bytes, direction);
-    let captured = CapturedPacket { frame_num, packet: parsed_packet.clone() };
 
+    let captured = CapturedPacket {
+        frame_num,
+        packet: parsed_packet,
+    };
+
+    // 4. Determine how to handle the packet
     if let Some(header) = get_packet_header(&captured.packet) {
-        let id = header.transaction_id;
-        let transaction = transactions.entry(id).or_default();
+        // --- FIX: Get the ID and then drop the borrow ---
+        let original_id = header.transaction_id;
+        let mut id_to_use = original_id;
+
+        if original_id == 0 {
+             if let Some(req_packet) = transactions.get(&6).and_then(|t| t.request.as_ref()) {
+                 if let Packet::Command(req_header, _) = req_packet.packet {
+                     if req_header.attribute == km003c_rs::protocol::Attribute::SetDataRecorderMode {
+                         id_to_use = 6;
+                     }
+                 }
+             }
+        }
+        // By this point, `header` is no longer needed, and its borrow of `captured` ends.
+
+        // Now we can freely move `captured`.
+        let transaction = transactions.entry(id_to_use).or_default();
         if direction == Direction::HostToDevice {
-            if transaction.request.is_some() { warn!(id, "Received new request for a pending transaction. Overwriting."); }
+            if transaction.request.is_some() {
+                warn!(id = id_to_use, "Received a new request for a pending transaction. Overwriting.");
+            }
             transaction.request = Some(captured);
         } else {
             transaction.responses.push(captured);
         }
         transaction.last_updated = Instant::now();
-        *last_transaction_id = Some(id);
+        
+        // We use the *original* ID from the packet to update the last seen ID.
+        *last_transaction_id = Some(original_id);
+
     } else {
+        // Handle header-less packets (no changes here)
         match captured.packet {
             Packet::DataChunk(_) => {
                 if let Some(id) = last_transaction_id {
@@ -248,12 +292,19 @@ fn process_rtshark_packet(
                 }
                 print_unsolicited_packet(captured);
             }
-            Packet::SensorData(_) => print_unsolicited_packet(captured),
-            Packet::Unknown { .. } => warn!("Failed to parse packet: {:?}", captured.packet),
-            _ => warn!("Unhandled header-less packet: {:?}", captured.packet),
+            Packet::SensorData(_) => {
+                print_unsolicited_packet(captured);
+            }
+            Packet::Unknown { .. } => {
+                warn!("Failed to parse packet: {:?}", captured.packet);
+            }
+            _ => {
+                warn!("Unhandled header-less packet: {:?}", captured.packet);
+            }
         }
     }
 }
+
 
 fn get_packet_header(p: &Packet) -> Option<&CommandHeader> {
     match p {
@@ -280,6 +331,8 @@ fn cleanup_transactions(transactions: &mut HashMap<u8, Transaction>) {
     });
 }
 
+// In src/bin/capture.rs
+
 fn print_transaction(id: &u8, t: &Transaction) {
     if let Some(req) = &t.request {
         info!("ID: {:<3} | Request  (F:{:<4}) | {:?}", id, req.frame_num, req.packet);
@@ -289,13 +342,19 @@ fn print_transaction(id: &u8, t: &Transaction) {
 
     if !t.responses.is_empty() {
         for res in &t.responses {
-            let request_attribute = t.request.as_ref().and_then(|req| get_packet_header(&req.packet)).map(|h| h.attribute);
+            let request_attribute = t
+                .request
+                .as_ref()
+                .and_then(|req| get_packet_header(&req.packet))
+                .map(|h| h.attribute);
+
             let mut handled = false;
             if let Packet::GenericResponse { payload, .. } = &res.packet {
                 match request_attribute {
                     Some(km003c_rs::protocol::Attribute::GetDeviceInfo) => {
                         if let Ok(info) = DeviceInfoBlock::try_from(payload.clone()) {
-                            info!("       | Response (F:{:<4}) | DeviceInfo({:?})", res.frame_num, info);
+                            info!("       | Response (F:{:<4}) | DeviceInfo", res.frame_num);
+                            debug!("       | Details: {:?}", info); // Keep details at debug level
                             handled = true;
                         }
                     }
@@ -308,15 +367,30 @@ fn print_transaction(id: &u8, t: &Transaction) {
                     _ => {}
                 }
             }
+
             if !handled {
                 info!("       | Response (F:{:<4}) | {:?}", res.frame_num, res.packet);
             }
         }
-    } else if t.request.is_some() {
-        info!("       | Response (---)          | No response received (timed out).");
+    } else if let Some(req) = &t.request {
+        // --- FIX for AdcQueue commands ---
+        let is_stream_command = if let Packet::Command(header, _) = &req.packet {
+            header.attribute == km003c_rs::protocol::Attribute::AdcQueue
+        } else {
+            false
+        };
+
+        if is_stream_command {
+            info!("       | Response (---)          | (Starts unsolicited data stream)");
+        } else {
+            info!("       | Response (---)          | No response received (timed out).");
+        }
+        // --- END FIX ---
     }
     println!("--------------------------------------------------------------------------------");
 }
+
+
 
 fn print_unsolicited_packet(captured: CapturedPacket) {
     info!("Stream Packet (F:{:<4})   | {:?}", captured.frame_num, captured.packet);

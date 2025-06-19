@@ -12,3 +12,11 @@ tshark -r test5_1_pd_mode_switch.pcapng -Y "usb.bus_id == 3 && usb.device_addres
 - Turn into workspace, create `km003c-lib`, `km003c-cli`, `km003-egui`, `km003c-tauri` crates.
 - Verify and fix auto-finding serial port by vid and pid.
 - Add crate for parsing usbpd messages.
+
+
+tshark -r <your_capture_file.pcapng> -T json -Y "usb.transfer_type == 0x03" > output.json
+tshark -r <your_capture_file.pcapng> -V -Y "usb.transfer_type == 0x03" > output.txt
+tshark -r <your_capture_file.pcapng> -T fields -E separator=, -E quote=d \
+  -f "usb.transfer_type == 0x03" \
+  -e frame.number -e usb.endpoint_address.direction -e usb.capdata \
+  > output.csv
