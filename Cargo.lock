@@ -331,6 +331,7 @@ dependencies = [
  "futures-lite",
  "hex",
  "nusb",
+ "regex",
  "rtshark",
  "thiserror 2.0.12",
  "tokio",

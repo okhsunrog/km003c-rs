@@ -12,6 +12,7 @@ clap-verbosity-flag = { version = "3.0.3", default-features = false, features = 
 futures-lite = "2.6.0"
 hex = "0.4.3"
 nusb = "0.1.14"
+regex = "1.11.1"
 rtshark = "3.2.0"
 thiserror = "2.0.12"
 tokio = { version = "1.45", features = ["full"] }

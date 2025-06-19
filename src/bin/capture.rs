@@ -8,23 +8,21 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::path::PathBuf;
 use std::process;
+use std::thread;
 use std::time::{Duration, Instant};
-use tokio;
 
 use clap_verbosity_flag::{InfoLevel, Verbosity};
-use km003c_rs::protocol::{CommandHeader, DeviceInfoBlock, Direction, Packet, PdPacket}; // Your existing imports
+use km003c_rs::protocol::{CommandHeader, DeviceInfoBlock, Direction, Packet, PdPacket};
 use tracing::{debug, error, info, warn};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-/// A struct to hold a parsed packet along with its tshark frame number.
 #[derive(Debug, Clone)]
 struct CapturedPacket {
     frame_num: u32,
     packet: Packet,
 }
 
-/// A struct to represent a single logical transaction (request + response(s)).
 #[derive(Debug)]
 struct Transaction {
     request: Option<CapturedPacket>,
@@ -45,24 +43,14 @@ impl Default for Transaction {
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    /// The USB device address to monitor.
     #[arg(short, long)]
-    device_address: u8,
-
-    // --- CORRECTED: Use `group(required = true)` ---
-    /// Live capture mode: The usbmon interface (e.g., 'usbmon0').
+    device_address: Option<u8>,
     #[arg(short, long, group = "input_mode")]
     interface: Option<String>,
-
-    /// File mode: Path to a .pcap or .pcapng file to read from.
     #[arg(short, long, group = "input_mode", conflicts_with = "interface")]
     file: Option<PathBuf>,
-    // --- END CORRECTION ---
-
-    /// Optional path to a file to write logs to, in addition to the console.
     #[arg(short, long)]
     log_file: Option<PathBuf>,
-    
     #[command(flatten)]
     verbose: Verbosity<InfoLevel>,
 }
@@ -108,32 +96,54 @@ fn setup_logging(
     Ok(guard)
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let cli = Cli::parse();
+fn main() -> Result<()> {
+    let mut cli = Cli::parse();
     let _guard = setup_logging(cli.log_file.clone(), &cli.verbose)?;
 
-    if let Err(e) = run_capture(cli).await {
-        error!("Capture failed: {:?}", e);
+    if cli.device_address.is_none() {
+        if let Some(ref file_path) = cli.file {
+            let filename = file_path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+            if let Some(captures) = regex::Regex::new(r"\.(\d+)\.pcapn?g$")?.captures(filename) {
+                if let Some(id_match) = captures.get(1) {
+                    if let Ok(id) = id_match.as_str().parse::<u8>() {
+                        info!(id, "Inferred device address from filename");
+                        cli.device_address = Some(id);
+                    }
+                }
+            }
+        }
+    }
+
+    if cli.device_address.is_none() {
+        error!("Device address is required. Provide it with -d/--device-address or name the input file like 'capture.<id>.pcapng'");
+        process::exit(1);
+    }
+
+    if cli.file.is_none() && cli.interface.is_none() {
+        error!("Input source is required. Provide either a file (-f) or an interface (-i).");
+        process::exit(1);
+    }
+
+    if let Err(e) = run_capture(cli) {
+        error!("Capture failed: {}", e);
         process::exit(1);
     }
 
     Ok(())
 }
 
-async fn run_capture(cli: Cli) -> Result<()> {
+fn run_capture(cli: Cli) -> Result<()> {
+    let device_address = cli.device_address.unwrap();
     let mut builder = RTSharkBuilder::builder();
 
-    // --- NEW: Logic to handle either file or live input ---
     let is_live_capture;
     let builder_ready = if let Some(ref file_path) = cli.file {
-        info!(file = %file_path.display(), "Reading from capture file...");
+        info!(file = %file_path.display(), device_address, "Reading from capture file...");
         is_live_capture = false;
         builder.input_path(file_path.to_str().expect("File path is not valid UTF-8"))
     } else {
-        // This unwrap is safe because clap ensures one of the group is present.
         let interface_name = cli.interface.as_deref().unwrap();
-        info!(interface = %interface_name, "Starting tshark live capture...");
+        info!(interface = %interface_name, device_address, "Starting tshark live capture...");
         is_live_capture = true;
         builder.input_path(interface_name).live_capture()
     };
@@ -145,33 +155,38 @@ async fn run_capture(cli: Cli) -> Result<()> {
 
     let display_filter = format!(
         "usb.device_address == {} && usb.transfer_type == 0x03 && usb.capdata",
-        cli.device_address
+        device_address
     );
 
     let mut rtshark = builder_ready.display_filter(&display_filter).spawn()?;
     
     let mut last_cleanup = Instant::now();
 
-    // Use the simple, synchronous-style loop
-    while let Ok(packet_option) = rtshark.read() {
-        if let Some(p) = packet_option {
-            process_rtshark_packet(p, &mut transactions, &mut last_transaction_id);
-        } else {
-            // If reading from file, None means EOF, so we break.
-            if !is_live_capture {
+    loop {
+        match rtshark.read() {
+            Ok(Some(p)) => {
+                process_rtshark_packet(p, &mut transactions, &mut last_transaction_id);
+            }
+            Ok(None) => {
+                // In file mode, None is EOF.
+                if !is_live_capture {
+                    break;
+                }
+                // In live mode, just pause briefly before trying again.
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(e) => {
+                warn!("Error reading packet from tshark: {}", e);
                 break;
             }
-            // In live mode, we just wait for more packets.
-            tokio::time::sleep(Duration::from_millis(10)).await;
         }
 
-        // Only run the timeout-based cleanup in live mode
         if is_live_capture && last_cleanup.elapsed() > Duration::from_secs(1) {
             cleanup_transactions(&mut transactions);
             last_cleanup = Instant::now();
         }
     }
-
+    
     info!("tshark stream finished. Printing remaining transactions...");
     let mut sorted_keys: Vec<_> = transactions.keys().cloned().collect();
     sorted_keys.sort();
@@ -185,9 +200,6 @@ async fn run_capture(cli: Cli) -> Result<()> {
 
     Ok(())
 }
-
-// All of the following functions are UNCHANGED from your working version.
-// They correctly handle the known protocol state.
 
 fn process_rtshark_packet(
     packet: RtSharkPacket,
@@ -289,7 +301,7 @@ fn print_transaction(id: &u8, t: &Transaction) {
                     }
                     Some(km003c_rs::protocol::Attribute::PdStatus) => {
                         if let Ok(pd_packet) = PdPacket::try_from(payload.clone()) {
-                            info!("       | Response (F:{:<4}) | PowerDelivery({:?})", res.frame_num, pd_packet);
+                            info!("       | Response (F:{:<4}) | PdPacket({:?})", res.frame_num, pd_packet);
                             handled = true;
                         }
                     }
