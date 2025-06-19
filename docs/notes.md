@@ -61,3 +61,5 @@ functions to take a look at:
 	- ah, look like in desktop software the virtual serial port is used only for protocol trigger?
 	- yes, they have like a separate app that connects to that vcomm, and the interface is cursed
 
+Need to create a good and clean protocol.md
+Need to write tests for protocol that will interact with the device
