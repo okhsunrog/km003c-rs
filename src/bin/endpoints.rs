@@ -8,7 +8,9 @@ const KM003C_PID: u16 = 0x0063;
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
 
     info!(
         "Searching for POWER-Z KM003C (VID: {:#06x}, PID: {:#06x})...",
