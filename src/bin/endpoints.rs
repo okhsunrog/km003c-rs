@@ -8,9 +8,7 @@ const KM003C_PID: u16 = 0x0063;
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
 
     info!(
         "Searching for POWER-Z KM003C (VID: {:#06x}, PID: {:#06x})...",
@@ -44,10 +42,7 @@ async fn main() {
                 info!("  Speed: {:?}", device_info.speed());
 
                 let interfaces_vec: Vec<_> = device_info.interfaces().cloned().collect();
-                info!(
-                    "  Interfaces reported by DeviceInfo (summary): {:?}",
-                    interfaces_vec
-                );
+                info!("  Interfaces reported by DeviceInfo (summary): {:?}", interfaces_vec);
 
                 match device_info.open() {
                     Ok(device_handle) => {
@@ -76,26 +71,11 @@ async fn main() {
                                     info!("    -----------------------------------");
                                     // Iterate over InterfaceAltSettings within this group
                                     for setting_desc in interface_group.alt_settings() {
-                                        info!(
-                                            "      Interface Number: {}",
-                                            setting_desc.interface_number()
-                                        );
-                                        info!(
-                                            "      Alternate Setting: {}",
-                                            setting_desc.alternate_setting()
-                                        );
-                                        info!(
-                                            "        Interface Class: {:#04x}",
-                                            setting_desc.class()
-                                        );
-                                        info!(
-                                            "        Interface SubClass: {:#04x}",
-                                            setting_desc.subclass()
-                                        );
-                                        info!(
-                                            "        Interface Protocol: {:#04x}",
-                                            setting_desc.protocol()
-                                        );
+                                        info!("      Interface Number: {}", setting_desc.interface_number());
+                                        info!("      Alternate Setting: {}", setting_desc.alternate_setting());
+                                        info!("        Interface Class: {:#04x}", setting_desc.class());
+                                        info!("        Interface SubClass: {:#04x}", setting_desc.subclass());
+                                        info!("        Interface Protocol: {:#04x}", setting_desc.protocol());
                                         // Corrected method name: string_index
                                         if let Some(if_string_idx) = setting_desc.string_index() {
                                             // Fetching the string descriptor:
@@ -106,10 +86,7 @@ async fn main() {
                                             //     Ok(s) => info!("        Interface String: {}", s),
                                             //     Err(_) => info!("        Interface String Index: {} (fetch failed or no string for lang)", if_string_idx),
                                             // }
-                                            info!(
-                                                "        Interface String Index: {}",
-                                                if_string_idx
-                                            );
+                                            info!("        Interface String Index: {}", if_string_idx);
                                         } else {
                                             info!("        Interface String Index: None");
                                         }
@@ -121,16 +98,14 @@ async fn main() {
                                         for endpoint_desc in setting_desc.endpoints() {
                                             let ep_addr = endpoint_desc.address();
                                             // Corrected direction check: Bit 7 (0x80) for IN
-                                            let direction =
-                                                if (ep_addr & 0x80) != 0 { "IN" } else { "OUT" };
+                                            let direction = if (ep_addr & 0x80) != 0 { "IN" } else { "OUT" };
                                             // Corrected transfer type matching
-                                            let transfer_type_str =
-                                                match endpoint_desc.transfer_type() {
-                                                    EndpointType::Control => "Control",
-                                                    EndpointType::Isochronous => "Isochronous",
-                                                    EndpointType::Bulk => "Bulk",
-                                                    EndpointType::Interrupt => "Interrupt",
-                                                };
+                                            let transfer_type_str = match endpoint_desc.transfer_type() {
+                                                EndpointType::Control => "Control",
+                                                EndpointType::Isochronous => "Isochronous",
+                                                EndpointType::Bulk => "Bulk",
+                                                EndpointType::Interrupt => "Interrupt",
+                                            };
                                             info!(
                                                 // Corrected address: just ep_addr, or ep_addr & 0x7F for number only
                                                 "          Endpoint Address: {:#04x} (Number: {:#04x}, Direction: {})",
@@ -138,18 +113,9 @@ async fn main() {
                                                 ep_addr & 0x7F, // Mask direction bit to get number
                                                 direction
                                             );
-                                            info!(
-                                                "            Transfer Type: {}",
-                                                transfer_type_str
-                                            );
-                                            info!(
-                                                "            Max Packet Size: {}",
-                                                endpoint_desc.max_packet_size()
-                                            );
-                                            info!(
-                                                "            Interval: {}",
-                                                endpoint_desc.interval()
-                                            );
+                                            info!("            Transfer Type: {}", transfer_type_str);
+                                            info!("            Max Packet Size: {}", endpoint_desc.max_packet_size());
+                                            info!("            Interval: {}", endpoint_desc.interval());
                                         }
                                     }
                                 }

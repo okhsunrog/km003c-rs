@@ -1,9 +1,7 @@
 // src/device.rs
 
 use crate::error::Error;
-use crate::protocol::{
-    Attribute, CommandType, Direction, ENDPOINT_IN, ENDPOINT_OUT, PID, Packet, VID,
-};
+use crate::protocol::{Attribute, CommandType, Direction, ENDPOINT_IN, ENDPOINT_OUT, PID, Packet, VID};
 use bytes::{Bytes, BytesMut};
 use nusb::{Interface, transfer::RequestBuffer};
 use std::time::Duration;
@@ -11,24 +9,24 @@ use tracing::{debug, info, warn};
 
 // Payloads are an implementation detail of the device logic, so they live here.
 const AUTH_PAYLOAD_1: &[u8] = &[
-    0x33, 0xf8, 0x86, 0x0c, 0x00, 0x54, 0x28, 0x8c, 0xdc, 0x7e, 0x52, 0x72, 0x98, 0x26, 0x87, 0x2d,
-    0xd1, 0x8b, 0x53, 0x9a, 0x39, 0xc4, 0x07, 0xd5, 0xc0, 0x63, 0xd9, 0x11, 0x02, 0xe3, 0x6a, 0x9e,
+    0x33, 0xf8, 0x86, 0x0c, 0x00, 0x54, 0x28, 0x8c, 0xdc, 0x7e, 0x52, 0x72, 0x98, 0x26, 0x87, 0x2d, 0xd1, 0x8b, 0x53,
+    0x9a, 0x39, 0xc4, 0x07, 0xd5, 0xc0, 0x63, 0xd9, 0x11, 0x02, 0xe3, 0x6a, 0x9e,
 ];
 const AUTH_PAYLOAD_2: &[u8] = &[
-    0x63, 0x6b, 0xea, 0xf3, 0xf0, 0x85, 0x65, 0x06, 0xee, 0xe9, 0xa2, 0x7e, 0x89, 0x72, 0x2d, 0xcf,
-    0xd1, 0x8b, 0x53, 0x9a, 0x39, 0xc4, 0x07, 0xd5, 0xc0, 0x63, 0xd9, 0x11, 0x02, 0xe3, 0x6a, 0x9e,
+    0x63, 0x6b, 0xea, 0xf3, 0xf0, 0x85, 0x65, 0x06, 0xee, 0xe9, 0xa2, 0x7e, 0x89, 0x72, 0x2d, 0xcf, 0xd1, 0x8b, 0x53,
+    0x9a, 0x39, 0xc4, 0x07, 0xd5, 0xc0, 0x63, 0xd9, 0x11, 0x02, 0xe3, 0x6a, 0x9e,
 ];
 const AUTH_PAYLOAD_3: &[u8] = &[
-    0xc5, 0x11, 0x67, 0xae, 0x61, 0x3a, 0x6d, 0x46, 0xec, 0x84, 0xa6, 0xbd, 0xe8, 0xbd, 0x46, 0x2a,
-    0xd1, 0x8b, 0x53, 0x9a, 0x39, 0xc4, 0x07, 0xd5, 0xc0, 0x63, 0xd9, 0x11, 0x02, 0xe3, 0x6a, 0x9e,
+    0xc5, 0x11, 0x67, 0xae, 0x61, 0x3a, 0x6d, 0x46, 0xec, 0x84, 0xa6, 0xbd, 0xe8, 0xbd, 0x46, 0x2a, 0xd1, 0x8b, 0x53,
+    0x9a, 0x39, 0xc4, 0x07, 0xd5, 0xc0, 0x63, 0xd9, 0x11, 0x02, 0xe3, 0x6a, 0x9e,
 ];
 const AUTH_PAYLOAD_4: &[u8] = &[
-    0x9c, 0x40, 0x9d, 0xeb, 0xc8, 0xdf, 0x53, 0xb8, 0x3b, 0x06, 0x6c, 0x31, 0x52, 0x50, 0xd0, 0x5c,
-    0xd1, 0x8b, 0x53, 0x9a, 0x39, 0xc4, 0x07, 0xd5, 0xc0, 0x63, 0xd9, 0x11, 0x02, 0xe3, 0x6a, 0x9e,
+    0x9c, 0x40, 0x9d, 0xeb, 0xc8, 0xdf, 0x53, 0xb8, 0x3b, 0x06, 0x6c, 0x31, 0x52, 0x50, 0xd0, 0x5c, 0xd1, 0x8b, 0x53,
+    0x9a, 0x39, 0xc4, 0x07, 0xd5, 0xc0, 0x63, 0xd9, 0x11, 0x02, 0xe3, 0x6a, 0x9e,
 ];
 const SET_RECORDER_MODE_PAYLOAD: &[u8] = &[
-    0x4b, 0xe3, 0x63, 0x6c, 0x40, 0xbc, 0x10, 0x29, 0x89, 0x50, 0x96, 0xaa, 0xa3, 0xd2, 0x4f, 0xb7,
-    0xf0, 0x9b, 0x3f, 0xfb, 0x91, 0xb6, 0x51, 0xf1, 0x58, 0x2d, 0x0c, 0x27, 0xe4, 0x8d, 0x43, 0xa2,
+    0x4b, 0xe3, 0x63, 0x6c, 0x40, 0xbc, 0x10, 0x29, 0x89, 0x50, 0x96, 0xaa, 0xa3, 0xd2, 0x4f, 0xb7, 0xf0, 0x9b, 0x3f,
+    0xfb, 0x91, 0xb6, 0x51, 0xf1, 0x58, 0x2d, 0x0c, 0x27, 0xe4, 0x8d, 0x43, 0xa2,
 ];
 
 /// Represents a connection to a POWER-Z KM003C device.
@@ -82,7 +80,7 @@ impl KM003C {
         km003c
             .transact_and_discard(
                 CommandType::CommandWithPayload,
-                Attribute::Unknown(0x0200),
+                Attribute::SetDataRecorderMode,
                 Some(SET_RECORDER_MODE_PAYLOAD),
             )
             .await?;
@@ -92,7 +90,7 @@ impl KM003C {
             .transact_and_discard(CommandType::GetData, Attribute::GetDeviceInfo, None)
             .await?;
         km003c
-            .transact_and_discard(CommandType::GetData, Attribute::Unknown(0x0400), None)
+            .transact_and_discard(CommandType::GetData, Attribute::GetStartupInfo, None)
             .await?;
 
         info!("--- Stopping Stream for Clean State ---");
@@ -107,39 +105,21 @@ impl KM003C {
     /// Performs the opaque authentication sequence replayed from the official app.
     async fn authenticate(&mut self) -> Result<(), Error> {
         info!("--- Starting Authentication Replay ---");
-        self.transact_and_discard(
-            CommandType::Authenticate,
-            Attribute::Unknown(0x0101),
-            Some(AUTH_PAYLOAD_1),
-        )
-        .await?;
-        self.transact_and_discard(
-            CommandType::Authenticate,
-            Attribute::Unknown(0x0101),
-            Some(AUTH_PAYLOAD_2),
-        )
-        .await?;
-        self.transact_and_discard(
-            CommandType::Authenticate,
-            Attribute::Unknown(0x0101),
-            Some(AUTH_PAYLOAD_3),
-        )
-        .await?;
-        self.transact_and_discard(
-            CommandType::Authenticate,
-            Attribute::Unknown(0x0101),
-            Some(AUTH_PAYLOAD_4),
-        )
-        .await?;
+        self.transact_and_discard(CommandType::Authenticate, Attribute::AuthStep, Some(AUTH_PAYLOAD_1))
+            .await?;
+        self.transact_and_discard(CommandType::Authenticate, Attribute::AuthStep, Some(AUTH_PAYLOAD_2))
+            .await?;
+        self.transact_and_discard(CommandType::Authenticate, Attribute::AuthStep, Some(AUTH_PAYLOAD_3))
+            .await?;
+        self.transact_and_discard(CommandType::Authenticate, Attribute::AuthStep, Some(AUTH_PAYLOAD_4))
+            .await?;
         info!("--- Authentication Replay Complete ---");
         Ok(())
     }
 
     /// Polls the device once for the latest sensor data.
     pub async fn poll_sensor_data(&mut self) -> Result<crate::protocol::SensorDataPacket, Error> {
-        let response_packets = self
-            .transact(CommandType::GetData, Attribute::AdcQueue, None)
-            .await?;
+        let response_packets = self.transact(CommandType::GetData, Attribute::AdcQueue, None).await?;
 
         for packet in response_packets {
             if let Packet::SensorData(sensor_packet) = packet {
@@ -157,12 +137,7 @@ impl KM003C {
         self.transaction_id
     }
 
-    fn build_command_bytes(
-        id: u8,
-        cmd: CommandType,
-        attr: Attribute,
-        payload: Option<&[u8]>,
-    ) -> Vec<u8> {
+    fn build_command_bytes(id: u8, cmd: CommandType, attr: Attribute, payload: Option<&[u8]>) -> Vec<u8> {
         let mut command = BytesMut::with_capacity(64);
         command.extend_from_slice(&[cmd as u8, id]);
         command.extend_from_slice(&u16::from(attr).to_le_bytes());
@@ -185,104 +160,117 @@ impl KM003C {
         let completion = tokio::time::timeout(timeout, read_transfer).await?;
         let data = completion.into_result()?;
         debug!(bytes = hex::encode(&data), "USB Read");
-        Ok(Packet::from_bytes(
-            Bytes::from(data),
-            Direction::DeviceToHost,
-        ))
+        Ok(Packet::from_bytes(Bytes::from(data), Direction::DeviceToHost))
     }
 
-    /// A convenient wrapper for fire-and-forget commands.
     async fn transact_and_discard(
         &mut self,
         cmd: CommandType,
         attr: Attribute,
         payload: Option<&[u8]>,
     ) -> Result<(), Error> {
-        self.transact(cmd, attr, payload).await?;
+        let send_id = self.next_id();
+
+        let expected_id = if cmd == CommandType::CommandWithPayload && attr == Attribute::SetDataRecorderMode {
+            0
+        } else {
+            send_id
+        };
+
+        self.transact_with_ids(cmd, attr, payload, send_id, expected_id).await?;
         Ok(())
     }
 
-    /// The single, definitive transaction function.
-    /// It sends a command and greedily reads all responses until a short pause.
-    async fn transact(
+    /// The main public-facing transaction method for users of the library.
+    pub async fn transact(
         &mut self,
         cmd: CommandType,
         attr: Attribute,
         payload: Option<&[u8]>,
     ) -> Result<Vec<Packet>, Error> {
         let id = self.next_id();
-        let command_bytes = Self::build_command_bytes(id, cmd, attr, payload);
+        self.transact_with_ids(cmd, attr, payload, id, id).await
+    }
+
+    /// The true, lowest-level transaction function.
+    /// It sends a command with a `send_id` and filters the response for an `expected_id`.
+    async fn transact_with_ids(
+        &mut self,
+        cmd: CommandType,
+        attr: Attribute,
+        payload: Option<&[u8]>,
+        send_id: u8,
+        expected_id: u8,
+    ) -> Result<Vec<Packet>, Error> {
+        let command_bytes = Self::build_command_bytes(send_id, cmd, attr, payload);
         self.send_bytes(command_bytes).await?;
 
         let mut responses = Vec::new();
 
         // 1. Wait for the first packet with a standard timeout.
-        let first_packet = match self
-            .read_packet_with_timeout(Duration::from_millis(250))
-            .await
-        {
+        let first_packet = match self.read_packet_with_timeout(Duration::from_millis(250)).await {
             Ok(p) => p,
             Err(e) => {
-                // Check if the error is from a timeout
-                if e.to_string().contains("deadline has elapsed") {
-                    return Err(Error::Protocol(format!(
-                        "Timeout waiting for initial response to {:?}",
-                        cmd
-                    )));
-                }
-                return Err(e);
+                return Err(Error::Protocol(format!(
+                    "Timeout waiting for initial response to {:?}: {}",
+                    cmd, e
+                )));
             }
         };
         responses.push(first_packet);
 
         // 2. Greedily read subsequent packets with a short timeout.
         loop {
-            match self
-                .read_packet_with_timeout(Duration::from_millis(50))
-                .await
-            {
-                Ok(packet) => responses.push(packet),
-                // A timeout here is the normal and expected end of a transaction.
+            match self.read_packet_with_timeout(Duration::from_millis(50)).await {
+                Ok(packet) => {
+                    let header_opt = match &packet {
+                        Packet::Acknowledge { header, .. } | Packet::GenericResponse { header, .. } => Some(header),
+                        _ => None,
+                    };
+
+                    if let Some(header) = header_opt {
+                        if header.transaction_id != expected_id && header.transaction_id != 0 {
+                            warn!(
+                                "Read-ahead detected packet for a different transaction (ID {}). Stopping current transaction.",
+                                header.transaction_id
+                            );
+                            break;
+                        }
+                    }
+                    responses.push(packet);
+                }
                 Err(_) => break,
             }
         }
 
-        // 3. Filter the collected responses for relevance. This is the critical logic fix.
-        let expected_id =
-            if cmd == CommandType::CommandWithPayload && attr == Attribute::Unknown(0x0200) {
-                0
-            } else {
-                id
-            };
-
+        // 3. Filter the collected responses for relevance.
         let relevant_responses: Vec<Packet> = responses
             .into_iter()
             .filter(|p| {
-                match p {
-                    // These packets have a header we can check
+                let get_id = |h: &crate::protocol::CommandHeader| h.transaction_id;
+
+                let is_id_match = match p {
                     Packet::Acknowledge { header, .. } | Packet::GenericResponse { header, .. } => {
-                        header.transaction_id == expected_id
+                        get_id(header) == expected_id
                     }
-                    // SensorData packets can be part of a response, check their internal ID
                     Packet::SensorData(sd) => sd.header.to_le_bytes().get(1) == Some(&expected_id),
-                    // DataChunks are always considered relevant if they appear in the response burst.
-                    Packet::DataChunk(_) => true,
-                    // Anything else is not relevant.
                     _ => false,
-                }
+                };
+
+                matches!(p, Packet::DataChunk(_)) || is_id_match
             })
             .collect();
 
         if relevant_responses.is_empty() {
             warn!(
                 "Transaction for {:?} (sent ID {}, expected ID {}) completed but no relevant response packets were found.",
-                cmd, id, expected_id
+                cmd, send_id, expected_id
             );
         } else {
             info!(
                 "Transaction for {:?} (sent ID {}, expected ID {}) complete, received {} relevant response packet(s)",
                 cmd,
-                id,
+                send_id,
                 expected_id,
                 relevant_responses.len()
             );

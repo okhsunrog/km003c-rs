@@ -58,10 +58,7 @@ struct Cli {
     verbose: Verbosity<InfoLevel>,
 }
 
-fn setup_logging(
-    log_file_path: Option<PathBuf>,
-    verbosity: &Verbosity<InfoLevel>,
-) -> Result<Option<WorkerGuard>> {
+fn setup_logging(log_file_path: Option<PathBuf>, verbosity: &Verbosity<InfoLevel>) -> Result<Option<WorkerGuard>> {
     let console_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stdout)
         .with_target(false)
@@ -69,8 +66,7 @@ fn setup_logging(
         .without_time();
 
     let (file_layer, guard) = if let Some(ref path) = log_file_path {
-        let log_file = File::create(path)
-            .with_context(|| format!("Failed to create log file at: {:?}", path))?;
+        let log_file = File::create(path).with_context(|| format!("Failed to create log file at: {:?}", path))?;
         let (non_blocking_writer, guard) = tracing_appender::non_blocking(log_file);
         let layer = tracing_subscriber::fmt::layer()
             .with_writer(non_blocking_writer)
@@ -225,10 +221,7 @@ fn process_rtshark_packet(
 
         if direction == Direction::HostToDevice {
             if transaction.request.is_some() {
-                warn!(
-                    id,
-                    "Received a new request for a pending transaction. Overwriting."
-                );
+                warn!(id, "Received a new request for a pending transaction. Overwriting.");
             }
             transaction.request = Some(captured);
         } else {
@@ -290,11 +283,9 @@ fn cleanup_transactions(transactions: &mut HashMap<u8, Transaction>) {
 
     transactions.retain(|id, t| {
         let is_complete = t.request.is_some() && !t.responses.is_empty();
-        let has_timed_out = t.request.is_some()
-            && t.responses.is_empty()
-            && now.duration_since(t.last_updated) > timeout;
-        let is_stale_orphan =
-            t.request.is_none() && now.duration_since(t.last_updated) > timeout * 2;
+        let has_timed_out =
+            t.request.is_some() && t.responses.is_empty() && now.duration_since(t.last_updated) > timeout;
+        let is_stale_orphan = t.request.is_none() && now.duration_since(t.last_updated) > timeout * 2;
 
         if is_complete || has_timed_out || is_stale_orphan {
             print_transaction(id, t);
@@ -308,10 +299,7 @@ fn cleanup_transactions(transactions: &mut HashMap<u8, Transaction>) {
 fn print_transaction(id: &u8, t: &Transaction) {
     // Print the request as before
     if let Some(req) = &t.request {
-        info!(
-            "ID: {:<3} | Request  (F:{:<4}) | {:?}",
-            id, req.frame_num, req.packet
-        );
+        info!("ID: {:<3} | Request  (F:{:<4}) | {:?}", id, req.frame_num, req.packet);
     } else {
         warn!("ID: {:<3} | Orphaned Response(s)", id);
     }
@@ -332,10 +320,7 @@ fn print_transaction(id: &u8, t: &Transaction) {
                     // If the request was to get device info...
                     Some(km003c_rs::protocol::Attribute::GetDeviceInfo) => {
                         if let Ok(info) = DeviceInfoBlock::try_from(payload.clone()) {
-                            info!(
-                                "       | Response (F:{:<4}) | DeviceInfo({:?})",
-                                res.frame_num, info
-                            );
+                            info!("       | Response (F:{:<4}) | DeviceInfo({:?})", res.frame_num, info);
                             handled = true;
                         }
                     }
@@ -357,10 +342,7 @@ fn print_transaction(id: &u8, t: &Transaction) {
 
             // If the packet wasn't handled by a special case, print its generic form.
             if !handled {
-                info!(
-                    "       | Response (F:{:<4}) | {:?}",
-                    res.frame_num, res.packet
-                );
+                info!("       | Response (F:{:<4}) | {:?}", res.frame_num, res.packet);
             }
         }
     } else if t.request.is_some() {
@@ -370,8 +352,5 @@ fn print_transaction(id: &u8, t: &Transaction) {
 }
 
 fn print_unsolicited_packet(captured: CapturedPacket) {
-    info!(
-        "Stream Packet (F:{:<4})   | {:?}",
-        captured.frame_num, captured.packet
-    );
+    info!("Stream Packet (F:{:<4})   | {:?}", captured.frame_num, captured.packet);
 }

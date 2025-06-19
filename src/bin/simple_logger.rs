@@ -48,11 +48,7 @@ async fn run(cli: Cli) -> Result<()> {
     let mut device = KM003C::new(!cli.no_auth).await?;
 
     info!("--- Entering Data Polling Loop ---");
-    let iterations = if cli.continuous {
-        u32::MAX
-    } else {
-        cli.samples
-    };
+    let iterations = if cli.continuous { u32::MAX } else { cli.samples };
 
     for i in 0..iterations {
         match device.poll_sensor_data().await {

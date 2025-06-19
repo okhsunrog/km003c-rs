@@ -50,10 +50,7 @@ pub enum Packet {
     /// A command sent from the Host to the Device.
     Command(CommandHeader, Option<Bytes>),
     /// A simple acknowledgment response (Accept/Rejected) from the Device.
-    Acknowledge {
-        header: CommandHeader,
-        kind: AckType,
-    },
+    Acknowledge { header: CommandHeader, kind: AckType },
     /// A structured 52-byte sensor data packet. Can be from a direct poll
     /// or part of an unsolicited high-speed data stream.
     SensorData(SensorDataPacket),
@@ -61,10 +58,7 @@ pub enum Packet {
     DeviceInfo(DeviceInfoBlock),
     /// A generic response from the device, typically of a known command type,
     /// but with a payload that is not yet fully structured.
-    GenericResponse {
-        header: CommandHeader,
-        payload: Bytes,
-    },
+    GenericResponse { header: CommandHeader, payload: Bytes },
     /// A raw data chunk from the device that does not have a valid command header.
     /// Often a continuation of a multi-part response.
     DataChunk(Bytes),
@@ -77,11 +71,7 @@ impl Packet {
         // Host-to-Device is always a command.
         if direction == Direction::HostToDevice {
             if let Ok(header) = CommandHeader::try_from(bytes.slice(0..4)) {
-                let payload = if bytes.len() > 4 {
-                    Some(bytes.slice(4..))
-                } else {
-                    None
-                };
+                let payload = if bytes.len() > 4 { Some(bytes.slice(4..)) } else { None };
                 return Packet::Command(header, payload);
             } else {
                 // A malformed command from the host is still an unknown packet.
@@ -165,8 +155,7 @@ impl TryFrom<Bytes> for CommandHeader {
             return Err("Header must be 4 bytes");
         }
         let command_val = bytes.get_u8();
-        let command_type =
-            CommandType::try_from(command_val).map_err(|_| "Invalid CommandType value")?;
+        let command_type = CommandType::try_from(command_val).map_err(|_| "Invalid CommandType value")?;
 
         Ok(Self {
             command_type,
@@ -267,11 +256,7 @@ impl fmt::Display for SensorDataPacket {
             "│ D- (live/avg): {:>6.4} V / {:>6.4} V             │",
             vdm_v, vdm_avg_v
         )?;
-        writeln!(
-            f,
-            "│ CC1: {:>12.4} V  |  CC2:     {:>8.4} V        │",
-            cc1_v, cc2_v
-        )?;
+        writeln!(f, "│ CC1: {:>12.4} V  |  CC2:     {:>8.4} V        │", cc1_v, cc2_v)?;
         writeln!(f, "├─ Device Info ───────────────────────────────────────┤")?;
         writeln!(f, "│ Rate: {:<42} │", self.rate)?;
         writeln!(f, "└─────────────────────────────────────────────────────┘")
@@ -406,6 +391,7 @@ impl TryFrom<u8> for CommandType {
     }
 }
 
+// --- CHANGE: Attribute enum updated ---
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Attribute {
     None,
@@ -413,13 +399,21 @@ pub enum Attribute {
     AdcQueue,
     AdcQueue10k,
     Settings,
-    GetDeviceInfo, // RENAMED from PdPacket (0x0010)
+    GetDeviceInfo,
     PdStatus,
     QcPacket,
     Timestamp,
     Serial,
     Auth,
-    PollPdEvents, // NEW (0x2000)
+    PollPdEvents,
+    // --- NEW VARIANTS ---
+    /// Used in the multi-step authentication handshake (0x0101).
+    AuthStep,
+    /// Used with CommandWithPayload to enter the default data recorder mode (0x0200).
+    SetDataRecorderMode,
+    /// Used to get a secondary block of info during startup (0x0400).
+    GetStartupInfo,
+    /// An attribute not yet identified.
     Unknown(u16),
 }
 
@@ -432,18 +426,24 @@ impl From<u16> for Attribute {
             0x0002 => Self::AdcQueue,
             0x0004 => Self::AdcQueue10k,
             0x0008 => Self::Settings,
-            0x0010 => Self::GetDeviceInfo, // RENAMED
+            0x0010 => Self::GetDeviceInfo,
             0x0020 => Self::PdStatus,
             0x0040 => Self::QcPacket,
             0x0080 => Self::Timestamp,
+            0x0101 => Self::AuthStep, // NEW
             0x0180 => Self::Serial,
-            0x0200 => Self::Auth,
-            0x2000 => Self::PollPdEvents, // NEW
+            0x0200 => Self::SetDataRecorderMode, // NEW
+            0x0400 => Self::GetStartupInfo,      // NEW
+            0x2000 => Self::PollPdEvents,
+            // Note: 0x0200 was also named ATT_AUTH. We've chosen a more specific name
+            // for its usage in setting the recorder mode. If it's used for other
+            // auth purposes, we can revisit. For now, SetDataRecorderMode is clearer.
             other => Self::Unknown(other),
         }
     }
 }
 
+// --- CHANGE: u16::from for Attribute updated ---
 impl From<Attribute> for u16 {
     fn from(attr: Attribute) -> Self {
         match attr {
@@ -452,13 +452,16 @@ impl From<Attribute> for u16 {
             Attribute::AdcQueue => 0x0002,
             Attribute::AdcQueue10k => 0x0004,
             Attribute::Settings => 0x0008,
-            Attribute::GetDeviceInfo => 0x0010, // RENAMED
+            Attribute::GetDeviceInfo => 0x0010,
             Attribute::PdStatus => 0x0020,
             Attribute::QcPacket => 0x0040,
             Attribute::Timestamp => 0x0080,
+            Attribute::AuthStep => 0x0101, // NEW
             Attribute::Serial => 0x0180,
-            Attribute::Auth => 0x0200,
-            Attribute::PollPdEvents => 0x2000, // NEW
+            Attribute::SetDataRecorderMode => 0x0200, // NEW
+            Attribute::Auth => 0x0200,                // Keep this for logical clarity if needed elsewhere
+            Attribute::GetStartupInfo => 0x0400,      // NEW
+            Attribute::PollPdEvents => 0x2000,
             Attribute::Unknown(val) => val,
         }
     }
