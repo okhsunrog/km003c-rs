@@ -210,36 +210,45 @@ pub struct SensorDataPacket {
     pub vdm_avg_mv: u16,
 }
 
-// ADD THIS impl block back into protocol.rs
-// It can go anywhere after the SensorDataPacket struct definition.
+
+// In km003c-rs/src/protocol.rs
+
 impl fmt::Display for SensorDataPacket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // NOTE: These calculations should be verified against your spec.
-        // This is a placeholder based on common patterns.
+        // --- Calculations with CORRECTED divisors ---
         let vbus_v = self.vbus_uv as f64 / 1_000_000.0;
         let ibus_a = self.ibus_ua as f64 / 1_000_000.0;
         let power_w = vbus_v * ibus_a;
-        let temp_c = self.temp_raw as f64 / 100.0; // Assuming 0.01 degree C units
-        let vdp_v = self.vdp_mv as f64 / 1000.0;
-        let vdm_v = self.vdm_mv as f64 / 1000.0;
 
-        writeln!(f, "┌──────────────────────────────────────────┐")?;
-        writeln!(
-            f,
-            "│ VBUS: {:>8.4} V │ IBus: {:>8.4} A │",
-            vbus_v,
-            ibus_a.abs()
-        )?;
-        writeln!(
-            f,
-            "│ Power: {:>6.3} W │ Temp: {:>7.2} °C      │",
-            power_w.abs(),
-            temp_c
-        )?;
-        writeln!(f, "├──────────────────────────────────────────┤")?;
-        writeln!(f, "│ Vdp: {:>8.4} V │ Vdm: {:>8.4} V │", vdp_v, vdm_v)?;
-        writeln!(f, "│ Rate: {:<31} │", self.rate)?;
-        writeln!(f, "└──────────────────────────────────────────┘")
+        let vbus_avg_v = self.vbus_avg_uv as f64 / 1_000_000.0;
+        let ibus_avg_a = self.ibus_avg_ua as f64 / 1_000_000.0;
+        
+        let temp_c = self.temp_raw as f64 / 100.0;
+        
+        // FIX: The unit is 0.1mV, so divide by 10,000 to get Volts.
+        let vdp_v = self.vdp_mv as f64 / 10_000.0;
+        let vdm_v = self.vdm_mv as f64 / 10_000.0;
+        let vdp_avg_v = self.vdp_avg_mv as f64 / 10_000.0;
+        let vdm_avg_v = self.vdm_avg_mv as f64 / 10_000.0;
+        
+        // FIX: CC lines also use the 0.1mV unit.
+        let cc1_v = self.vcc1_tenth_mv as f64 / 10_000.0;
+        let cc2_v = self.vcc2_raw as f64 / 10_000.0;
+
+        // --- Formatting ---
+        writeln!(f, "┌─ Live Measurements ─────────────────────────────────┐")?;
+        // FIX: Use .abs() for current and power
+        writeln!(f, "│ VBUS:  {:>8.4} V  |  IBUS:   {:>8.4} A        │", vbus_v, ibus_a.abs())?;
+        writeln!(f, "│ Power: {:>8.4} W  |  Temp:    {:>8.2} °C        │", power_w.abs(), temp_c)?;
+        writeln!(f, "├─ Average Measurements ──────────────────────────────┤")?;
+        writeln!(f, "│ VBUS:  {:>8.4} V  |  IBUS:   {:>8.4} A        │", vbus_avg_v, ibus_avg_a.abs())?;
+        writeln!(f, "├─ Data & CC Lines ───────────────────────────────────┤")?;
+        writeln!(f, "│ D+ (live/avg): {:>6.4} V / {:>6.4} V             │", vdp_v, vdp_avg_v)?;
+        writeln!(f, "│ D- (live/avg): {:>6.4} V / {:>6.4} V             │", vdm_v, vdm_avg_v)?;
+        writeln!(f, "│ CC1: {:>12.4} V  |  CC2:     {:>8.4} V        │", cc1_v, cc2_v)?;
+        writeln!(f, "├─ Device Info ───────────────────────────────────────┤")?;
+        writeln!(f, "│ Rate: {:<42} │", self.rate)?;
+        writeln!(f, "└─────────────────────────────────────────────────────┘")
     }
 }
 
