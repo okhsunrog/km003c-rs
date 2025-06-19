@@ -210,6 +210,39 @@ pub struct SensorDataPacket {
     pub vdm_avg_mv: u16,
 }
 
+// ADD THIS impl block back into protocol.rs
+// It can go anywhere after the SensorDataPacket struct definition.
+impl fmt::Display for SensorDataPacket {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // NOTE: These calculations should be verified against your spec.
+        // This is a placeholder based on common patterns.
+        let vbus_v = self.vbus_uv as f64 / 1_000_000.0;
+        let ibus_a = self.ibus_ua as f64 / 1_000_000.0;
+        let power_w = vbus_v * ibus_a;
+        let temp_c = self.temp_raw as f64 / 100.0; // Assuming 0.01 degree C units
+        let vdp_v = self.vdp_mv as f64 / 1000.0;
+        let vdm_v = self.vdm_mv as f64 / 1000.0;
+
+        writeln!(f, "┌──────────────────────────────────────────┐")?;
+        writeln!(
+            f,
+            "│ VBUS: {:>8.4} V │ IBus: {:>8.4} A │",
+            vbus_v,
+            ibus_a.abs()
+        )?;
+        writeln!(
+            f,
+            "│ Power: {:>6.3} W │ Temp: {:>7.2} °C      │",
+            power_w.abs(),
+            temp_c
+        )?;
+        writeln!(f, "├──────────────────────────────────────────┤")?;
+        writeln!(f, "│ Vdp: {:>8.4} V │ Vdm: {:>8.4} V │", vdp_v, vdm_v)?;
+        writeln!(f, "│ Rate: {:<31} │", self.rate)?;
+        writeln!(f, "└──────────────────────────────────────────┘")
+    }
+}
+
 impl TryFrom<Bytes> for SensorDataPacket {
     type Error = std::io::Error;
 
@@ -285,7 +318,7 @@ impl TryFrom<Bytes> for DeviceInfoBlock {
     }
 }
 
-/// Represents the `type` field of the command header.
+// FIX the CommandType enum and its impl
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum CommandType {
@@ -305,7 +338,7 @@ pub enum CommandType {
     Serial = 0x43,
     Authenticate = 0x44,
     DataWithPayload = 0x48,
-    AuthenticateWithPayload = 0x4C,
+    CommandWithPayload = 0x4C,
 
     ResponseC4 = 0xC4,
     Response75 = 0x75,
@@ -331,11 +364,9 @@ impl TryFrom<u8> for CommandType {
             0x43 => Ok(Self::Serial),
             0x44 => Ok(Self::Authenticate),
             0x48 => Ok(Self::DataWithPayload),
-            0x4C => Ok(Self::AuthenticateWithPayload),
-
-            // --- NEW ---
-            0x75 => Ok(Self::Response75),
+            0x4C => Ok(Self::CommandWithPayload),
             0xC4 => Ok(Self::ResponseC4),
+            0x75 => Ok(Self::Response75),
             _ => Err(()),
         }
     }

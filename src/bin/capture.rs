@@ -175,15 +175,23 @@ fn process_rtshark_packet(
         .and_then(|n| n.value().parse().ok())
         .unwrap_or(0);
 
-    let Some(usb_layer) = packet.layer_name("usb") else { return };
+    let Some(usb_layer) = packet.layer_name("usb") else {
+        return;
+    };
 
-    let direction = match usb_layer.metadata("usb.endpoint_address.direction").map(|d| d.value()).as_deref() {
+    let direction = match usb_layer
+        .metadata("usb.endpoint_address.direction")
+        .map(|d| d.value())
+        .as_deref()
+    {
         Some("0") => Direction::HostToDevice,
         Some("1") => Direction::DeviceToHost,
         _ => return,
     };
 
-    let Some(payload_hex) = usb_layer.metadata("usb.capdata").map(|p| p.value()) else { return };
+    let Some(payload_hex) = usb_layer.metadata("usb.capdata").map(|p| p.value()) else {
+        return;
+    };
 
     let Ok(data) = hex::decode(payload_hex.replace(':', "")) else {
         error!(frame = frame_num, "Failed to decode hex payload");
@@ -217,7 +225,10 @@ fn process_rtshark_packet(
 
         if direction == Direction::HostToDevice {
             if transaction.request.is_some() {
-                warn!(id, "Received a new request for a pending transaction. Overwriting.");
+                warn!(
+                    id,
+                    "Received a new request for a pending transaction. Overwriting."
+                );
             }
             transaction.request = Some(captured);
         } else {
@@ -227,7 +238,6 @@ fn process_rtshark_packet(
 
         // IMPORTANT: We remember this ID as the most recently seen one.
         *last_transaction_id = Some(id);
-
     } else {
         // --- CASE B: The packet does NOT have a header ---
         // This applies to unsolicited streams and header-less continuation packets.
