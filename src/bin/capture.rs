@@ -1,42 +1,41 @@
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use clap::Parser;
-use rtshark::RTSharkBuilder;
+use rtshark::{Packet as RtSharkPacket, RTSharkBuilder};
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::PathBuf;
 use std::process;
 use std::time::{Duration, Instant};
 use tokio;
-// Make sure to use Verbosity from the crate
-use clap_verbosity_flag::{Verbosity, InfoLevel};
+
+use clap_verbosity_flag::{InfoLevel, Verbosity};
 use tracing::{debug, error, info, warn};
 use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-use km003c_rs::protocol::{CommandType, SensorDataPacket};
+use km003c_rs::protocol::{Direction, Packet};
 
+/// A struct to hold a parsed packet along with its tshark frame number.
 #[derive(Debug, Clone)]
-struct Request {
+struct CapturedPacket {
     frame_num: u32,
-    command: String,
-    attribute: u16,
+    packet: Packet,
 }
 
-// CORRECT: No `#[derive(Default)]` here
+/// A struct to represent a single logical transaction (request + response(s)).
 #[derive(Debug)]
 struct Transaction {
-    request: Option<Request>,
-    response_fragments: Vec<(u32, Vec<u8>)>,
+    request: Option<CapturedPacket>,
+    responses: Vec<CapturedPacket>,
     last_updated: Instant,
 }
 
-// CORRECT: Manual implementation is the only one.
 impl Default for Transaction {
     fn default() -> Self {
         Self {
             request: None,
-            response_fragments: Vec::new(),
+            responses: Vec::new(),
             last_updated: Instant::now(),
         }
     }
@@ -59,16 +58,18 @@ struct Cli {
     verbose: Verbosity<InfoLevel>,
 }
 
-fn setup_logging(log_file_path: Option<PathBuf>, verbosity: &Verbosity<InfoLevel>) -> Result<Option<WorkerGuard>> {
-        let console_layer = tracing_subscriber::fmt::layer()
+fn setup_logging(
+    log_file_path: Option<PathBuf>,
+    verbosity: &Verbosity<InfoLevel>,
+) -> Result<Option<WorkerGuard>> {
+    let console_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stdout)
         .with_target(false)
         .with_thread_ids(false)
         .without_time();
 
-    // --- THE FIX: Use `ref` to borrow the PathBuf instead of moving it ---
     let (file_layer, guard) = if let Some(ref path) = log_file_path {
-        let log_file = File::create(path) // `path` is now a reference, which is fine
+        let log_file = File::create(path)
             .with_context(|| format!("Failed to create log file at: {:?}", path))?;
         let (non_blocking_writer, guard) = tracing_appender::non_blocking(log_file);
         let layer = tracing_subscriber::fmt::layer()
@@ -79,9 +80,15 @@ fn setup_logging(log_file_path: Option<PathBuf>, verbosity: &Verbosity<InfoLevel
     } else {
         (None, None)
     };
-    
+
+    let base_filter = verbosity.tracing_level_filter();
+
+    // --- FIX FOR DEBUG LOGGING ---
+    // We want INFO by default, DEBUG with -v, TRACE with -vv etc.
+    // clap_verbosity_flag maps -v to one level higher. Since our base is INFO,
+    // -v will give DEBUG.
     let filter = EnvFilter::builder()
-        .with_default_directive(verbosity.tracing_level_filter().into())
+        .with_default_directive(base_filter.into())
         .from_env_lossy();
 
     tracing_subscriber::registry()
@@ -89,8 +96,7 @@ fn setup_logging(log_file_path: Option<PathBuf>, verbosity: &Verbosity<InfoLevel
         .with(console_layer)
         .with(file_layer)
         .init();
-    
-    // This is now valid because `log_file_path` was not moved.
+
     if let Some(path) = log_file_path {
         info!("Logging to file: {:?}", path);
     }
@@ -129,96 +135,141 @@ async fn run_capture(device_address: u8, interface: String) -> Result<()> {
 
     let mut rtshark = builder.spawn()?;
     let mut last_cleanup = Instant::now();
-    
+
     while let Ok(packet_option) = rtshark.read() {
-         match packet_option {
-            Some(packet) => {
-                 let mut direction: Option<String> = None;
-                 let mut frame_num: Option<u32> = None;
-                 let mut payload_hex: Option<String> = None;
-
-                 if let Some(frame_layer) = packet.layer_name("frame") {
-                     frame_num = frame_layer.metadata("frame.number").and_then(|f| f.value().parse().ok());
-                 }
-
-                 if let Some(usb_layer) = packet.layer_name("usb") {
-                    if let Some(ep) = usb_layer.metadata("usb.endpoint_address.direction") {
-                        direction = Some(ep.value().to_string());
-                    }
-                    if let Some(pd) = usb_layer.metadata("usb.capdata") {
-                        payload_hex = Some(pd.value().to_string());
-                    }
-                 }
-
-                 if let (Some(frame), Some(dir), Some(hex)) = (frame_num, direction, payload_hex) {
-                      match hex::decode(hex.replace(':', "")) {
-                         Ok(data) => process_packet(frame, &dir, data, &mut transactions),
-                         Err(e) => error!(error = %e, "Failed to decode hex payload"),
-                     }
-                 }
-            },
-            None => {
-                tokio::time::sleep(Duration::from_millis(10)).await;
-            }
+        if let Some(p) = packet_option {
+            process_rtshark_packet(p, &mut transactions);
+        } else {
+            tokio::time::sleep(Duration::from_millis(10)).await;
         }
 
-        if last_cleanup.elapsed() > Duration::from_millis(200) {
+        if last_cleanup.elapsed() > Duration::from_secs(1) {
             cleanup_transactions(&mut transactions);
             last_cleanup = Instant::now();
         }
     }
 
-    info!("tshark stream finished.");
-    cleanup_transactions(&mut transactions);
-    for (id, t) in transactions {
-        print_transaction(&id, &t);
-    }
+    info!("tshark stream finished. Printing remaining transactions...");
+    // One final cleanup to print everything left.
+    transactions.retain(|id, t| {
+        print_transaction(id, t);
+        false
+    });
     println!("--------------------------------------------------------------------------------");
 
     Ok(())
 }
 
+fn process_rtshark_packet(packet: RtSharkPacket, transactions: &mut HashMap<u8, Transaction>) {
+    let frame_num = packet
+        .layer_name("frame")
+        .and_then(|f| f.metadata("frame.number"))
+        .and_then(|n| n.value().parse().ok())
+        .unwrap_or(0);
 
-fn process_packet(frame_num: u32, direction: &str, data: Vec<u8>, transactions: &mut HashMap<u8, Transaction>) {
-    if data.len() < 4 { return; }
-
-    let command_val = data[0];
-    let is_sensor_packet = data.len() == 52 && command_val != (CommandType::Accept as u8);
-    
-    if direction == "1" && is_sensor_packet {
-        print_unsolicited_packet(frame_num, data);
+    let Some(usb_layer) = packet.layer_name("usb") else {
         return;
+    };
+
+    let direction_str = usb_layer
+        .metadata("usb.endpoint_address.direction")
+        .map(|d| d.value());
+    let direction = match direction_str.as_deref() {
+        Some("0") => Direction::HostToDevice,
+        Some("1") => Direction::DeviceToHost,
+        _ => return,
+    };
+
+    let Some(payload_hex) = usb_layer.metadata("usb.capdata").map(|p| p.value()) else {
+        return;
+    };
+
+    let Ok(data) = hex::decode(payload_hex.replace(':', "")) else {
+        error!(frame = frame_num, "Failed to decode hex payload");
+        return;
+    };
+
+    // --- NEW: Log raw data at DEBUG level ---
+    debug!(
+        frame = frame_num,
+        len = data.len(),
+        hex = hex::encode(&data),
+        ?direction,
+        "Raw captured packet"
+    );
+
+    let bytes = Bytes::from(data);
+    let parsed_packet = Packet::from_bytes(bytes, direction);
+
+    let captured = CapturedPacket {
+        frame_num,
+        packet: parsed_packet,
+    };
+
+    match &captured.packet {
+        Packet::Command(header, _) => {
+            let transaction = transactions.entry(header.transaction_id).or_default();
+            if transaction.request.is_some() {
+                warn!(
+                    id = header.transaction_id,
+                    "Received new request for a pending transaction. Overwriting."
+                );
+            }
+            transaction.request = Some(captured);
+            transaction.last_updated = Instant::now();
+        }
+        Packet::Acknowledge { header, .. } | Packet::GenericResponse { header, .. } => {
+            let transaction = transactions.entry(header.transaction_id).or_default();
+            transaction.responses.push(captured);
+            transaction.last_updated = Instant::now();
+        }
+        Packet::SensorData(_) | Packet::DeviceInfo(_) => {
+            if let Some(header) = get_packet_header(&captured.packet) {
+                let transaction = transactions.entry(header.transaction_id).or_default();
+                transaction.responses.push(captured);
+                transaction.last_updated = Instant::now();
+            } else {
+                print_unsolicited_packet(captured);
+            }
+        }
+        Packet::DataChunk(_) => {
+            // This is a header-less data chunk, like the second part of a handshake.
+            // For now, we print it immediately. In the future, we could try to
+            // associate it with the most recent transaction.
+            print_unsolicited_packet(captured);
+        }
+        Packet::Unknown { .. } => {
+            // Log the parsed (but unknown) packet at WARN level
+            warn!("Failed to parse packet: {:?}", captured.packet);
+        }
     }
+}
 
-    let transaction_id = data[1];
-    let transaction = transactions.entry(transaction_id).or_default();
-    transaction.last_updated = Instant::now();
-
-    if direction == "0" {
-        let command_type_val = data[0];
-        let attribute_val = u16::from_le_bytes([data[2], data[3]]);
-        let command_str = match CommandType::try_from(command_type_val) {
-            Ok(cmd) => format!("{:?}", cmd),
-            Err(_) => format!("Unknown({:#04x})", command_type_val),
-        };
-        transaction.request = Some(Request {
-            frame_num,
-            command: command_str,
-            attribute: attribute_val,
-        });
-    } else {
-        transaction.response_fragments.push((frame_num, data));
+/// Helper to get the header from packets that might have one.
+fn get_packet_header(p: &Packet) -> Option<&km003c_rs::protocol::CommandHeader> {
+    match p {
+        Packet::Command(h, _) => Some(h),
+        Packet::Acknowledge { header: h, .. } => Some(h),
+        Packet::GenericResponse { header: h, .. } => Some(h),
+        _ => None,
     }
 }
 
 fn cleanup_transactions(transactions: &mut HashMap<u8, Transaction>) {
     let now = Instant::now();
-    let timeout = Duration::from_millis(500);
-    
+    let timeout = Duration::from_secs(2);
+
     transactions.retain(|id, t| {
-        if now.duration_since(t.last_updated) > timeout {
+        let is_complete = t.request.is_some() && !t.responses.is_empty();
+        let has_timed_out = t.request.is_some()
+            && t.responses.is_empty()
+            && now.duration_since(t.last_updated) > timeout;
+        let is_stale_orphan =
+            t.request.is_none() && now.duration_since(t.last_updated) > timeout * 2;
+
+        if is_complete || has_timed_out || is_stale_orphan {
             print_transaction(id, t);
-            false 
+            false
         } else {
             true
         }
@@ -227,51 +278,20 @@ fn cleanup_transactions(transactions: &mut HashMap<u8, Transaction>) {
 
 fn print_transaction(id: &u8, t: &Transaction) {
     if let Some(req) = &t.request {
+        // Use a more compact format for the request line
         info!(
-            "ID: {:<3} | Request  (Frame {:<4}) | Cmd: {:<20} | Attr: {:#06x}",
-            id, req.frame_num, req.command, req.attribute
+            "ID: {:<3} | Request  (F:{:<4}) | {:?}",
+            id, req.frame_num, req.packet
         );
     } else {
         warn!("ID: {:<3} | Orphaned Response(s)", id);
     }
 
-    if !t.response_fragments.is_empty() {
-        let mut full_payload = Vec::new();
-        let mut frame_nums = Vec::new();
-        for (frame_num, data) in &t.response_fragments {
-            full_payload.extend_from_slice(data);
-            frame_nums.push(frame_num.to_string());
-        }
-        let frame_nums_str = frame_nums.join(", ");
-        
-        debug!("       | Raw Response Payload: {}", hex::encode(&full_payload));
-
-        let bytes = Bytes::from(full_payload);
-        if bytes.len() >= 56 && bytes.get(0) == Some(&(CommandType::StatusA as u8)) {
-             let sensor_bytes = Bytes::from(bytes.slice(4..));
-             if let Ok(packet) = SensorDataPacket::try_from(sensor_bytes) {
-                  info!("       | Response (Frames {}) | Sensor (StatusA): {:?}", frame_nums_str, packet);
-             } else {
-                 info!(
-                    "       | Response (Frames {}) | StatusA + Generic (len {}): {}",
-                    frame_nums_str,
-                    bytes.len(),
-                    hex::encode(bytes)
-                 );
-             }
-        } else if bytes.len() == 4 && t.response_fragments.len() == 1 {
-             let response_type_val = bytes[0];
-             let response = match CommandType::try_from(response_type_val) {
-                Ok(cmd) => format!("{:?}", cmd),
-                Err(_) => format!("Unknown({:#04x})", response_type_val),
-            };
-             info!("       | Response (Frame  {:<4}) | ACK: {}", frame_nums_str, response);
-        }
-        else {
+    if !t.responses.is_empty() {
+        for res in &t.responses {
             info!(
-                "       | Response (Frames {}) | Reassembled Data (len {})",
-                frame_nums_str,
-                bytes.len()
+                "       | Response (F:{:<4}) | {:?}",
+                res.frame_num, res.packet
             );
         }
     } else if t.request.is_some() {
@@ -280,12 +300,9 @@ fn print_transaction(id: &u8, t: &Transaction) {
     println!("--------------------------------------------------------------------------------");
 }
 
-fn print_unsolicited_packet(frame_num: u32, data: Vec<u8>) {
-    debug!("       | Raw Unsolicited Payload: {}", hex::encode(&data));
-    let bytes = Bytes::from(data);
-    if let Ok(packet) = SensorDataPacket::try_from(bytes) {
-        info!("Stream Packet (Frame {:<4}) | Sensor: {:?}", frame_num, packet);
-    } else {
-        warn!("Stream Packet (Frame {:<4}) | Failed to parse as SensorData", frame_num);
-    }
+fn print_unsolicited_packet(captured: CapturedPacket) {
+    info!(
+        "Stream Packet (F:{:<4})   | {:?}",
+        captured.frame_num, captured.packet
+    );
 }
