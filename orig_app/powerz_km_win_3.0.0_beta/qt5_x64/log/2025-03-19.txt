@@ -1,0 +1,144 @@
+2025-03-19 14:30:36.755 [Debug]  <0>: ("Alibaba PuHuiTi 3.0 55 Regular")
+2025-03-19 14:30:36.760 [Debug]  <0>: load lang_en.qm true
+2025-03-19 14:30:36.761 [Debug]  <0>: retrans "en"
+2025-03-19 14:30:36.761 [Debug]  <0>: windows:mem total:32581MB,use:14816MB,free:17766MB
+2025-03-19 14:30:45.272 [Debug]  qrc:/qml/MultipleRecord.qml<424>: 0
+2025-03-19 14:30:45.272 [Debug]  qrc:/FwUpdate/qml/FwUpWindow.qml<35>: property <name> has changed  Update Fw
+2025-03-19 14:30:45.273 [Debug]  <0>: readProducts
+2025-03-19 14:30:46.038 [Debug]  <0>: usb update
+2025-03-19 14:30:46.048 [Debug]  <0>: add dev "001590"
+2025-03-19 14:30:46.400 [Warning]  <0>: DirectWrite: CreateFontFaceFromHDC() failed (指示输入文件 (例如字体文件) 中的错误。) for QFontDef(Family="Fixedsys", pointsize=12, pixelsize=16, styleHint=5, weight=50, stretch=100, hintingPreference=0) LOGFONT("Fixedsys", lfWidth=0, lfHeight=-16) dpi=144
+2025-03-19 14:31:22.585 [Debug]  <0>: "02060000" "c4050101500401400c000000ffffffff74b2334fbcf90bc4916231365140f2f1cf1e2a4005070000" "001590"
+2025-03-19 14:31:22.715 [Debug]  <0>: MyReply2::WriteError
+2025-03-19 14:31:22.716 [Debug]  <0>: "02060000" "001590"
+2025-03-19 14:31:23.587 [Debug]  <0>: xfer: Timeout
+2025-03-19 14:31:23.676 [Debug]  <0>: USB插入 "\\\\?\\USB#VID_5FC9&PID_0063#001590#{A5DCBF10-6530-11D2-901F-00C04FB951ED}"
+2025-03-19 14:31:56.597 [Debug]  <0>: USB串口插入 "COM4"
+2025-03-19 14:31:56.937 [Debug]  <0>: USB插入 "\\\\?\\USB#VID_5FC9&PID_0063#001590#{A5DCBF10-6530-11D2-901F-00C04FB951ED}"
+2025-03-19 14:32:02.012 [Debug]  <0>: Request timeout.6
+2025-03-19 14:32:16.972 [Debug]  <0>: xfer: Timeout
+2025-03-19 14:32:16.972 [Debug]  <0>: Request timeout.6
+2025-03-19 14:32:16.973 [Debug]  <0>: xfer: Timeout
+2025-03-19 14:32:18.671 [Debug]  <0>: timeout
+2025-03-19 14:32:19.007 [Debug]  <0>: timeout
+2025-03-19 14:32:19.343 [Debug]  <0>: timeout
+2025-03-19 14:32:19.343 [Debug]  <0>: MyReply1::TimeoutError
+2025-03-19 14:32:20.454 [Debug]  <0>: timeout
+2025-03-19 14:32:20.791 [Debug]  <0>: timeout
+2025-03-19 14:32:21.127 [Debug]  <0>: timeout
+2025-03-19 14:32:21.128 [Debug]  <0>: MyReply1::TimeoutError
+2025-03-19 14:32:21.465 [Debug]  <0>: timeout
+2025-03-19 14:32:21.801 [Debug]  <0>: timeout
+2025-03-19 14:32:22.137 [Debug]  <0>: timeout
+2025-03-19 14:32:22.138 [Debug]  <0>: MyReply1::TimeoutError
+2025-03-19 14:32:26.848 [Debug]  qrc:/qml/MultipleRecord.qml<424>: 0
+2025-03-19 14:32:26.848 [Debug]  qrc:/FwUpdate/qml/FwUpWindow.qml<35>: property <name> has changed  Update Fw
+2025-03-19 14:32:26.848 [Debug]  <0>: readProducts
+2025-03-19 14:32:27.621 [Debug]  <0>: usb update
+2025-03-19 14:32:27.630 [Debug]  <0>: add dev "001590"
+2025-03-19 14:32:27.675 [Debug]  <0>: "021b0000" "03020000" "001590"
+2025-03-19 14:32:32.744 [Debug]  <0>: Request timeout.6
+2025-03-19 14:32:37.082 [Debug]  <0>: Request timeout.6
+2025-03-19 14:32:38.083 [Debug]  <0>: xfer: Timeout
+2025-03-19 14:32:38.177 [Debug]  <0>: USB插入 "\\\\?\\USB#VID_5FC9&PID_0063#001590#{A5DCBF10-6530-11D2-901F-00C04FB951ED}"
+2025-03-19 14:33:33.265 [Warning]  <0>: Model size of -100 is less than 0
+2025-03-19 14:33:33.277 [Warning]  <0>: Model size of -11 is less than 0
+2025-03-19 14:33:41.884 [Debug]  <0>: USB串口插入 "COM4"
+2025-03-19 14:33:42.373 [Debug]  <0>: USB插入 "\\\\?\\USB#VID_5FC9&PID_0063#001590#{A5DCBF10-6530-11D2-901F-00C04FB951ED}"
+2025-03-19 14:33:47.465 [Debug]  <0>: Request timeout.6
+2025-03-19 14:33:59.156 [Debug]  <0>: xfer: Timeout
+2025-03-19 14:33:59.156 [Debug]  <0>: Request timeout.6
+2025-03-19 14:33:59.156 [Debug]  <0>: xfer: Timeout
+2025-03-19 14:34:43.992 [Debug]  qrc:/qml/MultipleRecord.qml<424>: 0
+2025-03-19 14:34:43.993 [Debug]  qrc:/FwUpdate/qml/FwUpWindow.qml<35>: property <name> has changed  Update Fw
+2025-03-19 14:34:43.993 [Debug]  <0>: readProducts
+2025-03-19 14:34:44.769 [Debug]  <0>: usb update
+2025-03-19 14:34:44.780 [Debug]  <0>: add dev "001590"
+2025-03-19 14:34:44.797 [Debug]  <0>: "02350000" "03020000" "001590"
+2025-03-19 14:39:40.221 [Debug]  <0>: xfer: Timeout
+2025-03-19 14:39:40.221 [Debug]  <0>: Request timeout.6
+2025-03-19 14:39:40.221 [Debug]  <0>: xfer: Timeout
+2025-03-19 14:39:56.593 [Debug]  qrc:/qml/MultipleRecord.qml<424>: 0
+2025-03-19 14:39:56.593 [Debug]  qrc:/FwUpdate/qml/FwUpWindow.qml<35>: property <name> has changed  Update Fw
+2025-03-19 14:39:56.593 [Debug]  <0>: readProducts
+2025-03-19 14:39:57.367 [Debug]  <0>: usb update
+2025-03-19 14:39:57.376 [Debug]  <0>: add dev "001590"
+2025-03-19 14:40:25.861 [Debug]  <0>: xfer: Timeout
+2025-03-19 14:40:25.861 [Debug]  <0>: xfer: Timeout
+2025-03-19 14:40:36.180 [Debug]  qrc:/qml/MultipleRecord.qml<424>: 0
+2025-03-19 14:40:36.180 [Debug]  qrc:/FwUpdate/qml/FwUpWindow.qml<35>: property <name> has changed  Update Fw
+2025-03-19 14:40:36.180 [Debug]  <0>: readProducts
+2025-03-19 14:40:36.285 [Debug]  <0>: usb update
+2025-03-19 14:40:36.294 [Debug]  <0>: add dev "001590"
+2025-03-19 14:41:19.413 [Debug]  <0>: xfer: Timeout
+2025-03-19 14:41:19.413 [Debug]  <0>: Request timeout.6
+2025-03-19 14:41:19.414 [Debug]  <0>: xfer: Timeout
+2025-03-19 14:46:51.223 [Debug]  qrc:/qml/MultipleRecord.qml<424>: 0
+2025-03-19 14:46:51.224 [Debug]  qrc:/FwUpdate/qml/FwUpWindow.qml<35>: property <name> has changed  Update Fw
+2025-03-19 14:46:51.224 [Debug]  <0>: readProducts
+2025-03-19 14:46:51.289 [Debug]  <0>: usb update
+2025-03-19 14:46:51.298 [Debug]  <0>: add dev "001590"
+2025-03-19 14:46:55.417 [Debug]  <0>: "024f0000" "c44e0101500401400c000000ffffffff74b2334fbcf90bc4916231365140f2f1cf1e2a4005500000" "001590"
+2025-03-19 14:46:55.547 [Debug]  <0>: MyReply2::WriteError
+2025-03-19 14:46:55.548 [Debug]  <0>: "024f0000" "001590"
+2025-03-19 14:46:56.418 [Debug]  <0>: xfer: Timeout
+2025-03-19 14:46:56.541 [Debug]  <0>: USB插入 "\\\\?\\USB#VID_5FC9&PID_0063#001590#{A5DCBF10-6530-11D2-901F-00C04FB951ED}"
+2025-03-19 15:00:30.977 [Debug]  <0>: xfer: Timeout
+2025-03-19 15:00:31.473 [Debug]  <0>: Request timeout.6
+2025-03-19 15:00:31.473 [Debug]  <0>: xfer: Timeout
+2025-03-19 15:00:32.022 [Debug]  <0>: USB串口插入 "COM4"
+2025-03-19 15:00:32.540 [Debug]  <0>: Find new id 0
+2025-03-19 15:00:32.540 [Debug]  <0>: USB插入 "\\\\?\\USB#VID_5FC9&PID_0063#001590#{A5DCBF10-6530-11D2-901F-00C04FB951ED}"
+2025-03-19 15:00:37.771 [Debug]  <0>: Request timeout.6
+2025-03-19 15:00:48.674 [Debug]  qrc:/qml/ChartWindow.qml<109>: property <name> has changedC:/Users/Administrator/Documents/powerz/001590/A (2025-03-18 15-22-09).pzd
+2025-03-19 15:00:48.688 [Debug]  qrc:/qml/ChartWindow.qml<113>: property <sn> has changed001590
+2025-03-19 15:00:48.716 [Debug]  qrc:/qml/FileDelegate.qml<204>: 0
+2025-03-19 15:01:48.743 [Debug]  qrc:/qml/ChartWindow.qml<109>: property <name> has changedC:/Users/Administrator/Documents/powerz/001590/A (2025-03-18 15-22-09).pzd
+2025-03-19 15:01:48.746 [Debug]  qrc:/qml/ChartWindow.qml<113>: property <sn> has changed001590
+2025-03-19 15:01:48.774 [Debug]  qrc:/qml/FileDelegate.qml<204>: 0
+2025-03-19 15:02:05.073 [Debug]  qrc:/qml/MultipleRecord.qml<354>: Ok clicked
+2025-03-19 15:03:10.903 [Debug]  <0>: ("Alibaba PuHuiTi 3.0 55 Regular")
+2025-03-19 15:03:10.905 [Debug]  <0>: load lang_en.qm true
+2025-03-19 15:03:10.905 [Debug]  <0>: retrans "en"
+2025-03-19 15:03:10.905 [Debug]  <0>: windows:mem total:32581MB,use:15535MB,free:17046MB
+2025-03-19 15:03:13.300 [Debug]  <0>: timeout
+2025-03-19 15:03:13.635 [Debug]  <0>: timeout
+2025-03-19 15:03:13.970 [Debug]  <0>: timeout
+2025-03-19 15:03:13.970 [Debug]  <0>: MyReply1::TimeoutError
+2025-03-19 15:03:14.308 [Debug]  <0>: timeout
+2025-03-19 15:03:14.646 [Debug]  <0>: timeout
+2025-03-19 15:03:14.982 [Debug]  <0>: timeout
+2025-03-19 15:03:14.982 [Debug]  <0>: MyReply1::TimeoutError
+2025-03-19 15:03:19.871 [Debug]  qrc:/qml/MultipleRecord.qml<424>: 0
+2025-03-19 15:03:19.872 [Debug]  qrc:/FwUpdate/qml/FwUpWindow.qml<35>: property <name> has changed  Update Fw
+2025-03-19 15:03:19.872 [Debug]  <0>: readProducts
+2025-03-19 15:03:19.978 [Debug]  <0>: usb update
+2025-03-19 15:03:19.986 [Debug]  <0>: add dev "001590"
+2025-03-19 15:03:20.001 [Debug]  <0>: "02010000" "03020000" "001590"
+2025-03-19 15:03:20.112 [Warning]  <0>: DirectWrite: CreateFontFaceFromHDC() failed (指示输入文件 (例如字体文件) 中的错误。) for QFontDef(Family="Fixedsys", pointsize=12, pixelsize=16, styleHint=5, weight=50, stretch=100, hintingPreference=0) LOGFONT("Fixedsys", lfWidth=0, lfHeight=-16) dpi=144
+2025-03-19 15:03:22.991 [Debug]  <0>: Request timeout.6
+2025-03-19 15:03:23.991 [Debug]  <0>: xfer: Timeout
+2025-03-19 15:03:24.078 [Debug]  <0>: USB插入 "\\\\?\\USB#VID_5FC9&PID_0063#001590#{A5DCBF10-6530-11D2-901F-00C04FB951ED}"
+2025-03-19 15:04:04.641 [Debug]  <0>: USB串口插入 "COM4"
+2025-03-19 15:04:05.117 [Debug]  <0>: USB插入 "\\\\?\\USB#VID_5FC9&PID_0063#001590#{A5DCBF10-6530-11D2-901F-00C04FB951ED}"
+2025-03-19 15:04:05.645 [Debug]  <0>: USB串口插入 "COM4"
+2025-03-19 15:04:05.825 [Debug]  <0>: USB插入 "\\\\?\\USB#VID_5FC9&PID_0063#001590#{A5DCBF10-6530-11D2-901F-00C04FB951ED}"
+2025-03-19 15:04:05.846 [Debug]  <0>: USB串口插入 "COM4"
+2025-03-19 15:04:07.073 [Debug]  <0>: xfer: Timeout
+2025-03-19 15:04:07.073 [Debug]  <0>: Request timeout.6
+2025-03-19 15:04:07.073 [Debug]  <0>: xfer: Timeout
+2025-03-19 15:04:31.220 [Debug]  qrc:/qml/ChartWindow.qml<109>: property <name> has changedC:/Users/Administrator/Documents/powerz/001590/A (2025-03-18 15-22-09).pzd
+2025-03-19 15:04:31.222 [Debug]  qrc:/qml/ChartWindow.qml<113>: property <sn> has changed001590
+2025-03-19 15:04:31.256 [Debug]  qrc:/qml/FileDelegate.qml<204>: 0
+2025-03-19 15:07:50.184 [Debug]  qrc:/qml/ChartWindow.qml<109>: property <name> has changedC:/Users/Administrator/Documents/powerz/001590/A (2025-03-18 15-22-09).pzd
+2025-03-19 15:07:50.186 [Debug]  qrc:/qml/ChartWindow.qml<113>: property <sn> has changed001590
+2025-03-19 15:07:50.217 [Debug]  qrc:/qml/FileDelegate.qml<204>: 0
+2025-03-19 15:59:22.003 [Warning]  <0>: Retrying to obtain clipboard.
+2025-03-19 16:15:47.641 [Warning]  <0>: Retrying to obtain clipboard.
+2025-03-19 16:16:09.494 [Warning]  <0>: Retrying to obtain clipboard.
+2025-03-19 16:41:10.172 [Warning]  <0>: Retrying to obtain clipboard.
+2025-03-19 17:01:18.372 [Warning]  <0>: Retrying to obtain clipboard.
+2025-03-19 17:44:08.485 [Debug]  <0>: USB串口插入 "COM4"
+2025-03-19 17:44:08.774 [Debug]  <0>: Find new id 0
+2025-03-19 17:44:08.774 [Debug]  <0>: USB插入 "\\\\?\\USB#VID_5FC9&PID_0063#001590#{A5DCBF10-6530-11D2-901F-00C04FB951ED}"
+2025-03-19 17:44:13.982 [Debug]  <0>: Request timeout.6

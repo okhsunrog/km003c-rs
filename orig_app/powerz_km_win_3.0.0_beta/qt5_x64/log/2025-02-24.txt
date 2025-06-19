@@ -1,0 +1,5 @@
+2025-02-24 16:16:38.209 [Debug]  <0>: ("Alibaba PuHuiTi 3.0 55 Regular")
+2025-02-24 16:16:38.211 [Debug]  <0>: load lang_en.qm true
+2025-02-24 16:16:38.211 [Debug]  <0>: retrans "zh"
+2025-02-24 16:16:38.211 [Debug]  <0>: windows:mem total:31886MB,use:18025MB,free:13861MB
+2025-02-24 16:16:41.010 [Debug]  qrc:/qml/MultipleRecord.qml<354>: Ok clicked

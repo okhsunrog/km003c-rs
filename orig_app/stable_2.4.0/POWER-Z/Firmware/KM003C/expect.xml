@@ -1,0 +1,336 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Updateinfo>
+  <DeviceName>KM003C</DeviceName>
+  <Title version="1.9.5">
+    <IsLatest>true</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.9.5.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2025.1.7</LastModified>
+    <ETag>2FD777C73972DE405F3542840FCB7212</ETag>
+    <Crc>62773C6C</Crc>
+    <Size>451844</Size>
+    <Note>1,修复自动检测协议时有死机概率
+2,非完美修复启动时CC2有下拉电流导致断开母座的插头后电压依然维持或A to C线插入母座看到CC2电压偏低造成有一面不能给iPhone充电
+3,修复Anker Zolo UFCS和FCP以及PD协议显示0V的AVS
+4,修复酷态科15号TYPE-A端口自动检测协议(检测时加假负载解决)</Note>
+    <Note2>1. Fixed the issue where the tester may freeze during auto detection
+2. Fixed the bug causing leakage on the CC2 pin
+3. Fixed known bugs related to auto detection</Note2>
+  </Title>
+  <Title version="1.9.3">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.9.3.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2024.11.19</LastModified>
+    <ETag>15A43B4EB511D64ADDB16C4B06D20121</ETag>
+    <Crc>46C73651</Crc>
+    <Size>451524</Size>
+    <Note>1,新增TBT5数据线识别
+2,新增UFCS部分私有协议触发
+(修复真我GT5 PRO原装充电器进入循环Get_Device_Info)</Note>
+    <Note2>1. Added Thunderbolt 5 cable identification
+2. Added support for triggering certain UFCS proprietary protocols</Note2>
+  </Title>
+  <Title version="1.9.2">
+    <IsLatest>false</IsLatest>
+    <IsStable>true</IsStable>
+    <Key>KM003C_V1.9.2.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2024.10.25</LastModified>
+    <ETag>0908689295564702F835E17B7B779A35</ETag>
+    <Crc>DEC1AF5E</Crc>
+    <Size>450916</Size>
+    <Note>1,新增PD3.2中的SPR AVS协议
+2,修复上一版本PDM命令模块不能诱骗快充协议
+</Note>
+    <Note2>1. Added SPR AVS for PD3.2 protocol
+2. Fixed an issue in the previous version where the PDM command module was unable to trigger any fast charging protocols.</Note2>
+  </Title>
+  <Title version="1.9.0">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.9.0.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2024.9.13</LastModified>
+    <ETag>5DF1CE1D51AEB4C4B06F0700F7701723</ETag>
+    <Crc>B1769B86</Crc>
+    <Size>450396</Size>
+    <Note>1.修复PD3.1协议长测会出现死机复位现象</Note>
+    <Note2>1.Fix the issue where the tester may freeze or restart during long-duration testing of the PD3.1 protocol</Note2>
+  </Title>
+  <Title version="1.8.9">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.8.9.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2024.7.24</LastModified>
+    <ETag>936253AADFC79888DDCCF3CD29A776CC</ETag>
+    <Crc>201AA7D5</Crc>
+    <Size>448336</Size>
+    <Note>1,基于1.8.8优化协议自动检测部分</Note>
+    <Note2>1.Optimized the auto detection function after upgrading to V1.8.8</Note2>
+  </Title>
+  <Title version="1.8.8">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.8.8.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2024.7.2</LastModified>
+    <ETag>8B937EFF78E60E7D4DF9E4C2987C289E</ETag>
+    <Crc>87B21A94</Crc>
+    <Size>447816</Size>
+    <Note>1,优化自动UFCS协议检测准确度
+2,优化PDM模块中的DCP,APPLE,AUTO 检测功能
+3,优化1.8.7中雷电数据线识别错误,扩充了ID库
+4,优化PD3.1协议</Note>
+    <Note2>1. Optimized the accuracy of UFCS protocol auto detection
+2. Optimized the DCP, APPLE, AUTO detection function in PDM module
+3. Optimized the Thunderbolt cable recognition error in v1.8.7 by expanding the ID library
+4. Optimized the detection function of PD3.1 protocol</Note2>
+  </Title>
+  <Title version="1.8.7">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.8.7.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2024.2.18</LastModified>
+    <ETag>F9B734DC20102D024B9FD0174438A861</ETag>
+    <Crc>685B68A5</Crc>
+    <Size>444448</Size>
+    <Note>1,修复已知bug</Note>
+    <Note2>1.Fix known bugs</Note2>
+  </Title>
+  <Title version="1.8.6">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.8.6.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2024.1.15</LastModified>
+    <ETag>E9F7C924697643CA7B8CC2E4B85584CC</ETag>
+    <Crc>45E63082</Crc>
+    <Size>444456</Size>
+    <Note>1,新增传音的TFCP快充协议
+2,修复上位机录制曲线时,起始部分时间有折返现象
+3,修复其他已知问题</Note>
+    <Note2>1. Added Infinix TFCP fast charging protocol
+2. Fixed the chaotic curve in the initial part of the recording curves on the PC software
+3. Fixed other known issues</Note2>
+  </Title>
+  <Title version="1.8.5">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.8.5.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2023.12.6</LastModified>
+    <ETag>456A894FA6FC79129D2883092CF6FB42</ETag>
+    <Crc>E7099204</Crc>
+    <Size>441568</Size>
+    <Note>1,修复测试雷电数据线后必须断电后再次进入才能测试
+2,优化PD3.1充电器兼容性
+3,修复协议测试提醒界面少个"任"字</Note>
+    <Note2>1. Fixed the issue that the tester needs to be restarted before testing the Thunderbolt cable
+2. Optimized the compatibility of PD3.1 chargers</Note2>
+  </Title>
+  <Title version="1.8.4">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.8.4.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2023.10.08</LastModified>
+    <ETag>030C734143BCB60E2642C17B0AB0E990</ETag>
+    <Crc>87F18030</Crc>
+    <Size>441480</Size>
+    <Note>1,修复已知bug</Note>
+    <Note2>1. Fix known bugs</Note2>
+  </Title>
+  <Title version="1.8.2">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.8.2.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2023.8.22</LastModified>
+    <ETag>86AD954FC9683A5850A3707E41C012B6</ETag>
+    <Crc>46367775</Crc>
+    <Size>441104</Size>
+    <Note>1,优化纹波测量精度以及少概率随机出现崩溃
+2,优化PD协议数据灵敏度,之前连接起始几个包抓不到
+</Note>
+    <Note2>1. Optimized the accuracy of VBUS ripple module
+2. Optimized the PD analyzer for better data capture</Note2>
+  </Title>
+  <Title version="1.8.0">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.8.0.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2023.8.04</LastModified>
+    <ETag>E56B1331E10A6B72BB3C703D9453ABC3</ETag>
+    <Crc>CE36611C</Crc>
+    <Size>447904</Size>
+    <Note>1,新增VBUS 波形图,在小工具里
+2,新增Motorola和Huawei私有协议
+3,新增记忆上一次任务界面</Note>
+    <Note2>1. Added VBUS ripple in the Modules
+2. Added proprietary protocols of Motorola and Huawei
+3. Added resume previous task function</Note2>
+  </Title>
+  <Title version="1.7.9">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.7.9.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2023.7.28</LastModified>
+    <ETag>666C487DC2165FEE61EFE2AB69CAA4BB</ETag>
+    <Crc>3D6256EE</Crc>
+    <Size>426968</Size>
+    <Note>1,修复V1.7.8 按下按键后黑屏
+2,修复其他已知问题
+3,新增虚拟串口触发模块,配合上位机可更方便的使用仪表</Note>
+    <Note2>1. Added brand new protocol trigger module (Please update your PC software)
+2. Fixed the black screen issue of V1.7.8
+3. Fixed other known problems</Note2>
+  </Title>
+  <Title version="1.7.8">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.7.8.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2023.6.9</LastModified>
+    <ETag>EA216DFCB40333F2B34A25FAD76FCD7E</ETag>
+    <Crc>5F085FDE</Crc>
+    <Size>425512</Size>
+    <Note>1,基于V1.7.7 修复苹果充电器信息读取</Note>
+    <Note2>1. Fix Apple Charger Information Reading Based on V1.7.7</Note2>
+  </Title>
+  <Title version="1.7.7">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.7.7.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2023.6.5</LastModified>
+    <ETag>37A5414EE742F4A57F586A3DFA895CD1</ETag>
+    <Crc>65A31A82</Crc>
+    <Size>425208</Size>
+    <Note>1,修复自动检测协议时,UFCS协议的第一组电源报错.
+2,修复部分仪表通电黑屏无法启动.
+3,修复CC2引脚漏电流导致设备移除后仍保持输出而不是0V
+4,测试E-Marker时通讯引脚弱高电平上拉,提高兼容性
+5,修复部分Cypress协议芯片QC/FCP协议无法测试.</Note>
+    <Note2>1. Improved test compatibility.
+2. Fixed the error of the first voltage range when detecting the UFCS protocol.
+3. Fixed restart issue because of the VBUS.
+4. Fixed the issue of continuous output after disconnecting from the tester caused by the CC2 pin leakage current.
+5. Fixed the QC/FCP protocol detection issue of some Cypress protocol chips.</Note2>
+  </Title>
+  <Title version="1.7.4">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.7.4.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2023.3.29</LastModified>
+    <ETag>BDD1FE47F668AFF0388CC2CDB2267948</ETag>
+    <Crc>2B59EB31</Crc>
+    <Size>418556</Size>
+    <Note>1修复FCP系列的协议
+2修复UFCS协议</Note>
+    <Note2>1 Fix the FCP series protocols
+2 Fix the UFCS protocol</Note2>
+  </Title>
+  <Title version="1.7.3">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.7.3.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2023.3.15</LastModified>
+    <ETag>8D14BD751FE98E050A8EC9774A092661</ETag>
+    <Crc>76EDDF6F</Crc>
+    <Size>419644</Size>
+    <Note>1.修复UFCS协议触发问题
+2.主界面新增显示PD协议中的SVID数据</Note>
+    <Note2>1. Fix the UFS protocol trigger problem
+2. The main ui adds and displays SVID data in PD protocol</Note2>
+  </Title>
+  <Title version="1.6.4 alpha">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.6.4_alpha.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2022.11.5</LastModified>
+    <ETag>D53CD2A49CF75BF0E1E2890DB6107730</ETag>
+    <Crc>B8CBAB55</Crc>
+    <Size>420328</Size>
+    <Note>1 修复自动测试协议出现死机bug
+2 新增210W MIPPS协议触发
+3 修复自动测试协议有循环程序不能正确退出的问题
+4 修复自动测试QC3.0时部分充电器保护不能正确判定等问题，改进手动触发QC3.0调压算法
+5 修复部分设备出现显示错误的电压例如300V</Note>
+    <Note2/>
+  </Title>
+  <Title version="1.6.0 alpha">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.6.0_alpha.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2022.10.21</LastModified>
+    <ETag>4387132C3EFA38282FA2FE8D7F4082A6</ETag>
+    <Crc>3D8CF4EB</Crc>
+    <Size>419872</Size>
+    <Note>1 设置菜单新增自动旋转屏幕选项，同时优化了主界面下的返回按键旋转方法，长按一下切换一次，防止误触循环旋转
+2 修改小米私有PPS开关为 PD3.0/PD3.1/MiPPS,触发PD3.1协议时无需关系模拟数据线，可使用真实带EPR的数据线
+3 优化协议多处小问题 </Note>
+    <Note2/>
+  </Title>
+  <Title version="1.5.6 alpha">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.5.6_alpha.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2022.10.17</LastModified>
+    <ETag>1958AD59886B79AF01F4174D4BCF4920</ETag>
+    <Crc>8CD0A06C</Crc>
+    <Size>415528</Size>
+    <Note>1 新增轮巡VOOC/MTK开关，自动测试协议时间太长可选择关闭
+2 新增小米私有PPS开关
+3 新增模拟20V/50V线材开关，其中PD3.1的EPR功能需要选择 50V 5A 240W EPR型号才可以正常使用。
+4 优化协议部分功能，如VOOC手动模式不能正常退出</Note>
+    <Note2/>
+  </Title>
+  <Title version="1.5.4 alpha">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.5.4_alpha.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2022.10.14</LastModified>
+    <ETag>948BE509A0F0C0D5297CE9F9E05B01CE</ETag>
+    <Crc>CFA9215A</Crc>
+    <Size>400176</Size>
+    <Note>1 修复测emarker 无限循环
+2 修复下拉无法激活充电器，需要注意的是部分充电宝和手机的DRP模式是无法激活的
+3 修复曲线界面在断电时出现蓝色块然后死机
+4 修复一些发现的小问题
+5 暂时关闭VOOC/MTK自动测试功能，因为实在是鸡肋又占用时间
+一些反馈的新功能将在后续版本实现
+1 重力感应开关，快速调节亮度，参考手机下拉通知栏
+2 轮巡VOOC/MTK开关，自动测试协议时间太长可选择关闭
+3 小米私有PPS开关
+4 模拟20V/50V线材开关</Note>
+    <Note2/>
+  </Title>
+  <Title version="1.5.1 alpha">
+    <IsLatest>false</IsLatest>
+    <IsStable>false</IsStable>
+    <Key>KM003C_V1.5.1_alpha.mencrypt</Key>
+    <Url>url</Url>
+    <LastModified>2022.10.10</LastModified>
+    <ETag>2CE34D1403EDEFD2A5A8F96E15036FA1</ETag>
+    <Crc>7F87359F</Crc>
+    <Size>399488</Size>
+    <Note>初始版本，待完善功能如下，请持续关注发布固件状态
+1，UFCS协议分析仪
+2，纹波检测
+3，启用与关闭重力旋转屏以及一些常用的快捷按键功能 </Note>
+    <Note2/>
+  </Title>
+</Updateinfo>
