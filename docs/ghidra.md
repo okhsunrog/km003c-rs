@@ -1,9 +1,3 @@
-Of course. Condensing all of our discoveries into a single, well-structured document is the perfect way to cap off this reverse-engineering project. This `ghidra.md` file will serve as the definitive reference for your device's protocol.
-
-Here is the complete file, incorporating everything we've learned, from the high-level application flow down to the cryptographic functions.
-
----
-
 # Ghidra Reverse Engineering Notes for KM003C
 
 This document contains specific notes, function addresses, data structures, and other details discovered through Ghidra reverse engineering of the `Mtools.exe` software. The goal is to fully document the USB protocol for the ChargerLAB POWER-Z KM003C.
