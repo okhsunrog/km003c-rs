@@ -7,7 +7,6 @@ use nusb::{Interface, transfer::RequestBuffer};
 use std::time::Duration;
 use tracing::{debug, info, warn};
 
-// Payloads are an implementation detail of the device logic, so they live here.
 const AUTH_PAYLOAD_1: &[u8] = &[
     0x33, 0xf8, 0x86, 0x0c, 0x00, 0x54, 0x28, 0x8c, 0xdc, 0x7e, 0x52, 0x72, 0x98, 0x26, 0x87, 0x2d, 0xd1, 0x8b, 0x53,
     0x9a, 0x39, 0xc4, 0x07, 0xd5, 0xc0, 0x63, 0xd9, 0x11, 0x02, 0xe3, 0x6a, 0x9e,
@@ -36,11 +35,6 @@ pub struct KM003C {
 }
 
 impl KM003C {
-    /// Finds, connects to, and initializes the first available POWER-Z KM003C device.
-    ///
-    /// # Arguments
-    ///
-    /// * `with_auth` - If `true`, performs the full, multi-step authentication sequence.
     pub async fn new(with_auth: bool) -> Result<Self, Error> {
         info!("Searching for POWER-Z KM003C...");
         let device_info = nusb::list_devices()?
@@ -66,7 +60,6 @@ impl KM003C {
             transaction_id: 0,
         };
 
-        // Perform the mandatory startup sequence
         info!("--- Starting Connection Handshake ---");
         km003c
             .transact_and_discard(CommandType::Connect, Attribute::None, None)
@@ -102,7 +95,6 @@ impl KM003C {
         Ok(km003c)
     }
 
-    /// Performs the opaque authentication sequence replayed from the official app.
     async fn authenticate(&mut self) -> Result<(), Error> {
         info!("--- Starting Authentication Replay ---");
         self.transact_and_discard(CommandType::Authenticate, Attribute::AuthStep, Some(AUTH_PAYLOAD_1))
@@ -117,16 +109,13 @@ impl KM003C {
         Ok(())
     }
 
-    /// Polls the device once for the latest sensor data.
     pub async fn poll_sensor_data(&mut self) -> Result<crate::protocol::SensorDataPacket, Error> {
         let response_packets = self.transact(CommandType::GetData, Attribute::AdcQueue, None).await?;
-
         for packet in response_packets {
             if let Packet::SensorData(sensor_packet) = packet {
                 return Ok(sensor_packet);
             }
         }
-
         Err(Error::Protocol(
             "Did not receive a valid SensorDataPacket in response to poll.".to_string(),
         ))
@@ -163,26 +152,7 @@ impl KM003C {
         Ok(Packet::from_bytes(Bytes::from(data), Direction::DeviceToHost))
     }
 
-    async fn transact_and_discard(
-        &mut self,
-        cmd: CommandType,
-        attr: Attribute,
-        payload: Option<&[u8]>,
-    ) -> Result<(), Error> {
-        let send_id = self.next_id();
-
-        let expected_id = if cmd == CommandType::CommandWithPayload && attr == Attribute::SetDataRecorderMode {
-            0
-        } else {
-            send_id
-        };
-
-        self.transact_with_ids(cmd, attr, payload, send_id, expected_id).await?;
-        Ok(())
-    }
-
-    /// The main public-facing transaction method for users of the library.
-    pub async fn transact(
+    async fn transact(
         &mut self,
         cmd: CommandType,
         attr: Attribute,
@@ -192,8 +162,22 @@ impl KM003C {
         self.transact_with_ids(cmd, attr, payload, id, id).await
     }
 
-    /// The true, lowest-level transaction function.
-    /// It sends a command with a `send_id` and filters the response for an `expected_id`.
+    async fn transact_and_discard(
+        &mut self,
+        cmd: CommandType,
+        attr: Attribute,
+        payload: Option<&[u8]>,
+    ) -> Result<(), Error> {
+        let send_id = self.next_id();
+        let expected_id = if cmd == CommandType::CommandWithPayload && attr == Attribute::SetDataRecorderMode {
+            0
+        } else {
+            send_id
+        };
+        self.transact_with_ids(cmd, attr, payload, send_id, expected_id).await?;
+        Ok(())
+    }
+
     async fn transact_with_ids(
         &mut self,
         cmd: CommandType,
@@ -206,60 +190,30 @@ impl KM003C {
         self.send_bytes(command_bytes).await?;
 
         let mut responses = Vec::new();
-
-        // 1. Wait for the first packet with a standard timeout.
-        let first_packet = match self.read_packet_with_timeout(Duration::from_millis(250)).await {
-            Ok(p) => p,
-            Err(e) => {
-                return Err(Error::Protocol(format!(
-                    "Timeout waiting for initial response to {:?}: {}",
-                    cmd, e
-                )));
-            }
-        };
-        responses.push(first_packet);
-
-        // 2. Greedily read subsequent packets with a short timeout.
         loop {
-            match self.read_packet_with_timeout(Duration::from_millis(50)).await {
-                Ok(packet) => {
-                    let header_opt = match &packet {
-                        Packet::Acknowledge { header, .. } | Packet::GenericResponse { header, .. } => Some(header),
-                        _ => None,
-                    };
-
-                    if let Some(header) = header_opt {
-                        if header.transaction_id != expected_id && header.transaction_id != 0 {
-                            warn!(
-                                "Read-ahead detected packet for a different transaction (ID {}). Stopping current transaction.",
-                                header.transaction_id
-                            );
-                            break;
-                        }
-                    }
-                    responses.push(packet);
-                }
+            let timeout = if responses.is_empty() {
+                Duration::from_millis(250)
+            } else {
+                Duration::from_millis(50)
+            };
+            match self.read_packet_with_timeout(timeout).await {
+                Ok(packet) => responses.push(packet),
                 Err(_) => break,
             }
         }
 
-        // 3. Filter the collected responses for relevance.
-        let relevant_responses: Vec<Packet> = responses
+        let relevant_responses = responses
             .into_iter()
             .filter(|p| {
-                let get_id = |h: &crate::protocol::CommandHeader| h.transaction_id;
-
                 let is_id_match = match p {
-                    Packet::Acknowledge { header, .. } | Packet::GenericResponse { header, .. } => {
-                        get_id(header) == expected_id
-                    }
+                    Packet::Acknowledge { header, .. } => header.transaction_id == expected_id,
+                    Packet::GenericResponse { header, .. } => header.transaction_id == expected_id,
                     Packet::SensorData(sd) => sd.header.to_le_bytes().get(1) == Some(&expected_id),
                     _ => false,
                 };
-
                 matches!(p, Packet::DataChunk(_)) || is_id_match
             })
-            .collect();
+            .collect::<Vec<_>>();
 
         if relevant_responses.is_empty() {
             warn!(
@@ -275,7 +229,6 @@ impl KM003C {
                 relevant_responses.len()
             );
         }
-
         Ok(relevant_responses)
     }
 }
