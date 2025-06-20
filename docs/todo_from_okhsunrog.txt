@@ -8,7 +8,7 @@ this is wrong, it needs to parse device info
 debug logs from protocol.rs should work fine
 
 
-rewrite device.rs?
+rewrite device.rs!
 
 make sure again that simple_logger matches the windows app. then try to simpify it
 test when auth needed and when not.
@@ -17,9 +17,33 @@ use pd.md, make PD work, parse the sqlite db for that!
 make high frequency adc monitoring mode work, that one is very useful too!
 flashing can be ignored, but verifing fw version might be needed
 
+investifate, compare all sources of truth - protocol.md, protoco.rs, pascal files, pdf doc
+
 then try send serial commands via raw usb endpoint! should be possible
 
 average D+ and D- are wrong in simple logger
 temperature measurements are wrong too!
+
+
+info block!
+find out if the weird logic in device.rs is only needed for the auth
+make sure all of the packets in all modes are parsed correctly. do they all go in request-response pairs?
+add some special case handling for request-response?
+
+I did wrote some bullshit. Take a closer look at KM002C&3C API Description.pdf by myself, without AI!
+
+don't ignore the pascal code, it has a good logic of parsing PD packets from KM003C!
+https://github.com/LongDirtyAnimAlf/km003c/blob/main/PC/USBCController/main.pas
+https://github.com/LongDirtyAnimAlf/km003c/blob/main/PC/USBCController/km003c.pas
+
+probably GetFile start adc high frequency data stream or sets rate?
+AdcQueue10k is used for sending data in hf adc streaming, size of it is dynamic?
+
+what is this command from host? seen a few times in hf streaming Command(CommandHeader { command_type: GetData, transaction_id: 99, attribute: Unknown(6) }, None)
+
+looks like for adc streaming with higher frequency it start with this?
+
+Command(CommandHeader { command_type: GetFile, transaction_id: 34, attribute: AdcQueue10k }, None)
+2025-06-20T11:20:44.525139Z  INFO [TXN-RSP] D->H F:942  @ 8.109489s | Acknowledge { header: CommandHeader { command_type: Accept, transaction_id: 34, attribute: None }, kind: Accept }
 
 

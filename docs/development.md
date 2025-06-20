@@ -31,6 +31,8 @@ tshark -r <your_capture_file.pcapng> -T fields -E separator=, -E quote=d \
   -e usb.capdata
 
 
+in wireshard use this display filter: usb.src contains "3.28" || usb.dst contains "3.28"
+
 ❯ sqlite3  "SELECT * FROM pd_table_key;"                 
 
 ❯ sqlite3 wireshark/orig_with_pd.sqlite ".tables"
