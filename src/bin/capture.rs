@@ -136,10 +136,13 @@ fn run_raw_chronological_capture(cli: &Cli) -> Result<()> {
     Ok(())
 }
 
+// In src/bin/capture.rs
+
 /// Mode 2: File-only, reads all packets, groups them, then prints a contextual log.
 fn run_grouped_file_capture(cli: &Cli) -> Result<()> {
     const RESPONSE_WINDOW: usize = 20;
 
+    // --- PHASE 1: INGEST ALL PACKETS FROM FILE (Unchanged) ---
     let mut all_packets: Vec<CapturedPacket> = Vec::new();
     let display_filter = format!(
         "usb.device_address == {} && usb.transfer_type == 0x03 && usb.capdata",
@@ -158,54 +161,77 @@ fn run_grouped_file_capture(cli: &Cli) -> Result<()> {
     }
     info!("Ingested {} packets. Grouping transactions...", all_packets.len());
 
+    // --- PHASE 2: GROUPING LOGIC (The updated part) ---
     let mut display_items: Vec<DisplayItem> = Vec::new();
     let mut consumed_indices = vec![false; all_packets.len()];
 
     for i in 0..all_packets.len() {
-        if consumed_indices[i] { continue; }
+        if consumed_indices[i] {
+            continue;
+        }
 
         let mut was_grouped = false;
         let request_candidate = &all_packets[i];
 
+        // Only `Command` packets can be requests.
         if let Packet::Command(req_header, _) = &request_candidate.packet {
             let search_end = (i + 1 + RESPONSE_WINDOW).min(all_packets.len());
             'response_search: for j in (i + 1)..search_end {
                 if consumed_indices[j] { continue; }
 
                 let response_candidate = &all_packets[j];
+                let mut is_match = false;
+
+                // --- NEW UNIFIED MATCHING LOGIC ---
+                // RULE 1: Check for standard response with a matching ID.
                 if let Some(res_header) = get_packet_header(&response_candidate.packet) {
                     if res_header.transaction_id == req_header.transaction_id {
-                        let mut responses = vec![response_candidate.clone()];
-                        consumed_indices[j] = true;
-
-                        let continuation_end = (j + 1 + RESPONSE_WINDOW).min(all_packets.len());
-                        for k in (j + 1)..continuation_end {
-                            if consumed_indices[k] { continue; }
-                            if matches!(all_packets[k].packet, Packet::DataChunk(_)) {
-                                responses.push(all_packets[k].clone());
-                                consumed_indices[k] = true;
-                            } else { break; }
-                        }
-                        
-                        display_items.push(DisplayItem::Transaction {
-                            request: request_candidate.clone(),
-                            responses,
-                        });
-                        was_grouped = true;
-                        break 'response_search;
+                        is_match = true;
                     }
+                } 
+                // RULE 2: Check for a SensorData response with a matching ID in its packed header.
+                else if let Packet::SensorData(sd) = &response_candidate.packet {
+                    if sd.header.transaction_id == req_header.transaction_id {
+                        is_match = true;
+                    }
+                }
+
+                // If a match was found by ANY rule, group the transaction.
+                if is_match {
+                    let mut responses = vec![response_candidate.clone()];
+                    consumed_indices[j] = true;
+
+                    // Now look for subsequent DataChunk continuations.
+                    let continuation_end = (j + 1 + RESPONSE_WINDOW).min(all_packets.len());
+                    for k in (j + 1)..continuation_end {
+                        if consumed_indices[k] { continue; }
+                        if matches!(all_packets[k].packet, Packet::DataChunk(_)) {
+                            responses.push(all_packets[k].clone());
+                            consumed_indices[k] = true;
+                        } else {
+                            break; // The chain of continuations is broken.
+                        }
+                    }
+                    
+                    display_items.push(DisplayItem::Transaction {
+                        request: request_candidate.clone(),
+                        responses,
+                    });
+                    was_grouped = true;
+                    break 'response_search; // Found our transaction, stop searching.
                 }
             }
         }
         
+        // If the packet at `i` was not grouped, add it as a standalone item.
         if !was_grouped {
             display_items.push(DisplayItem::Standalone(request_candidate.clone()));
         }
         consumed_indices[i] = true;
     }
 
+    // --- PHASE 3: RENDER THE GROUPED LOG (Unchanged) ---
     println!("--- Grouped Chronological Log ---");
-    // FIX: Check verbosity level correctly
     let is_debug = cli.verbose.tracing_level_filter() >= Level::DEBUG;
     for item in &display_items {
         print_display_item(item, is_debug);
