@@ -79,12 +79,14 @@ impl Packet {
             }
         }
 
-        // Now, handle Device-to-Host
 
-        // Heuristic 1: Is it a 52-byte SensorData packet? This is high-priority.
-        if bytes.len() == 52 {
+       if bytes.len() == 52 && !bytes.is_empty() && bytes[0] == CommandType::DataResponse as u8 {
             if let Ok(sensor_data) = SensorDataPacket::try_from(bytes.clone()) {
-                return Packet::SensorData(sensor_data);
+                // Double check it's not a different kind of 52-byte packet
+                // The attribute echo for AdcQueue is 0x02.
+                if sensor_data.header.attribute_echo == 0x02 {
+                    return Packet::SensorData(sensor_data);
+                }
             }
         }
 
@@ -173,12 +175,32 @@ pub enum AckType {
     Rejected,
 }
 
-/// Represents the full 52-byte sensor data packet received from the device.
-// ... (SensorDataPacket struct and its impls remain the same) ...
+
+/// Represents the packed 4-byte header of a SensorDataPacket.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SensorDataHeader {
+    pub response_type: u8,
+    pub transaction_id: u8,
+    pub flags: u8,
+    pub attribute_echo: u8,
+}
+
+impl From<u32> for SensorDataHeader {
+    fn from(val: u32) -> Self {
+        let bytes = val.to_le_bytes();
+        Self {
+            response_type: bytes[0],
+            transaction_id: bytes[1],
+            flags: bytes[2],
+            attribute_echo: bytes[3],
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SensorDataPacket {
     // These fields are based on the protocol spec table.
-    pub header: u32,
+    pub header: SensorDataHeader,
     pub extended_header: u32,
     pub vbus_uv: i32,
     pub ibus_ua: i32,
@@ -274,7 +296,7 @@ impl TryFrom<Bytes> for SensorDataPacket {
             ));
         }
         Ok(Self {
-            header: bytes.get_u32_le(),
+            header: SensorDataHeader::from(bytes.get_u32_le()),
             extended_header: bytes.get_u32_le(),
             vbus_uv: bytes.get_i32_le(),
             ibus_ua: bytes.get_i32_le(),
@@ -312,12 +334,12 @@ impl TryFrom<Bytes> for DeviceInfoBlock {
     type Error = std::io::Error;
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
-        if bytes.len() < 204 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Device info block too short",
-            ));
-        }
+if bytes.len() < 188 { // Use 188 to match the check in Packet::from_bytes
+    return Err(std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        "Device info block too short",
+    ));
+}
 
         let firmware_version = bytes.slice(8..12).get_u32_le();
         let capabilities = bytes.slice(16..20).get_u32_le();
@@ -353,7 +375,7 @@ pub enum CommandType {
     SetConfig = 0x10,
     ResetConfig = 0x11,
     GetDeviceInfo = 0x40,
-    DataResponse = 0x41, // RENAMED from StatusA
+    DataResponse = 0x41,
     Serial = 0x43,
     Authenticate = 0x44,
     CommandWithPayload = 0x4C,
@@ -363,7 +385,6 @@ pub enum CommandType {
     Response75 = 0x75,
 }
 
-// --- CHANGE: try_from for CommandType updated ---
 impl TryFrom<u8> for CommandType {
     type Error = ();
     fn try_from(value: u8) -> Result<Self, Self::Error> {
@@ -435,9 +456,6 @@ impl From<u16> for Attribute {
             0x0200 => Self::SetDataRecorderMode, // NEW
             0x0400 => Self::GetStartupInfo,      // NEW
             0x2000 => Self::PollPdEvents,
-            // Note: 0x0200 was also named ATT_AUTH. We've chosen a more specific name
-            // for its usage in setting the recorder mode. If it's used for other
-            // auth purposes, we can revisit. For now, SetDataRecorderMode is clearer.
             other => Self::Unknown(other),
         }
     }
@@ -456,19 +474,18 @@ impl From<Attribute> for u16 {
             Attribute::PdStatus => 0x0020,
             Attribute::QcPacket => 0x0040,
             Attribute::Timestamp => 0x0080,
-            Attribute::AuthStep => 0x0101, // NEW
+            Attribute::AuthStep => 0x0101,
             Attribute::Serial => 0x0180,
-            Attribute::SetDataRecorderMode => 0x0200, // NEW
-            Attribute::Auth => 0x0200,                // Keep this for logical clarity if needed elsewhere
-            Attribute::GetStartupInfo => 0x0400,      // NEW
+            Attribute::SetDataRecorderMode => 0x0200,
+            Attribute::Auth => 0x0200,
+            Attribute::GetStartupInfo => 0x0400,
             Attribute::PollPdEvents => 0x2000,
             Attribute::Unknown(val) => val,
         }
     }
 }
 
-/// Represents the supported sample rates for the Data Recorder mode.
-// ... (SampleRate enum and its impls remain the same) ...
+
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SampleRate {
     #[default]

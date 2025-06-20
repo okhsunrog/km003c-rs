@@ -208,9 +208,11 @@ impl KM003C {
                 let is_id_match = match p {
                     Packet::Acknowledge { header, .. } => header.transaction_id == expected_id,
                     Packet::GenericResponse { header, .. } => header.transaction_id == expected_id,
-                    Packet::SensorData(sd) => sd.header.to_le_bytes().get(1) == Some(&expected_id),
+                    // Use the new, structured header for a clean and direct comparison
+                    Packet::SensorData(sd) => sd.header.transaction_id == expected_id,
                     _ => false,
                 };
+                // Keep this logic, as it's correct for collecting multi-part responses
                 matches!(p, Packet::DataChunk(_)) || is_id_match
             })
             .collect::<Vec<_>>();

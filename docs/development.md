@@ -20,3 +20,12 @@ tshark -r <your_capture_file.pcapng> -T fields -E separator=, -E quote=d \
   -f "usb.transfer_type == 0x03" \
   -e frame.number -e usb.endpoint_address.direction -e usb.capdata \
   > output.csv
+
+  tshark -r wireshark/orig_open_close.13.pcapng \
+  -Y "usb.device_address == 13 && usb.capdata" \
+  -T fields \
+  -E separator=" | " -E header=y \
+  -e frame.number \
+  -e frame.time_relative \
+  -e usb.endpoint_address.direction \
+  -e usb.capdata
