@@ -604,3 +604,193 @@ By parsing the `PD_Status_Snapshot` from this log entry, we can determine that t
 > An **`EPR_Mode`** control message, sent by a **Source**, which was an Extended Message containing **7 Data Objects**.
 
 This status is what allows the Power-Z application to update its log view to show "EPR Mode", "Source", and then proceed to parse the associated 7 PDOs if they were also included in the packet, which they were in this case (as shown in the previous analysis). This mechanism is how the application stays synchronized with the PD bus activity without needing to sniff every single byte in real-time.
+
+
+0cef2000 and 0cf02200
+
+
+Of course. This is another excellent and more complex example. Let's analyze it by breaking it down into its constituent parts, referencing the established structures.
+
+This transaction demonstrates the **combined "sync" packet** I described in the previous analysis. Although the host sends a `GetData(PdStatus)` request, the device's response is a large, composite packet that contains *both* the standard `PD_Status_Snapshot` and the full `AdcData_TypeDef` (the sensor data).
+
+The application logic (specifically the meta-parser at `FUN_14015bbb0`) is smart enough to recognize this larger response and split it, sending the first 16 bytes to the status update logic and the subsequent 52 bytes to the dashboard sensor update logic.
+
+### Parsing the Log Entry
+
+**1. Isolate the Request and Response:**
+
+-   **Request:** `0c 83 22 00`
+    -   `type` = `0x0C` (GetData)
+    -   `transaction_id` = `0x83` (131)
+    -   `attribute` = `0x22` -> This is a request for **Device Information**.
+
+-   **Response Header:** `41 83 82 03`
+    -   `type` = `0x41` (DataResponse)
+    -   `transaction_id` = `0x83` (Matches request)
+    -   The attribute and object count are internal to the device's response logic.
+
+-   **Response Payload (102 bytes):**
+    `0180000b0e100000feffffff1b100000f8ffffff7f10000056000000df0f827ed6046f025d028a7e008078003f003d001000000371f5120005000000a80c7b...`
+
+This 102-byte payload is a concatenation of multiple data structures. Let's parse them in order.
+
+---
+
+### Part 1: Parsing the `PD_Status_Snapshot` (First 16 Bytes)
+
+-   **Hex Data:** `01 80 00 0b 0e 10 00 00 fe ff ff ff 1b 10 00 00`
+
+| Offset | Field Name       | Bytes (Raw) | LE Value     | Decoded Meaning                                                               |
+| :----- | :--------------- | :---------- | :----------- | :---------------------------------------------------------------------------- |
+| 0-3    | Timestamp/Seq    | `01 80 00 0b` | `0x0B008001` | Ignored for this analysis.                                                    |
+| **4-5**  | **`Last_PD_Header`** | **`0e 10`**     | **`0x100E`** | **This is the key field.** It describes the last PD message on the bus. |
+| 6-15   | Internal Data    | `...`       | -            | Ignored.                                                                      |
+
+#### Decoding the `Last_PD_Header`: `0x100E`
+
+-   **Binary Representation:** `0001 0000 0000 1110`
+
+| Bits  | Field Name               | Binary Value | Value  | Meaning                  |
+| :---- | :----------------------- | :----------- | :----- | :----------------------- |
+| 15    | Extended                 | `0`b         | 0      | Not an Extended Message  |
+| 14-12 | Number of Data Objects   | `000`b       | 0      | 0 Data Objects           |
+| 11-9  | Message ID               | `100`b       | 4      | Message Counter 4        |
+| 8     | Port Power Role          | `0`b         | 0      | Sink                     |
+| 7-6   | Specification Revision   | `00`b        | 0      | PD Spec Revision 1.0     |
+| 5     | Port Data Role           | `0`b         | 0      | UFP                      |
+| 4-0   | **Message Type**         | **`01110`b** | **14** | **`Wait`** (Control Message) |
+
+**Conclusion for Part 1:** The most recent PD event was a `Wait` command, indicating a pause in negotiations.
+
+---
+
+### Part 2: Parsing the Sensor Data (Next 52 Bytes)
+
+This part of the payload corresponds to the `TKM003CSensorData` structure, starting at offset 16 of the payload.
+
+-   **Hex Data:** `f8ffffff 7f100000 56000000 df0f827e d6046f02 5d028a7e 00807800 3f003d00 10000003 71f51200 05000000`
+
+| Field             | Offset | Bytes (Raw)   | LE Value      | Calculation                                | Result             |
+| :---------------- | :----- | :------------ | :------------ | :----------------------------------------- | :----------------- |
+| `V_bus`           | 16     | `f8 ff ff ff` | `0xFFFFFFF8`  | -8 µV                                      | **~0.00 V**        |
+| `I_bus`           | 20     | `7f 10 00 00` | `0x0000107F`  | 4223 µA                                    | **0.004 A**        |
+| `V_bus_avg`       | 24     | `56 00 00 00` | `0x00000056`  | 86 µV                                      | **~0.00 V**        |
+| `I_bus_avg`       | 28     | `df 0f 82 7e` | `0x7E820FDF`  | (Internal value)                         | -                  |
+| `V_bus_ori_avg`   | 32     | `d6 04 6f 02` | `0x026F04D6`  | (Internal value)                         | -                  |
+| `I_bus_ori_avg`   | 36     | `5d 02 8a 7e` | `0x7E8A025D`  | (Internal value)                         | -                  |
+| **`Temp`**        | **40** | **`00 80`**     | **`0x8000`**  | -32768 / 128 = -256.0 °C                 | **(Invalid/NA)**   |
+| **`Vcc1`**        | **42** | **`78 00`**     | **`0x0078`**  | 120 * 0.1mV = 12.0 mV                      | **0.012 V**        |
+| **`Vcc2`**        | **44** | **`3f 00`**     | **`0x003F`**  | 63 * 0.1mV = 6.3 mV                      | **0.006 V**        |
+| **`Vdp`**         | **46** | **`3d 00`**     | **`0x003D`**  | 61 * 0.1mV = 6.1 mV                      | **0.006 V**        |
+| **`Vdm`**         | **48** | **`10 00`**     | **`0x0010`**  | 16 * 0.1mV = 1.6 mV                      | **0.002 V**        |
+| `Vdd`             | 50     | `00 03`       | `0x0300`      | (Internal)                               | -                  |
+| `Rate`            | 52     | `71`          | -             | Sample Rate enum                         | -                  |
+| ...               | ...    | ...           | ...           | ...                                      | ...                |
+
+---
+
+### Part 3: Parsing Device-Specific Information (Remaining 34 Bytes)
+
+This part starts at offset 68 (`16 + 52`).
+
+-   **Hex Data:** `a80c7b00 ... 05d2`
+
+| Offset | Length | Bytes (Hex)                  | ASCII Decoded | Description                |
+| :----- | :----- | :--------------------------- | :------------ | :------------------------- |
+| **68-83** | 16     | `504f5745522d5a00...`        | **POWER-Z**   | **Device Identification String** |
+| 84-101    | 18     | `...`                        | -             | Firmware/Hardware versions, serial numbers, etc. |
+
+**Conclusion:**
+This specific transaction was a host request for the device's information (`attribute: 0x22`). The KM003C responded with a comprehensive 102-byte packet that includes:
+1.  A real-time PD status snapshot, indicating the last message was a `Wait` command.
+2.  A full snapshot of all current sensor readings (VBUS, IBUS, Temp, CC/DP/DM lines).
+3.  Static device information, including its name ("POWER-Z") and other hardware details.
+
+This efficient, composite packet allows the application to perform a full synchronization with a single USB transaction.
+
+
+Of course. This is an excellent question, as it reveals a key design principle of the KM003C's communication protocol: efficiency. The two commands look similar but serve very different purposes, one for lightweight polling and one for a comprehensive data dump.
+
+Let's break them down individually.
+
+---
+
+### Command 1: `0cef2000` (Poll for PD Status)
+
+This is the most common command you'll see in the logs. It's a lightweight, high-frequency poll to keep the UI updated on the state of the Power Delivery negotiations.
+
+#### Decoded View
+
+-   **Byte Sequence:** `0c ef 20 00`
+-   **Little-Endian Value:** `0x0020EF0C`
+-   **Applying the `ctrl` struct:**
+
+| Field       | Bits    | Value         | Decimal | Meaning               |
+| :---------- | :------ | :------------ | :------ | :-------------------- |
+| `type`      | 0-6     | `0x0C`        | 12      | **`CMD_GET_DATA`**    |
+| `extend`    | 7       | `0`           | 0       | Not Extended          |
+| `id`        | 8-15    | `0xEF`        | 239     | Transaction ID        |
+| (reserved)  | 16      | `0`           | 0       | -                     |
+| `attribute` | 17-31   | **`0x0020`**  | **32**  | **`ATT_PD_STATUS`**   |
+
+#### Purpose and Use Case
+
+-   **Purpose:** To ask the KM003C, "What was the header of the *very last* Power Delivery message you saw on the bus?"
+-   **Use Case:** This is the application's main method for **real-time monitoring**. It is sent repeatedly by a timer (likely `CheckTimerTimer` at `FUN_140045b20`) to detect state changes like `Accept`, `Reject`, `PS_RDY`, `Get_Source_Cap`, etc. It allows the UI to update its "Current State" label and log the sequence of PD events without needing the full data payload every time.
+
+#### Expected Response
+
+-   **Size:** **16 bytes**.
+-   **Content:** The `PD_Status_Snapshot` structure, which we analyzed previously. The most important field is the 2-byte `Last_PD_Header` at offset 4, which is a copy of the header from the last PD message.
+
+---
+
+### Command 2: `0cf02200` (Request Device Info / Full Sync)
+
+This is a less frequent, "heavier" command used to get a complete snapshot of the device's state.
+
+#### Decoded View
+
+-   **Byte Sequence:** `0c f0 22 00`
+-   **Little-Endian Value:** `0x0022F00C`
+-   **Applying the `ctrl` struct:**
+
+| Field       | Bits    | Value         | Decimal | Meaning                     |
+| :---------- | :------ | :------------ | :------ | :-------------------------- |
+| `type`      | 0-6     | `0x0C`        | 12      | **`CMD_GET_DATA`**          |
+| `extend`    | 7       | `0`           | 0       | Not Extended                |
+| `id`        | 8-15    | `0xF0`        | 240     | Transaction ID              |
+| (reserved)  | 16      | `0`           | 0       | -                           |
+| `attribute` | 17-31   | **`0x0022`**  | **34**  | **Device Info & Full Sync** |
+
+#### Purpose and Use Case
+
+-   **Purpose:** To ask the KM003C, "Send me a complete dump of your current status." This includes static device information, all current sensor readings, and the latest PD status.
+-   **Use Case:** This command is typically sent during initialization (e.g., in `FUN_140047fb0` after a device is connected) or when the user manually triggers a full refresh. It's too data-intensive for high-frequency polling but essential for populating all UI fields at once.
+
+#### Expected Response
+
+-   **Size:** **102 bytes** (or more, if a PD packet is also attached).
+-   **Content:** A composite packet containing, in order:
+    1.  A 16-byte `PD_Status_Snapshot`.
+    2.  A 52-byte `AdcData_TypeDef` (the full sensor data packet).
+    3.  A 34-byte block of device-specific info (Product Name, FW/HW versions, etc.).
+
+---
+
+### Summary of Differences
+
+| Feature               | Command `0cef2000`                                | Command `0cf02200`                                         |
+| :-------------------- | :------------------------------------------------ | :--------------------------------------------------------- |
+| **Decoded Attribute** | **`0x20` (PdStatus)**                             | **`0x22` (Device Info)**                                   |
+| **Purpose**           | Lightweight, high-frequency polling.              | Infrequent, full data synchronization.                     |
+| **Question to Device**| "What was the last PD message header?"              | "Give me a complete snapshot of everything."               |
+| **Response Payload**  | **16 bytes** (`PD_Status_Snapshot`)                 | **102+ bytes** (Composite packet)                          |
+| **Information Yield** | Minimal state change info (e.g., "A 'Request' just happened.") | Full dashboard data, PD state, and static device info. |
+| **Typical Usage**     | Inside a fast timer loop for real-time UI updates.  | On initial connection, or for a manual "Refresh" action.     |
+
+In essence, the protocol uses **`attribute 0x20`** for a fast, "are we there yet?" style of status check, and **`attribute 0x22`** for a comprehensive "tell me everything you know" data dump.
+
+
+
+
