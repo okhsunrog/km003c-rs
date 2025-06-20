@@ -1,0 +1,16 @@
+ INFO [TXN-REQ] H->D F:221  @ 4.503607s | Command(CommandHeader { command_type: GetData, transaction_id: 7, attribute: GetDeviceInfo }, None)
+DEBUG [TXN-REQ] H->D F:221  @ 4.503607s | 0c071000
+ INFO [TXN-RSP] D->H F:224  @ 4.504197s | GenericResponse { header: CommandHeader { command_type: DataResponse, transaction_id: 7, attribute: Unknown(2818) }, payload: b"\x08\0\0-a\x01P\xf8\0\0\0\0\x10'A\xff\0\0\0\0\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfa\xff\xff\xff\xfa\xff\xff\xff\xfa\xff\xff\xff\xfa\xff\xff\xff\xfa\xff\xff\xff\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0^\0\0\0&\x8b\xb8:C\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0POWER-Z\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0 }\x05\xd2" }
+DEBUG [TXN-RSP] D->H F:224  @ 4.504197s | 4107020b0800002d610150f800000000102741ff00000000fffffffffffffffffffffffffafffffffafffffffafffffffafffffffaffffffed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f005e000000268bb83a43000000000000000000000000000000504f5745522d5a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000207d05d2
+
+
+this is wrong, it needs to parse device info
+debug logs from protocol.rs should work fine
+
+
+rewrite device.rs?
+
+make sure again that simple_logger matches the windows app. then try to simpify it
+test when auth needed and when not.
+
+use pd.md, make PD work, parse the sqlite db for that!
