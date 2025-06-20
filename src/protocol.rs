@@ -1,3 +1,5 @@
+// src/protocol.rs
+
 //! # ChargerLAB POWER-Z KM003C USB Protocol (Ghidra/Wireshark Verified)
 //!
 //! This module provides a comprehensive set of constants, structs, and enums for
@@ -27,6 +29,7 @@
 use bytes::{Buf, Bytes};
 use std::convert::TryFrom;
 use std::fmt;
+use tracing::debug;
 
 // --- Constants ---
 
@@ -68,7 +71,7 @@ pub enum Packet {
 
 impl Packet {
     pub fn from_bytes(bytes: Bytes, direction: Direction) -> Self {
-        // Host-to-Device is always a command.
+        // Host-to-Device is always a simple Command
         if direction == Direction::HostToDevice {
             if let Ok(header) = CommandHeader::try_from(bytes.slice(0..4)) {
                 let payload = if bytes.len() > 4 { Some(bytes.slice(4..)) } else { None };
@@ -78,72 +81,52 @@ impl Packet {
             }
         }
 
-        // --- NEW, MORE ROBUST PARSING LOGIC FOR DEVICE-TO-HOST ---
+        // --- Device-To-Host Parsing Logic ---
 
         // Heuristic 1: Is it a 52-byte packet? It's almost certainly SensorData.
-        // Let's check this first because it's a very strong indicator.
         if bytes.len() == 52 {
             if let Ok(sensor_data) = SensorDataPacket::try_from(bytes.clone()) {
-                // We can still double-check the command type if we want
                 if sensor_data.header.response_type == CommandType::DataResponse as u8 {
                     return Packet::SensorData(sensor_data);
                 }
             }
         }
 
-        // Heuristic 2: Does it have a valid command header?
+        // Heuristic 2: Does it have a valid 4-byte command header?
         if let Ok(header) = CommandHeader::try_from(bytes.slice(0..4)) {
-            let payload_bytes = if bytes.len() > 4 {
-                bytes.slice(4..)
-            } else {
-                Bytes::new()
-            };
+            let payload = if bytes.len() > 4 { bytes.slice(4..) } else { Bytes::new() };
 
             return match header.command_type {
-                CommandType::Accept => Packet::Acknowledge {
-                    header,
-                    kind: AckType::Accept,
-                },
-                CommandType::Rejected => Packet::Acknowledge {
-                    header,
-                    kind: AckType::Rejected,
-                },
+                CommandType::Accept => Packet::Acknowledge { header, kind: AckType::Accept },
+                CommandType::Rejected => Packet::Acknowledge { header, kind: AckType::Rejected },
 
                 CommandType::DataResponse => {
-                    // Check for large structured payloads based on length, NOT attribute.
-                    // The payload for DeviceInfo is > 188 bytes long.
-                    if payload_bytes.len() >= 188 {
-                        if let Ok(info) = DeviceInfoBlock::try_from(payload_bytes.clone()) {
+                    // Check if the payload matches the signature of a DeviceInfoBlock.
+                    if payload.len() >= 200 {
+                        if let Ok(info) = DeviceInfoBlock::try_from(payload.clone()) {
                             return Packet::DeviceInfo(info);
                         }
                     }
-                    // If it's not a DeviceInfo block, it's a generic response.
-                    Packet::GenericResponse {
-                        header,
-                        payload: payload_bytes,
-                    }
+                    
+                    // Fallback to a generic response.
+                    Packet::GenericResponse { header, payload }
                 }
 
-                // Any other known command type is a generic response for now.
-                _ => Packet::GenericResponse {
-                    header,
-                    payload: payload_bytes,
-                },
+                _ => Packet::GenericResponse { header, payload },
             };
         }
 
-        // Heuristic 3: No valid header? It's a DataChunk (like the auth responses).
+        // Heuristic 3: No valid header? It must be a raw data continuation chunk.
         if !bytes.is_empty() {
             return Packet::DataChunk(bytes);
         }
 
-        // Fallback for zero-length or otherwise unclassifiable packets.
+        // Fallback for empty or completely unidentifiable packets.
         Packet::Unknown { bytes, direction }
     }
 }
 
 /// Represents the 4-byte header of a command or response.
-// ... (CommandHeader struct and its impls remain the same) ...
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CommandHeader {
     pub command_type: CommandType,
@@ -170,7 +153,6 @@ impl TryFrom<Bytes> for CommandHeader {
 }
 
 /// Represents a simple Acknowledgment type.
-// ... (AckType enum remains the same) ...
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AckType {
     Accept,
@@ -222,11 +204,9 @@ pub struct SensorDataPacket {
     pub vdm_avg_mv: u16,
 }
 
-// In km003c-rs/src/protocol.rs
-
 impl fmt::Display for SensorDataPacket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // --- Calculations with CORRECTED divisors ---
+        // All units confirmed via testing.
         let vbus_v = self.vbus_uv as f64 / 1_000_000.0;
         let ibus_a = self.ibus_ua as f64 / 1_000_000.0;
         let power_w = vbus_v * ibus_a;
@@ -236,19 +216,17 @@ impl fmt::Display for SensorDataPacket {
 
         let temp_c = self.temp_raw as f64 / 100.0;
 
-        // FIX: The unit is 0.1mV, so divide by 10,000 to get Volts.
+        // The unit is 0.1mV, so divide by 10,000 to get Volts.
         let vdp_v = self.vdp_mv as f64 / 10_000.0;
         let vdm_v = self.vdm_mv as f64 / 10_000.0;
         let vdp_avg_v = self.vdp_avg_mv as f64 / 10_000.0;
         let vdm_avg_v = self.vdm_avg_mv as f64 / 10_000.0;
 
-        // FIX: CC lines also use the 0.1mV unit.
+        // CC lines also use the 0.1mV unit.
         let cc1_v = self.vcc1_tenth_mv as f64 / 10_000.0;
         let cc2_v = self.vcc2_raw as f64 / 10_000.0;
 
-        // --- Formatting ---
         writeln!(f, "┌─ Live Measurements ─────────────────────────────────┐")?;
-        // FIX: Use .abs() for current and power
         writeln!(
             f,
             "│ VBUS:  {:>8.4} V  |  IBUS:   {:>8.4} A        │",
@@ -320,8 +298,7 @@ impl TryFrom<Bytes> for SensorDataPacket {
     }
 }
 
-/// Represents the 200+ byte device information block.
-// ... (DeviceInfoBlock struct and its impls remain the same) ...
+/// Represents the 200-byte device information block.
 #[derive(Debug, Clone)]
 pub struct DeviceInfoBlock {
     pub firmware_version: u32,
@@ -335,23 +312,33 @@ impl TryFrom<Bytes> for DeviceInfoBlock {
     type Error = std::io::Error;
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
-        if bytes.len() < 188 {
-            // Use 188 to match the check in Packet::from_bytes
+        debug!(
+            "Attempting to parse DeviceInfoBlock from payload of length {}",
+            bytes.len()
+        );
+        
+        // The core data block is 200 bytes long.
+        if bytes.len() < 200 {
+            debug!("DeviceInfoBlock::try_from failed: payload len {} is < 200", bytes.len());
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                "Device info block too short",
+                "Device info block payload too short",
             ));
         }
 
+        // All slices are now guaranteed to be within bounds.
         let firmware_version = bytes.slice(8..12).get_u32_le();
         let capabilities = bytes.slice(16..20).get_u32_le();
 
-        let name_bytes = &bytes.slice(136..200);
-        let name_end = name_bytes.iter().position(|&b| b == 0).unwrap_or(64);
-        let device_name = String::from_utf8_lossy(&name_bytes[..name_end]).to_string();
+        // Device name is from offset 136 to 200.
+        let name_slice = bytes.slice(136..200);
+        let name_end = name_slice.iter().position(|&b| b == 0).unwrap_or(64);
+        let device_name = String::from_utf8_lossy(&name_slice[..name_end]).to_string();
 
-        let checksum = bytes.slice(bytes.len() - 4..).get_u32_le();
-
+        // Checksum is at a fixed offset from 196 to 200.
+        let checksum = bytes.slice(196..200).get_u32_le();
+        
+        debug!("Successfully parsed DeviceInfoBlock with name '{}'", device_name);
         Ok(Self {
             firmware_version,
             capabilities,
@@ -403,7 +390,7 @@ impl TryFrom<u8> for CommandType {
             0x10 => Ok(Self::SetConfig),
             0x11 => Ok(Self::ResetConfig),
             0x40 => Ok(Self::GetDeviceInfo),
-            0x41 => Ok(Self::DataResponse), // RENAMED
+            0x41 => Ok(Self::DataResponse),
             0x43 => Ok(Self::Serial),
             0x44 => Ok(Self::Authenticate),
             0x4C => Ok(Self::CommandWithPayload),
@@ -414,7 +401,6 @@ impl TryFrom<u8> for CommandType {
     }
 }
 
-// --- CHANGE: Attribute enum updated ---
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Attribute {
     None,
@@ -427,9 +413,7 @@ pub enum Attribute {
     QcPacket,
     Timestamp,
     Serial,
-    Auth,
     PollPdEvents,
-    // --- NEW VARIANTS ---
     /// Used in the multi-step authentication handshake (0x0101).
     AuthStep,
     /// Used with CommandWithPayload to enter the default data recorder mode (0x0200).
@@ -440,7 +424,6 @@ pub enum Attribute {
     Unknown(u16),
 }
 
-// --- CHANGE: from<u16> for Attribute updated ---
 impl From<u16> for Attribute {
     fn from(val: u16) -> Self {
         match val {
@@ -453,17 +436,16 @@ impl From<u16> for Attribute {
             0x0020 => Self::PdStatus,
             0x0040 => Self::QcPacket,
             0x0080 => Self::Timestamp,
-            0x0101 => Self::AuthStep, // NEW
+            0x0101 => Self::AuthStep,
             0x0180 => Self::Serial,
-            0x0200 => Self::SetDataRecorderMode, // NEW
-            0x0400 => Self::GetStartupInfo,      // NEW
+            0x0200 => Self::SetDataRecorderMode,
+            0x0400 => Self::GetStartupInfo,
             0x2000 => Self::PollPdEvents,
             other => Self::Unknown(other),
         }
     }
 }
 
-// --- CHANGE: u16::from for Attribute updated ---
 impl From<Attribute> for u16 {
     fn from(attr: Attribute) -> Self {
         match attr {
@@ -479,7 +461,6 @@ impl From<Attribute> for u16 {
             Attribute::AuthStep => 0x0101,
             Attribute::Serial => 0x0180,
             Attribute::SetDataRecorderMode => 0x0200,
-            Attribute::Auth => 0x0200,
             Attribute::GetStartupInfo => 0x0400,
             Attribute::PollPdEvents => 0x2000,
             Attribute::Unknown(val) => val,
@@ -524,9 +505,9 @@ impl fmt::Display for SampleRate {
     }
 }
 
+// NOTE: PdPacket is not yet used but is kept for future protocol additions.
 #[derive(Debug, Clone)]
 pub struct PdPacket {
-    // For now, we just wrap the raw data. Later, we can parse fields from this.
     pub raw_data: Bytes,
 }
 
@@ -534,7 +515,6 @@ impl TryFrom<Bytes> for PdPacket {
     type Error = std::io::Error;
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
-        // A simple length check. We can make this more robust later.
         if bytes.is_empty() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
