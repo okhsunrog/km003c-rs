@@ -1,0 +1,2 @@
+I'm reverse engineering protocol for Power-Z KM003C with wireshark by capturing it's windows' app's packets and trying to replicate it in my library, building tools for better capturing the data among the way.
+here are some files that I have for now:
