@@ -332,15 +332,23 @@ impl TryFrom<Bytes> for DeviceInfoBlock {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
 pub enum CommandType {
+    // 0 is reserved
+    Sync = 0x01,
     Connect = 0x02,
     Disconnect = 0x03,
+    Reset = 0x04,
     Accept = 0x05,
     Rejected = 0x06,
+    Finished = 0x07,
     JumpAprom = 0x08,
     JumpDfu = 0x09,
+    GetStatus = 0x0A,
+    Error = 0x0B,
     GetData = 0x0C,
-    GetFile = 0x0E,
+    // what is 0x0D?
+    StartStream = 0x0E, // Called GetFile in old docs
     StopStream = 0x0F,
+    
     SetConfig = 0x10,
     ResetConfig = 0x11,
     GetDeviceInfo = 0x40,
@@ -363,7 +371,7 @@ pub enum Attribute {
     AdcQueue = 0x0002,
     AdcQueue10k = 0x0004,
     Settings = 0x0008,
-    GetDeviceInfo = 0x0010,
+    PdPacket = 0x0010,
     PdStatus = 0x0020,
     QcPacket = 0x0040,
     Timestamp = 0x0080,
