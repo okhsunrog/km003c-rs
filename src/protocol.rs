@@ -74,22 +74,24 @@ impl Packet {
                 let payload = if bytes.len() > 4 { Some(bytes.slice(4..)) } else { None };
                 return Packet::Command(header, payload);
             } else {
-                // A malformed command from the host is still an unknown packet.
                 return Packet::Unknown { bytes, direction };
             }
         }
 
-        if bytes.len() == 52 && !bytes.is_empty() && bytes[0] == CommandType::DataResponse as u8 {
+        // --- NEW, MORE ROBUST PARSING LOGIC FOR DEVICE-TO-HOST ---
+
+        // Heuristic 1: Is it a 52-byte packet? It's almost certainly SensorData.
+        // Let's check this first because it's a very strong indicator.
+        if bytes.len() == 52 {
             if let Ok(sensor_data) = SensorDataPacket::try_from(bytes.clone()) {
-                // Double check it's not a different kind of 52-byte packet
-                // The attribute echo for AdcQueue is 0x02.
-                if sensor_data.header.attribute_echo == 0x02 {
+                // We can still double-check the command type if we want
+                if sensor_data.header.response_type == CommandType::DataResponse as u8 {
                     return Packet::SensorData(sensor_data);
                 }
             }
         }
 
-        // Heuristic 2: Does it have a valid, known command header?
+        // Heuristic 2: Does it have a valid command header?
         if let Ok(header) = CommandHeader::try_from(bytes.slice(0..4)) {
             let payload_bytes = if bytes.len() > 4 {
                 bytes.slice(4..)
@@ -108,12 +110,14 @@ impl Packet {
                 },
 
                 CommandType::DataResponse => {
-                    // Check for large structured payloads inside StatusA
+                    // Check for large structured payloads based on length, NOT attribute.
+                    // The payload for DeviceInfo is > 188 bytes long.
                     if payload_bytes.len() >= 188 {
                         if let Ok(info) = DeviceInfoBlock::try_from(payload_bytes.clone()) {
                             return Packet::DeviceInfo(info);
                         }
                     }
+                    // If it's not a DeviceInfo block, it's a generic response.
                     Packet::GenericResponse {
                         header,
                         payload: payload_bytes,
@@ -128,9 +132,8 @@ impl Packet {
             };
         }
 
-        // Heuristic 3: If it's from the device and has no valid header, it's a DataChunk.
-        // This will catch the 64-byte handshake responses.
-        if bytes.len() > 0 {
+        // Heuristic 3: No valid header? It's a DataChunk (like the auth responses).
+        if !bytes.is_empty() {
             return Packet::DataChunk(bytes);
         }
 
