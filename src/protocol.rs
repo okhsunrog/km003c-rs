@@ -94,11 +94,21 @@ impl Packet {
 
         // Heuristic 2: Does it have a valid 4-byte command header?
         if let Ok(header) = CommandHeader::try_from(bytes.slice(0..4)) {
-            let payload = if bytes.len() > 4 { bytes.slice(4..) } else { Bytes::new() };
+            let payload = if bytes.len() > 4 {
+                bytes.slice(4..)
+            } else {
+                Bytes::new()
+            };
 
             return match header.command_type {
-                CommandType::Accept => Packet::Acknowledge { header, kind: AckType::Accept },
-                CommandType::Rejected => Packet::Acknowledge { header, kind: AckType::Rejected },
+                CommandType::Accept => Packet::Acknowledge {
+                    header,
+                    kind: AckType::Accept,
+                },
+                CommandType::Rejected => Packet::Acknowledge {
+                    header,
+                    kind: AckType::Rejected,
+                },
 
                 CommandType::DataResponse => {
                     // Check if the payload matches the signature of a DeviceInfoBlock.
@@ -107,7 +117,7 @@ impl Packet {
                             return Packet::DeviceInfo(info);
                         }
                     }
-                    
+
                     // Fallback to a generic response.
                     Packet::GenericResponse { header, payload }
                 }
@@ -316,7 +326,7 @@ impl TryFrom<Bytes> for DeviceInfoBlock {
             "Attempting to parse DeviceInfoBlock from payload of length {}",
             bytes.len()
         );
-        
+
         // The core data block is 200 bytes long.
         if bytes.len() < 200 {
             debug!("DeviceInfoBlock::try_from failed: payload len {} is < 200", bytes.len());
@@ -337,7 +347,7 @@ impl TryFrom<Bytes> for DeviceInfoBlock {
 
         // Checksum is at a fixed offset from 196 to 200.
         let checksum = bytes.slice(196..200).get_u32_le();
-        
+
         debug!("Successfully parsed DeviceInfoBlock with name '{}'", device_name);
         Ok(Self {
             firmware_version,

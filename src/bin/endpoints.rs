@@ -1,7 +1,6 @@
 use nusb::list_devices;
 use nusb::transfer::EndpointType; // Corrected import based on provided docs
 use tracing::{error, info, warn};
-use tracing_subscriber;
 
 const KM003C_VID: u16 = 0x5FC9;
 const KM003C_PID: u16 = 0x0063;

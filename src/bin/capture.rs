@@ -9,7 +9,7 @@ use std::process;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use km003c_rs::protocol::{CommandHeader, Direction, Packet};
 // Correct tracing imports
-use tracing::{Level, error, info};
+use tracing::{error, info};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -137,12 +137,9 @@ fn run_raw_chronological_capture(cli: &Cli) -> Result<()> {
     println!("--- Raw Chronological Log ---");
     println!("--------------------------------------------------------------------------------");
 
-    // FIX: Check verbosity level correctly using the right API
-    let is_debug = cli.verbose.tracing_level_filter() >= Level::DEBUG;
-
     while let Some(p) = rtshark.read()? {
         if let Ok(captured_packet) = parse_rtshark_packet(p) {
-            print_single_packet(&captured_packet, "[RAW]", is_debug);
+            print_single_packet(&captured_packet, "[RAW]"); // <-- Change here
         }
     }
     Ok(())
@@ -254,9 +251,8 @@ fn run_grouped_file_capture(cli: &Cli) -> Result<()> {
 
     // --- PHASE 3: RENDER THE GROUPED LOG (Unchanged) ---
     println!("--- Grouped Chronological Log ---");
-    let is_debug = cli.verbose.tracing_level_filter() >= Level::DEBUG;
     for item in &display_items {
-        print_display_item(item, is_debug);
+        print_display_item(item); // <-- Change here
     }
 
     Ok(())
@@ -276,11 +272,7 @@ fn parse_rtshark_packet(p: RtSharkPacket) -> Result<CapturedPacket> {
         .and_then(|n| n.value().parse().ok())
         .unwrap_or(0.0);
     let usb_layer = p.layer_name("usb").context("Missing USB layer")?;
-    let direction = match usb_layer
-        .metadata("usb.endpoint_address.direction")
-        .map(|d| d.value())
-        .as_deref()
-    {
+    let direction = match usb_layer.metadata("usb.endpoint_address.direction").map(|d| d.value()) {
         Some("0") => Direction::HostToDevice,
         Some("1") => Direction::DeviceToHost,
         _ => anyhow::bail!("Unknown USB direction"),
@@ -302,40 +294,45 @@ fn parse_rtshark_packet(p: RtSharkPacket) -> Result<CapturedPacket> {
     })
 }
 
-fn print_display_item(item: &DisplayItem, is_debug: bool) {
+// In src/bin/capture.rs
+fn print_display_item(item: &DisplayItem) {
     println!("--------------------------------------------------------------------------------");
     match item {
         DisplayItem::Transaction { request, responses } => {
-            print_single_packet(request, "[TXN-REQ]", is_debug);
+            print_single_packet(request, "[TXN-REQ]");
             for res in responses {
-                print_single_packet(res, "[TXN-RSP]", is_debug);
+                print_single_packet(res, "[TXN-RSP]");
             }
         }
         DisplayItem::Standalone(packet) => {
-            print_single_packet(packet, "[PKT]", is_debug);
+            print_single_packet(packet, "[PKT]");
         }
     }
 }
 
-fn print_single_packet(p: &CapturedPacket, prefix: &str, is_debug: bool) {
-    // --- NEW: Create a direction string ---
+fn print_single_packet(p: &CapturedPacket, prefix: &str) {
+    // <-- Change here: remove is_debug
     let dir_str = match p.direction {
         Direction::HostToDevice => "H->D",
         Direction::DeviceToHost => "D->H",
     };
 
-    if is_debug {
-        info!(
-            "{} {} F:{:<4} @ {:>8.6}s | {}",
-            prefix, dir_str, p.frame_num, p.timestamp, p.raw_hex
-        );
-        info!("         | Parsed: {:?}", p.packet); // Increased indent to align
-    } else {
-        info!(
-            "{} {} F:{:<4} @ {:>8.6}s | {:?}",
-            prefix, dir_str, p.frame_num, p.timestamp, p.packet
-        );
-    }
+    // Always log the parsed version at INFO level.
+    info!(
+        "{} {} F:{:<4} @ {:>8.6}s | {:?}",
+        prefix, dir_str, p.frame_num, p.timestamp, p.packet
+    );
+
+    // Always log the raw hex at DEBUG level.
+    // This will only be displayed if the log level is DEBUG or lower (e.g., with -v).
+    tracing::debug!(
+        "{} {} F:{:<4} @ {:>8.6}s | {}",
+        prefix,
+        dir_str,
+        p.frame_num,
+        p.timestamp,
+        p.raw_hex
+    );
 }
 
 fn get_packet_header(p: &Packet) -> Option<&CommandHeader> {

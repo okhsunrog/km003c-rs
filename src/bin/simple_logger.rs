@@ -5,7 +5,6 @@ use clap::Parser;
 use std::time::Duration;
 use tokio::{signal, time::sleep};
 use tracing::{error, info};
-use tracing_subscriber;
 
 use km003c_rs::device::KM003C;
 
