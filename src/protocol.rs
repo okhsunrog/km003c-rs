@@ -28,6 +28,7 @@
 
 use bytes::{Buf, Bytes};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use speedy::{Readable, Writable};
 use std::convert::TryFrom;
 use std::fmt;
 use tracing::debug;
@@ -88,7 +89,7 @@ impl Packet {
 
         // Heuristic 1: Is it a 52-byte packet? It's almost certainly SensorData.
         if bytes.len() == 52 {
-            if let Ok(sensor_data) = SensorDataPacket::try_from(bytes.clone()) {
+            if let Ok(sensor_data) = SensorDataPacket::read_from_buffer(&bytes) {
                 if sensor_data.header.response_type == CommandType::DataResponse.into() {
                     return Packet::SensorData(sensor_data);
                 }
@@ -187,7 +188,7 @@ pub enum AckType {
 }
 
 /// Represents the packed 4-byte header of a SensorDataPacket.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Readable)]
 pub struct SensorDataHeader {
     pub response_type: u8,
     pub transaction_id: u8,
@@ -195,19 +196,7 @@ pub struct SensorDataHeader {
     pub attribute_echo: u8,
 }
 
-impl From<u32> for SensorDataHeader {
-    fn from(val: u32) -> Self {
-        let bytes = val.to_le_bytes();
-        Self {
-            response_type: bytes[0],
-            transaction_id: bytes[1],
-            flags: bytes[2],
-            attribute_echo: bytes[3],
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default, Readable)]
 pub struct SensorDataPacket {
     // These fields are based on the protocol spec table.
     pub header: SensorDataHeader,
@@ -229,32 +218,6 @@ pub struct SensorDataPacket {
     pub vcc2_avg_raw: u16,
     pub vdp_avg_mv: u16,
     pub vdm_avg_mv: u16,
-}
-
-impl Default for SensorDataPacket {
-    fn default() -> Self {
-        Self {
-            header: SensorDataHeader::default(),
-            extended_header: 0,
-            vbus_uv: 0,
-            ibus_ua: 0,
-            vbus_avg_uv: 0,
-            ibus_avg_ua: 0,
-            vbus_ori_avg_uv: 0,
-            ibus_ori_avg_ua: 0,
-            temp_raw: 0,
-            vcc1_tenth_mv: 0,
-            vcc2_raw: 0,
-            vdp_mv: 0,
-            vdm_mv: 0,
-            vdd_raw: 0,
-            rate: SampleRate::Sps1,
-            unknown1: 0,
-            vcc2_avg_raw: 0,
-            vdp_avg_mv: 0,
-            vdm_avg_mv: 0,
-        }
-    }
 }
 
 impl fmt::Display for SensorDataPacket {
@@ -314,62 +277,6 @@ impl fmt::Display for SensorDataPacket {
         writeln!(f, "├─ Device Info ───────────────────────────────────────┤")?;
         writeln!(f, "│ Rate: {:<42} │", self.rate)?;
         writeln!(f, "└─────────────────────────────────────────────────────┘")
-    }
-}
-
-impl TryFrom<Bytes> for SensorDataPacket {
-    type Error = Error;
-
-    fn try_from(mut bytes: Bytes) -> Result<Self, Self::Error> {
-        if bytes.remaining() < 52 {
-            return Err(Error::Protocol("Sensor data packet must be 52 bytes".to_string()));
-        }
-
-        let header = SensorDataHeader::from(bytes.get_u32_le());
-        let extended_header = bytes.get_u32_le();
-        let vbus_uv = bytes.get_i32_le();
-        let ibus_ua = bytes.get_i32_le();
-        let vbus_avg_uv = bytes.get_i32_le();
-        let ibus_avg_ua = bytes.get_i32_le();
-        let vbus_ori_avg_uv = bytes.get_i32_le();
-        let ibus_ori_avg_ua = bytes.get_i32_le();
-        let temp_raw = bytes.get_i16_le();
-        let vcc1_tenth_mv = bytes.get_u16_le();
-        let vcc2_raw = bytes.get_u16_le();
-        let vdp_mv = bytes.get_u16_le();
-        let vdm_mv = bytes.get_u16_le();
-        let vdd_raw = bytes.get_u16_le();
-
-        let rate_val = bytes.get_u8();
-        let rate = SampleRate::try_from(rate_val)
-            .map_err(|_| Error::Protocol(format!("Invalid SampleRate value: {}", rate_val)))?;
-
-        let unknown1 = bytes.get_u8();
-        let vcc2_avg_raw = bytes.get_u16_le();
-        let vdp_avg_mv = bytes.get_u16_le();
-        let vdm_avg_mv = bytes.get_u16_le();
-
-        Ok(Self {
-            header,
-            extended_header,
-            vbus_uv,
-            ibus_ua,
-            vbus_avg_uv,
-            ibus_avg_ua,
-            vbus_ori_avg_uv,
-            ibus_ori_avg_ua,
-            temp_raw,
-            vcc1_tenth_mv,
-            vcc2_raw,
-            vdp_mv,
-            vdm_mv,
-            vdd_raw,
-            rate,
-            unknown1,
-            vcc2_avg_raw,
-            vdp_avg_mv,
-            vdm_avg_mv,
-        })
     }
 }
 
@@ -473,36 +380,20 @@ pub enum Attribute {
     Unknown(u16),
 }
 
-/// Sample rates supported by the device.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
-#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Writable, Readable, strum_macros::Display, Default)]
+#[speedy(tag_type = u8)]
 pub enum SampleRate {
+    #[default]
+    #[strum(to_string = "1 SPS")]
     Sps1 = 0,
+    #[strum(to_string = "10 SPS")]
     Sps10 = 1,
+    #[strum(to_string = "50 SPS")]
     Sps50 = 2,
+    #[strum(to_string = "1 kSPS")]
     Sps1000 = 3,
+    #[strum(to_string = "10 kSPS")]
     Sps10000 = 4,
-    #[num_enum(catch_all)]
-    Unknown(u8),
-}
-
-impl Default for SampleRate {
-    fn default() -> Self {
-        SampleRate::Sps1
-    }
-}
-
-impl fmt::Display for SampleRate {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SampleRate::Sps1 => write!(f, "1 SPS"),
-            SampleRate::Sps10 => write!(f, "10 SPS"),
-            SampleRate::Sps50 => write!(f, "50 SPS"),
-            SampleRate::Sps1000 => write!(f, "1 kSPS"),
-            SampleRate::Sps10000 => write!(f, "10 kSPS"),
-            SampleRate::Unknown(v) => write!(f, "Unknown ({})", v),
-        }
-    }
 }
 
 // NOTE: PdPacket is not yet used but is kept for future protocol additions.

@@ -15,6 +15,8 @@ num_enum = "0.7.3"
 nusb = "0.1.14"
 regex = "1.11.1"
 rtshark = "3.2.0"
+speedy = "0.8.7"
+strum_macros = "0.27.1"
 thiserror = "2.0.12"
 tokio = { version = "1.45", features = ["full"] }
 tracing = "0.1.41"
