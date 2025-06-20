@@ -27,9 +27,12 @@
 //!   structured data payloads from the device.
 
 use bytes::{Buf, Bytes};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::convert::TryFrom;
 use std::fmt;
 use tracing::debug;
+
+use crate::error::Error;
 
 // --- Constants ---
 
@@ -86,44 +89,46 @@ impl Packet {
         // Heuristic 1: Is it a 52-byte packet? It's almost certainly SensorData.
         if bytes.len() == 52 {
             if let Ok(sensor_data) = SensorDataPacket::try_from(bytes.clone()) {
-                if sensor_data.header.response_type == CommandType::DataResponse as u8 {
+                if sensor_data.header.response_type == CommandType::DataResponse.into() {
                     return Packet::SensorData(sensor_data);
                 }
             }
         }
 
         // Heuristic 2: Does it have a valid 4-byte command header?
-        if let Ok(header) = CommandHeader::try_from(bytes.slice(0..4)) {
-            let payload = if bytes.len() > 4 {
-                bytes.slice(4..)
-            } else {
-                Bytes::new()
-            };
+        if bytes.len() >= 4 {
+            if let Ok(header) = CommandHeader::try_from(bytes.slice(0..4)) {
+                let payload = if bytes.len() > 4 {
+                    bytes.slice(4..)
+                } else {
+                    Bytes::new()
+                };
 
-            return match header.command_type {
-                CommandType::Accept => Packet::Acknowledge {
-                    header,
-                    kind: AckType::Accept,
-                },
-                CommandType::Rejected => Packet::Acknowledge {
-                    header,
-                    kind: AckType::Rejected,
-                },
+                return match header.command_type {
+                    CommandType::Accept => Packet::Acknowledge {
+                        header,
+                        kind: AckType::Accept,
+                    },
+                    CommandType::Rejected => Packet::Acknowledge {
+                        header,
+                        kind: AckType::Rejected,
+                    },
 
-                CommandType::DataResponse => {
-                    // Check if the payload matches the signature of a DeviceInfoBlock.
-                    if payload.len() >= 200 {
-                        if let Ok(info) = DeviceInfoBlock::try_from(payload.clone()) {
-                            return Packet::DeviceInfo(info);
+                    CommandType::DataResponse => {
+                        // Check if the payload matches the signature of a DeviceInfoBlock.
+                        if payload.len() >= 200 {
+                            if let Ok(info) = DeviceInfoBlock::try_from(payload.clone()) {
+                                return Packet::DeviceInfo(info);
+                            }
                         }
+
+                        // Fallback to a generic response.
+                        Packet::GenericResponse { header, payload }
                     }
 
-                    // Fallback to a generic response.
-                    Packet::GenericResponse { header, payload }
-                }
-
-                _ => Packet::GenericResponse { header, payload },
-            };
+                    _ => Packet::GenericResponse { header, payload },
+                };
+            }
         }
 
         // Heuristic 3: No valid header? It must be a raw data continuation chunk.
@@ -145,19 +150,31 @@ pub struct CommandHeader {
 }
 
 impl TryFrom<Bytes> for CommandHeader {
-    type Error = &'static str;
+    type Error = Error;
 
     fn try_from(mut bytes: Bytes) -> Result<Self, Self::Error> {
         if bytes.remaining() < 4 {
-            return Err("Header must be 4 bytes");
+            return Err(Error::Protocol("Header must be 4 bytes".to_string()));
         }
+
         let command_val = bytes.get_u8();
-        let command_type = CommandType::try_from(command_val).map_err(|_| "Invalid CommandType value")?;
+        let command_type = CommandType::try_from(command_val).map_err(|e| {
+            debug!("Invalid CommandType value: {}", e);
+            Error::Protocol(format!("Invalid CommandType value: {}", command_val))
+        })?;
+
+        let transaction_id = bytes.get_u8();
+
+        let attribute_val = bytes.get_u16_le();
+        let attribute = Attribute::try_from(attribute_val).map_err(|_| {
+            debug!("Invalid Attribute value: {}", attribute_val);
+            Error::Protocol(format!("Invalid Attribute value: {}", attribute_val))
+        })?;
 
         Ok(Self {
             command_type,
-            transaction_id: bytes.get_u8(),
-            attribute: Attribute::from(bytes.get_u16_le()),
+            transaction_id,
+            attribute,
         })
     }
 }
@@ -190,7 +207,7 @@ impl From<u32> for SensorDataHeader {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct SensorDataPacket {
     // These fields are based on the protocol spec table.
     pub header: SensorDataHeader,
@@ -212,6 +229,32 @@ pub struct SensorDataPacket {
     pub vcc2_avg_raw: u16,
     pub vdp_avg_mv: u16,
     pub vdm_avg_mv: u16,
+}
+
+impl Default for SensorDataPacket {
+    fn default() -> Self {
+        Self {
+            header: SensorDataHeader::default(),
+            extended_header: 0,
+            vbus_uv: 0,
+            ibus_ua: 0,
+            vbus_avg_uv: 0,
+            ibus_avg_ua: 0,
+            vbus_ori_avg_uv: 0,
+            ibus_ori_avg_ua: 0,
+            temp_raw: 0,
+            vcc1_tenth_mv: 0,
+            vcc2_raw: 0,
+            vdp_mv: 0,
+            vdm_mv: 0,
+            vdd_raw: 0,
+            rate: SampleRate::Sps1,
+            unknown1: 0,
+            vcc2_avg_raw: 0,
+            vdp_avg_mv: 0,
+            vdm_avg_mv: 0,
+        }
+    }
 }
 
 impl fmt::Display for SensorDataPacket {
@@ -275,35 +318,57 @@ impl fmt::Display for SensorDataPacket {
 }
 
 impl TryFrom<Bytes> for SensorDataPacket {
-    type Error = std::io::Error;
+    type Error = Error;
 
     fn try_from(mut bytes: Bytes) -> Result<Self, Self::Error> {
         if bytes.remaining() < 52 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Sensor data packet must be 52 bytes",
-            ));
+            return Err(Error::Protocol("Sensor data packet must be 52 bytes".to_string()));
         }
+
+        let header = SensorDataHeader::from(bytes.get_u32_le());
+        let extended_header = bytes.get_u32_le();
+        let vbus_uv = bytes.get_i32_le();
+        let ibus_ua = bytes.get_i32_le();
+        let vbus_avg_uv = bytes.get_i32_le();
+        let ibus_avg_ua = bytes.get_i32_le();
+        let vbus_ori_avg_uv = bytes.get_i32_le();
+        let ibus_ori_avg_ua = bytes.get_i32_le();
+        let temp_raw = bytes.get_i16_le();
+        let vcc1_tenth_mv = bytes.get_u16_le();
+        let vcc2_raw = bytes.get_u16_le();
+        let vdp_mv = bytes.get_u16_le();
+        let vdm_mv = bytes.get_u16_le();
+        let vdd_raw = bytes.get_u16_le();
+
+        let rate_val = bytes.get_u8();
+        let rate = SampleRate::try_from(rate_val)
+            .map_err(|_| Error::Protocol(format!("Invalid SampleRate value: {}", rate_val)))?;
+
+        let unknown1 = bytes.get_u8();
+        let vcc2_avg_raw = bytes.get_u16_le();
+        let vdp_avg_mv = bytes.get_u16_le();
+        let vdm_avg_mv = bytes.get_u16_le();
+
         Ok(Self {
-            header: SensorDataHeader::from(bytes.get_u32_le()),
-            extended_header: bytes.get_u32_le(),
-            vbus_uv: bytes.get_i32_le(),
-            ibus_ua: bytes.get_i32_le(),
-            vbus_avg_uv: bytes.get_i32_le(),
-            ibus_avg_ua: bytes.get_i32_le(),
-            vbus_ori_avg_uv: bytes.get_i32_le(),
-            ibus_ori_avg_ua: bytes.get_i32_le(),
-            temp_raw: bytes.get_i16_le(),
-            vcc1_tenth_mv: bytes.get_u16_le(),
-            vcc2_raw: bytes.get_u16_le(),
-            vdp_mv: bytes.get_u16_le(),
-            vdm_mv: bytes.get_u16_le(),
-            vdd_raw: bytes.get_u16_le(),
-            rate: SampleRate::from_index(bytes.get_u8()),
-            unknown1: bytes.get_u8(),
-            vcc2_avg_raw: bytes.get_u16_le(),
-            vdp_avg_mv: bytes.get_u16_le(),
-            vdm_avg_mv: bytes.get_u16_le(),
+            header,
+            extended_header,
+            vbus_uv,
+            ibus_ua,
+            vbus_avg_uv,
+            ibus_avg_ua,
+            vbus_ori_avg_uv,
+            ibus_ori_avg_ua,
+            temp_raw,
+            vcc1_tenth_mv,
+            vcc2_raw,
+            vdp_mv,
+            vdm_mv,
+            vdd_raw,
+            rate,
+            unknown1,
+            vcc2_avg_raw,
+            vdp_avg_mv,
+            vdm_avg_mv,
         })
     }
 }
@@ -319,7 +384,7 @@ pub struct DeviceInfoBlock {
 }
 
 impl TryFrom<Bytes> for DeviceInfoBlock {
-    type Error = std::io::Error;
+    type Error = Error;
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
         debug!(
@@ -330,10 +395,7 @@ impl TryFrom<Bytes> for DeviceInfoBlock {
         // The core data block is 200 bytes long.
         if bytes.len() < 200 {
             debug!("DeviceInfoBlock::try_from failed: payload len {} is < 200", bytes.len());
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Device info block payload too short",
-            ));
+            return Err(Error::Protocol("Device info block payload too short".to_string()));
         }
 
         // All slices are now guaranteed to be within bounds.
@@ -359,7 +421,8 @@ impl TryFrom<Bytes> for DeviceInfoBlock {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Command types used in the protocol.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
 pub enum CommandType {
     Connect = 0x02,
@@ -384,121 +447,48 @@ pub enum CommandType {
     Response75 = 0x75,
 }
 
-impl TryFrom<u8> for CommandType {
-    type Error = ();
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0x02 => Ok(Self::Connect),
-            0x03 => Ok(Self::Disconnect),
-            0x05 => Ok(Self::Accept),
-            0x06 => Ok(Self::Rejected),
-            0x08 => Ok(Self::JumpAprom),
-            0x09 => Ok(Self::JumpDfu),
-            0x0C => Ok(Self::GetData),
-            0x0E => Ok(Self::GetFile),
-            0x0F => Ok(Self::StopStream),
-            0x10 => Ok(Self::SetConfig),
-            0x11 => Ok(Self::ResetConfig),
-            0x40 => Ok(Self::GetDeviceInfo),
-            0x41 => Ok(Self::DataResponse),
-            0x43 => Ok(Self::Serial),
-            0x44 => Ok(Self::Authenticate),
-            0x4C => Ok(Self::CommandWithPayload),
-            0xC4 => Ok(Self::ResponseC4),
-            0x75 => Ok(Self::Response75),
-            _ => Err(()),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Attribute values used in command headers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
+#[repr(u16)]
 pub enum Attribute {
-    None,
-    Adc,
-    AdcQueue,
-    AdcQueue10k,
-    Settings,
-    GetDeviceInfo,
-    PdStatus,
-    QcPacket,
-    Timestamp,
-    Serial,
-    PollPdEvents,
+    None = 0x0000,
+    Adc = 0x0001,
+    AdcQueue = 0x0002,
+    AdcQueue10k = 0x0004,
+    Settings = 0x0008,
+    GetDeviceInfo = 0x0010,
+    PdStatus = 0x0020,
+    QcPacket = 0x0040,
+    Timestamp = 0x0080,
+    Serial = 0x0180,
+    PollPdEvents = 0x2000,
     /// Used in the multi-step authentication handshake (0x0101).
-    AuthStep,
+    AuthStep = 0x0101,
     /// Used with CommandWithPayload to enter the default data recorder mode (0x0200).
-    SetDataRecorderMode,
+    SetDataRecorderMode = 0x0200,
     /// Used to get a secondary block of info during startup (0x0400).
-    GetStartupInfo,
+    GetStartupInfo = 0x0400,
     /// An attribute not yet identified.
+    #[num_enum(catch_all)]
     Unknown(u16),
 }
 
-impl From<u16> for Attribute {
-    fn from(val: u16) -> Self {
-        match val {
-            0x0000 => Self::None,
-            0x0001 => Self::Adc,
-            0x0002 => Self::AdcQueue,
-            0x0004 => Self::AdcQueue10k,
-            0x0008 => Self::Settings,
-            0x0010 => Self::GetDeviceInfo,
-            0x0020 => Self::PdStatus,
-            0x0040 => Self::QcPacket,
-            0x0080 => Self::Timestamp,
-            0x0101 => Self::AuthStep,
-            0x0180 => Self::Serial,
-            0x0200 => Self::SetDataRecorderMode,
-            0x0400 => Self::GetStartupInfo,
-            0x2000 => Self::PollPdEvents,
-            other => Self::Unknown(other),
-        }
-    }
-}
-
-impl From<Attribute> for u16 {
-    fn from(attr: Attribute) -> Self {
-        match attr {
-            Attribute::None => 0x0000,
-            Attribute::Adc => 0x0001,
-            Attribute::AdcQueue => 0x0002,
-            Attribute::AdcQueue10k => 0x0004,
-            Attribute::Settings => 0x0008,
-            Attribute::GetDeviceInfo => 0x0010,
-            Attribute::PdStatus => 0x0020,
-            Attribute::QcPacket => 0x0040,
-            Attribute::Timestamp => 0x0080,
-            Attribute::AuthStep => 0x0101,
-            Attribute::Serial => 0x0180,
-            Attribute::SetDataRecorderMode => 0x0200,
-            Attribute::GetStartupInfo => 0x0400,
-            Attribute::PollPdEvents => 0x2000,
-            Attribute::Unknown(val) => val,
-        }
-    }
-}
-
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+/// Sample rates supported by the device.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
+#[repr(u8)]
 pub enum SampleRate {
-    #[default]
-    Sps1,
-    Sps10,
-    Sps50,
-    Sps1000,
-    Sps10000,
+    Sps1 = 0,
+    Sps10 = 1,
+    Sps50 = 2,
+    Sps1000 = 3,
+    Sps10000 = 4,
+    #[num_enum(catch_all)]
     Unknown(u8),
 }
 
-impl SampleRate {
-    pub fn from_index(index: u8) -> Self {
-        match index {
-            0 => Self::Sps1,
-            1 => Self::Sps10,
-            2 => Self::Sps50,
-            3 => Self::Sps1000,
-            4 => Self::Sps10000,
-            _ => Self::Unknown(index),
-        }
+impl Default for SampleRate {
+    fn default() -> Self {
+        SampleRate::Sps1
     }
 }
 
@@ -522,14 +512,11 @@ pub struct PdPacket {
 }
 
 impl TryFrom<Bytes> for PdPacket {
-    type Error = std::io::Error;
+    type Error = Error;
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
         if bytes.is_empty() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "PD packet cannot be empty",
-            ));
+            return Err(Error::Protocol("PD packet cannot be empty".to_string()));
         }
         Ok(Self { raw_data: bytes })
     }
