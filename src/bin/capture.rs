@@ -9,9 +9,9 @@ use std::process;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use km003c_rs::protocol::{CommandHeader, Direction, Packet};
 // Correct tracing imports
-use tracing::{error, info, Level};
+use tracing::{Level, error, info};
 use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 // --- Command Line Interface ---
 
@@ -22,11 +22,20 @@ struct Cli {
     device_address: Option<u8>,
     #[arg(short, long, group = "input_mode", help = "Live capture from a tshark interface")]
     interface: Option<String>,
-    #[arg(short, long, group = "input_mode", conflicts_with = "interface", help = "Read from a .pcapng file")]
+    #[arg(
+        short,
+        long,
+        group = "input_mode",
+        conflicts_with = "interface",
+        help = "Read from a .pcapng file"
+    )]
     file: Option<PathBuf>,
     #[arg(short, long)]
     log_file: Option<PathBuf>,
-    #[arg(long, help = "Display packets in raw chronological order without grouping (default for live capture)")]
+    #[arg(
+        long,
+        help = "Display packets in raw chronological order without grouping (default for live capture)"
+    )]
     raw: bool,
     #[command(flatten)]
     verbose: Verbosity<InfoLevel>,
@@ -40,6 +49,7 @@ struct CapturedPacket {
     timestamp: f64,
     packet: Packet,
     raw_hex: String,
+    direction: Direction,
 }
 
 #[derive(Debug)]
@@ -74,7 +84,9 @@ fn main() -> Result<()> {
     }
 
     if cli.device_address.is_none() {
-        error!("Device address is required. Provide it with -d/--device-address or name the input file like 'capture.<id>.pcapng'");
+        error!(
+            "Device address is required. Provide it with -d/--device-address or name the input file like 'capture.<id>.pcapng'"
+        );
         process::exit(1);
     }
     if cli.file.is_none() && cli.interface.is_none() {
@@ -119,7 +131,7 @@ fn run_raw_chronological_capture(cli: &Cli) -> Result<()> {
     } else {
         builder.input_path(cli.interface.as_deref().unwrap()).live_capture()
     };
-    
+
     let mut rtshark = builder_ready.display_filter(&display_filter).spawn()?;
 
     println!("--- Raw Chronological Log ---");
@@ -150,7 +162,13 @@ fn run_grouped_file_capture(cli: &Cli) -> Result<()> {
     );
 
     let mut rtshark = RTSharkBuilder::builder()
-        .input_path(cli.file.as_ref().unwrap().to_str().context("File path is not valid UTF-8")?)
+        .input_path(
+            cli.file
+                .as_ref()
+                .unwrap()
+                .to_str()
+                .context("File path is not valid UTF-8")?,
+        )
         .display_filter(&display_filter)
         .spawn()?;
 
@@ -177,7 +195,9 @@ fn run_grouped_file_capture(cli: &Cli) -> Result<()> {
         if let Packet::Command(req_header, _) = &request_candidate.packet {
             let search_end = (i + 1 + RESPONSE_WINDOW).min(all_packets.len());
             'response_search: for j in (i + 1)..search_end {
-                if consumed_indices[j] { continue; }
+                if consumed_indices[j] {
+                    continue;
+                }
 
                 let response_candidate = &all_packets[j];
                 let mut is_match = false;
@@ -188,7 +208,7 @@ fn run_grouped_file_capture(cli: &Cli) -> Result<()> {
                     if res_header.transaction_id == req_header.transaction_id {
                         is_match = true;
                     }
-                } 
+                }
                 // RULE 2: Check for a SensorData response with a matching ID in its packed header.
                 else if let Packet::SensorData(sd) = &response_candidate.packet {
                     if sd.header.transaction_id == req_header.transaction_id {
@@ -204,7 +224,9 @@ fn run_grouped_file_capture(cli: &Cli) -> Result<()> {
                     // Now look for subsequent DataChunk continuations.
                     let continuation_end = (j + 1 + RESPONSE_WINDOW).min(all_packets.len());
                     for k in (j + 1)..continuation_end {
-                        if consumed_indices[k] { continue; }
+                        if consumed_indices[k] {
+                            continue;
+                        }
                         if matches!(all_packets[k].packet, Packet::DataChunk(_)) {
                             responses.push(all_packets[k].clone());
                             consumed_indices[k] = true;
@@ -212,7 +234,7 @@ fn run_grouped_file_capture(cli: &Cli) -> Result<()> {
                             break; // The chain of continuations is broken.
                         }
                     }
-                    
+
                     display_items.push(DisplayItem::Transaction {
                         request: request_candidate.clone(),
                         responses,
@@ -222,7 +244,7 @@ fn run_grouped_file_capture(cli: &Cli) -> Result<()> {
                 }
             }
         }
-        
+
         // If the packet at `i` was not grouped, add it as a standalone item.
         if !was_grouped {
             display_items.push(DisplayItem::Standalone(request_candidate.clone()));
@@ -236,27 +258,48 @@ fn run_grouped_file_capture(cli: &Cli) -> Result<()> {
     for item in &display_items {
         print_display_item(item, is_debug);
     }
-    
+
     Ok(())
 }
 
 // --- Helper Functions ---
 
 fn parse_rtshark_packet(p: RtSharkPacket) -> Result<CapturedPacket> {
-    let frame_num = p.layer_name("frame").and_then(|f| f.metadata("frame.number")).and_then(|n| n.value().parse().ok()).unwrap_or(0);
-    let timestamp = p.layer_name("frame").and_then(|f| f.metadata("frame.time_relative")).and_then(|n| n.value().parse().ok()).unwrap_or(0.0);
+    let frame_num = p
+        .layer_name("frame")
+        .and_then(|f| f.metadata("frame.number"))
+        .and_then(|n| n.value().parse().ok())
+        .unwrap_or(0);
+    let timestamp = p
+        .layer_name("frame")
+        .and_then(|f| f.metadata("frame.time_relative"))
+        .and_then(|n| n.value().parse().ok())
+        .unwrap_or(0.0);
     let usb_layer = p.layer_name("usb").context("Missing USB layer")?;
-    let direction = match usb_layer.metadata("usb.endpoint_address.direction").map(|d| d.value()).as_deref() {
+    let direction = match usb_layer
+        .metadata("usb.endpoint_address.direction")
+        .map(|d| d.value())
+        .as_deref()
+    {
         Some("0") => Direction::HostToDevice,
         Some("1") => Direction::DeviceToHost,
         _ => anyhow::bail!("Unknown USB direction"),
     };
-    let payload_hex = usb_layer.metadata("usb.capdata").context("Missing usb.capdata")?.value();
+    let payload_hex = usb_layer
+        .metadata("usb.capdata")
+        .context("Missing usb.capdata")?
+        .value();
     let raw_hex = payload_hex.replace(':', "");
     let data = hex::decode(&raw_hex).context("Failed to decode hex payload")?;
     let bytes = Bytes::from(data);
     let parsed_packet = Packet::from_bytes(bytes, direction);
-    Ok(CapturedPacket { frame_num, timestamp, packet: parsed_packet, raw_hex })
+    Ok(CapturedPacket {
+        frame_num,
+        timestamp,
+        packet: parsed_packet,
+        raw_hex,
+        direction,
+    })
 }
 
 fn print_display_item(item: &DisplayItem, is_debug: bool) {
@@ -275,11 +318,23 @@ fn print_display_item(item: &DisplayItem, is_debug: bool) {
 }
 
 fn print_single_packet(p: &CapturedPacket, prefix: &str, is_debug: bool) {
+    // --- NEW: Create a direction string ---
+    let dir_str = match p.direction {
+        Direction::HostToDevice => "H->D",
+        Direction::DeviceToHost => "D->H",
+    };
+
     if is_debug {
-        info!("{} F:{:<4} @ {:>8.6}s | {}", prefix, p.frame_num, p.timestamp, p.raw_hex);
-        info!("      | Parsed: {:?}", p.packet);
+        info!(
+            "{} {} F:{:<4} @ {:>8.6}s | {}",
+            prefix, dir_str, p.frame_num, p.timestamp, p.raw_hex
+        );
+        info!("         | Parsed: {:?}", p.packet); // Increased indent to align
     } else {
-        info!("{} F:{:<4} @ {:>8.6}s | {:?}", prefix, p.frame_num, p.timestamp, p.packet);
+        info!(
+            "{} {} F:{:<4} @ {:>8.6}s | {:?}",
+            prefix, dir_str, p.frame_num, p.timestamp, p.packet
+        );
     }
 }
 
@@ -293,10 +348,7 @@ fn get_packet_header(p: &Packet) -> Option<&CommandHeader> {
 }
 
 // Your original, correct setup_logging function
-fn setup_logging(
-    log_file_path: Option<PathBuf>,
-    verbosity: &Verbosity<InfoLevel>,
-) -> Result<Option<WorkerGuard>> {
+fn setup_logging(log_file_path: Option<PathBuf>, verbosity: &Verbosity<InfoLevel>) -> Result<Option<WorkerGuard>> {
     let console_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stdout)
         .with_target(false)
@@ -304,8 +356,7 @@ fn setup_logging(
         .without_time();
 
     let (file_layer, guard) = if let Some(ref path) = log_file_path {
-        let log_file =
-            File::create(path).with_context(|| format!("Failed to create log file at: {:?}", path))?;
+        let log_file = File::create(path).with_context(|| format!("Failed to create log file at: {:?}", path))?;
         let (non_blocking_writer, guard) = tracing_appender::non_blocking(log_file);
         let layer = tracing_subscriber::fmt::layer()
             .with_writer(non_blocking_writer)

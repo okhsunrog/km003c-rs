@@ -79,8 +79,7 @@ impl Packet {
             }
         }
 
-
-       if bytes.len() == 52 && !bytes.is_empty() && bytes[0] == CommandType::DataResponse as u8 {
+        if bytes.len() == 52 && !bytes.is_empty() && bytes[0] == CommandType::DataResponse as u8 {
             if let Ok(sensor_data) = SensorDataPacket::try_from(bytes.clone()) {
                 // Double check it's not a different kind of 52-byte packet
                 // The attribute echo for AdcQueue is 0x02.
@@ -174,7 +173,6 @@ pub enum AckType {
     Accept,
     Rejected,
 }
-
 
 /// Represents the packed 4-byte header of a SensorDataPacket.
 #[derive(Debug, Clone, Copy, Default)]
@@ -334,12 +332,13 @@ impl TryFrom<Bytes> for DeviceInfoBlock {
     type Error = std::io::Error;
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
-if bytes.len() < 188 { // Use 188 to match the check in Packet::from_bytes
-    return Err(std::io::Error::new(
-        std::io::ErrorKind::InvalidData,
-        "Device info block too short",
-    ));
-}
+        if bytes.len() < 188 {
+            // Use 188 to match the check in Packet::from_bytes
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Device info block too short",
+            ));
+        }
 
         let firmware_version = bytes.slice(8..12).get_u32_le();
         let capabilities = bytes.slice(16..20).get_u32_le();
@@ -484,7 +483,6 @@ impl From<Attribute> for u16 {
         }
     }
 }
-
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SampleRate {
