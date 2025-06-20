@@ -14,3 +14,7 @@ make sure again that simple_logger matches the windows app. then try to simpify 
 test when auth needed and when not.
 
 use pd.md, make PD work, parse the sqlite db for that!
+make high frequency adc monitoring mode work, that one is very useful too!
+flashing can be ignored, but verifing fw version might be needed
+
+then try send serial commands via raw usb endpoint! should be possible
