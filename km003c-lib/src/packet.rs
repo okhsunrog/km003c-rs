@@ -1,22 +1,29 @@
+use modular_bitfield::prelude::*;
+
+#[bitfield(bytes = 4)]
 pub struct CtrlHeader {
-    packet_type: u8,
+    packet_type: B7,
     extend: bool,
     id: u8,
-    _reserved: bool,
-    attribute: u16,
+    #[skip]
+    unused: bool,
+    attribute: B15,
 }
 
+#[bitfield(bytes = 4)]
 pub struct DataHeader {
-    packet_type: u8,
+    packet_type: B7,
     extend: bool,
     id: u8,
-    _reserved: u8,
-    obj_count_words: u16,
+    #[skip]
+    unused: B6,
+    obj_count_words: B10,
 }
 
+#[bitfield(bytes = 4)]
 pub struct ExtendedHeader {
-    attribute: u16,
+    attribute: B15,
     next: bool,
-    chunk: u8,
-    size: u16,
+    chunk: B6,
+    size: B10,
 }

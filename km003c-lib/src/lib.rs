@@ -1,2 +1,2 @@
-pub mod packet;
 pub mod error;
+pub mod packet;
