@@ -3,7 +3,7 @@ use bytes::Bytes;
 use modular_bitfield::prelude::*;
 
 #[bitfield(bytes = 4)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CtrlHeader {
     pub packet_type: B7,
     pub extend: bool,
@@ -14,7 +14,7 @@ pub struct CtrlHeader {
 }
 
 #[bitfield(bytes = 4)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DataHeader {
     pub packet_type: B7,
     pub extend: bool,
@@ -25,7 +25,7 @@ pub struct DataHeader {
 }
 
 #[bitfield(bytes = 4)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExtendedHeader {
     pub attribute: B15,
     pub next: bool,
@@ -33,7 +33,7 @@ pub struct ExtendedHeader {
     pub size: B10,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Packet {
     Ctrl { header: CtrlHeader, payload: Bytes },
     Data { header: DataHeader, payload: Bytes },

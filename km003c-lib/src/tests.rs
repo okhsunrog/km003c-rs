@@ -1,4 +1,4 @@
-use crate::packet::Packet;
+use crate::packet::{CtrlHeader, DataHeader, Packet};
 use bytes::Bytes;
 
 #[test]
@@ -7,20 +7,18 @@ fn test_parse_packet_02010000() {
     let bytes_data = hex::decode(hex_data).expect("Failed to decode hex");
     let bytes = Bytes::from(bytes_data);
 
-    let packet = Packet::try_from(bytes).expect("Failed to parse packet");
-
-    match packet {
-        Packet::Ctrl { header, payload } => {
-            assert_eq!(header.packet_type(), 2, "Expected packet_type to be 2");
-            assert_eq!(header.extend(), false, "Expected extend to be false");
-            assert_eq!(header.id(), 1, "Expected id to be 1");
-            assert_eq!(header.attribute(), 0, "Expected attribute to be 0");
-            assert!(payload.is_empty(), "Expected payload to be empty");
-        }
-        Packet::Data { .. } => {
-            panic!("Expected a Ctrl packet, but got a Data packet");
-        }
-    }
+    assert_eq!(
+        Packet::try_from(bytes).expect("Failed to parse packet"),
+        Packet::Ctrl {
+            header: CtrlHeader::new()
+                .with_packet_type(2)
+                .with_extend(false)
+                .with_id(1)
+                .with_attribute(0),
+            payload: Bytes::new(),
+        },
+        "Parsed packet does not match expected packet"
+    );
 }
 
 #[test]
@@ -29,23 +27,16 @@ fn test_parse_packet_40010001() {
     let bytes_data = hex::decode(hex_data).expect("Failed to decode hex");
     let bytes = Bytes::from(bytes_data);
 
-    let packet = Packet::try_from(bytes).expect("Failed to parse packet");
-
-    match packet {
-        Packet::Ctrl { .. } => {
-            panic!("Expected a Data packet, but got a Ctrl packet");
-        }
-        Packet::Data { header, payload } => {
-            assert_eq!(header.packet_type(), 64, "Expected packet_type to be 64");
-            assert_eq!(header.extend(), false, "Expected extend to be false");
-            assert_eq!(header.id(), 1, "Expected id to be 1");
-            assert_eq!(header.obj_count_words(), 4, "Expected obj_count_words to be 4");
-            assert_eq!(payload.len(), 4, "Expected payload length to be 4");
-            assert_eq!(
-                payload.as_ref(),
-                &[0xAA, 0xBB, 0xCC, 0xDD],
-                "Expected payload to be [0xAA, 0xBB, 0xCC, 0xDD]"
-            );
-        }
-    }
+    assert_eq!(
+        Packet::try_from(bytes).expect("Failed to parse packet"),
+        Packet::Data {
+            header: DataHeader::new()
+                .with_packet_type(64)
+                .with_extend(false)
+                .with_id(1)
+                .with_obj_count_words(4),
+            payload: Bytes::from_static(&[0xAA, 0xBB, 0xCC, 0xDD]),
+        },
+        "Parsed data packet does not match expected data packet"
+    );
 }
