@@ -1,6 +1,6 @@
-use modular_bitfield::prelude::*;
-use bytes::Bytes;
 use crate::error::KMError;
+use bytes::Bytes;
+use modular_bitfield::prelude::*;
 
 #[bitfield(bytes = 4)]
 #[derive(Debug, Clone, Copy)]
@@ -35,24 +35,27 @@ pub struct ExtendedHeader {
 
 #[derive(Debug, Clone)]
 pub enum Packet {
-    Ctrl{header: CtrlHeader, payload: Bytes},
-    Data{header: DataHeader, payload: Bytes},
+    Ctrl { header: CtrlHeader, payload: Bytes },
+    Data { header: DataHeader, payload: Bytes },
 }
 
 impl TryFrom<Bytes> for Packet {
     type Error = KMError;
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
-        let is_ctrl_packet = *bytes.get(0).ok_or(KMError::InvalidPacket)? < 64;
+        let is_ctrl_packet = *bytes
+            .get(0)
+            .ok_or(KMError::InvalidPacket("Missing first byte".to_string()))?
+            < 64;
         let header_bytes: [u8; 4] = bytes[0..4].try_into()?;
         if is_ctrl_packet {
             let header = CtrlHeader::from_bytes(header_bytes);
             let payload = bytes.slice(4..);
-            Ok(Packet::Ctrl{header, payload})
+            Ok(Packet::Ctrl { header, payload })
         } else {
             let header = DataHeader::from_bytes(header_bytes);
             let payload = bytes.slice(4..);
-            Ok(Packet::Data{header, payload})
+            Ok(Packet::Data { header, payload })
         }
     }
 }

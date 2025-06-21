@@ -1,7 +1,6 @@
 use nusb::transfer::TransferError;
-use thiserror::Error;
 use std::array::TryFromSliceError;
-
+use thiserror::Error;
 
 /// The primary error type for the `km003c-rs` library.
 #[derive(Error, Debug)]
@@ -32,7 +31,7 @@ pub enum KMError {
 }
 
 impl From<TryFromSliceError> for KMError {
-    fn from(_: std::ops::TryFromSliceError) -> Self {
+    fn from(_: TryFromSliceError) -> Self {
         KMError::InvalidPacket("Failed to convert slice to array".to_string())
     }
 }
