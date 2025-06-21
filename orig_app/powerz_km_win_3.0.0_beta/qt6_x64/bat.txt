@@ -1,3 +1,0 @@
- 
-windeployqt.exe E:\qt_6\POWER-Z.exe --qmldir E:\Project\QT_Project\mtools3\MultipleRecord\qml_6
-  

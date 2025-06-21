@@ -8,4 +8,11 @@ repository = "https://github.com/okhsunrog/km003c-rs"
 
 [dependencies]
 modular-bitfield = "0.12"
+nusb = "0.1.14"
 thiserror = "2.0.12"
+tracing = "0.1.41"
+tokio = { version = "1.45", features = ["full"] }
+bytes = "1.10.1"
+
+[dev-dependencies]
+hex = "0.4"
