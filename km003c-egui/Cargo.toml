@@ -1,0 +1,16 @@
+[package]
+name = "km003c-egui"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "km003c-egui"
+path = "src/main.rs"
+
+[dependencies]
+km003c-lib = { path = "../km003c-lib" }
+eframe = "0.29"
+egui_plot = "0.29"
+tokio = { version = "1.0", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"

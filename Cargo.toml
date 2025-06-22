@@ -3,7 +3,5 @@ resolver = "3"
 members = [
     "km003c-lib",
     "km003c-cli",
-    # "km003c-egui"
+    "km003c-egui"
     ]
-
-
