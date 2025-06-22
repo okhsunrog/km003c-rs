@@ -112,3 +112,134 @@ fn test_ctrl0() {
         println!("Extended Header: {:?}", ext_header);
     }
 }
+
+#[test]
+fn test_adc_request_generation() {
+    // Test that CmdGetSimpleAdcData generates the correct request bytes
+    let packet = Packet::CmdGetSimpleAdcData;
+    let raw_packet = packet.to_raw_packet(0);
+
+    // Convert to bytes manually to verify the exact output
+    let header_bytes = match &raw_packet {
+        RawPacket::Ctrl { header, .. } => header.into_bytes(),
+        _ => panic!("Expected Ctrl packet"),
+    };
+
+    let expected_bytes = [0x0c, 0x00, 0x02, 0x00];
+    assert_eq!(
+        header_bytes, expected_bytes,
+        "ADC request should generate [0c, 00, 02, 00], got {:02x?}",
+        header_bytes
+    );
+
+    // Also verify packet structure
+    match raw_packet {
+        RawPacket::Ctrl { header, payload } => {
+            assert_eq!(header.packet_type(), 12); // CMD_GET_DATA
+            assert_eq!(header.extend(), false);
+            assert_eq!(header.id(), 0);
+            assert_eq!(header.attribute(), 1); // ATT_ADC
+            assert_eq!(payload.len(), 0);
+        }
+        _ => panic!("Expected Ctrl packet"),
+    }
+}
+
+#[test]
+fn test_adc_response_parsing_real_data() {
+    // Real captured ADC response data from device
+    let raw_bytes = [
+        0x41, 0x00, 0x80, 0x02, 0x01, 0x00, 0x00, 0x0b, 0x45, 0x1c, 0x4d, 0x00, 0xae, 0x9e, 0xfe, 0xff, 0xdb, 0x1c,
+        0x4d, 0x00, 0x23, 0x9f, 0xfe, 0xff, 0xe1, 0x1c, 0x4d, 0x00, 0x81, 0x9f, 0xfe, 0xff, 0xc9, 0x0c, 0x8a, 0x10,
+        0x0e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x7e, 0x00, 0x80, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+
+    let bytes = Bytes::from(raw_bytes.to_vec());
+
+    // Parse as RawPacket
+    let raw_packet = RawPacket::try_from(bytes).expect("Failed to parse raw packet");
+
+    // Verify raw packet structure
+    match &raw_packet {
+        RawPacket::Data { header, payload } => {
+            assert_eq!(header.packet_type(), 65); // CMD_PUT_DATA
+            assert_eq!(header.extend(), false);
+            assert_eq!(header.id(), 0);
+            assert_eq!(header.obj_count_words(), 10);
+            assert_eq!(payload.len(), 48);
+        }
+        _ => panic!("Expected Data packet"),
+    }
+
+    // Convert to high-level Packet
+    let packet = Packet::try_from(raw_packet).expect("Failed to parse packet");
+
+    // Verify it's parsed as ADC data
+    match packet {
+        Packet::SimpleAdcData(adc_data) => {
+            // Test main measurements (with floating point tolerance)
+            assert!(
+                (adc_data.vbus_v - 5.054).abs() < 0.001,
+                "Voltage should be ~5.054V, got {}",
+                adc_data.vbus_v
+            );
+            assert!(
+                (adc_data.ibus_a - (-0.090)).abs() < 0.001,
+                "Current should be ~-0.090A, got {}",
+                adc_data.ibus_a
+            );
+            assert!(
+                (adc_data.power_w - (-0.457)).abs() < 0.001,
+                "Power should be ~-0.457W, got {}",
+                adc_data.power_w
+            );
+            assert!(
+                (adc_data.temp_c - 25.0).abs() < 0.1,
+                "Temperature should be ~25.0°C, got {}",
+                adc_data.temp_c
+            );
+
+            // Test absolute value methods
+            assert!(
+                (adc_data.current_abs_a() - 0.090).abs() < 0.001,
+                "Absolute current should be ~0.090A, got {}",
+                adc_data.current_abs_a()
+            );
+            assert!(
+                (adc_data.power_abs_w() - 0.457).abs() < 0.001,
+                "Absolute power should be ~0.457W, got {}",
+                adc_data.power_abs_w()
+            );
+
+            // Test sample rate
+            assert_eq!(adc_data.sample_rate, SampleRate::Sps1, "Sample rate should be 1 SPS");
+
+            // Test USB data lines (should be ~0.000V)
+            assert!(
+                adc_data.vdp_v.abs() < 0.001,
+                "D+ should be ~0.000V, got {}",
+                adc_data.vdp_v
+            );
+            assert!(
+                adc_data.vdm_v.abs() < 0.001,
+                "D- should be ~0.000V, got {}",
+                adc_data.vdm_v
+            );
+
+            // Test USB CC lines
+            assert!(
+                (adc_data.cc1_v - 0.423).abs() < 0.001,
+                "CC1 should be ~0.423V, got {}",
+                adc_data.cc1_v
+            );
+            assert!(
+                (adc_data.cc2_v - 0.001).abs() < 0.001,
+                "CC2 should be ~0.001V, got {}",
+                adc_data.cc2_v
+            );
+
+            println!("Successfully parsed ADC data: {}", adc_data);
+        }
+        _ => panic!("Expected SimpleAdcData packet, got {:?}", packet),
+    }
+}
