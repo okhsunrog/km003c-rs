@@ -36,7 +36,7 @@ impl PowerMonitorApp {
         // Process all available data from the channel
         while let Ok(adc_data) = self.data_receiver.try_recv() {
             let timestamp = self.start_time.elapsed().as_secs_f64();
-            
+
             self.data_points.push_back(DataPoint {
                 timestamp,
                 voltage: adc_data.vbus_v,
@@ -63,7 +63,7 @@ impl eframe::App for PowerMonitorApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("POWER-Z KM003C Real-time Monitor");
-            
+
             ui.horizontal(|ui| {
                 ui.label("Status:");
                 ui.colored_label(
@@ -91,12 +91,9 @@ impl eframe::App for PowerMonitorApp {
             plot.show(ui, |plot_ui| {
                 if !self.data_points.is_empty() {
                     // Voltage line (green)
-                    let voltage_points: PlotPoints = self
-                        .data_points
-                        .iter()
-                        .map(|p| [p.timestamp, p.voltage])
-                        .collect();
-                    
+                    let voltage_points: PlotPoints =
+                        self.data_points.iter().map(|p| [p.timestamp, p.voltage]).collect();
+
                     let voltage_line = Line::new(voltage_points)
                         .color(egui::Color32::GREEN)
                         .name("Voltage (V)");
@@ -108,16 +105,14 @@ impl eframe::App for PowerMonitorApp {
                         .iter()
                         .map(|p| [p.timestamp, p.current.abs()])
                         .collect();
-                    
-                    let current_line = Line::new(current_points)
-                        .color(egui::Color32::BLUE)
-                        .name("Current (A)");
+
+                    let current_line = Line::new(current_points).color(egui::Color32::BLUE).name("Current (A)");
                     plot_ui.line(current_line);
                 }
             });
 
             ui.separator();
-            
+
             ui.horizontal(|ui| {
                 ui.label(format!("Data points: {}", self.data_points.len()));
                 if ui.button("Clear").clicked() {
@@ -131,7 +126,7 @@ impl eframe::App for PowerMonitorApp {
 
 async fn usb_polling_task(tx: mpsc::UnboundedSender<AdcDataSimple>) {
     info!("Starting USB polling task");
-    
+
     // Try to connect to device
     let mut device = match KM003C::new().await {
         Ok(device) => {
@@ -161,13 +156,16 @@ async fn usb_polling_task(tx: mpsc::UnboundedSender<AdcDataSimple>) {
             }
             Err(e) => {
                 error_count += 1;
-                error!("Failed to read ADC data (error {} of {}): {}", error_count, MAX_ERRORS, e);
-                
+                error!(
+                    "Failed to read ADC data (error {} of {}): {}",
+                    error_count, MAX_ERRORS, e
+                );
+
                 if error_count >= MAX_ERRORS {
                     error!("Too many consecutive errors, stopping USB polling");
                     break;
                 }
-                
+
                 // Wait a bit longer before retrying on error
                 tokio::time::sleep(Duration::from_millis(500)).await;
             }
@@ -198,10 +196,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let app = PowerMonitorApp::new(rx);
-    
+
     info!("Starting egui application");
-    eframe::run_native("POWER-Z KM003C Monitor", options, Box::new(|_cc| {
-        Ok(Box::new(app))
-    }))
-    .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+    eframe::run_native("POWER-Z KM003C Monitor", options, Box::new(|_cc| Ok(Box::new(app))))
+        .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
 }

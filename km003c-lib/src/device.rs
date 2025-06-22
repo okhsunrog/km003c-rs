@@ -6,7 +6,7 @@ use bytes::Bytes;
 use nusb::{Interface, transfer::RequestBuffer};
 use std::time::Duration;
 use tokio::time::timeout;
-use tracing::info;
+use tracing::{debug, info, trace};
 
 // Constants for USB device identification
 pub const VID: u16 = 0x5FC9;
@@ -73,7 +73,7 @@ impl KM003C {
         match &packet {
             RawPacket::Ctrl { header, .. } => {
                 header_bytes.copy_from_slice(&header.into_bytes());
-                info!(
+                debug!(
                     "Sending Ctrl packet: packet_type={}, extend={}, id={}, attribute=0x{:04x}",
                     header.packet_type(),
                     header.extend(),
@@ -83,7 +83,7 @@ impl KM003C {
             }
             RawPacket::Data { header, .. } => {
                 header_bytes.copy_from_slice(&header.into_bytes());
-                info!(
+                debug!(
                     "Sending Data packet: packet_type={}, extend={}, id={}, obj_count_words={}",
                     header.packet_type(),
                     header.extend(),
@@ -98,8 +98,8 @@ impl KM003C {
         message.extend_from_slice(&header_bytes);
         message.extend_from_slice(packet.payload().as_ref());
 
-        // Log the full message being sent
-        info!("Sending {} bytes: {:02x?}", message.len(), message);
+        // Log the full message being sent at trace level
+        trace!("Sending {} bytes: {:02x?}", message.len(), message);
 
         // Send the message
         let timeout_duration = DEFAULT_TIMEOUT;
@@ -113,7 +113,7 @@ impl KM003C {
         // Wait for the transfer to complete and get the result
         let bytes_sent = result.into_result()?;
 
-        info!("Sent {} bytes", bytes_sent.actual_length());
+        debug!("Sent {} bytes", bytes_sent.actual_length());
         Ok(())
     }
 
@@ -140,16 +140,16 @@ impl KM003C {
 
         let bytes_received = response_buffer.len();
         let raw_bytes = &response_buffer.as_slice()[..bytes_received];
-        info!("Received {} bytes: {:02x?}", bytes_received, raw_bytes);
+        trace!("Received {} bytes: {:02x?}", bytes_received, raw_bytes);
 
         // Convert the response to a packet
         let bytes = Bytes::copy_from_slice(raw_bytes);
         let raw_packet = RawPacket::try_from(bytes)?;
 
-        // Log packet parsing details
+        // Log packet parsing details at debug level
         match &raw_packet {
             RawPacket::Ctrl { header, payload } => {
-                info!(
+                debug!(
                     "Parsed as Ctrl packet: packet_type={}, extend={}, id={}, attribute=0x{:04x}, payload_len={}",
                     header.packet_type(),
                     header.extend(),
@@ -159,7 +159,7 @@ impl KM003C {
                 );
             }
             RawPacket::Data { header, payload } => {
-                info!(
+                debug!(
                     "Parsed as Data packet: packet_type={}, extend={}, id={}, obj_count_words={}, payload_len={}",
                     header.packet_type(),
                     header.extend(),

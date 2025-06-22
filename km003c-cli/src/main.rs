@@ -3,8 +3,8 @@ use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    // Initialize logging
-    tracing_subscriber::fmt::init();
+    // Initialize logging with info level by default
+    tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
 
     // Connect to the device
     let mut device = KM003C::new().await?;
