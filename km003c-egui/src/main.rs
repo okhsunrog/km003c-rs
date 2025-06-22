@@ -78,17 +78,19 @@ impl eframe::App for PowerMonitorApp {
 
             ui.separator();
 
-            // Create the plot
-            let plot = Plot::new("power_plot")
+            // Voltage Plot (Top)
+            ui.label("Voltage (V)");
+            let voltage_plot = Plot::new("voltage_plot")
                 .legend(egui_plot::Legend::default())
                 .show_axes([true, true])
                 .show_grid(true)
                 .allow_boxed_zoom(true)
                 .allow_drag(true)
                 .allow_scroll(true)
-                .height(400.0);
+                .height(200.0)
+                .y_axis_label("Voltage (V)");
 
-            plot.show(ui, |plot_ui| {
+            voltage_plot.show(ui, |plot_ui| {
                 if !self.data_points.is_empty() {
                     // Voltage line (green)
                     let voltage_points: PlotPoints =
@@ -96,9 +98,28 @@ impl eframe::App for PowerMonitorApp {
 
                     let voltage_line = Line::new(voltage_points)
                         .color(egui::Color32::GREEN)
-                        .name("Voltage (V)");
+                        .name("Voltage (V)")
+                        .width(2.0);
                     plot_ui.line(voltage_line);
+                }
+            });
 
+            ui.add_space(10.0);
+
+            // Current Plot (Bottom)
+            ui.label("Current (A)");
+            let current_plot = Plot::new("current_plot")
+                .legend(egui_plot::Legend::default())
+                .show_axes([true, true])
+                .show_grid(true)
+                .allow_boxed_zoom(true)
+                .allow_drag(true)
+                .allow_scroll(true)
+                .height(200.0)
+                .y_axis_label("Current (A)");
+
+            current_plot.show(ui, |plot_ui| {
+                if !self.data_points.is_empty() {
                     // Current line (blue) - use absolute value for better visibility
                     let current_points: PlotPoints = self
                         .data_points
@@ -106,7 +127,10 @@ impl eframe::App for PowerMonitorApp {
                         .map(|p| [p.timestamp, p.current.abs()])
                         .collect();
 
-                    let current_line = Line::new(current_points).color(egui::Color32::BLUE).name("Current (A)");
+                    let current_line = Line::new(current_points)
+                        .color(egui::Color32::BLUE)
+                        .name("Current (A)")
+                        .width(2.0);
                     plot_ui.line(current_line);
                 }
             });
