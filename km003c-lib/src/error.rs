@@ -23,6 +23,9 @@ pub enum KMError {
     #[error("Invalid packet: {0}")]
     InvalidPacket(String),
 
+    #[error("Invalid length")]
+    InvalidLength,
+
     #[error("Insufficient data: expected at least {expected} bytes, got {actual}")]
     InsufficientData { expected: usize, actual: usize },
 

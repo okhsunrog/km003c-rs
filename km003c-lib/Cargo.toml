@@ -13,6 +13,9 @@ thiserror = "2.0.12"
 tracing = "0.1.41"
 tokio = { version = "1.45", features = ["full"] }
 bytes = "1.10.1"
+num_enum = "0.7.3"
+speedy = "0.8.7"
+strum_macros = "0.27.1"
 
 [dev-dependencies]
 hex = "0.4"
