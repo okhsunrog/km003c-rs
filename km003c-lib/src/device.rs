@@ -73,9 +73,23 @@ impl KM003C {
         match &packet {
             RawPacket::Ctrl { header, .. } => {
                 header_bytes.copy_from_slice(&header.into_bytes());
+                info!(
+                    "Sending Ctrl packet: packet_type={}, extend={}, id={}, attribute=0x{:04x}",
+                    header.packet_type(),
+                    header.extend(),
+                    header.id(),
+                    header.attribute()
+                );
             }
             RawPacket::Data { header, .. } => {
                 header_bytes.copy_from_slice(&header.into_bytes());
+                info!(
+                    "Sending Data packet: packet_type={}, extend={}, id={}, obj_count_words={}",
+                    header.packet_type(),
+                    header.extend(),
+                    header.id(),
+                    header.obj_count_words()
+                );
             }
         }
 
@@ -84,18 +98,21 @@ impl KM003C {
         message.extend_from_slice(&header_bytes);
         message.extend_from_slice(packet.payload().as_ref());
 
+        // Log the full message being sent
+        info!("Sending {} bytes: {:02x?}", message.len(), message);
+
         // Send the message
         let timeout_duration = DEFAULT_TIMEOUT;
 
         // Use bulk_out with the Vec<u8> directly
         let transfer_future = self.interface.bulk_out(ENDPOINT_OUT, message);
-        
+
         // Apply timeout to the future
         let result = timeout(timeout_duration, transfer_future).await?;
-        
+
         // Wait for the transfer to complete and get the result
         let bytes_sent = result.into_result()?;
-        
+
         info!("Sent {} bytes", bytes_sent.actual_length());
         Ok(())
     }
@@ -114,29 +131,56 @@ impl KM003C {
 
         // Use bulk_in with the RequestBuffer directly
         let transfer_future = self.interface.bulk_in(ENDPOINT_IN, buffer);
-        
+
         // Apply timeout to the future
         let result = timeout(timeout_duration, transfer_future).await?;
-        
+
         // Wait for the transfer to complete and get the result
         let response_buffer = result.into_result()?;
-        
+
         let bytes_received = response_buffer.len();
-        info!("Received {} bytes", bytes_received);
+        let raw_bytes = &response_buffer.as_slice()[..bytes_received];
+        info!("Received {} bytes: {:02x?}", bytes_received, raw_bytes);
 
         // Convert the response to a packet
-        let bytes = Bytes::copy_from_slice(&response_buffer.as_slice()[..bytes_received]);
-        RawPacket::try_from(bytes)
+        let bytes = Bytes::copy_from_slice(raw_bytes);
+        let raw_packet = RawPacket::try_from(bytes)?;
+
+        // Log packet parsing details
+        match &raw_packet {
+            RawPacket::Ctrl { header, payload } => {
+                info!(
+                    "Parsed as Ctrl packet: packet_type={}, extend={}, id={}, attribute=0x{:04x}, payload_len={}",
+                    header.packet_type(),
+                    header.extend(),
+                    header.id(),
+                    header.attribute(),
+                    payload.len()
+                );
+            }
+            RawPacket::Data { header, payload } => {
+                info!(
+                    "Parsed as Data packet: packet_type={}, extend={}, id={}, obj_count_words={}, payload_len={}",
+                    header.packet_type(),
+                    header.extend(),
+                    header.id(),
+                    header.obj_count_words(),
+                    payload.len()
+                );
+            }
+        }
+
+        Ok(raw_packet)
     }
 
     /// Request ADC data
     pub async fn request_adc_data(&mut self) -> Result<AdcDataSimple, KMError> {
         // Send the request
         self.send(Packet::CmdGetSimpleAdcData).await?;
-        
+
         // Receive the response
         let response = self.receive().await?;
-        
+
         // Extract the ADC data
         match response {
             Packet::SimpleAdcData(adc_data) => Ok(adc_data),

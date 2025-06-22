@@ -55,7 +55,7 @@ pub enum PacketType {
 
     // >= 0x40 is ctrl type
     Head = 64,
-    PutData = 65, 
+    PutData = 65,
 
     #[num_enum(catch_all)]
     Unknown(u8),
@@ -124,11 +124,10 @@ impl RawPacket {
         if self.payload().len() < 4 {
             return Err(KMError::InvalidLength);
         }
-        let ext_header_bytes = 
-           match self {
-               RawPacket::Ctrl { payload, .. } => payload.split_to(4),
-               RawPacket::Data { payload, .. } => payload.split_to(4),
-           };
+        let ext_header_bytes = match self {
+            RawPacket::Ctrl { payload, .. } => payload.split_to(4),
+            RawPacket::Data { payload, .. } => payload.split_to(4),
+        };
         let ext_header_bytes: [u8; 4] = ext_header_bytes.as_ref().try_into()?;
         Ok(ExtendedHeader::from_bytes(ext_header_bytes))
     }
@@ -139,7 +138,9 @@ impl TryFrom<Bytes> for RawPacket {
 
     fn try_from(mut bytes: Bytes) -> Result<Self, Self::Error> {
         // the first byte is always package type
-        let package_type_byte = *bytes.get(0).ok_or(KMError::InvalidPacket("Missing first byte".to_string()))?;
+        let package_type_byte = *bytes
+            .get(0)
+            .ok_or(KMError::InvalidPacket("Missing first byte".to_string()))?;
         let is_ctrl_packet = PacketType::from_primitive(package_type_byte).is_ctrl_type();
 
         let header_bytes: [u8; 4] = bytes

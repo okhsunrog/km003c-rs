@@ -1,8 +1,8 @@
-pub mod error;
-pub mod packet;
 pub mod adc;
-pub mod message;
 pub mod device;
+pub mod error;
+pub mod message;
+pub mod packet;
 
 // Re-export the KM003C struct for easy access
 pub use device::KM003C;
