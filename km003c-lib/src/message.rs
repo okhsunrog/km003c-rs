@@ -1,4 +1,4 @@
-use crate::adc::{AdcDataRaw, AdcDataSimple, SampleRate};
+use crate::adc::{AdcDataRaw, AdcDataSimple};
 use crate::error::KMError;
 use crate::packet::{Attribute, CtrlHeader, DataHeader, ExtendedHeader, PacketType, RawPacket};
 use bytes::Bytes;
@@ -13,20 +13,6 @@ pub enum Packet {
     CmdGetSimpleAdcData,
     /// Generic packet for types we haven't specifically implemented yet
     Generic(RawPacket),
-}
-
-impl Packet {
-    /// Create a new SimpleAdcData packet
-    pub fn new_simple_adc_data(adc_data: AdcDataSimple) -> Self {
-        Packet::SimpleAdcData(adc_data)
-    }
-
-    /// Create a packet to set the sample rate
-    pub fn new_set_sample_rate(_id: u8, _rate: SampleRate) -> Self {
-        // This would create a packet to set the sample rate
-        // We'll implement this later when we know more about the protocol
-        todo!("Implement set sample rate packet")
-    }
 }
 
 impl TryFrom<RawPacket> for Packet {
