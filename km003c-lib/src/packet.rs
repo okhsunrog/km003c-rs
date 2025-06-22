@@ -53,7 +53,7 @@ pub enum PacketType {
     GetData = 0x0C,
     GetFile = 0x0D,
 
-    // >= 0x40 is ctrl type
+    // >= 0x40 is data type
     Head = 64,
     PutData = 65,
 
