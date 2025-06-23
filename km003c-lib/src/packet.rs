@@ -137,10 +137,12 @@ impl TryFrom<Bytes> for RawPacket {
     type Error = KMError;
 
     fn try_from(mut bytes: Bytes) -> Result<Self, Self::Error> {
-        // the first byte is always package type
-        let package_type_byte = *bytes
+        // the first byte contains packet type (7 bits) + extend bit
+        let first_byte = *bytes
             .get(0)
             .ok_or(KMError::InvalidPacket("Missing first byte".to_string()))?;
+        // Extract only the packet type (lower 7 bits), ignoring the extend bit
+        let package_type_byte = first_byte & 0x7F;
         let is_ctrl_packet = PacketType::from_primitive(package_type_byte).is_ctrl_type();
 
         let header_bytes: [u8; 4] = bytes
@@ -156,5 +158,21 @@ impl TryFrom<Bytes> for RawPacket {
             let header = DataHeader::from_bytes(header_bytes);
             Ok(RawPacket::Data { header, payload })
         }
+    }
+}
+
+impl From<RawPacket> for Bytes {
+    fn from(packet: RawPacket) -> Self {
+        let (header_bytes, payload) = match packet {
+            RawPacket::Ctrl { header, payload } => (header.into_bytes(), payload),
+            RawPacket::Data { header, payload } => (header.into_bytes(), payload),
+        };
+
+        // Create the full message by combining header and payload
+        let mut message = Vec::with_capacity(4 + payload.len());
+        message.extend_from_slice(&header_bytes);
+        message.extend_from_slice(payload.as_ref());
+
+        Bytes::from(message)
     }
 }

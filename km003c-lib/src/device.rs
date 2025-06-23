@@ -68,35 +68,18 @@ impl KM003C {
 
     /// Send a raw packet to the device
     async fn send_raw_packet(&mut self, packet: RawPacket) -> Result<(), KMError> {
-        // Convert the packet to bytes
-        let mut header_bytes = [0u8; 4];
-        match &packet {
-            RawPacket::Ctrl { header, .. } => {
-                header_bytes.copy_from_slice(&header.into_bytes());
-                debug!(
-                    "Sending Ctrl packet: packet_type={}, extend={}, id={}, attribute=0x{:04x}",
-                    header.packet_type(),
-                    header.extend(),
-                    header.id(),
-                    header.attribute()
-                );
-            }
-            RawPacket::Data { header, .. } => {
-                header_bytes.copy_from_slice(&header.into_bytes());
-                debug!(
-                    "Sending Data packet: packet_type={}, extend={}, id={}, obj_count_words={}",
-                    header.packet_type(),
-                    header.extend(),
-                    header.id(),
-                    header.obj_count_words()
-                );
-            }
-        }
+        // Log packet details
+        debug!(
+            "Sending packet: type={:?}, extend={}, id={}, payload_len={}",
+            packet.packet_type(),
+            packet.is_extended(),
+            packet.id(),
+            packet.payload().len()
+        );
 
-        // Create the full message
-        let mut message = Vec::with_capacity(4 + packet.payload().len());
-        message.extend_from_slice(&header_bytes);
-        message.extend_from_slice(packet.payload().as_ref());
+        // Convert the packet to bytes
+        let message_bytes = Bytes::from(packet);
+        let message = message_bytes.to_vec();
 
         // Log the full message being sent at trace level
         trace!("Sending {} bytes: {:02x?}", message.len(), message);
@@ -147,28 +130,13 @@ impl KM003C {
         let raw_packet = RawPacket::try_from(bytes)?;
 
         // Log packet parsing details at debug level
-        match &raw_packet {
-            RawPacket::Ctrl { header, payload } => {
-                debug!(
-                    "Parsed as Ctrl packet: packet_type={}, extend={}, id={}, attribute=0x{:04x}, payload_len={}",
-                    header.packet_type(),
-                    header.extend(),
-                    header.id(),
-                    header.attribute(),
-                    payload.len()
-                );
-            }
-            RawPacket::Data { header, payload } => {
-                debug!(
-                    "Parsed as Data packet: packet_type={}, extend={}, id={}, obj_count_words={}, payload_len={}",
-                    header.packet_type(),
-                    header.extend(),
-                    header.id(),
-                    header.obj_count_words(),
-                    payload.len()
-                );
-            }
-        }
+        debug!(
+            "Parsed packet: type={:?}, extend={}, id={}, payload_len={}",
+            raw_packet.packet_type(),
+            raw_packet.is_extended(),
+            raw_packet.id(),
+            raw_packet.payload().len()
+        );
 
         Ok(raw_packet)
     }
