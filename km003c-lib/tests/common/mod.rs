@@ -9,6 +9,8 @@ pub use hex;
 #[allow(unused_imports)]
 pub use km003c_lib::adc::SampleRate;
 #[allow(unused_imports)]
+pub use km003c_lib::error::KMError;
+#[allow(unused_imports)]
 pub use km003c_lib::message::Packet;
 #[allow(unused_imports)]
 pub use km003c_lib::packet::{Attribute, CtrlHeader, DataHeader, PacketType, RawPacket};

@@ -184,19 +184,22 @@ impl TryFrom<Bytes> for RawPacket {
     type Error = KMError;
 
     fn try_from(mut bytes: Bytes) -> Result<Self, Self::Error> {
+        // Check minimum length first to prevent panic in split_to(4)
+        if bytes.len() < 4 {
+            return Err(KMError::InvalidPacket("Packet too short for header".to_string()));
+        }
+
         // the first byte contains packet type (7 bits) + extend bit
-        let first_byte = *bytes
-            .get(0)
-            .ok_or(KMError::InvalidPacket("Missing first byte".to_string()))?;
+        let first_byte = bytes[0]; // Safe now that we know len >= 4
         // Extract only the packet type (lower 7 bits), ignoring the extend bit
         let package_type_byte = first_byte & 0x7F;
         let is_ctrl_packet = PacketType::from_primitive(package_type_byte).is_ctrl_type();
 
         let header_bytes: [u8; 4] = bytes
-            .split_to(4)
+            .split_to(4) // Safe now - we know there are at least 4 bytes
             .as_ref()
             .try_into()
-            .map_err(|_| KMError::InvalidPacket("Invalid header length".to_string()))?;
+            .unwrap(); // Safe to unwrap since we know the slice is exactly 4 bytes
         let payload = bytes;
         if is_ctrl_packet {
             let header = CtrlHeader::from_bytes(header_bytes);
