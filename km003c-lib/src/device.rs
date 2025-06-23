@@ -155,4 +155,19 @@ impl KM003C {
             _ => Err(KMError::Protocol("Unexpected response type".to_string())),
         }
     }
+
+    /// Request PD data
+    pub async fn request_pd_data(&mut self) -> Result<Bytes, KMError> {
+        // Send the request
+        self.send(Packet::CmdGetPdData).await?;
+
+        // Receive the response
+        let response = self.receive().await?;
+
+        // Extract the PD data
+        match response {
+            Packet::PdRawData(pd_data) => Ok(pd_data),
+            _ => Err(KMError::Protocol("Unexpected response type".to_string())),
+        }
+    }
 }
