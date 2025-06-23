@@ -45,7 +45,7 @@ impl TryFrom<RawPacket> for Packet {
 
 impl Packet {
     /// Convert a high-level packet to a raw packet with the given transaction ID
-    pub(crate) fn to_raw_packet(self, id: u8) -> RawPacket {
+    pub fn to_raw_packet(self, id: u8) -> RawPacket {
         match self {
             Packet::SimpleAdcData(adc_data) => {
                 // Convert AdcDataSimple to AdcDataRaw

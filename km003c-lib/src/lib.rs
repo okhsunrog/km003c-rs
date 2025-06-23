@@ -6,6 +6,3 @@ pub mod packet;
 
 // Re-export the KM003C struct for easy access
 pub use device::KM003C;
-
-#[cfg(test)]
-mod tests;

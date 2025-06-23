@@ -144,7 +144,7 @@ impl RawPacket {
     /// Get payload data, skipping extended header if present
     pub fn get_payload_data(&self) -> Bytes {
         let payload = self.payload();
-        
+
         if self.get_extended_header().is_some() {
             // Skip the first 4 bytes (extended header)
             payload.slice(4..)
@@ -156,9 +156,7 @@ impl RawPacket {
     /// Get the attribute for this packet
     pub fn get_attribute(&self) -> Option<Attribute> {
         match self {
-            RawPacket::Ctrl { header, .. } => {
-                Some(Attribute::from_primitive(header.attribute()))
-            }
+            RawPacket::Ctrl { header, .. } => Some(Attribute::from_primitive(header.attribute())),
             RawPacket::Data { .. } => {
                 // For Data packets, attribute comes from extended header
                 self.get_extended_header()
