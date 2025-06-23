@@ -2,7 +2,6 @@ use crate::adc::{AdcDataRaw, AdcDataSimple};
 use crate::error::KMError;
 use crate::packet::{Attribute, CtrlHeader, DataHeader, ExtendedHeader, PacketType, RawPacket};
 use bytes::Bytes;
-use num_enum::FromPrimitive;
 use zerocopy::{FromBytes, IntoBytes};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -18,27 +17,29 @@ pub enum Packet {
 impl TryFrom<RawPacket> for Packet {
     type Error = KMError;
 
-    fn try_from(mut raw_packet: RawPacket) -> Result<Self, Self::Error> {
-        // Check if this is an ADC data packet
-        if raw_packet.packet_type() == PacketType::PutData && has_extended_header(&raw_packet) {
-            let ext_header = raw_packet.get_ext_header()?;
-
-            // Check if this is a simple ADC data packet
-            if Attribute::from_primitive(ext_header.attribute()) == Attribute::Adc {
-                // Parse the payload as AdcDataRaw using zerocopy
-                let payload_bytes = raw_packet.payload();
-                let adc_data_raw = AdcDataRaw::ref_from_bytes(payload_bytes.as_ref())
+    fn try_from(raw_packet: RawPacket) -> Result<Self, Self::Error> {
+        // Use the new cleaner pattern with tuple matching
+        match (raw_packet.packet_type(), raw_packet.get_attribute()) {
+            (PacketType::PutData, Some(Attribute::Adc)) => {
+                // Parse ADC data using clean payload data
+                let payload_data = raw_packet.get_payload_data();
+                let adc_data_raw = AdcDataRaw::ref_from_bytes(payload_data.as_ref())
                     .map_err(|_| KMError::InvalidPacket("Failed to parse ADC data: incorrect size".to_string()))?;
 
                 // Convert to user-friendly format
                 let adc_data = AdcDataSimple::from(*adc_data_raw);
 
-                return Ok(Packet::SimpleAdcData(adc_data));
+                Ok(Packet::SimpleAdcData(adc_data))
+            }
+            (PacketType::GetData, Some(Attribute::Adc)) => {
+                // ADC request command
+                Ok(Packet::CmdGetSimpleAdcData)
+            }
+            _ => {
+                // If we don't recognize the packet type or can't parse it, return it as Generic
+                Ok(Packet::Generic(raw_packet))
             }
         }
-
-        // If we don't recognize the packet type or can't parse it, return it as Generic
-        Ok(Packet::Generic(raw_packet))
     }
 }
 
@@ -92,12 +93,4 @@ impl Packet {
             Packet::Generic(raw_packet) => raw_packet,
         }
     }
-}
-
-/// Determines if a packet has an extended header
-///
-/// For now, we'll assume that only PutData packets have extended headers,
-/// but this logic can be adjusted as we learn more about the protocol.
-fn has_extended_header(packet: &RawPacket) -> bool {
-    packet.packet_type() == PacketType::PutData
 }

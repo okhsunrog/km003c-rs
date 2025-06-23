@@ -120,6 +120,55 @@ impl RawPacket {
         }
     }
 
+    /// Get the extended header if present, without modifying the packet
+    pub fn get_extended_header(&self) -> Option<ExtendedHeader> {
+        // Check if packet has extended header based on packet type
+        // For now, assume only PutData packets have extended headers
+        if self.packet_type() != PacketType::PutData {
+            return None;
+        }
+
+        let payload = self.payload();
+        if payload.len() < 4 {
+            return None;
+        }
+
+        let ext_header_bytes: [u8; 4] = match payload.as_ref()[..4].try_into() {
+            Ok(bytes) => bytes,
+            Err(_) => return None,
+        };
+
+        Some(ExtendedHeader::from_bytes(ext_header_bytes))
+    }
+
+    /// Get payload data, skipping extended header if present
+    pub fn get_payload_data(&self) -> Bytes {
+        let payload = self.payload();
+        
+        if self.get_extended_header().is_some() {
+            // Skip the first 4 bytes (extended header)
+            payload.slice(4..)
+        } else {
+            payload
+        }
+    }
+
+    /// Get the attribute for this packet
+    pub fn get_attribute(&self) -> Option<Attribute> {
+        match self {
+            RawPacket::Ctrl { header, .. } => {
+                Some(Attribute::from_primitive(header.attribute()))
+            }
+            RawPacket::Data { .. } => {
+                // For Data packets, attribute comes from extended header
+                self.get_extended_header()
+                    .map(|ext_header| Attribute::from_primitive(ext_header.attribute()))
+            }
+        }
+    }
+
+    /// Legacy method for backward compatibility (deprecated)
+    #[deprecated(note = "Use get_extended_header() instead")]
     pub fn get_ext_header(&mut self) -> Result<ExtendedHeader, KMError> {
         if self.payload().len() < 4 {
             return Err(KMError::InvalidLength);
