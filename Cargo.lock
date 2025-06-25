@@ -1917,6 +1917,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "uom",
  "usbpd",
  "zerocopy",
 ]

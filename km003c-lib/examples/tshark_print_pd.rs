@@ -1,7 +1,11 @@
 use bytes::Bytes;
 use km003c_lib::{message::Packet, packet::RawPacket};
 use rtshark::RTSharkBuilder;
-use usbpd::protocol_layer::message::Message;
+use std::fmt::Write;
+use usbpd::protocol_layer::message::{
+    Message,
+    pdo::{Augmented, PowerDataObject, SourceCapabilities},
+};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -92,8 +96,17 @@ fn parse_km003c_stream(mut stream: &[u8]) {
                     let pd_message_bytes = &stream[KM003C_HEADER_LEN..total_chunk_len];
 
                     println!("[PD MSG] Raw wrapped: {}", hex::encode(&stream[..total_chunk_len]));
-                    let message =  Message::from_bytes(pd_message_bytes);
-                    println!("  -> Parsed: {:?}\n", message);
+                    let message = Message::from_bytes(pd_message_bytes);
+
+                    // Check if the message data is a SourceCapabilities variant
+                    if let Some(usbpd::protocol_layer::message::Data::SourceCapabilities(caps)) = &message.data {
+                        // If it is, use our new pretty-printing function
+                        let formatted_caps = format_source_capabilities(caps);
+                        println!("  -> Parsed:\n{}", formatted_caps);
+                    } else {
+                        // Otherwise, use the default debug print for other message types
+                        println!("  -> Parsed: {:?}\n", message);
+                    }
 
                     // Advance the stream past this entire chunk
                     stream = &stream[total_chunk_len..];
@@ -112,4 +125,78 @@ fn parse_km003c_stream(mut stream: &[u8]) {
             break;
         }
     }
+}
+
+/// Formats the SourceCapabilities into a human-readable string.
+///
+/// # Arguments
+/// * `caps` - A reference to the `SourceCapabilities` struct to format.
+///
+/// # Returns
+/// A `String` containing the formatted capabilities list.
+
+pub fn format_source_capabilities(caps: &SourceCapabilities) -> String {
+    let mut output = String::new();
+
+    writeln!(&mut output, "Source Power Capabilities:").unwrap();
+
+    writeln!(
+        &mut output,
+        "  Flags: DRP: {}, Unconstrained: {}, USB Comm: {}, USB Suspend: {}, EPR Capable: {}",
+        caps.dual_role_power(),
+        caps.unconstrained_power(),
+        caps.vsafe_5v().map_or(false, |p| p.usb_communications_capable()),
+        caps.usb_suspend_supported(),
+        caps.epr_mode_capable()
+    )
+    .unwrap();
+
+    for (i, pdo) in caps.pdos().iter().enumerate() {
+        let pdo_index = i + 1;
+
+        // Use raw value methods and apply scaling factors manually.
+        let line = match pdo {
+            PowerDataObject::FixedSupply(p) => {
+                let voltage = p.raw_voltage() as f32 * 50.0 / 1000.0;
+                let current = p.raw_max_current() as f32 * 10.0 / 1000.0;
+                format!("Fixed:       {:.2} V @ {:.2} A", voltage, current)
+            }
+            PowerDataObject::VariableSupply(p) => {
+                let min_v = p.raw_min_voltage() as f32 * 50.0 / 1000.0;
+                let max_v = p.raw_max_voltage() as f32 * 50.0 / 1000.0;
+                let current = p.raw_max_current() as f32 * 10.0 / 1000.0;
+                format!("Variable:    {:.2} - {:.2} V @ {:.2} A", min_v, max_v, current)
+            }
+            PowerDataObject::Battery(p) => {
+                let min_v = p.raw_min_voltage() as f32 * 50.0 / 1000.0;
+                let max_v = p.raw_max_voltage() as f32 * 50.0 / 1000.0;
+                let power = p.raw_max_power() as f32 * 250.0 / 1000.0;
+                format!("Battery:     {:.2} - {:.2} V @ {:.2} W", min_v, max_v, power)
+            }
+            PowerDataObject::Augmented(augmented) => match augmented {
+                Augmented::Spr(p) => {
+                    let min_v = p.raw_min_voltage() as f32 * 100.0 / 1000.0;
+                    let max_v = p.raw_max_voltage() as f32 * 100.0 / 1000.0;
+                    let current = p.raw_max_current() as f32 * 50.0 / 1000.0;
+                    let mut pps_str = format!("PPS:         {:.2} - {:.2} V @ {:.2} A", min_v, max_v, current);
+                    if p.pps_power_limited() {
+                        pps_str.push_str(" (Power Limited)");
+                    }
+                    pps_str
+                }
+                Augmented::Epr(p) => {
+                    let min_v = p.raw_min_voltage() as f32 * 100.0 / 1000.0;
+                    let max_v = p.raw_max_voltage() as f32 * 100.0 / 1000.0;
+                    let power = p.raw_pd_power() as f32; // This is already in full Watts
+                    format!("AVS (EPR):   {:.2} - {:.2} V up to {:.2} W", min_v, max_v, power)
+                }
+                Augmented::Unknown(raw) => format!("Unknown Augmented PDO (raw: 0x{:08x})", raw),
+            },
+            PowerDataObject::Unknown(raw) => format!("Unknown PDO (raw: 0x{:08x})", raw.0),
+        };
+
+        writeln!(&mut output, "  [{}] {}", pdo_index, line).unwrap();
+    }
+
+    output
 }
