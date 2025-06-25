@@ -16,7 +16,7 @@ bytes = "1.10.1"
 num_enum = "0.7.3"
 zerocopy = { version = "0.8", features = ["derive"] }
 strum_macros = "0.27.1"
-usbpd = { git = "https://github.com/elagil/usbpd", rev = "920383c4870c54afc8bbb2c01a84fa29c7d492d2" }
+usbpd = { version = "1.0.2", features = ["log"] }
 
 [dev-dependencies]
 hex = "0.4"

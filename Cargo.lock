@@ -3620,11 +3620,13 @@ dependencies = [
 [[package]]
 name = "usbpd"
 version = "1.0.2"
-source = "git+https://github.com/elagil/usbpd?rev=920383c4870c54afc8bbb2c01a84fa29c7d492d2#920383c4870c54afc8bbb2c01a84fa29c7d492d2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f5656cd4970809e9e3d2747b3c3d1fd8bbad067b09b00c20097375392730f5f"
 dependencies = [
  "byteorder",
  "futures",
  "heapless",
+ "log",
  "proc-bitfield",
  "uom",
  "usbpd-traits",
@@ -3633,7 +3635,8 @@ dependencies = [
 [[package]]
 name = "usbpd-traits"
 version = "1.0.1"
-source = "git+https://github.com/elagil/usbpd?rev=920383c4870c54afc8bbb2c01a84fa29c7d492d2#920383c4870c54afc8bbb2c01a84fa29c7d492d2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "232c39f321d84f331a2741f128537c658caff9b57a9291c2da8953997b698e42"
 
 [[package]]
 name = "utf8_iter"

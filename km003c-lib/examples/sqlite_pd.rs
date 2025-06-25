@@ -1,35 +1,28 @@
 use rusqlite::{Connection, Result};
-use hex; // Add hex crate for encoding
+use usbpd::protocol_layer::message::Message;
 
 fn main() -> Result<()> {
-    // Open the SQLite database file
     let conn = Connection::open("wireshark/orig_with_pd.sqlite")?;
-
-    // Prepare a query to select all rows from pd_table
     let mut stmt = conn.prepare("SELECT Time, Vbus, Ibus, Raw FROM pd_table")?;
 
-    // Execute the query and iterate over the rows
     let rows = stmt.query_map([], |row| {
-        let time: f64 = row.get(0)?; // Time (real)
-        let vbus: f64 = row.get(1)?; // Vbus (real)
-        let ibus: f64 = row.get(2)?; // Ibus (real)
-        let raw: Vec<u8> = row.get(3)?; // Raw (blob)
-        Ok((time, vbus, ibus, raw))
+        Ok((
+            row.get::<_, f64>(0)?,     // Time
+            row.get::<_, f64>(1)?,     // Vbus
+            row.get::<_, f64>(2)?,     // Ibus
+            row.get::<_, Vec<u8>>(3)?, // Raw blob
+        ))
     })?;
 
-    // Print each row
     for row in rows {
         let (time, vbus, ibus, raw) = row?;
-        // Convert Raw blob to hex string
         let raw_hex = hex::encode(&raw);
         println!(
-            "Time: {}, Vbus: {}, Ibus: {}, Raw (hex): {}",
-            time,
-            vbus,
-            ibus,
-            raw_hex
+            "Time: {:.6}, Vbus: {:.3}V, Ibus: {:.3}A, Raw (hex): {}",
+            time, vbus, ibus, raw_hex
         );
+        let message = Message::from_bytes(&raw);
+        // println!("PD Message: {:?}", message);
     }
-
     Ok(())
 }
