@@ -21,8 +21,14 @@ fn main() -> Result<()> {
             "Time: {:.6}, Vbus: {:.3}V, Ibus: {:.3}A, Raw (hex): {}",
             time, vbus, ibus, raw_hex
         );
-        let message = Message::from_bytes(&raw);
-        // println!("PD Message: {:?}", message);
+        if raw.len() > 6 {
+            // Slice the raw bytes to skip the 6-byte proprietary header.
+            let pd_message_bytes = &raw[6..];
+            let message = Message::from_bytes(pd_message_bytes);
+            println!("  -> Parsed PD Message: {:?}", message);
+        } else {
+            println!("  -> Malformed packet (too short to be a wrapped PD message)");
+        }
     }
     Ok(())
 }
