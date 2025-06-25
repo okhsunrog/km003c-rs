@@ -24,3 +24,4 @@ tracing-subscriber = { version = "0.3.19", features = ["registry", "env-filter"]
 clap = { version = "4.5", features = ["derive"] }
 clap-verbosity-flag = { version = "3.0.3", default-features = false, features = ["tracing"] }
 tracing-appender = "0.2.3"
+rusqlite = { version = "0.36.0", features = [] }
