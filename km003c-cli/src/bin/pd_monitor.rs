@@ -1,5 +1,6 @@
 use clap::Parser;
 use km003c_lib::KM003C;
+use km003c_lib::pd::{EventPacket, parse_event_stream};
 use std::error::Error;
 use std::fs::OpenOptions;
 use std::io::Write as IoWrite; // Renamed to avoid conflict with fmt::Write
@@ -17,18 +18,17 @@ use usbpd::protocol_layer::message::{
 // ------------------------------------------
 
 #[derive(Parser, Debug)]
-#[command(author, version, about = "Monitor PD (Power Delivery) packets from POWER-Z KM003C", long_about = None)]
+#[command(author, version, about = "Monitor PD (Power Delivery) packets from POWER-Z KM003C")]
 struct Args {
-    // ... (Your Args struct is unchanged) ...
     /// Polling frequency in Hz (default: 1.0)
     #[arg(short, long, default_value = "1.0")]
     frequency: f64,
 
-    /// Number of packets to capture (default: unlimited)
+    /// Number of PD messages to capture (default: unlimited)
     #[arg(short, long)]
     count: Option<u64>,
 
-    /// Optional file to save hex data
+    /// Optional file to save output
     #[arg(short, long)]
     output: Option<String>,
 
@@ -48,7 +48,6 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
-
     let log_level = if args.verbose {
         tracing::Level::DEBUG
     } else {
@@ -75,17 +74,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     info!("Starting PD monitoring at {:.1} Hz", args.frequency);
     if let Some(count) = args.count {
-        info!("Will capture {} packets", count);
+        info!("Will capture {} PD messages", count);
     } else {
-        info!("Capturing packets until interrupted (Ctrl+C)");
+        info!("Capturing PD messages until interrupted (Ctrl+C)");
     }
 
-    let mut packet_count = 0u64;
+    let mut pd_message_count = 0u64;
     let start_time = SystemTime::now();
 
     loop {
         if let Some(max_count) = args.count {
-            if packet_count >= max_count {
+            if pd_message_count >= max_count {
                 break;
             }
         }
@@ -94,43 +93,42 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         match device.request_pd_data().await {
             Ok(pd_data) => {
-                // If there's no data, it's just a poll response, so we skip.
                 if pd_data.is_empty() {
                     continue;
                 }
 
                 if args.hex_only {
-                    // --- HEX ONLY LOGIC (Unchanged) ---
                     let output = hex::encode(&pd_data);
                     println!("{}", output);
                     if let Some(ref mut file) = output_file {
                         writeln!(file, "{}", output)?;
                         file.flush()?;
                     }
-                } else {
-                    // --- NEW PD PARSING LOGIC ---
-                    let formatted_packets = parse_and_format_pd_stream(&pd_data);
+                    continue;
+                }
 
-                    // Only process if the stream contained actual PD messages
-                    if !formatted_packets.is_empty() {
-                        for packet_str in formatted_packets {
-                            packet_count += 1;
-                            let elapsed = start_time.elapsed().unwrap_or(Duration::ZERO);
-                            let timestamp_secs = elapsed.as_secs_f64();
-                            let timestamp_str = if args.timestamp {
-                                format!(" @ {:.6}s", timestamp_secs)
-                            } else {
-                                String::new()
-                            };
+                let events = parse_event_stream(&pd_data);
+                for event in events {
+                    let elapsed = start_time.elapsed().unwrap_or(Duration::ZERO);
+                    let timestamp_str = if args.timestamp {
+                        format!(" @ {:.6}s", elapsed.as_secs_f64())
+                    } else {
+                        String::new()
+                    };
 
-                            // Print each parsed packet with a header
-                            let final_output = format!("PD Packet #{}{}\n{}", packet_count, timestamp_str, packet_str);
-                            println!("{}", final_output);
-
-                            if let Some(ref mut file) = output_file {
-                                writeln!(file, "{}", final_output)?;
-                                file.flush()?;
-                            }
+                    match &event {
+                        EventPacket::PdMessage(_) => {
+                            pd_message_count += 1;
+                            let header = format!("\n=== PD Message #{}{} ===", pd_message_count, timestamp_str);
+                            print_section(&header, &event, &mut output_file)?;
+                        }
+                        EventPacket::Connection(_) => {
+                            let header = format!("\n--- Connection Event{} ---", timestamp_str);
+                            print_section(&header, &event, &mut output_file)?;
+                        }
+                        EventPacket::Status(_) => {
+                            let header = format!("\n--- Status Packet{} ---", timestamp_str);
+                            print_section(&header, &event, &mut output_file)?;
                         }
                     }
                 }
@@ -141,63 +139,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    info!("Captured {} PD packets", packet_count);
+    info!("Captured {} PD messages", pd_message_count);
     Ok(())
 }
 
-// --- HELPER FUNCTION 1: Stream Parser ---
-// This function now returns a Vec of formatted strings.
-fn parse_and_format_pd_stream(mut stream: &[u8]) -> Vec<String> {
-    const KM003C_HEADER_LEN: usize = 6;
-    const POLLING_PACKET_LEN: usize = 12;
-
-    let mut formatted_messages = Vec::new();
-
-    while !stream.is_empty() {
-        if stream.len() < KM003C_HEADER_LEN {
-            break;
-        }
-
-        let wrapper_header = &stream[..KM003C_HEADER_LEN];
-        let potential_payload = &stream[KM003C_HEADER_LEN..];
-
-        let is_sop_packet = (wrapper_header[0] & 0x80) != 0;
-
-        if is_sop_packet && potential_payload.len() >= 2 {
-            let pd_header_bytes: [u8; 2] = potential_payload[0..2].try_into().unwrap();
-            let pd_header_val = u16::from_le_bytes(pd_header_bytes);
-            let message_type = pd_header_val & 0x1F;
-
-            if message_type > 0 && message_type <= 0x16 {
-                let num_objects = ((pd_header_val >> 12) & 0x07) as usize;
-                let pd_message_len = 2 + num_objects * 4;
-                let total_chunk_len = KM003C_HEADER_LEN + pd_message_len;
-
-                if stream.len() >= total_chunk_len {
-                    let pd_message_bytes = &stream[KM003C_HEADER_LEN..total_chunk_len];
-                    let message = Message::from_bytes(pd_message_bytes);
-
-                    let formatted_str =
-                        if let Some(usbpd::protocol_layer::message::Data::SourceCapabilities(caps)) = &message.data {
-                            format_source_capabilities(caps)
-                        } else {
-                            format!("  -> Parsed: {:?}", message)
-                        };
-                    formatted_messages.push(formatted_str);
-
-                    stream = &stream[total_chunk_len..];
-                    continue;
-                }
-            }
-        }
-
-        if stream.len() >= POLLING_PACKET_LEN {
-            stream = &stream[POLLING_PACKET_LEN..];
-        } else {
-            break;
-        }
+fn print_section(header: &str, event: &EventPacket, output_file: &mut Option<std::fs::File>) -> std::io::Result<()> {
+    println!("{}\n{}", header, event);
+    if let Some(file) = output_file {
+        writeln!(file, "{}\n{}", header, event)?;
+        file.flush()?;
     }
-    formatted_messages
+    Ok(())
 }
 
 // --- HELPER FUNCTION 2: Pretty Printer for Source Capabilities ---

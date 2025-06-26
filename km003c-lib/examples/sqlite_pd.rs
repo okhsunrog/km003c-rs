@@ -1,5 +1,5 @@
+use km003c_lib::pd::{EventPacket, parse_event_stream};
 use rusqlite::{Connection, Result};
-use usbpd::protocol_layer::message::Message;
 
 fn main() -> Result<()> {
     let conn = Connection::open("pd_analisys/pd_new.sqlite")?;
@@ -21,14 +21,10 @@ fn main() -> Result<()> {
             "Time: {:.6}, Vbus: {:.3}V, Ibus: {:.3}A, Raw (hex): {}",
             time, vbus, ibus, raw_hex
         );
-        // if raw.len() > 6 {
-        //     // Slice the raw bytes to skip the 6-byte proprietary header.
-        //     let pd_message_bytes = &raw[6..];
-        //     let message = Message::from_bytes(pd_message_bytes);
-        //     println!("  -> Parsed PD Message: {:?}", message);
-        // } else {
-        //     println!("  -> Malformed packet (too short to be a wrapped PD message)");
-        // }
+        let events = parse_event_stream(&raw);
+        for event in events {
+            println!("  -> {}", event);
+        }
     }
     Ok(())
 }
