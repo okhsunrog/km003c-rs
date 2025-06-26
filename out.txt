@@ -1,0 +1,2813 @@
+Inferred device address from filename: 9
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 1cd25b0003000000a50c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 1cd25b0003000000a50c7d00
+[FATAL] Unrecognized packet type with first byte 0x1C. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 33d25b0004000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 33d25b0004000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0x33. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 5bd25b0004000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 5bd25b0004000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x5B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 83d25b0003000000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 83d25b0003000000a30c7c00
+[PARSE DECISION] First byte is 0x83. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC <- SNK
+[PD MSG] Raw chunk (8 bytes): 83d25b0003000000
+[PD MSG]   -> Wrapper: 83d25b000300
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a30c7c00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): abd25b0003000000a50c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): abd25b0003000000a50c7d00
+[FATAL] Unrecognized packet type with first byte 0xAB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): d3d25b0004000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): d3d25b0004000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0xD3. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): fbd25b0002000000a50c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): fbd25b0002000000a50c7900
+[FATAL] Unrecognized packet type with first byte 0xFB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 23d35b0002000000a10c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 23d35b0002000000a10c7800
+[FATAL] Unrecognized packet type with first byte 0x23. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 4bd35b0004000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 4bd35b0004000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0x4B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 73d35b0005000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 73d35b0005000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x73. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 91d35b0004000000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 91d35b0004000000a30c7c00
+[PARSE DECISION] First byte is 0x91. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC <- SNK
+[PD MSG] Raw chunk (8 bytes): 91d35b0004000000
+[PD MSG]   -> Wrapper: 91d35b000400
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a30c7c00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): b9d35b0003000000a30c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): b9d35b0003000000a30c7a00
+[FATAL] Unrecognized packet type with first byte 0xB9. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e7d35b0003000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e7d35b0003000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0xE7. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 09d45b0005000000a10c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 09d45b0005000000a10c7800
+[FATAL] Unrecognized packet type with first byte 0x09. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 59d45b0003000000a50c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 59d45b0003000000a50c7900
+[FATAL] Unrecognized packet type with first byte 0x59. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 81d45b0003000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 81d45b0003000000a50c7c00
+[PARSE DECISION] First byte is 0x81. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC <- SNK
+[PD MSG] Raw chunk (8 bytes): 81d45b0003000000
+[PD MSG]   -> Wrapper: 81d45b000300
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a50c7c00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 9fd45b0003000000a30c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 9fd45b0003000000a30c7900
+[PARSE DECISION] First byte is 0x9F. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 9fd45b0003000000
+[PD MSG]   -> Wrapper: 9fd45b000300
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a30c7900
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): c7d45b0004000000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): c7d45b0004000000a30c7c00
+[FATAL] Unrecognized packet type with first byte 0xC7. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e5d45b0003000000a30c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e5d45b0003000000a30c7900
+[FATAL] Unrecognized packet type with first byte 0xE5. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 0dd55b0004000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 0dd55b0004000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0x0D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 35d55b0003000000a80c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 35d55b0003000000a80c7b00
+[FATAL] Unrecognized packet type with first byte 0x35. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 62d55b0005000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 62d55b0005000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0x62. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 85d55b0004000000a10c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 85d55b0004000000a10c7b00
+[PARSE DECISION] First byte is 0x85. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 85d55b0004000000
+[PD MSG]   -> Wrapper: 85d55b000400
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a10c7b00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): add55b0004000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): add55b0004000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0xAD. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): f3d55b0003000000a30c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): f3d55b0003000000a30c7a00
+[FATAL] Unrecognized packet type with first byte 0xF3. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 1bd65b0005000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 1bd65b0005000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x1B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 43d65b0002000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 43d65b0002000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0x43. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 6bd65b0003000000a10c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 6bd65b0003000000a10c7b00
+[FATAL] Unrecognized packet type with first byte 0x6B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 93d65b0005000000a30c7400
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 93d65b0005000000a30c7400
+[PARSE DECISION] First byte is 0x93. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC <- SNK
+[PD MSG] Raw chunk (8 bytes): 93d65b0005000000
+[PD MSG]   -> Wrapper: 93d65b000500
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a30c7400
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): bbd65b0004000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): bbd65b0004000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0xBB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e3d65b0004000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e3d65b0004000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0xE3. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 0bd75b0005000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 0bd75b0005000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0x0B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 33d75b0002000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 33d75b0002000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x33. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 51d75b0004000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 51d75b0004000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0x51. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 79d75b0004000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 79d75b0004000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0x79. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): a1d75b0004000000a50c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): a1d75b0004000000a50c7d00
+[FATAL] Unrecognized packet type with first byte 0xA1. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): c9d75b0004000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): c9d75b0004000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xC9. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): f1d75b0004000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): f1d75b0004000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0xF1. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 19d85b0004000000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 19d85b0004000000a30c7c00
+[FATAL] Unrecognized packet type with first byte 0x19. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 5fd85b0003000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 5fd85b0003000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0x5F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 96d85b0004000000a30c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 96d85b0004000000a30c7a00
+[PARSE DECISION] First byte is 0x96. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 96d85b0004000000
+[PD MSG]   -> Wrapper: 96d85b000400
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a30c7a00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): afd85b0003000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): afd85b0003000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xAF. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): d7d85b0003000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): d7d85b0003000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xD7. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): ffd85b0003000000a30c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): ffd85b0003000000a30c7d00
+[FATAL] Unrecognized packet type with first byte 0xFF. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 28d95b0003000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 28d95b0003000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0x28. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 4fd95b0003000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 4fd95b0003000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0x4F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 6dd95b0004000000a30c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 6dd95b0004000000a30c7800
+[FATAL] Unrecognized packet type with first byte 0x6D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 95d95b0005000000a50c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 95d95b0005000000a50c7d00
+[PARSE DECISION] First byte is 0x95. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 95d95b0005000000
+[PD MSG]   -> Wrapper: 95d95b000500
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a50c7d00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): b3d95b0002000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): b3d95b0002000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xB3. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): dbd95b0004000000a30c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): dbd95b0004000000a30c7900
+[FATAL] Unrecognized packet type with first byte 0xDB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): fed95b0004000000a30c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): fed95b0004000000a30c7d00
+[FATAL] Unrecognized packet type with first byte 0xFE. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 24da5b0003000000a30c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 24da5b0003000000a30c7d00
+[FATAL] Unrecognized packet type with first byte 0x24. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 49da5b0003000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 49da5b0003000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x49. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 71da5b0002000000a30c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 71da5b0002000000a30c7a00
+[FATAL] Unrecognized packet type with first byte 0x71. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 99da5b0003000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 99da5b0003000000a50c7c00
+[PARSE DECISION] First byte is 0x99. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC <- SNK
+[PD MSG] Raw chunk (8 bytes): 99da5b0003000000
+[PD MSG]   -> Wrapper: 99da5b000300
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a50c7c00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): c1da5b0004000000a30c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): c1da5b0004000000a30c7800
+[FATAL] Unrecognized packet type with first byte 0xC1. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e9da5b0004000000a30c7400
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e9da5b0004000000a30c7400
+[FATAL] Unrecognized packet type with first byte 0xE9. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 11db5b0003000000a50c7700
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 11db5b0003000000a50c7700
+[FATAL] Unrecognized packet type with first byte 0x11. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 39db5b0003000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 39db5b0003000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x39. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 57db5b0001000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 57db5b0001000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0x57. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 7fdb5b0004000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 7fdb5b0004000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x7F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): b6db5b0003000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): b6db5b0003000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0xB6. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): c5db5b0004000000a30c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): c5db5b0004000000a30c7800
+[FATAL] Unrecognized packet type with first byte 0xC5. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): eddb5b0002000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): eddb5b0002000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0xED. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 15dc5b0003000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 15dc5b0003000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0x15. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 3ddc5b0003000000a30c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 3ddc5b0003000000a30c7d00
+[FATAL] Unrecognized packet type with first byte 0x3D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 65dc5b0003000000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 65dc5b0003000000a30c7c00
+[FATAL] Unrecognized packet type with first byte 0x65. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 8ddc5b0003000000a50c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 8ddc5b0003000000a50c7d00
+[PARSE DECISION] First byte is 0x8D. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 8ddc5b0003000000
+[PD MSG]   -> Wrapper: 8ddc5b000300
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a50c7d00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): b5dc5b0003000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): b5dc5b0003000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0xB5. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): dddc5b0003000000a10c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): dddc5b0003000000a10c7800
+[FATAL] Unrecognized packet type with first byte 0xDD. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 05dd5b0004000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 05dd5b0004000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0x05. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 55dd5b0004000000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 55dd5b0004000000a30c7c00
+[FATAL] Unrecognized packet type with first byte 0x55. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 7ddd5b0003000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 7ddd5b0003000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x7D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): a5dd5b0004000000a50c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): a5dd5b0004000000a50c7900
+[FATAL] Unrecognized packet type with first byte 0xA5. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): cddd5b0004000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): cddd5b0004000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xCD. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): ebdd5b0004000000a50c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): ebdd5b0004000000a50c7900
+[FATAL] Unrecognized packet type with first byte 0xEB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 13de5b0003000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 13de5b0003000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0x13. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 3bde5b0004000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 3bde5b0004000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0x3B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 63de5b0004000000a30c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 63de5b0004000000a30c7d00
+[FATAL] Unrecognized packet type with first byte 0x63. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 8bde5b0004000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 8bde5b0004000000a50c7b00
+[PARSE DECISION] First byte is 0x8B. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC <- SNK
+[PD MSG] Raw chunk (8 bytes): 8bde5b0004000000
+[PD MSG]   -> Wrapper: 8bde5b000400
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a50c7b00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): b3de5b0006000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): b3de5b0006000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xB3. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): dbde5b0003000000a10c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): dbde5b0003000000a10c7800
+[FATAL] Unrecognized packet type with first byte 0xDB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 03df5b0004000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 03df5b0004000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x03. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 2bdf5b0005000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 2bdf5b0005000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x2B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 53df5b0003000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 53df5b0003000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x53. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 7bdf5b0004000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 7bdf5b0004000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0x7B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 9cdf5b0003000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 9cdf5b0003000000a50c7a00
+[PARSE DECISION] First byte is 0x9C. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 9cdf5b0003000000
+[PD MSG]   -> Wrapper: 9cdf5b000300
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a50c7a00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): c1df5b0003000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): c1df5b0003000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0xC1. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e9df5b0003000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e9df5b0003000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0xE9. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 11e05b0005000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 11e05b0005000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x11. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 39e05b0004000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 39e05b0004000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0x39. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 64e05b0004000000a50c7f00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 64e05b0004000000a50c7f00
+[FATAL] Unrecognized packet type with first byte 0x64. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 7fe05b0005000000a50c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 7fe05b0005000000a50c7900
+[FATAL] Unrecognized packet type with first byte 0x7F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 9de05b0003000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 9de05b0003000000a50c7c00
+[PARSE DECISION] First byte is 0x9D. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 9de05b0003000000
+[PD MSG]   -> Wrapper: 9de05b000300
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a50c7c00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): c5e05b0003000000a30c7600
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): c5e05b0003000000a30c7600
+[FATAL] Unrecognized packet type with first byte 0xC5. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): ede05b0003000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): ede05b0003000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0xED. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 15e15b0002000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 15e15b0002000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0x15. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 65e15b0005000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 65e15b0005000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x65. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 83e15b0003000000a50c7e00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 83e15b0003000000a50c7e00
+[PARSE DECISION] First byte is 0x83. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC <- SNK
+[PD MSG] Raw chunk (8 bytes): 83e15b0003000000
+[PD MSG]   -> Wrapper: 83e15b000300
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a50c7e00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): abe15b0003000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): abe15b0003000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0xAB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): d4e15b0004000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): d4e15b0004000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xD4. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): fbe15b0004000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): fbe15b0004000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0xFB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 23e25b0003000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 23e25b0003000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0x23. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 41e25b0004000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 41e25b0004000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x41. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 69e25b0004000000a10c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 69e25b0004000000a10c7900
+[FATAL] Unrecognized packet type with first byte 0x69. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 91e25b0003000000a30c7400
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 91e25b0003000000a30c7400
+[PARSE DECISION] First byte is 0x91. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC <- SNK
+[PD MSG] Raw chunk (8 bytes): 91e25b0003000000
+[PD MSG]   -> Wrapper: 91e25b000300
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a30c7400
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): bfe25b0004000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): bfe25b0004000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0xBF. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e4e25b0004000000a50c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e4e25b0004000000a50c7d00
+[FATAL] Unrecognized packet type with first byte 0xE4. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): ffe25b0003000000a50c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): ffe25b0003000000a50c7900
+[FATAL] Unrecognized packet type with first byte 0xFF. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 1de35b0003000000a30c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 1de35b0003000000a30c7d00
+[FATAL] Unrecognized packet type with first byte 0x1D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 45e35b0003000000a10c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 45e35b0003000000a10c7800
+[PARSE DECISION] First byte is 0x45. Parsing as Connection Event.
+[EVENT] Raw: 45e35b000300
+[EVENT] Parsed: Unknown Action: Unknown CC
+
+[CHUNK 1] Remaining buffer (6 bytes): 0000a10c7800
+[FATAL] Unrecognized packet type with first byte 0x00. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 6de35b0004000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 6de35b0004000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0x6D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 95e35b0003000000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 95e35b0003000000a30c7c00
+[PARSE DECISION] First byte is 0x95. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 95e35b0003000000
+[PD MSG]   -> Wrapper: 95e35b000300
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a30c7c00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): dbe35b0004000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): dbe35b0004000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0xDB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 03e45b0004000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 03e45b0004000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x03. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 2be45b0003000000a30c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 2be45b0003000000a30c7d00
+[FATAL] Unrecognized packet type with first byte 0x2B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 53e45b0003000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 53e45b0003000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x53. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 7be45b0002000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 7be45b0002000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x7B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 99e45b0004000000a30c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 99e45b0004000000a30c7900
+[PARSE DECISION] First byte is 0x99. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC <- SNK
+[PD MSG] Raw chunk (8 bytes): 99e45b0004000000
+[PD MSG]   -> Wrapper: 99e45b000400
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a30c7900
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): c1e45b0003000000a50c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): c1e45b0003000000a50c7d00
+[FATAL] Unrecognized packet type with first byte 0xC1. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e9e45b0004000000a30c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e9e45b0004000000a30c7a00
+[FATAL] Unrecognized packet type with first byte 0xE9. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 11e55b0004000000a50c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 11e55b0004000000a50c7d00
+[FATAL] Unrecognized packet type with first byte 0x11. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 39e55b0003000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 39e55b0003000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0x39. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 7fe55b0002000000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 7fe55b0002000000a30c7c00
+[FATAL] Unrecognized packet type with first byte 0x7F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): a7e55b0004000000a10c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): a7e55b0004000000a10c7b00
+[FATAL] Unrecognized packet type with first byte 0xA7. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): cfe55b0003000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): cfe55b0003000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xCF. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): ede55b0003000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): ede55b0003000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0xED. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 15e65b0003000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 15e65b0003000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0x15. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 3de65b0005000000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 3de65b0005000000a30c7c00
+[FATAL] Unrecognized packet type with first byte 0x3D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 65e65b0005000000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 65e65b0005000000a30c7c00
+[FATAL] Unrecognized packet type with first byte 0x65. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 8de65b0005000000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 8de65b0005000000a30c7c00
+[PARSE DECISION] First byte is 0x8D. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 8de65b0005000000
+[PD MSG]   -> Wrapper: 8de65b000500
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a30c7c00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): bbe65b0005000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): bbe65b0005000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0xBB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): dde65b0003000000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): dde65b0003000000a30c7c00
+[FATAL] Unrecognized packet type with first byte 0xDD. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 2de75b0004000000a50c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 2de75b0004000000a50c7900
+[FATAL] Unrecognized packet type with first byte 0x2D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 55e75b0003000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 55e75b0003000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0x55. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 83e75b0003000000a30c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 83e75b0003000000a30c7800
+[PARSE DECISION] First byte is 0x83. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC <- SNK
+[PD MSG] Raw chunk (8 bytes): 83e75b0003000000
+[PD MSG]   -> Wrapper: 83e75b000300
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a30c7800
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): a5e75b0004000000a10c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): a5e75b0004000000a10c7b00
+[FATAL] Unrecognized packet type with first byte 0xA5. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): cde75b0003000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): cde75b0003000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0xCD. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): f5e75b0004000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): f5e75b0004000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xF5. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 1de85b0004000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 1de85b0004000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0x1D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 52e85b0004000000a10c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 52e85b0004000000a10c7a00
+[FATAL] Unrecognized packet type with first byte 0x52. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 73e85b0004000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 73e85b0004000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x73. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 95e85b0003000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 95e85b0003000000a50c7c00
+[PARSE DECISION] First byte is 0x95. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 95e85b0003000000
+[PD MSG]   -> Wrapper: 95e85b000300
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a50c7c00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): bde85b000000000076060200
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): bde85b000000000076060200
+[FATAL] Unrecognized packet type with first byte 0xBD. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (18 bytes): e5e85b00000000007606030045e2e85b0011
+==================================================
+
+[CHUNK 0] Remaining buffer (18 bytes): e5e85b00000000007606030045e2e85b0011
+[FATAL] Unrecognized packet type with first byte 0xE5. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 0de95b000100000078060200
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 0de95b000100000078060200
+[FATAL] Unrecognized packet type with first byte 0x0D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 31e95b000000000076060200
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 31e95b000000000076060200
+[FATAL] Unrecognized packet type with first byte 0x31. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 53e95b000000000078060200
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 53e95b000000000078060200
+[FATAL] Unrecognized packet type with first byte 0x53. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): a3e95b00dc13b8ff76060300
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): a3e95b00dc13b8ff76060300
+[FATAL] Unrecognized packet type with first byte 0xA3. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): cbe95b00dc13b9ff77060300
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): cbe95b00dc13b9ff77060300
+[FATAL] Unrecognized packet type with first byte 0xCB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): f3e95b00d913b9ff77060300
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): f3e95b00d913b9ff77060300
+[FATAL] Unrecognized packet type with first byte 0xF3. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (108 bytes): 11ea5b00dc13b8ff790603009ff9e95b0000a1612c9101082cd102002cc103002cb10400454106003c21dcc09ffce95b0000a1612c9101082cd102002cc103002cb10400454106003c21dcc09ffee95b0000a1612c9101082cd102002cc103002cb10400454106003c21dcc0
+==================================================
+
+[CHUNK 0] Remaining buffer (108 bytes): 11ea5b00dc13b8ff790603009ff9e95b0000a1612c9101082cd102002cc103002cb10400454106003c21dcc09ffce95b0000a1612c9101082cd102002cc103002cb10400454106003c21dcc09ffee95b0000a1612c9101082cd102002cc103002cb10400454106003c21dcc0
+[FATAL] Unrecognized packet type with first byte 0x11. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 39ea5b00dc13b9ff79060300
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 39ea5b00dc13b9ff79060300
+[FATAL] Unrecognized packet type with first byte 0x39. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 61ea5b00db13b9ff79060300
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 61ea5b00db13b9ff79060300
+[FATAL] Unrecognized packet type with first byte 0x61. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 89ea5b00db13b9ff77060300
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 89ea5b00db13b9ff77060300
+[PARSE DECISION] First byte is 0x89. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0xFFB9. Num Objects: 7, Calculated PD Msg Len: 30 bytes.
+[WARN] Stream is truncated. Needed 36 bytes for full message, have 12. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (88 bytes): b1ea5b00e313ffff760602009f90ea5b0000a1632c9101082cd102002cc103002cb10400454106003c21dcc08790ea5b000041028b94ea5b00008210dc7003238795ea5b000021018799ea5b0000a3058799ea5b00004104
+==================================================
+
+[CHUNK 0] Remaining buffer (88 bytes): b1ea5b00e313ffff760602009f90ea5b0000a1632c9101082cd102002cc103002cb10400454106003c21dcc08790ea5b000041028b94ea5b00008210dc7003238795ea5b000021018799ea5b0000a3058799ea5b00004104
+[FATAL] Unrecognized packet type with first byte 0xB1. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): d6ea5b007f23f4ff76060300
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): d6ea5b007f23f4ff76060300
+[FATAL] Unrecognized packet type with first byte 0xD6. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): f7ea5b007f23f4ff78060200
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): f7ea5b007f23f4ff78060200
+[FATAL] Unrecognized packet type with first byte 0xF7. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (28 bytes): 1feb5b007e23f4ff61050500871deb5b0000a607871eeb5b00004106
+==================================================
+
+[CHUNK 0] Remaining buffer (28 bytes): 1feb5b007e23f4ff61050500871deb5b0000a607871eeb5b00004106
+[FATAL] Unrecognized packet type with first byte 0x1F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 3deb5b007d23eaff76060300
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 3deb5b007d23eaff76060300
+[FATAL] Unrecognized packet type with first byte 0x3D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 66eb5b007d23eaff76060300
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 66eb5b007d23eaff76060300
+[FATAL] Unrecognized packet type with first byte 0x66. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 91eb5b007d23ebff75060300
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 91eb5b007d23ebff75060300
+[PARSE DECISION] First byte is 0x91. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0xFFEB. Num Objects: 7, Calculated PD Msg Len: 30 bytes.
+[WARN] Stream is truncated. Needed 36 bytes for full message, have 12. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): b5eb5b005c23defe77060700
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): b5eb5b005c23defe77060700
+[FATAL] Unrecognized packet type with first byte 0xB5. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): ddeb5b00602302ff7a060600
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): ddeb5b00602302ff7a060600
+[FATAL] Unrecognized packet type with first byte 0xDD. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): fbeb5b005f232fff78060500
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): fbeb5b005f232fff78060500
+[FATAL] Unrecognized packet type with first byte 0xFB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 23ec5b006b230eff78060300
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 23ec5b006b230eff78060300
+[FATAL] Unrecognized packet type with first byte 0x23. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 4bec5b00622319ff7a060700
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 4bec5b00622319ff7a060700
+[FATAL] Unrecognized packet type with first byte 0x4B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 73ec5b00662335ff78060500
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 73ec5b00662335ff78060500
+[FATAL] Unrecognized packet type with first byte 0x73. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 9bec5b00702363ff78060500
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 9bec5b00702363ff78060500
+[PARSE DECISION] First byte is 0x9B. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0xFF63. Num Objects: 7, Calculated PD Msg Len: 30 bytes.
+[WARN] Stream is truncated. Needed 36 bytes for full message, have 12. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): c3ec5b0061231eff7c060700
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): c3ec5b0061231eff7c060700
+[FATAL] Unrecognized packet type with first byte 0xC3. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e1ec5b00662339ff7a060600
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e1ec5b00662339ff7a060600
+[FATAL] Unrecognized packet type with first byte 0xE1. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 09ed5b005c23f6fe7b060700
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 09ed5b005c23f6fe7b060700
+[FATAL] Unrecognized packet type with first byte 0x09. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 33ed5b006a23f3fe78060600
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 33ed5b006a23f3fe78060600
+[FATAL] Unrecognized packet type with first byte 0x33. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 59ed5b005d23e1fe78060700
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 59ed5b005d23e1fe78060700
+[FATAL] Unrecognized packet type with first byte 0x59. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 77ed5b006723e5fe79060700
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 77ed5b006723e5fe79060700
+[FATAL] Unrecognized packet type with first byte 0x77. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 9fed5b00612316ff79060700
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 9fed5b00612316ff79060700
+[PARSE DECISION] First byte is 0x9F. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0xFF16. Num Objects: 7, Calculated PD Msg Len: 30 bytes.
+[WARN] Stream is truncated. Needed 36 bytes for full message, have 12. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): cbed5b00352397fd80060b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): cbed5b00352397fd80060b00
+[FATAL] Unrecognized packet type with first byte 0xCB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): eeed5b00182363fc83060f00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): eeed5b00182363fc83060f00
+[FATAL] Unrecognized packet type with first byte 0xEE. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 0dee5b00fa2252fb87061400
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 0dee5b00fa2252fb87061400
+[FATAL] Unrecognized packet type with first byte 0x0D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 35ee5b00ec2218fb87061400
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 35ee5b00ec2218fb87061400
+[FATAL] Unrecognized packet type with first byte 0x35. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 7bee5b0004239dfb84061200
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 7bee5b0004239dfb84061200
+[FATAL] Unrecognized packet type with first byte 0x7B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): afee5b000c2323fc83060f00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): afee5b000c2323fc83060f00
+[FATAL] Unrecognized packet type with first byte 0xAF. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): cbee5b000523dffb84060f00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): cbee5b000523dffb84060f00
+[FATAL] Unrecognized packet type with first byte 0xCB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e9ee5b0011233ffc82060f00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e9ee5b0011233ffc82060f00
+[FATAL] Unrecognized packet type with first byte 0xE9. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 11ef5b00112318fc81060d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 11ef5b00112318fc81060d00
+[FATAL] Unrecognized packet type with first byte 0x11. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 39ef5b00172346fc81060f00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 39ef5b00172346fc81060f00
+[FATAL] Unrecognized packet type with first byte 0x39. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 57ef5b001a2372fc7e060f00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 57ef5b001a2372fc7e060f00
+[FATAL] Unrecognized packet type with first byte 0x57. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 7fef5b00182378fc7f060e00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 7fef5b00182378fc7f060e00
+[FATAL] Unrecognized packet type with first byte 0x7F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): a7ef5b0016235bfc81060e00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): a7ef5b0016235bfc81060e00
+[FATAL] Unrecognized packet type with first byte 0xA7. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): cfef5b00192374fc80060e00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): cfef5b00192374fc80060e00
+[FATAL] Unrecognized packet type with first byte 0xCF. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): f7ef5b00192389fc81060c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): f7ef5b00192389fc81060c00
+[FATAL] Unrecognized packet type with first byte 0xF7. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 1ff05b002123a2fc80060e00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 1ff05b002123a2fc80060e00
+[FATAL] Unrecognized packet type with first byte 0x1F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 47f05b00182382fc83060d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 47f05b00182382fc83060d00
+[FATAL] Unrecognized packet type with first byte 0x47. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 6ff05b001923affc80060d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 6ff05b001923affc80060d00
+[FATAL] Unrecognized packet type with first byte 0x6F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 97f05b001c238ffc80060c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 97f05b001c238ffc80060c00
+[PARSE DECISION] First byte is 0x97. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0xFC8F. Num Objects: 7, Calculated PD Msg Len: 30 bytes.
+[WARN] Stream is truncated. Needed 36 bytes for full message, have 12. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): bff05b002223abfc7f060c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): bff05b002223abfc7f060c00
+[FATAL] Unrecognized packet type with first byte 0xBF. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e7f05b002823bbfc82060d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e7f05b002823bbfc82060d00
+[FATAL] Unrecognized packet type with first byte 0xE7. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 13f15b002723e7fc7f060c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 13f15b002723e7fc7f060c00
+[FATAL] Unrecognized packet type with first byte 0x13. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 2df15b001e23b9fc7e060e00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 2df15b001e23b9fc7e060e00
+[FATAL] Unrecognized packet type with first byte 0x2D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 55f15b002623d8fc80060c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 55f15b002623d8fc80060c00
+[FATAL] Unrecognized packet type with first byte 0x55. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 7df15b00e722befa88061200
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 7df15b00e722befa88061200
+[FATAL] Unrecognized packet type with first byte 0x7D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): d0f15b00ee2238fb85061200
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): d0f15b00ee2238fb85061200
+[FATAL] Unrecognized packet type with first byte 0xD0. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): f5f15b00ee2214fb85061200
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): f5f15b00ee2214fb85061200
+[FATAL] Unrecognized packet type with first byte 0xF5. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 1df25b00ef2222fb82061200
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 1df25b00ef2222fb82061200
+[FATAL] Unrecognized packet type with first byte 0x1D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 3bf25b00f3225afb87061200
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 3bf25b00f3225afb87061200
+[FATAL] Unrecognized packet type with first byte 0x3B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 63f25b00fc229afb83061100
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 63f25b00fc229afb83061100
+[FATAL] Unrecognized packet type with first byte 0x63. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 8bf25b00fd22a0fb82061000
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 8bf25b00fd22a0fb82061000
+[PARSE DECISION] First byte is 0x8B. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0xFBA0. Num Objects: 7, Calculated PD Msg Len: 30 bytes.
+[WARN] Stream is truncated. Needed 36 bytes for full message, have 12. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): bef25b00fe22b3fb84060f00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): bef25b00fe22b3fb84060f00
+[FATAL] Unrecognized packet type with first byte 0xBE. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): dbf25b00ff22b8fb83060f00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): dbf25b00ff22b8fb83060f00
+[FATAL] Unrecognized packet type with first byte 0xDB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 03f35b00ff22bffb80061000
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 03f35b00ff22bffb80061000
+[FATAL] Unrecognized packet type with first byte 0x03. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 2bf35b000123befb83061000
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 2bf35b000123befb83061000
+[FATAL] Unrecognized packet type with first byte 0x2B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 53f35b000123c6fb83061100
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 53f35b000123c6fb83061100
+[FATAL] Unrecognized packet type with first byte 0x53. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 7bf35b000023bbfb83060f00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 7bf35b000023bbfb83060f00
+[FATAL] Unrecognized packet type with first byte 0x7B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): a3f35b000323d0fb82060f00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): a3f35b000323d0fb82060f00
+[FATAL] Unrecognized packet type with first byte 0xA3. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): c1f35b002c23ddfba50c7e00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): c1f35b002c23ddfba50c7e00
+[FATAL] Unrecognized packet type with first byte 0xC1. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e9f35b00ec130000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e9f35b00ec130000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0xE9. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (18 bytes): 07f45b00fa130000a50c7d0045fcf35b0012
+==================================================
+
+[CHUNK 0] Remaining buffer (18 bytes): 07f45b00fa130000a50c7d0045fcf35b0012
+[FATAL] Unrecognized packet type with first byte 0x07. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 2ff45b00ea130000a30c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 2ff45b00ea130000a30c7900
+[FATAL] Unrecognized packet type with first byte 0x2F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 52f45b00f5130000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 52f45b00f5130000a30c7c00
+[FATAL] Unrecognized packet type with first byte 0x52. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 75f45b00f6130000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 75f45b00f6130000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0x75. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 9df45b0009000000a80c7500
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 9df45b0009000000a80c7500
+[PARSE DECISION] First byte is 0x9D. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 9df45b0009000000
+[PD MSG]   -> Wrapper: 9df45b000900
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a80c7500
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): c5f45b0001000000a10c7500
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): c5f45b0001000000a10c7500
+[FATAL] Unrecognized packet type with first byte 0xC5. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 10f55b0001000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 10f55b0001000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x10. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 33f55b0000000000a10c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 33f55b0000000000a10c7b00
+[FATAL] Unrecognized packet type with first byte 0x33. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 5bf55b0002000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 5bf55b0002000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x5B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 83f55b0006000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 83f55b0006000000a50c7800
+[PARSE DECISION] First byte is 0x83. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC <- SNK
+[PD MSG] Raw chunk (8 bytes): 83f55b0006000000
+[PD MSG]   -> Wrapper: 83f55b000600
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a50c7800
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): abf55b000a000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): abf55b000a000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0xAB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): d4f55b000c000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): d4f55b000c000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xD4. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): fbf55b000d000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): fbf55b000d000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xFB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 23f65b000e000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 23f65b000e000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0x23. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 4bf65b000f000000a30c7700
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 4bf65b000f000000a30c7700
+[FATAL] Unrecognized packet type with first byte 0x4B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 73f65b000e000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 73f65b000e000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0x73. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 9cf65b000f000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 9cf65b000f000000a50c7c00
+[PARSE DECISION] First byte is 0x9C. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 9cf65b000f000000
+[PD MSG]   -> Wrapper: 9cf65b000f00
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a50c7c00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): b9f65b000f000000a50c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): b9f65b000f000000a50c7900
+[FATAL] Unrecognized packet type with first byte 0xB9. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e1f65b000f000000a50c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e1f65b000f000000a50c7d00
+[FATAL] Unrecognized packet type with first byte 0xE1. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 09f75b000f000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 09f75b000f000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0x09. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 27f75b000e000000a30c7e00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 27f75b000e000000a30c7e00
+[FATAL] Unrecognized packet type with first byte 0x27. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 77f75b000e000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 77f75b000e000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0x77. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 9ff75b000d000000a30c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 9ff75b000d000000a30c7a00
+[PARSE DECISION] First byte is 0x9F. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 9ff75b000d000000
+[PD MSG]   -> Wrapper: 9ff75b000d00
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a30c7a00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): c7f75b000c000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): c7f75b000c000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0xC7. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): eff75b000d000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): eff75b000d000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xEF. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 17f85b000c000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 17f85b000c000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x17. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 3ff85b000c000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 3ff85b000c000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0x3F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 67f85b000c000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 67f85b000c000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x67. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 8ff85b000b000000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 8ff85b000b000000a30c7c00
+[PARSE DECISION] First byte is 0x8F. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 8ff85b000b000000
+[PD MSG]   -> Wrapper: 8ff85b000b00
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a30c7c00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): b7f85b000a000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): b7f85b000a000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0xB7. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e1f85b000a000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e1f85b000a000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0xE1. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 07f95b000b000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 07f95b000b000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0x07. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 2ff95b000a000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 2ff95b000a000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x2F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 57f95b000a000000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 57f95b000a000000a30c7c00
+[FATAL] Unrecognized packet type with first byte 0x57. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 76f95b000a000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 76f95b000a000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0x76. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 9df95b000a000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 9df95b000a000000a50c7c00
+[PARSE DECISION] First byte is 0x9D. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 9df95b000a000000
+[PD MSG]   -> Wrapper: 9df95b000a00
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a50c7c00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): bcf95b000a000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): bcf95b000a000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0xBC. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e3f95b000a000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e3f95b000a000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0xE3. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 0bfa5b0009000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 0bfa5b0009000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x0B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 29fa5b0008000000a30c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 29fa5b0008000000a30c7800
+[FATAL] Unrecognized packet type with first byte 0x29. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 51fa5b0008000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 51fa5b0008000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x51. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 70fa5b000a000000a30c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 70fa5b000a000000a30c7a00
+[FATAL] Unrecognized packet type with first byte 0x70. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): bffa5b0007000000a30c7e00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): bffa5b0007000000a30c7e00
+[FATAL] Unrecognized packet type with first byte 0xBF. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e7fa5b0008000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e7fa5b0008000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xE7. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 0ffb5b0007000000a10c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 0ffb5b0007000000a10c7800
+[FATAL] Unrecognized packet type with first byte 0x0F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 37fb5b0009000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 37fb5b0009000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0x37. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 5ffb5b0008000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 5ffb5b0008000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0x5F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 7dfb5b0008000000a30c7d00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 7dfb5b0008000000a30c7d00
+[FATAL] Unrecognized packet type with first byte 0x7D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): a5fb5b0008000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): a5fb5b0008000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xA5. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): cdfb5b0008000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): cdfb5b0008000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0xCD. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): f5fb5b0007000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): f5fb5b0007000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0xF5. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 1dfc5b0007000000a30c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 1dfc5b0007000000a30c7800
+[FATAL] Unrecognized packet type with first byte 0x1D. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 63fc5b0007000000a30c7400
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 63fc5b0007000000a30c7400
+[FATAL] Unrecognized packet type with first byte 0x63. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 8bfc5b0007000000a30c7700
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 8bfc5b0007000000a30c7700
+[PARSE DECISION] First byte is 0x8B. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC <- SNK
+[PD MSG] Raw chunk (8 bytes): 8bfc5b0007000000
+[PD MSG]   -> Wrapper: 8bfc5b000700
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a30c7700
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): b3fc5b0008000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): b3fc5b0008000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xB3. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): dbfc5b0008000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): dbfc5b0008000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xDB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 0cfd5b0007000000a30c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 0cfd5b0007000000a30c7900
+[FATAL] Unrecognized packet type with first byte 0x0C. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 2bfd5b0008000000a30c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 2bfd5b0008000000a30c7a00
+[FATAL] Unrecognized packet type with first byte 0x2B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 53fd5b0008000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 53fd5b0008000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0x53. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 7bfd5b0007000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 7bfd5b0007000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0x7B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): a3fd5b0007000000a30c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): a3fd5b0007000000a30c7c00
+[FATAL] Unrecognized packet type with first byte 0xA3. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): cdfd5b0008000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): cdfd5b0008000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0xCD. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): f3fd5b0008000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): f3fd5b0008000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xF3. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 1bfe5b0008000000a30c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 1bfe5b0008000000a30c7a00
+[FATAL] Unrecognized packet type with first byte 0x1B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 39fe5b0006000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 39fe5b0006000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x39. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 61fe5b0008000000a50c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 61fe5b0008000000a50c7900
+[FATAL] Unrecognized packet type with first byte 0x61. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 8ffe5b0008000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 8ffe5b0008000000a50c7b00
+[PARSE DECISION] First byte is 0x8F. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 8ffe5b0008000000
+[PD MSG]   -> Wrapper: 8ffe5b000800
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a50c7b00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): d9fe5b0005000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): d9fe5b0005000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xD9. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 01ff5b0007000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 01ff5b0007000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x01. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 29ff5b0007000000a30c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 29ff5b0007000000a30c7b00
+[FATAL] Unrecognized packet type with first byte 0x29. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 5fff5b0007000000a30c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 5fff5b0007000000a30c7900
+[FATAL] Unrecognized packet type with first byte 0x5F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 79ff5b0007000000a30c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 79ff5b0007000000a30c7a00
+[FATAL] Unrecognized packet type with first byte 0x79. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): a1ff5b0006000000a30c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): a1ff5b0006000000a30c7900
+[FATAL] Unrecognized packet type with first byte 0xA1. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): c9ff5b0006000000a30c7600
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): c9ff5b0006000000a30c7600
+[FATAL] Unrecognized packet type with first byte 0xC9. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e7ff5b0007000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e7ff5b0007000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0xE7. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 1b005c0005000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 1b005c0005000000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0x1B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 37005c0007000000a50c7900
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 37005c0007000000a50c7900
+[FATAL] Unrecognized packet type with first byte 0x37. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 5f005c0007000000a30c7e00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 5f005c0007000000a30c7e00
+[FATAL] Unrecognized packet type with first byte 0x5F. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 87005c0006000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 87005c0006000000a50c7b00
+[PARSE DECISION] First byte is 0x87. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 87005c0006000000
+[PD MSG]   -> Wrapper: 87005c000600
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a50c7b00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): af005c0007000000a10c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): af005c0007000000a10c7c00
+[FATAL] Unrecognized packet type with first byte 0xAF. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): d7005c0006000000a30c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): d7005c0006000000a30c7800
+[FATAL] Unrecognized packet type with first byte 0xD7. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): ff005c0006000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): ff005c0006000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xFF. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 45015c0007000000a50c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 45015c0007000000a50c7a00
+[PARSE DECISION] First byte is 0x45. Parsing as Connection Event.
+[EVENT] Raw: 45015c000700
+[EVENT] Parsed: Unknown Action: Unknown CC
+
+[CHUNK 1] Remaining buffer (6 bytes): 0000a50c7a00
+[FATAL] Unrecognized packet type with first byte 0x00. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 63015c0006000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 63015c0006000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x63. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 8e015c0007000000a10c7a00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 8e015c0007000000a10c7a00
+[PARSE DECISION] First byte is 0x8E. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC -> SNK
+[PD MSG] Raw chunk (8 bytes): 8e015c0007000000
+[PD MSG]   -> Wrapper: 8e015c000700
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a10c7a00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): b4015c0006000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): b4015c0006000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xB4. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): db015c0006000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): db015c0006000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0xDB. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 03025c0006000000a50c7b00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 03025c0006000000a50c7b00
+[FATAL] Unrecognized packet type with first byte 0x03. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 2b025c0006000000a50c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 2b025c0006000000a50c7800
+[FATAL] Unrecognized packet type with first byte 0x2B. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 49025c0005000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 49025c0005000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x49. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 77025c0006000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 77025c0006000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0x77. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 99025c0005000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 99025c0005000000a50c7c00
+[PARSE DECISION] First byte is 0x99. Parsing as wrapped PD message.
+[PD DECODE] PD Header: 0x0000. Num Objects: 0, Calculated PD Msg Len: 2 bytes.
+[PD MSG] Direction: SRC <- SNK
+[PD MSG] Raw chunk (8 bytes): 99025c0005000000
+[PD MSG]   -> Wrapper: 99025c000500
+[PD MSG]   -> PD Data: 0000
+  -> Parsed: Message { header: Header { 0: 0, extended: false, num_objects: 0, message_id: 0, port_power_role: Sink, spec_revision: R1_0, port_data_role: Ufp, message_type_raw: 0 }, data: None }
+
+
+[CHUNK 1] Remaining buffer (4 bytes): a50c7c00
+[STREAM END] Remaining data is too short (4 bytes) to be a valid packet. Stopping.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): e9025c0005000000a50c7c00
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): e9025c0005000000a50c7c00
+[FATAL] Unrecognized packet type with first byte 0xE9. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.
+
+==================================================
+[STREAM START] Parsing new USB payload (12 bytes): 11035c0006000000a30c7800
+==================================================
+
+[CHUNK 0] Remaining buffer (12 bytes): 11035c0006000000a30c7800
+[FATAL] Unrecognized packet type with first byte 0x11. Cannot determine length. Stopping parse of this USB payload.
+[STREAM END] Finished parsing USB payload.

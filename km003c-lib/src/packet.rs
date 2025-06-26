@@ -164,20 +164,6 @@ impl RawPacket {
             }
         }
     }
-
-    /// Legacy method for backward compatibility (deprecated)
-    #[deprecated(note = "Use get_extended_header() instead")]
-    pub fn get_ext_header(&mut self) -> Result<ExtendedHeader, KMError> {
-        if self.payload().len() < 4 {
-            return Err(KMError::InvalidLength);
-        }
-        let ext_header_bytes = match self {
-            RawPacket::Ctrl { payload, .. } => payload.split_to(4),
-            RawPacket::Data { payload, .. } => payload.split_to(4),
-        };
-        let ext_header_bytes: [u8; 4] = ext_header_bytes.as_ref().try_into()?;
-        Ok(ExtendedHeader::from_bytes(ext_header_bytes))
-    }
 }
 
 impl TryFrom<Bytes> for RawPacket {

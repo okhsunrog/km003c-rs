@@ -2,7 +2,7 @@ use rusqlite::{Connection, Result};
 use usbpd::protocol_layer::message::Message;
 
 fn main() -> Result<()> {
-    let conn = Connection::open("wireshark/orig_with_pd.sqlite")?;
+    let conn = Connection::open("pd_analisys/pd_new.sqlite")?;
     let mut stmt = conn.prepare("SELECT Time, Vbus, Ibus, Raw FROM pd_table")?;
 
     let rows = stmt.query_map([], |row| {
@@ -21,14 +21,14 @@ fn main() -> Result<()> {
             "Time: {:.6}, Vbus: {:.3}V, Ibus: {:.3}A, Raw (hex): {}",
             time, vbus, ibus, raw_hex
         );
-        if raw.len() > 6 {
-            // Slice the raw bytes to skip the 6-byte proprietary header.
-            let pd_message_bytes = &raw[6..];
-            let message = Message::from_bytes(pd_message_bytes);
-            println!("  -> Parsed PD Message: {:?}", message);
-        } else {
-            println!("  -> Malformed packet (too short to be a wrapped PD message)");
-        }
+        // if raw.len() > 6 {
+        //     // Slice the raw bytes to skip the 6-byte proprietary header.
+        //     let pd_message_bytes = &raw[6..];
+        //     let message = Message::from_bytes(pd_message_bytes);
+        //     println!("  -> Parsed PD Message: {:?}", message);
+        // } else {
+        //     println!("  -> Malformed packet (too short to be a wrapped PD message)");
+        // }
     }
     Ok(())
 }

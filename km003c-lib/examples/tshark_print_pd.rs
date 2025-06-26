@@ -11,7 +11,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn main() -> Result<()> {
     let mut device_address: Option<u8> = None;
-    let filename = "wireshark/orig_with_pd.13.pcapng";
+    let filename = "pd_analisys/pd_capture_new.9.pcapng";
     if let Some(dot_pos) = filename.rfind('.') {
         let before_ext = &filename[..dot_pos];
         if let Some(second_dot_pos) = before_ext.rfind('.') {
@@ -59,72 +59,107 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-// Add this new helper function to your file
 fn parse_km003c_stream(mut stream: &[u8]) {
-    const KM003C_HEADER_LEN: usize = 6;
-    const POLLING_PACKET_LEN: usize = 12; // Assumed length of non-PD status packets
+    const WRAPPER_LEN: usize = 6;
 
+    println!("\n==================================================");
+    println!("[STREAM START] Parsing new USB payload ({} bytes): {}", stream.len(), hex::encode(stream));
+    println!("==================================================");
+
+    let mut chunk_index = 0;
     while !stream.is_empty() {
-        if stream.len() < KM003C_HEADER_LEN {
-            // Not enough data for even a wrapper header
-            // println!("[STREAM] Remaining truncated data: {}", hex::encode(stream));
+        println!("\n[CHUNK {}] Remaining buffer ({} bytes): {}", chunk_index, stream.len(), hex::encode(stream));
+
+        if stream.len() < WRAPPER_LEN {
+            println!("[STREAM END] Remaining data is too short ({len} bytes) to be a valid packet. Stopping.", len=stream.len());
             break;
         }
 
-        let wrapper_header = &stream[..KM003C_HEADER_LEN];
-        let potential_payload = &stream[KM003C_HEADER_LEN..];
+        // Decide how to parse based on the first byte of the current chunk
+        let first_byte = stream[0];
+        match first_byte {
+            // Case 1: Connection Status Event (Attach/Detach)
+            0x45 => {
+                println!("[PARSE DECISION] First byte is 0x45. Parsing as Connection Event.");
+                let event_packet = &stream[..WRAPPER_LEN];
+                
+                // Decode the event data byte (the last byte of the 6-byte packet)
+                let event_data = event_packet[5];
+                let cc_pin = (event_data >> 4) & 0x0F;
+                let action = event_data & 0x0F;
 
-        // Check the SOP packet flag (MSB of the first byte of the wrapper header)
-        let is_sop_packet = (wrapper_header[0] & 0x80) != 0;
+                let cc_str = match cc_pin { 1 => "CC1", 2 => "CC2", _ => "Unknown CC" };
+                let action_str = match action { 1 => "Attach", 2 => "Detach", _ => "Unknown Action" };
 
-        if is_sop_packet && potential_payload.len() >= 2 {
-            // It's flagged as a PD message, let's try to determine its length
-            // from the actual PD header.
-            let pd_header_bytes: [u8; 2] = potential_payload[0..2].try_into().unwrap();
-            let pd_header_val = u16::from_le_bytes(pd_header_bytes);
+                println!("[EVENT] Raw: {}", hex::encode(event_packet));
+                println!("[EVENT] Parsed: {}: {}", action_str, cc_str);
+                
+                // Advance the stream by the known, fixed length of this packet type
+                stream = &stream[WRAPPER_LEN..];
+            }
 
-            // Check if it's a valid message type to avoid parsing garbage
-            let message_type = pd_header_val & 0x1F;
-            if message_type > 0 && message_type <= 0x16 {
-                // Valid range for PD messages
+            // Case 2: PD Message (wrapped)
+            0x80..=0x9F => {
+                println!("[PARSE DECISION] First byte is 0x{:02X}. Parsing as wrapped PD message.", first_byte);
+                
+                let wrapper = &stream[..WRAPPER_LEN];
+                let payload = &stream[WRAPPER_LEN..];
+
+                // Decode the direction from the first byte of the wrapper
+                let direction_str = if (wrapper[0] & 0x04) != 0 { "SRC -> SNK" } else { "SRC <- SNK" };
+
+                if payload.len() < 2 {
+                    println!("[WARN] PD message chunk has wrapper but not enough data for a PD header (needs 2, has {}). Stopping.", payload.len());
+                    break;
+                }
+
+                // Dynamically calculate length from the PD header itself
+                let pd_header_bytes: [u8; 2] = payload[..2].try_into().unwrap();
+                let pd_header_val = u16::from_le_bytes(pd_header_bytes);
                 let num_objects = ((pd_header_val >> 12) & 0x07) as usize;
                 let pd_message_len = 2 + num_objects * 4;
-                let total_chunk_len = KM003C_HEADER_LEN + pd_message_len;
+                let total_chunk_len = WRAPPER_LEN + pd_message_len;
 
-                if stream.len() >= total_chunk_len {
-                    // We have enough data for the full chunk
-                    let pd_message_bytes = &stream[KM003C_HEADER_LEN..total_chunk_len];
-
-                    println!("[PD MSG] Raw wrapped: {}", hex::encode(&stream[..total_chunk_len]));
-                    let message = Message::from_bytes(pd_message_bytes);
-
-                    // Check if the message data is a SourceCapabilities variant
-                    if let Some(usbpd::protocol_layer::message::Data::SourceCapabilities(caps)) = &message.data {
-                        // If it is, use our new pretty-printing function
-                        let formatted_caps = format_source_capabilities(caps);
-                        println!("  -> Parsed:\n{}", formatted_caps);
-                    } else {
-                        // Otherwise, use the default debug print for other message types
-                        println!("  -> Parsed: {:?}\n", message);
-                    }
-
-                    // Advance the stream past this entire chunk
-                    stream = &stream[total_chunk_len..];
-                    continue; // Continue to the next chunk in the stream
+                println!("[PD DECODE] PD Header: 0x{:04X}. Num Objects: {}, Calculated PD Msg Len: {} bytes.", pd_header_val, num_objects, pd_message_len);
+                
+                if stream.len() < total_chunk_len {
+                    println!("[WARN] Stream is truncated. Needed {} bytes for full message, have {}. Stopping.", total_chunk_len, stream.len());
+                    break;
                 }
+
+                let pd_message_bytes = &payload[..pd_message_len];
+                let full_chunk_bytes = &stream[..total_chunk_len];
+
+                println!("[PD MSG] Direction: {}", direction_str);
+                println!("[PD MSG] Raw chunk ({} bytes): {}", total_chunk_len, hex::encode(full_chunk_bytes));
+                println!("[PD MSG]   -> Wrapper: {}", hex::encode(wrapper));
+                println!("[PD MSG]   -> PD Data: {}", hex::encode(pd_message_bytes));
+                
+                // Parse using the external usbpd crate
+                let message = Message::from_bytes(pd_message_bytes);
+
+                // You can uncomment your pretty-printing logic here if you want
+                if let Some(usbpd::protocol_layer::message::Data::SourceCapabilities(caps)) = &message.data {
+                    let formatted_caps = format_source_capabilities(caps);
+                    println!("  -> Parsed:\n{}\n", formatted_caps);
+                } else {
+                    println!("  -> Parsed: {:?}\n", message);
+                }
+                
+                // Advance the stream by the accurately calculated length
+                stream = &stream[total_chunk_len..];
+            }
+
+            // Case 3: Unknown packet type
+            _ => {
+                println!("[FATAL] Unrecognized packet type with first byte 0x{:02X}. Cannot determine length. Stopping parse of this USB payload.", first_byte);
+                // The only safe action is to stop. Advancing by a guessed amount is wrong.
+                break;
             }
         }
-
-        // If it's not a valid SOP packet we can parse, assume it's a fixed-size status packet
-        // and advance the stream to look for the next valid chunk.
-        // println!("[STATUS] Skipping non-PD packet: {}", hex::encode(&stream[..std::cmp::min(stream.len(), POLLING_PACKET_LEN)]));
-        if stream.len() >= POLLING_PACKET_LEN {
-            stream = &stream[POLLING_PACKET_LEN..];
-        } else {
-            // Can't advance by the full polling packet length, so we are done
-            break;
-        }
+        chunk_index += 1;
     }
+    println!("[STREAM END] Finished parsing USB payload.");
 }
 
 /// Formats the SourceCapabilities into a human-readable string.
