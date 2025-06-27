@@ -16,7 +16,7 @@ bytes = "1.10.1"
 num_enum = "0.7.3"
 zerocopy = { version = "0.8", features = ["derive"] }
 strum_macros = "0.27.1"
-usbpd = { version = "1.0.2", features = ["log"] }
+usbpd = { git = "https://github.com/okhsunrog/usbpd", rev = "9a2de40cb853c21bae4bf45d34127e96f3ea7d90", features = ["log"] }
 uom = { version = "0.36.0", default-features = false, features = ["std", "si"] }
 
 [dev-dependencies]

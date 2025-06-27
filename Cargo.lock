@@ -1884,8 +1884,6 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "uom",
- "usbpd",
 ]
 
 [[package]]
@@ -3623,8 +3621,7 @@ dependencies = [
 [[package]]
 name = "usbpd"
 version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f5656cd4970809e9e3d2747b3c3d1fd8bbad067b09b00c20097375392730f5f"
+source = "git+https://github.com/okhsunrog/usbpd?rev=9a2de40cb853c21bae4bf45d34127e96f3ea7d90#9a2de40cb853c21bae4bf45d34127e96f3ea7d90"
 dependencies = [
  "byteorder",
  "futures",
@@ -3638,8 +3635,7 @@ dependencies = [
 [[package]]
 name = "usbpd-traits"
 version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "232c39f321d84f331a2741f128537c658caff9b57a9291c2da8953997b698e42"
+source = "git+https://github.com/okhsunrog/usbpd?rev=9a2de40cb853c21bae4bf45d34127e96f3ea7d90#9a2de40cb853c21bae4bf45d34127e96f3ea7d90"
 
 [[package]]
 name = "utf8_iter"
