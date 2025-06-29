@@ -10,7 +10,7 @@ use usbpd::protocol_layer::message::{
     Data, Message,
     pdo::{Augmented, PowerDataObject, SourceCapabilities},
 };
-use zerocopy::{byteorder::little_endian::{U16, U24}, AsBytes, FromBytes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned, byteorder::little_endian::U16};
 
 // --- Data Structures ---
 
@@ -28,10 +28,10 @@ pub enum EventPacket {
 /// A 6-byte connection event packet (Attach/Detach).
 /// Identified by a first byte of `0x45`.
 #[repr(C, packed)]
-#[derive(FromBytes, AsBytes, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ConnectionEvent {
-    pub type_id: u8,    // Always 0x45
-    pub timestamp: U24, // 24-bit little-endian timestamp
+    pub type_id: u8,              // Always 0x45
+    pub timestamp_bytes: [u8; 3], // 24-bit little-endian timestamp
     _reserved: u8,
     pub event_data: u8,
 }
@@ -40,10 +40,10 @@ pub struct ConnectionEvent {
 /// This is the default packet type for any identifier that isn't a known
 /// Connection or Wrapped PD Message.
 #[repr(C, packed)]
-#[derive(FromBytes, AsBytes, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StatusPacket {
     pub type_id: u8,
-    pub timestamp: U24,
+    pub timestamp_bytes: [u8; 3], // 24-bit little-endian timestamp
     pub vbus_raw: U16,
     pub ibus_raw: U16,
     pub cc1_raw: U16,
@@ -82,8 +82,7 @@ impl EventPacket {
         match input[0] {
             // Case 1: Connection Event (unambiguous, 6 bytes).
             0x45 => {
-                let event = ConnectionEvent::ref_from_prefix(input)
-                    .ok_or(ParseError::UnexpectedEof)?;
+                let event = ConnectionEvent::ref_from_bytes(input).map_err(|_| ParseError::UnexpectedEof)?;
                 Ok((EventPacket::Connection(*event), std::mem::size_of::<ConnectionEvent>()))
             }
 
@@ -96,7 +95,7 @@ impl EventPacket {
                 if input.len() < WRAPPER_LEN + MIN_PD_LEN {
                     // Not enough data for a valid PD message, so it cannot be Type C.
                     // Fall back to treating it as a potentially truncated Type B.
-                    let status = StatusPacket::ref_from_prefix(input).ok_or(ParseError::UnexpectedEof)?;
+                    let status = StatusPacket::ref_from_bytes(input).map_err(|_| ParseError::UnexpectedEof)?;
                     return Ok((EventPacket::Status(*status), std::mem::size_of::<StatusPacket>()));
                 }
 
@@ -110,7 +109,7 @@ impl EventPacket {
                     if input.len() < total_len {
                         return Err(ParseError::UnexpectedEof);
                     }
-                    
+
                     let ts_bytes = &input[1..4];
                     let packet = WrappedPdMessage {
                         is_src_to_snk: (input[0] & 0x04) != 0,
@@ -121,14 +120,14 @@ impl EventPacket {
                 } else {
                     // False positive. The `usbpd` parser rejected it. This means it's a
                     // 12-byte status packet that happened to start with a "magic" byte.
-                    let status = StatusPacket::ref_from_prefix(input).ok_or(ParseError::UnexpectedEof)?;
+                    let status = StatusPacket::ref_from_bytes(input).map_err(|_| ParseError::UnexpectedEof)?;
                     Ok((EventPacket::Status(*status), std::mem::size_of::<StatusPacket>()))
                 }
             }
 
             // Case 3: Default to Periodic Status Packet (unambiguous, 12 bytes).
             _ => {
-                let status = StatusPacket::ref_from_prefix(input).ok_or(ParseError::UnexpectedEof)?;
+                let status = StatusPacket::ref_from_bytes(input).map_err(|_| ParseError::UnexpectedEof)?;
                 Ok((EventPacket::Status(*status), std::mem::size_of::<StatusPacket>()))
             }
         }
@@ -165,12 +164,37 @@ pub fn parse_event_stream(mut input: &[u8]) -> Result<Vec<EventPacket>, ParseErr
     Ok(packets)
 }
 
-
 impl ConnectionEvent {
+    /// Gets the 24-bit timestamp as a u32
+    pub fn timestamp(&self) -> u32 {
+        u32::from_le_bytes([
+            self.timestamp_bytes[0],
+            self.timestamp_bytes[1],
+            self.timestamp_bytes[2],
+            0,
+        ])
+    }
+
     /// Decodes the CC pin from the event data.
-    pub fn cc_pin(&self) -> u8 { (self.event_data & 0xF0) >> 4 }
+    pub fn cc_pin(&self) -> u8 {
+        (self.event_data & 0xF0) >> 4
+    }
     /// Decodes the connection action from the event data.
-    pub fn action(&self) -> u8 { self.event_data & 0x0F }
+    pub fn action(&self) -> u8 {
+        self.event_data & 0x0F
+    }
+}
+
+impl StatusPacket {
+    /// Gets the 24-bit timestamp as a u32
+    pub fn timestamp(&self) -> u32 {
+        u32::from_le_bytes([
+            self.timestamp_bytes[0],
+            self.timestamp_bytes[1],
+            self.timestamp_bytes[2],
+            0,
+        ])
+    }
 }
 
 impl WrappedPdMessage {
@@ -183,7 +207,6 @@ impl WrappedPdMessage {
         Message::from_bytes(&self.pd_bytes)
     }
 }
-
 
 // --- Pretty-printing implementations ---
 
@@ -204,30 +227,37 @@ impl fmt::Display for EventPacket {
                 write!(f, "[Conn] {}: {}", action, cc)
             }
             EventPacket::Status(ev) => {
-                write!(f, "[Status] Type:0x{:02X} Vbus:{} Ibus:{} CC1:{} CC2:{}",
-                    ev.type_id, ev.vbus_raw.get(), ev.ibus_raw.get(), ev.cc1_raw.get(), ev.cc2_raw.get())
+                write!(
+                    f,
+                    "[Status] Type:0x{:02X} Vbus:{} Ibus:{} CC1:{} CC2:{}",
+                    ev.type_id,
+                    ev.vbus_raw.get(),
+                    ev.ibus_raw.get(),
+                    ev.cc1_raw.get(),
+                    ev.cc2_raw.get()
+                )
             }
             EventPacket::PdMessage(ev) => {
                 let direction = if ev.is_src_to_snk { "->" } else { "<-" };
                 // Safe to unwrap here because we know it's valid from the parsing step.
                 let msg = ev.parse_message_stateless().unwrap();
-                write!(f, "[PD {}] {}", direction, msg)
+                write!(f, "[PD {}] {}", direction, format_pd_message(&msg))
             }
         }
     }
 }
 
-// NOTE: This should ideally live in the usbpd crate, but is provided here for convenience.
-impl fmt::Display for Message {
-     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(Data::SourceCapabilities(ref caps)) = self.data {
-            // Special, pretty-printing for SourceCapabilities
-            writeln!(f, "SourceCapabilities:")?;
-            write!(f, "{}", format_source_capabilities(caps))
-        } else {
-            // For all other message types, use the default debug format.
-            write!(f, "{:?}", self)
-        }
+/// Helper function to format PD messages without violating orphan rules
+fn format_pd_message(msg: &Message) -> String {
+    if let Some(Data::SourceCapabilities(ref caps)) = msg.data {
+        // Special, pretty-printing for SourceCapabilities
+        let mut output = String::from("SourceCapabilities:");
+        output.push('\n');
+        output.push_str(&format_source_capabilities(caps));
+        output
+    } else {
+        // For all other message types, use the default debug format.
+        format!("{:?}", msg)
     }
 }
 
@@ -248,13 +278,19 @@ fn format_source_capabilities(caps: &SourceCapabilities) -> String {
                 let min_v = p.raw_min_voltage() as f32 * 50.0 / 1000.0;
                 let max_v = p.raw_max_voltage() as f32 * 50.0 / 1000.0;
                 let current = p.raw_max_current() as f32 * 10.0 / 1000.0;
-                format!("  [{}] Variable:    {:.2} - {:.2} V @ {:.2} A", pdo_index, min_v, max_v, current)
+                format!(
+                    "  [{}] Variable:    {:.2} - {:.2} V @ {:.2} A",
+                    pdo_index, min_v, max_v, current
+                )
             }
             PowerDataObject::Battery(p) => {
                 let min_v = p.raw_min_voltage() as f32 * 50.0 / 1000.0;
                 let max_v = p.raw_max_voltage() as f32 * 50.0 / 1000.0;
                 let power = p.raw_max_power() as f32 * 250.0 / 1000.0;
-                format!("  [{}] Battery:     {:.2} - {:.2} V @ {:.2} W", pdo_index, min_v, max_v, power)
+                format!(
+                    "  [{}] Battery:     {:.2} - {:.2} V @ {:.2} W",
+                    pdo_index, min_v, max_v, power
+                )
             }
             PowerDataObject::Augmented(augmented) => match augmented {
                 Augmented::Spr(p) => {

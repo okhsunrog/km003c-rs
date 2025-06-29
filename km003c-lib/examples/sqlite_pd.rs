@@ -21,9 +21,15 @@ fn main() -> Result<()> {
             "Time: {:.6}, Vbus: {:.3}V, Ibus: {:.3}A, Raw (hex): {}",
             time, vbus, ibus, raw_hex
         );
-        let events = parse_event_stream(&raw);
-        for event in events {
-            println!("  -> {}", event);
+        match parse_event_stream(&raw) {
+            Ok(events) => {
+                for event in events {
+                    println!("  -> {}", event);
+                }
+            }
+            Err(e) => {
+                println!("  -> Error parsing events: {:?}", e);
+            }
         }
     }
     Ok(())

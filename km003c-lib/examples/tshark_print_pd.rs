@@ -46,12 +46,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(raw_packet) = RawPacket::try_from(bytes) {
             if let Ok(packet) = Packet::try_from(raw_packet) {
                 match packet {
-                    Packet::PdRawData(data) => {
-                        let events = parse_event_stream(&data);
-                        for event in events {
-                            println!("[PD EVENT] {}", event);
+                    Packet::PdRawData(data) => match parse_event_stream(&data) {
+                        Ok(events) => {
+                            for event in events {
+                                println!("[PD EVENT] {}", event);
+                            }
                         }
-                    }
+                        Err(e) => {
+                            println!("[PD EVENT] Error parsing events: {:?}", e);
+                        }
+                    },
                     _ => {}
                 }
             }

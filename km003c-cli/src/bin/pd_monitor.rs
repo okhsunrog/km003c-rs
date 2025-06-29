@@ -9,12 +9,6 @@ use tokio::time::interval;
 use tracing::{error, info};
 
 // --- Add this entire block for PD parsing ---
-use std::convert::TryInto;
-use std::fmt::Write as FmtWrite;
-use usbpd::protocol_layer::message::{
-    Message,
-    pdo::{Augmented, PowerDataObject, SourceCapabilities},
-};
 // ------------------------------------------
 
 #[derive(Parser, Debug)]
@@ -107,29 +101,35 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     continue;
                 }
 
-                let events = parse_event_stream(&pd_data);
-                for event in events {
-                    let elapsed = start_time.elapsed().unwrap_or(Duration::ZERO);
-                    let timestamp_str = if args.timestamp {
-                        format!(" @ {:.6}s", elapsed.as_secs_f64())
-                    } else {
-                        String::new()
-                    };
+                match parse_event_stream(&pd_data) {
+                    Ok(events) => {
+                        for event in events {
+                            let elapsed = start_time.elapsed().unwrap_or(Duration::ZERO);
+                            let timestamp_str = if args.timestamp {
+                                format!(" @ {:.6}s", elapsed.as_secs_f64())
+                            } else {
+                                String::new()
+                            };
 
-                    match &event {
-                        EventPacket::PdMessage(_) => {
-                            pd_message_count += 1;
-                            let header = format!("\n=== PD Message #{}{} ===", pd_message_count, timestamp_str);
-                            print_section(&header, &event, &mut output_file)?;
+                            match &event {
+                                EventPacket::PdMessage(_) => {
+                                    pd_message_count += 1;
+                                    let header = format!("\n=== PD Message #{}{} ===", pd_message_count, timestamp_str);
+                                    print_section(&header, &event, &mut output_file)?;
+                                }
+                                EventPacket::Connection(_) => {
+                                    let header = format!("\n--- Connection Event{} ---", timestamp_str);
+                                    print_section(&header, &event, &mut output_file)?;
+                                }
+                                EventPacket::Status(_) => {
+                                    let header = format!("\n--- Status Packet{} ---", timestamp_str);
+                                    print_section(&header, &event, &mut output_file)?;
+                                }
+                            }
                         }
-                        EventPacket::Connection(_) => {
-                            let header = format!("\n--- Connection Event{} ---", timestamp_str);
-                            print_section(&header, &event, &mut output_file)?;
-                        }
-                        EventPacket::Status(_) => {
-                            let header = format!("\n--- Status Packet{} ---", timestamp_str);
-                            print_section(&header, &event, &mut output_file)?;
-                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to parse PD event stream: {:?}", e);
                     }
                 }
             }
@@ -150,70 +150,4 @@ fn print_section(header: &str, event: &EventPacket, output_file: &mut Option<std
         file.flush()?;
     }
     Ok(())
-}
-
-// --- HELPER FUNCTION 2: Pretty Printer for Source Capabilities ---
-pub fn format_source_capabilities(caps: &SourceCapabilities) -> String {
-    let mut output = String::new();
-    write!(&mut output, "  -> Parsed:\n").unwrap(); // Indent to match debug output
-    write!(&mut output, "    Source Power Capabilities:\n").unwrap();
-    write!(
-        &mut output,
-        "      Flags: DRP: {}, Unconstrained: {}, USB Comm: {}, USB Suspend: {}, EPR Capable: {}\n",
-        caps.dual_role_power(),
-        caps.unconstrained_power(),
-        caps.vsafe_5v().map_or(false, |p| p.usb_communications_capable()),
-        caps.usb_suspend_supported(),
-        caps.epr_mode_capable()
-    )
-    .unwrap();
-
-    for (i, pdo) in caps.pdos().iter().enumerate() {
-        let pdo_index = i + 1;
-        let line = match pdo {
-            PowerDataObject::FixedSupply(p) => {
-                let voltage = p.raw_voltage() as f32 * 50.0 / 1000.0;
-                let current = p.raw_max_current() as f32 * 10.0 / 1000.0;
-                format!("Fixed:       {:.2} V @ {:.2} A", voltage, current)
-            }
-            PowerDataObject::VariableSupply(p) => {
-                let min_v = p.raw_min_voltage() as f32 * 50.0 / 1000.0;
-                let max_v = p.raw_max_voltage() as f32 * 50.0 / 1000.0;
-                let current = p.raw_max_current() as f32 * 10.0 / 1000.0;
-                format!("Variable:    {:.2} - {:.2} V @ {:.2} A", min_v, max_v, current)
-            }
-            PowerDataObject::Battery(p) => {
-                let min_v = p.raw_min_voltage() as f32 * 50.0 / 1000.0;
-                let max_v = p.raw_max_voltage() as f32 * 50.0 / 1000.0;
-                let power = p.raw_max_power() as f32 * 250.0 / 1000.0;
-                format!("Battery:     {:.2} - {:.2} V @ {:.2} W", min_v, max_v, power)
-            }
-            PowerDataObject::Augmented(augmented) => match augmented {
-                Augmented::Spr(p) => {
-                    let min_v = p.raw_min_voltage() as f32 * 100.0 / 1000.0;
-                    let max_v = p.raw_max_voltage() as f32 * 100.0 / 1000.0;
-                    let current = p.raw_max_current() as f32 * 50.0 / 1000.0;
-                    let mut pps_str = format!("PPS:         {:.2} - {:.2} V @ {:.2} A", min_v, max_v, current);
-                    if p.pps_power_limited() {
-                        pps_str.push_str(" (Power Limited)");
-                    }
-                    pps_str
-                }
-                Augmented::Epr(p) => {
-                    let min_v = p.raw_min_voltage() as f32 * 100.0 / 1000.0;
-                    let max_v = p.raw_max_voltage() as f32 * 100.0 / 1000.0;
-                    let power = p.raw_pd_power() as f32;
-                    format!("AVS (EPR):   {:.2} - {:.2} V up to {:.2} W", min_v, max_v, power)
-                }
-                Augmented::Unknown(raw) => format!("Unknown Augmented PDO (raw: 0x{:08x})", raw),
-            },
-            PowerDataObject::Unknown(raw) => format!("Unknown PDO (raw: 0x{:08x})", raw.0),
-        };
-        write!(&mut output, "      [{}] {}", pdo_index, line).unwrap();
-        // Add newline if not the last element
-        if i < caps.pdos().len() - 1 {
-            write!(&mut output, "\n").unwrap();
-        }
-    }
-    output
 }

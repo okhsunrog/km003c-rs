@@ -119,7 +119,9 @@ fn process_and_collect(
                     // --- Type A: Connection Event ---
                     0x45 => {
                         let len = 6;
-                        if inner_stream.len() < len { break; }
+                        if inner_stream.len() < len {
+                            break;
+                        }
                         if samples_a.len() < max_samples {
                             samples_a.insert(inner_stream[..len].to_vec());
                         }
@@ -129,7 +131,9 @@ fn process_and_collect(
                     // --- Type C: Wrapped PD Message ---
                     0x80..=0x9F => {
                         let wrapper_len = 6;
-                        if inner_stream.len() < wrapper_len + 2 { break; }
+                        if inner_stream.len() < wrapper_len + 2 {
+                            break;
+                        }
 
                         let pd_header_bytes: [u8; 2] = inner_stream[wrapper_len..wrapper_len + 2].try_into()?;
                         let pd_header_val = u16::from_le_bytes(pd_header_bytes);
@@ -137,7 +141,9 @@ fn process_and_collect(
                         let pd_message_len = 2 + (num_objects * 4);
                         let total_chunk_len = wrapper_len + pd_message_len;
 
-                        if inner_stream.len() < total_chunk_len { break; }
+                        if inner_stream.len() < total_chunk_len {
+                            break;
+                        }
                         if samples_c.len() < max_samples {
                             samples_c.insert(inner_stream[..total_chunk_len].to_vec());
                         }
@@ -147,7 +153,9 @@ fn process_and_collect(
                     // --- Type B: Periodic Status Packet (Default Case) ---
                     _ => {
                         let len = 12;
-                        if inner_stream.len() < len { break; }
+                        if inner_stream.len() < len {
+                            break;
+                        }
                         if samples_b.len() < max_samples {
                             samples_b.insert(inner_stream[..len].to_vec());
                         }
