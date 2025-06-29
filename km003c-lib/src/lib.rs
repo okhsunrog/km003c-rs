@@ -1,4 +1,5 @@
 pub mod adc;
+pub mod analysis;
 pub mod device;
 pub mod error;
 pub mod message;
