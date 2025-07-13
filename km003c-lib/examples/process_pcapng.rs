@@ -1,8 +1,8 @@
+use chrono::Utc;
 use clap::Parser;
 use km003c_lib::capture::{CaptureCollection, RawCapture, UsbDirection};
 use rtshark::{Packet as RtSharkPacket, RTSharkBuilder};
 use std::path::PathBuf;
-use chrono::Utc;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -92,35 +92,46 @@ fn main() -> Result<()> {
 
     while let Some(packet) = rtshark.read()? {
         packet_count += 1;
-        
+
         if let Ok(capture) = process_packet(packet, &session_id) {
             collection.add(capture);
         }
     }
 
-    println!("Processed {} packets, extracted {} captures", packet_count, collection.len());
+    println!(
+        "Processed {} packets, extracted {} captures",
+        packet_count,
+        collection.len()
+    );
 
     // Save or append to parquet file
     if args.output.exists() {
         println!("Loading existing captures from {:?}", args.output);
         let mut existing = CaptureCollection::load_from_parquet(&args.output)?;
-        
+
         // Check for duplicate session_id
         let existing_sessions = existing.session_ids();
         if existing_sessions.contains(&session_id) {
-            eprintln!("ERROR: Session ID '{}' already exists in {:?}. Aborting to prevent duplicates.", session_id, args.output);
+            eprintln!(
+                "ERROR: Session ID '{}' already exists in {:?}. Aborting to prevent duplicates.",
+                session_id, args.output
+            );
             std::process::exit(1);
         }
-        
+
         // Add new captures to existing collection
         for capture in collection.captures() {
             existing.add(capture.clone());
         }
-        
+
         // Save combined collection
         existing.save_to_parquet(&args.output)?;
-        println!("Combined and saved {} total captures to {:?}", existing.len(), args.output);
-        
+        println!(
+            "Combined and saved {} total captures to {:?}",
+            existing.len(),
+            args.output
+        );
+
         // Print statistics for combined collection
         let stats = existing.statistics();
         println!("\nCombined Statistics:");
@@ -130,7 +141,7 @@ fn main() -> Result<()> {
     } else {
         println!("Creating new parquet file at {:?}", args.output);
         collection.save_to_parquet(&args.output)?;
-        
+
         // Print statistics
         let stats = collection.statistics();
         println!("\nStatistics:");
@@ -175,7 +186,7 @@ fn process_packet(packet: RtSharkPacket, session_id: &str) -> Result<RawCapture>
 
     // Create capture with current datetime
     let added_datetime = Utc::now().to_rfc3339();
-    
+
     let capture = RawCapture::new(
         session_id.to_string(),
         timestamp,
@@ -186,4 +197,4 @@ fn process_packet(packet: RtSharkPacket, session_id: &str) -> Result<RawCapture>
     );
 
     Ok(capture)
-} 
+}

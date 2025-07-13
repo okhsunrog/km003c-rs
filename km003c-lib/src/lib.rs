@@ -1,7 +1,7 @@
 pub mod adc;
+pub mod capture;
 pub mod device;
 pub mod error;
-pub mod capture;
 pub mod message;
 pub mod packet;
 pub mod pd;

@@ -5,8 +5,8 @@ use std::path::Path;
 /// USB direction enum
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UsbDirection {
-    HostToDevice,  // H->D
-    DeviceToHost,  // D->H
+    HostToDevice, // H->D
+    DeviceToHost, // D->H
 }
 
 impl std::fmt::Display for UsbDirection {
@@ -21,12 +21,12 @@ impl std::fmt::Display for UsbDirection {
 /// Raw capture data structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RawCapture {
-    pub session_id: String,        // e.g., "orig_adc_1000hz.6"
-    pub timestamp: f64,            // from frame.time_relative
-    pub direction: UsbDirection,   // H->D or D->H
-    pub raw_bytes: Vec<u8>,        // the actual USB data
-    pub frame_number: u32,         // from frame.number
-    pub added_datetime: String,    // ISO 8601 datetime when this row was added
+    pub session_id: String,      // e.g., "orig_adc_1000hz.6"
+    pub timestamp: f64,          // from frame.time_relative
+    pub direction: UsbDirection, // H->D or D->H
+    pub raw_bytes: Vec<u8>,      // the actual USB data
+    pub frame_number: u32,       // from frame.number
+    pub added_datetime: String,  // ISO 8601 datetime when this row was added
 }
 
 impl RawCapture {
@@ -63,9 +63,7 @@ pub struct CaptureCollection {
 impl CaptureCollection {
     /// Create a new empty collection
     pub fn new() -> Self {
-        Self {
-            captures: Vec::new(),
-        }
+        Self { captures: Vec::new() }
     }
 
     /// Add a capture to the collection
@@ -88,10 +86,7 @@ impl CaptureCollection {
 
     /// Get list of all session IDs
     pub fn session_ids(&self) -> Vec<String> {
-        let mut ids: Vec<String> = self.captures
-            .iter()
-            .map(|cap| cap.session_id.clone())
-            .collect();
+        let mut ids: Vec<String> = self.captures.iter().map(|cap| cap.session_id.clone()).collect();
         ids.sort();
         ids.dedup();
         ids
@@ -129,7 +124,8 @@ impl CaptureCollection {
             raw_bytes_series.into(),
             Series::new("frame_number".into(), frame_numbers).into(),
             Series::new("added_datetime".into(), added_datetimes).into(),
-        ]).map_err(|e| format!("DataFrame creation error: {}", e))?;
+        ])
+        .map_err(|e| format!("DataFrame creation error: {}", e))?;
 
         let file = std::fs::File::create(path.as_ref())?;
         ParquetWriter::new(file)
@@ -158,11 +154,16 @@ impl CaptureCollection {
                     // For now, return empty vector for list types to avoid compilation issues
                     // TODO: Implement proper list handling when Polars API is better understood
                     vec![]
-                },
+                }
                 _ => vec![],
             };
             let frame_number = df.column("frame_number")?.u32()?.get(row_idx).unwrap_or(0);
-            let added_datetime = df.column("added_datetime")?.str()?.get(row_idx).unwrap_or("").to_string();
+            let added_datetime = df
+                .column("added_datetime")?
+                .str()?
+                .get(row_idx)
+                .unwrap_or("")
+                .to_string();
             let direction = match direction_str.as_str() {
                 "H->D" => UsbDirection::HostToDevice,
                 "D->H" => UsbDirection::DeviceToHost,
@@ -221,29 +222,39 @@ impl CaptureCollection {
     /// Get basic statistics about the collection
     pub fn statistics(&self) -> std::collections::HashMap<String, String> {
         let mut stats = std::collections::HashMap::new();
-        
+
         stats.insert("total_captures".to_string(), self.captures.len().to_string());
-        
+
         let session_count = self.session_ids().len();
         stats.insert("session_count".to_string(), session_count.to_string());
-        
+
         if !self.captures.is_empty() {
             // Time range
             let timestamps: Vec<f64> = self.captures.iter().map(|c| c.timestamp).collect();
-            if let (Some(min), Some(max)) = (timestamps.iter().min_by(|a, b| a.partial_cmp(b).unwrap()), 
-                                           timestamps.iter().max_by(|a, b| a.partial_cmp(b).unwrap())) {
+            if let (Some(min), Some(max)) = (
+                timestamps.iter().min_by(|a, b| a.partial_cmp(b).unwrap()),
+                timestamps.iter().max_by(|a, b| a.partial_cmp(b).unwrap()),
+            ) {
                 stats.insert("time_min".to_string(), min.to_string());
                 stats.insert("time_max".to_string(), max.to_string());
                 stats.insert("duration_seconds".to_string(), (max - min).to_string());
             }
-            
+
             // Direction counts
-            let host_to_device = self.captures.iter().filter(|c| matches!(c.direction, UsbDirection::HostToDevice)).count();
-            let device_to_host = self.captures.iter().filter(|c| matches!(c.direction, UsbDirection::DeviceToHost)).count();
+            let host_to_device = self
+                .captures
+                .iter()
+                .filter(|c| matches!(c.direction, UsbDirection::HostToDevice))
+                .count();
+            let device_to_host = self
+                .captures
+                .iter()
+                .filter(|c| matches!(c.direction, UsbDirection::DeviceToHost))
+                .count();
             stats.insert("host_to_device_count".to_string(), host_to_device.to_string());
             stats.insert("device_to_host_count".to_string(), device_to_host.to_string());
         }
-        
+
         stats
     }
 }
