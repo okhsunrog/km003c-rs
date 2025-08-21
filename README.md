@@ -165,3 +165,6 @@ This is a reverse-engineering project. Contributions are welcome for:
 ## Disclaimer
 
 This is an unofficial reverse-engineering effort. Use at your own risk. The author is not affiliated with ChargerLAB. 
+## TODO
+- Handle PutData packets that include ExtendedHeader despite extend flag being 0.
+- Investigate interrupt transfer packets (0x01) with 8-byte payloads; format currently unknown.
