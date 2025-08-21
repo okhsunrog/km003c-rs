@@ -21,7 +21,7 @@ Used for commands and simple responses.
 ```rust
 struct CtrlHeader {
     packet_type: u8,    // Command type
-    extend: bool,       // Extended packet flag
+    extend: bool,       // Purpose unknown (previously thought to be an extended packet flag)
     id: u8,            // Transaction ID
     attribute: u16,    // Command attribute
 }
@@ -33,7 +33,7 @@ Used for data transfer with extended headers for large payloads.
 ```rust
 struct DataHeader {
     packet_type: u8,    // Data type
-    extend: bool,       // Extended packet flag
+    extend: bool,       // Purpose unknown (previously thought to be an extended packet flag)
     id: u8,            // Transaction ID
     obj_count_words: u8, // Object count
 }
@@ -46,8 +46,9 @@ struct ExtendedHeader {
 }
 ```
 
-`ExtendedHeader` has only been observed on `PutData` responses. Forcing this layout on control packets yields size fields that do
-not match their payloads, indicating other packet types do not use this header.
+Empirical analysis of packet captures shows that the `ExtendedHeader` is only present in `PutData` (type `0x41`) and `0x44` type packets. Its presence is determined by checking if the first four bytes of the payload correctly decode to a header whose `size` field matches the remaining payload length.
+
+The `extend` flag in the main `CtrlHeader` and `DataHeader` does **not** indicate the presence of an `ExtendedHeader`, nor does it indicate that another packet will follow. Its true purpose is currently unknown.
 
 ## Packet Types
 
@@ -195,6 +196,18 @@ The device may return error responses or fail to respond within the timeout peri
 - Firmware update protocol not analyzed
 - Advanced measurement modes may isn't reversed yet
 - Some proprietary features may use undocumented packet types
+
+## Undocumented Observations (from pcap analysis)
+
+Analysis of multiple `.pcapng` capture files has revealed several commands and responses that are not yet fully understood.
+
+- **`GetData` with Attribute `0x0011`**: This command is observed in captures involving PD events. The device provides a response that does not conform to the standard `AdcDataRaw` structure, causing parsing to fail. The purpose of this command and the format of its response are unknown.
+- **`GetData` with Attribute `0x0003`**: This command is observed in captures involving high-speed ADC recording. Similar to attribute `0x0011`, the response does not match the standard ADC data format.
+- **`GetData` with Attribute `Settings`**: This command prompts a 180-byte data response from the device, presumed to be its internal configuration settings. The format of this 180-byte payload has not been reverse-engineered.
+- **`GetData` with Attribute `AdcQueue`**: This is used for high-frequency data logging (e.g., 50Hz, 1000Hz). The device responds with a stream of `PutData` packets with the `AdcQueue` attribute, containing chunks of ADC readings.
+- **Control Commands `0x10` and `0x11`**: These commands are sent from the host to the device and are acknowledged with a simple `Accept` packet. They have no payload. Their purpose is unknown.
+  - `0x10` is sent with an `Adc` attribute.
+  - `0x11` is sent with no attribute.
 
 ### Unknown Packet Types
 - Control packet type 0x10 with attribute 0x0001 (length 0) followed by Accept

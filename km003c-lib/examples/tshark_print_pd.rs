@@ -1,16 +1,29 @@
 use bytes::Bytes;
-use km003c_lib::pd::{EventPacket, parse_event_stream};
-use km003c_lib::{message::Packet, packet::RawPacket};
+use km003c_lib::{message::Packet, packet::RawPacket, pd::parse_event_stream};
 use rtshark::RTSharkBuilder;
 use std::fmt::Write;
-use usbpd::protocol_layer::message::{
-    Message,
-    pdo::{Augmented, PowerDataObject, SourceCapabilities},
-};
+use usbpd::protocol_layer::message::pdo::{Augmented, PowerDataObject, SourceCapabilities};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let filenames = vec![
+        "wireshark/rust_simple_logger.16.pcapng",
+        "wireshark/orig_with_pd.13.pcapng",
+        "wireshark/orig_open_close.16.pcapng",
+        "wireshark/orig_adc_record.6.pcapng",
+        "wireshark/orig_adc_50hz.6.pcapng",
+        "wireshark/orig_adc_1000hz.6.pcapng",
+    ];
+
+    for filename in filenames {
+        println!("\n--- Processing file: {} ---", filename);
+        process_file(filename)?;
+    }
+
+    Ok(())
+}
+
+fn process_file(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     let mut device_address: Option<u8> = None;
-    let filename = "wireshark/orig_with_pd.13.pcapng";
     if let Some(dot_pos) = filename.rfind('.') {
         let before_ext = &filename[..dot_pos];
         if let Some(second_dot_pos) = before_ext.rfind('.') {
@@ -43,10 +56,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let data = hex::decode(&clean_hex).map_err(|e| format!("Failed to decode hex payload: {}", e))?;
         let bytes = Bytes::from(data);
 
-        if let Ok(raw_packet) = RawPacket::try_from(bytes) {
-            if let Ok(packet) = Packet::try_from(raw_packet) {
-                match packet {
-                    Packet::PdRawData(data) => match parse_event_stream(&data) {
+        match RawPacket::try_from(bytes) {
+            Ok(raw_packet) => {
+                match Packet::try_from(raw_packet) {
+                    Ok(Packet::PdRawData(data)) => match parse_event_stream(&data) {
                         Ok(events) => {
                             for event in events {
                                 println!("[PD EVENT] {}", event);
@@ -56,21 +69,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             println!("[PD EVENT] Error parsing events: {:?}", e);
                         }
                     },
-                    _ => {}
+                    Ok(Packet::Generic(packet)) => {
+                        let ptype: u8 = packet.packet_type().into();
+                        println!(
+                            "[GENERIC PACKET] Type: 0x{:02x}, Attribute: {:?}, Payload len: {}",
+                            ptype,
+                            packet.get_attribute(),
+                            packet.get_payload_data().len()
+                        );
+                    }
+                    Ok(_) => {} // Removed the `Unknown` match arm as it was not present in the old_string
+                    Err(e) => {
+                        println!("[ERROR] Failed to parse packet: {}", e);
+                    }
                 }
+            }
+            Err(e) => {
+                println!("[ERROR] Failed to parse raw packet: {}", e);
             }
         }
     }
     Ok(())
 }
-
-/// Formats the SourceCapabilities into a human-readable string.
-///
-/// # Arguments
-/// * `caps` - A reference to the `SourceCapabilities` struct to format.
-///
-/// # Returns
-/// A `String` containing the formatted capabilities list.
 
 pub fn format_source_capabilities(caps: &SourceCapabilities) -> String {
     let mut output = String::new();
