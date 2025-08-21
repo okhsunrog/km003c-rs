@@ -1,6 +1,6 @@
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
-use km003c_lib::{adc::AdcDataSimple, KM003C};
+use km003c_lib::{KM003C, adc::AdcDataSimple};
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -170,7 +170,7 @@ async fn usb_polling_task(tx: mpsc::UnboundedSender<AdcDataSimple>) {
 
         match device.request_adc_data().await {
             Ok(adc_data) => {
-                if let Err(_) = tx.send(adc_data) {
+                if tx.send(adc_data).is_err() {
                     warn!("UI receiver dropped, stopping USB polling");
                     break;
                 }

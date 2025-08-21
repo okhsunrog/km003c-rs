@@ -122,7 +122,7 @@ impl From<AdcDataRaw> for AdcDataSimple {
         let internal_vdd_v = raw.internal_vdd_raw.get() as f64 / 10_000.0;
 
         // Convert raw sample rate to enum
-        let sample_rate = unsafe { std::mem::transmute(raw.rate_raw) };
+        let sample_rate = unsafe { std::mem::transmute::<u8, SampleRate>(raw.rate_raw) };
 
         AdcDataSimple {
             vbus_v,

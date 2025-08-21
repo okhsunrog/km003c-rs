@@ -1,7 +1,7 @@
-use km003c_lib::capture::CaptureCollection;
-use km003c_lib::packet::{RawPacket, ExtendedHeader};
-use std::path::PathBuf;
 use clap::Parser;
+use km003c_lib::capture::CaptureCollection;
+use km003c_lib::packet::{ExtendedHeader, RawPacket};
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 struct Args {

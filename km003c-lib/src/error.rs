@@ -1,5 +1,5 @@
-use nusb::transfer::TransferError;
 use std::array::TryFromSliceError;
+use std::io;
 use thiserror::Error;
 
 /// The primary error type for the `km003c-rs` library.
@@ -11,8 +11,8 @@ pub enum KMError {
     #[error("USB error: {0}")]
     Usb(#[from] nusb::Error),
 
-    #[error("USB transfer error: {0}")]
-    Transfer(#[from] TransferError),
+    #[error("I/O error: {0}")]
+    Io(#[from] io::Error),
 
     #[error("Timeout during USB operation: {0}")]
     Timeout(#[from] tokio::time::error::Elapsed),

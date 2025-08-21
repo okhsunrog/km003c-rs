@@ -9,7 +9,7 @@ repository = "https://github.com/okhsunrog/km003c-rs"
 
 [dependencies]
 modular-bitfield = "0.12"
-nusb = "0.1"
+nusb = { version = "0.2.0", features = ["tokio"] }
 thiserror = "2.0"
 tracing = "0.1"
 tokio = { version = "1", features = ["full"] }

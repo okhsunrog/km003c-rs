@@ -77,10 +77,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let start_time = SystemTime::now();
 
     loop {
-        if let Some(max_count) = args.count {
-            if pd_message_count >= max_count {
-                break;
-            }
+        if let Some(max_count) = args.count
+            && pd_message_count >= max_count
+        {
+            break;
         }
 
         timer.tick().await;

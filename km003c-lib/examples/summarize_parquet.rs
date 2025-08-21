@@ -1,8 +1,8 @@
+use clap::Parser;
 use km003c_lib::capture::CaptureCollection;
 use km003c_lib::packet::RawPacket;
-use std::path::PathBuf;
-use clap::Parser;
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 struct Args {
