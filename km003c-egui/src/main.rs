@@ -96,9 +96,8 @@ impl eframe::App for PowerMonitorApp {
                     let voltage_points: PlotPoints =
                         self.data_points.iter().map(|p| [p.timestamp, p.voltage]).collect();
 
-                    let voltage_line = Line::new(voltage_points)
+                    let voltage_line = Line::new("Voltage (V)", voltage_points)
                         .color(egui::Color32::GREEN)
-                        .name("Voltage (V)")
                         .width(2.0);
                     plot_ui.line(voltage_line);
                 }
@@ -127,9 +126,8 @@ impl eframe::App for PowerMonitorApp {
                         .map(|p| [p.timestamp, p.current.abs()])
                         .collect();
 
-                    let current_line = Line::new(current_points)
+                    let current_line = Line::new("Current (A)", current_points)
                         .color(egui::Color32::BLUE)
-                        .name("Current (A)")
                         .width(2.0);
                     plot_ui.line(current_line);
                 }
