@@ -59,7 +59,7 @@ The POWER-Z KM003C is a USB-C power analyzer that can measure voltage, current, 
 
 ### Prerequisites
 
-- Rust 1.85 or newer with Cargo
+- Rust 1.89 or newer with Cargo
 - USB access permissions (may require udev rules on Linux)
 - POWER-Z KM003C device
 

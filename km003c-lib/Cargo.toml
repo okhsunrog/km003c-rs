@@ -2,23 +2,24 @@
 name = "km003c-lib"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.89"
 authors = ["Danila Gornushko <me@okhsunrog.dev>"]
 license = "MIT"
 repository = "https://github.com/okhsunrog/km003c-rs"
 
 [dependencies]
 modular-bitfield = "0.12"
-nusb = "0.1.14"
-thiserror = "2.0.12"
-tracing = "0.1.41"
-tokio = { version = "1.45", features = ["full"] }
-bytes = "1.10.1"
-num_enum = "0.7.3"
+nusb = "0.1"
+thiserror = "2.0"
+tracing = "0.1"
+tokio = { version = "1", features = ["full"] }
+bytes = "1.10"
+num_enum = "0.7"
 zerocopy = { version = "0.8", features = ["derive"] }
-strum_macros = "0.27.1"
+strum_macros = "0.27"
 usbpd = { git = "https://github.com/okhsunrog/usbpd", rev = "9a2de40cb853c21bae4bf45d34127e96f3ea7d90", features = ["log"] }
-uom = { version = "0.36.0", default-features = false, features = ["std", "si"] }
-polars = { version = "0.49.1", features = ["lazy", "parquet", "csv", "json", "serde"] }
+uom = { version = "0.36", default-features = false, features = ["std", "si"] }
+polars = { version = "0.49", features = ["lazy", "parquet", "csv", "json", "serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 hex = "0.4"
@@ -26,9 +27,9 @@ chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]
 hex = "0.4"
-rtshark = "3.2.0"
-tracing-subscriber = { version = "0.3.19", features = ["registry", "env-filter"] }
+rtshark = "3.2"
+tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
 clap = { version = "4.5", features = ["derive"] }
-clap-verbosity-flag = { version = "3.0.3", default-features = false, features = ["tracing"] }
-tracing-appender = "0.2.3"
-rusqlite = { version = "0.36.0", features = [] }
+clap-verbosity-flag = { version = "3.0", default-features = false, features = ["tracing"] }
+tracing-appender = "0.2"
+rusqlite = { version = "0.36", features = [] }
