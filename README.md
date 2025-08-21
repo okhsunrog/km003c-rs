@@ -151,6 +151,10 @@ This is an **initial attempt** at reverse-engineering the KM003C protocol. The i
 - Advanced measurement modes
 - Firmware update protocol
 - Some proprietary features
+## TODO
+- Handle tshark root warning in examples
+- Investigate packet types 0x10 and 0x11
+
 
 ## Contributing
 

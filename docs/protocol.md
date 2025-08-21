@@ -46,6 +46,9 @@ struct ExtendedHeader {
 }
 ```
 
+`ExtendedHeader` has only been observed on `PutData` responses. Forcing this layout on control packets yields size fields that do
+not match their payloads, indicating other packet types do not use this header.
+
 ## Packet Types
 
 ### Control Commands
@@ -192,6 +195,11 @@ The device may return error responses or fail to respond within the timeout peri
 - Firmware update protocol not analyzed
 - Advanced measurement modes may isn't reversed yet
 - Some proprietary features may use undocumented packet types
+
+### Unknown Packet Types
+- Control packet type 0x10 with attribute 0x0001 (length 0) followed by Accept
+- Control packet type 0x11 with attribute 0x0000 (length 0) followed by Accept
+- GetData with attribute 0x0011 observed
 
 ## References
 
