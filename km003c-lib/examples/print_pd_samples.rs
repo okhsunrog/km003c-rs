@@ -4,8 +4,7 @@ use rtshark::{Packet as RtSharkPacket, RTSharkBuilder};
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use km003c_lib::packet::{Attribute, RawPacket};
-use usbpd::protocol_layer::message::Message;
+use km003c_lib::packet::RawPacket;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -113,10 +112,7 @@ fn process_and_collect(
             // We loop through it and parse each one.
             while !inner_stream.is_empty() {
                 let first_byte = inner_stream[0];
-                let mut consumed_len = 0;
-
-                match first_byte {
-                    // --- Type A: Connection Event ---
+                let consumed_len = match first_byte {
                     0x45 => {
                         let len = 6;
                         if inner_stream.len() < len {
@@ -125,10 +121,8 @@ fn process_and_collect(
                         if samples_a.len() < max_samples {
                             samples_a.insert(inner_stream[..len].to_vec());
                         }
-                        consumed_len = len;
+                        len
                     }
-
-                    // --- Type C: Wrapped PD Message ---
                     0x80..=0x9F => {
                         let wrapper_len = 6;
                         if inner_stream.len() < wrapper_len + 2 {
@@ -147,10 +141,8 @@ fn process_and_collect(
                         if samples_c.len() < max_samples {
                             samples_c.insert(inner_stream[..total_chunk_len].to_vec());
                         }
-                        consumed_len = total_chunk_len;
+                        total_chunk_len
                     }
-
-                    // --- Type B: Periodic Status Packet (Default Case) ---
                     _ => {
                         let len = 12;
                         if inner_stream.len() < len {
@@ -159,14 +151,13 @@ fn process_and_collect(
                         if samples_b.len() < max_samples {
                             samples_b.insert(inner_stream[..len].to_vec());
                         }
-                        consumed_len = len;
+                        len
                     }
-                }
+                };
 
                 if consumed_len > 0 {
                     inner_stream = inner_stream.slice(consumed_len..);
                 } else {
-                    // Safety break to prevent infinite loops on malformed data
                     break;
                 }
             }

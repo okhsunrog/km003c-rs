@@ -44,7 +44,7 @@ impl KM003C {
         device.reset().await?;
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        let interface = device.claim_interface(0).await?;
+        let interface = device.detach_and_claim_interface(0).await?;
         info!("Interface claimed successfully.");
 
         let km003c = Self {

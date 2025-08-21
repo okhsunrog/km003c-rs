@@ -1,27 +1,17 @@
-use bytes::Bytes;
-use km003c_lib::packet::{ExtendedHeader, RawPacket};
-use rtshark::RTSharkBuilder;
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[test]
+fn verify_extended_header_in_captures() {
     let filenames = vec![
-        "wireshark/rust_simple_logger.16.pcapng",
-        "wireshark/orig_with_pd.13.pcapng",
-        "wireshark/orig_open_close.16.pcapng",
-        "wireshark/orig_adc_record.6.pcapng",
-        "wireshark/orig_adc_50hz.6.pcapng",
-        "wireshark/orig_adc_1000hz.6.pcapng",
+        "../wireshark/rust_simple_logger.16.pcapng",
+        "../wireshark/orig_with_pd.13.pcapng",
+        "../wireshark/orig_open_close.16.pcapng",
+        "../wireshark/orig_adc_record.6.pcapng",
+        "../wireshark/orig_adc_50hz.6.pcapng",
+        "../wireshark/orig_adc_1000hz.6.pcapng",
     ];
 
-    println!("Starting ExtendedHeader verification across all captures...");
-    println!("The theory is that only PutData (0x41) packets should have a valid header.");
-    println!("---------------------------------------------------------------------------");
-
     for filename in filenames {
-        println!("\n--- Processing file: {} ---", filename);
-        process_file(filename)?;
+        process_file(filename).unwrap();
     }
-
-    Ok(())
 }
 
 fn process_file(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -43,7 +33,7 @@ fn process_file(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
         device_address
     );
 
-    let mut rtshark = RTSharkBuilder::builder()
+    let mut rtshark = rtshark::RTSharkBuilder::builder()
         .input_path(filename)
         .display_filter(&display_filter)
         .spawn()?;
@@ -53,22 +43,20 @@ fn process_file(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
         let payload_hex = usb_layer.metadata("usb.capdata").ok_or("Missing usb.capdata")?.value();
         let clean_hex = payload_hex.replace(':', "");
         let data = hex::decode(&clean_hex)?;
-        let bytes = Bytes::from(data);
+        let bytes = bytes::Bytes::from(data);
 
-        if let Ok(raw_packet) = RawPacket::try_from(bytes) {
+        if let Ok(raw_packet) = km003c_lib::packet::RawPacket::try_from(bytes) {
             let payload = raw_packet.payload();
             if payload.len() >= 4 {
                 if let Ok(header_bytes) = payload[..4].try_into() {
-                    let potential_header = ExtendedHeader::from_bytes(header_bytes);
+                    let potential_header = km003c_lib::packet::ExtendedHeader::from_bytes(header_bytes);
                     let expected_size = payload.len() - 4;
 
                     if potential_header.size() as usize == expected_size {
                         let ptype: u8 = raw_packet.packet_type().into();
-                        println!(
-                            "[MATCH FOUND] Packet Type: 0x{:02x}, Attribute: {:?}, Header: {:?}",
-                            ptype,
-                            potential_header.attribute(),
-                            potential_header
+                        assert!(
+                            ptype == 0x41 || ptype == 0x44,
+                            "Found a valid extended header in a packet that is not PutData or 0x44"
                         );
                     }
                 }

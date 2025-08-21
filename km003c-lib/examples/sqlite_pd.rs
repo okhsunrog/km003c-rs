@@ -1,4 +1,4 @@
-use km003c_lib::pd::{EventPacket, parse_event_stream};
+use km003c_lib::pd::parse_event_stream;
 use rusqlite::{Connection, Result};
 
 fn main() -> Result<()> {
