@@ -157,7 +157,12 @@ impl CaptureCollection {
                 }
                 _ => vec![],
             };
-            let frame_number = df.column("frame_number")?.u32()?.get(row_idx).unwrap_or(0);
+            let frame_col = df.column("frame_number")?;
+            let frame_number = match frame_col.dtype() {
+                DataType::UInt32 => frame_col.u32()?.get(row_idx).unwrap_or(0),
+                DataType::Int64 => frame_col.i64()?.get(row_idx).unwrap_or(0) as u32,
+                _ => 0,
+            };
             let added_datetime = df
                 .column("added_datetime")?
                 .str()?
@@ -165,8 +170,8 @@ impl CaptureCollection {
                 .unwrap_or("")
                 .to_string();
             let direction = match direction_str.as_str() {
-                "H->D" => UsbDirection::HostToDevice,
-                "D->H" => UsbDirection::DeviceToHost,
+                "H->D" | "HostToDevice" => UsbDirection::HostToDevice,
+                "D->H" | "DeviceToHost" => UsbDirection::DeviceToHost,
                 _ => continue,
             };
             let capture = RawCapture::new(
