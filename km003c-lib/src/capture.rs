@@ -1,4 +1,6 @@
+#[cfg(feature = "polars")]
 use polars::prelude::*;
+
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -93,6 +95,7 @@ impl CaptureCollection {
     }
 
     /// Save all captures to a parquet file
+    #[cfg(feature = "polars")]
     pub fn save_to_parquet<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
         if self.captures.is_empty() {
             return Err("No captures to save".into());
@@ -136,6 +139,7 @@ impl CaptureCollection {
     }
 
     /// Load captures from a parquet file
+    #[cfg(feature = "polars")]
     pub fn load_from_parquet<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
         let file = std::fs::File::open(path.as_ref())?;
         let df = ParquetReader::new(file)
@@ -189,6 +193,7 @@ impl CaptureCollection {
     }
 
     /// Append captures to an existing parquet file (or create new if doesn't exist)
+    #[cfg(feature = "polars")]
     pub fn append_to_parquet<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
         if self.captures.is_empty() {
             return Err("No captures to save".into());

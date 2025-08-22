@@ -32,7 +32,7 @@ pub enum EventPacket {
 pub struct ConnectionEvent {
     pub type_id: u8,              // Always 0x45
     pub timestamp_bytes: [u8; 3], // 24-bit little-endian timestamp
-    _reserved: u8,
+    pub _reserved: u8,
     pub event_data: u8,
 }
 

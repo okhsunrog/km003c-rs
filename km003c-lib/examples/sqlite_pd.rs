@@ -23,8 +23,19 @@ fn main() -> Result<()> {
         );
         match parse_event_stream(&raw) {
             Ok(events) => {
-                for event in events {
+                for (i, event) in events.iter().enumerate() {
                     println!("  -> {}", event);
+                    match event {
+                        km003c_lib::pd::EventPacket::Connection(ev) => {
+                            println!("     [parsed ConnectionEvent] type_id {:02x} ts_bytes {:?} reserved {:02x} event_data {:02x}", ev.type_id, ev.timestamp_bytes, ev._reserved, ev.event_data);
+                        }
+                        km003c_lib::pd::EventPacket::Status(stat) => {
+                            println!("     [parsed StatusPacket] type_id {:02x} ts_bytes {:?} vbus_raw {:04x} ibus_raw {:04x} cc1_raw {:04x} cc2_raw {:04x}", stat.type_id, stat.timestamp_bytes, stat.vbus_raw.get(), stat.ibus_raw.get(), stat.cc1_raw.get(), stat.cc2_raw.get());
+                        }
+                        km003c_lib::pd::EventPacket::PdMessage(pd) => {
+                            println!("     [parsed PdMessage] is_src_to_snk {} timestamp {} pd_bytes {:02x?}", pd.is_src_to_snk, pd.timestamp, pd.pd_bytes);
+                        }
+                    }
                 }
             }
             Err(e) => {

@@ -19,11 +19,18 @@ zerocopy = { version = "0.8", features = ["derive"] }
 strum_macros = "0.27"
 usbpd = { version = "1.1.3", features = ["log"] }
 uom = { version = "0.36", default-features = false, features = ["std", "si"] }
-polars = { version = "0.50", features = ["lazy", "parquet", "csv", "json", "serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 hex = "0.4"
 chrono = { version = "0.4", features = ["serde"] }
+
+[features]
+polars = ["dep:polars"]
+
+[dependencies.polars]
+version = "0.50"
+optional = true
+features = ["lazy", "parquet", "csv", "json", "serde"]
 
 [dev-dependencies]
 hex = "0.4"

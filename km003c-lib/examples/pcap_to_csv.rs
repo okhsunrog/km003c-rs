@@ -17,9 +17,9 @@ struct Cli {
     /// Optional USB transfer type filter
     #[arg(short = 't', long)]
     transfer_type: Option<u8>,
-    /// Only include packets that contain usb.capdata
+    /// Disable filtering by device address and transfer type (raw export)
     #[arg(long)]
-    capdata_only: bool,
+    disable_km003c_filter: bool,
     /// Input pcapng file
     #[arg(short, long)]
     file: PathBuf,
@@ -49,13 +49,19 @@ fn main() -> Result<()> {
     }
 
     let mut filter_parts = Vec::new();
-    if let Some(addr) = cli.device_address {
+    if !cli.disable_km003c_filter {
+        // Default: filter for device, endpoint, and payload
+        let addr = cli.device_address.unwrap_or(1); // guess or make fallback
         filter_parts.push(format!("usb.device_address == {}", addr));
-    }
-    if let Some(tt) = cli.transfer_type {
-        filter_parts.push(format!("usb.transfer_type == 0x{:02x}", tt));
-    }
-    if cli.capdata_only {
+        filter_parts.push("usb.transfer_type == 0x03".to_string());
+        filter_parts.push("usb.capdata".to_string());
+    } else {
+        if let Some(addr) = cli.device_address {
+            filter_parts.push(format!("usb.device_address == {}", addr));
+        }
+        if let Some(tt) = cli.transfer_type {
+            filter_parts.push(format!("usb.transfer_type == 0x{:02x}", tt));
+        }
         filter_parts.push("usb.capdata".to_string());
     }
     let display_filter = filter_parts.join(" && ");
@@ -77,12 +83,12 @@ fn main() -> Result<()> {
     let array = packets.as_array().ok_or("Unexpected JSON output from tshark")?;
 
     let mut wtr = Writer::from_path(&cli.csv)?;
-    wtr.write_record(["frame", "time", "direction", "hex", "raw_packet", "packet"])?;
+    wtr.write_record(["frame", "time", "direction", "hex", "raw_packet", "packet", "event_detail"])?;
 
     let mut md = File::create(&cli.md)?;
     writeln!(
         md,
-        "# Protocol Flow\n\nSource: `{}`\n\n| Frame | Time (s) | Dir | Hex | RawPacket | Packet |\n|---|---|---|---|---|---|",
+        "# Protocol Flow\n\nSource: `{}`\n\n| Frame | Time (s) | Dir | Hex | RawPacket | Packet | EventDetail |\n|---|---|---|---|---|---|---|",
         cli.file.display()
     )?;
 
@@ -90,18 +96,44 @@ fn main() -> Result<()> {
     for (idx, packet) in array.iter().enumerate() {
         count += 1;
         let info = process_packet(packet, idx + 1)?;
+        let mut event_detail = String::new();
+        if let Ok(bytes) = hex::decode(&info.hex) {
+            match km003c_lib::packet::RawPacket::try_from(bytes::Bytes::from(bytes)) {
+                Ok(pkt) => {
+                    let pl = pkt.payload();
+                    match km003c_lib::pd::parse_event_stream(&pl) {
+                        Ok(events) => {
+                            for e in events {
+                                use std::fmt::Write as _;
+                                writeln!(&mut event_detail, "{e:#?}").ok();
+                            }
+                        }
+                        Err(e) => {
+                            event_detail = format!("event parse error: {e:?}");
+                        }
+                    }
+                }
+                Err(e) => {
+                    event_detail = format!("RawPacket parse error: {e:?}");
+                }
+            }
+        } else {
+            event_detail = "invalid hex".to_string();
+        }
+        let hex_print = info.hex.to_lowercase();
         wtr.write_record([
             info.frame_num.to_string(),
             format!("{:.6}", info.timestamp),
             info.direction.to_string(),
-            info.hex.clone(),
+            hex_print.clone(),
             info.raw_packet.clone(),
             info.packet.clone(),
+            event_detail.clone(),
         ])?;
         writeln!(
             md,
-            "| {} | {:.6} | {} | `{}` | `{}` | `{}` |",
-            info.frame_num, info.timestamp, info.direction, info.hex, info.raw_packet, info.packet
+            "| {} | {:.6} | {} | `{}` | `{}` | `{}` | `{}` |",
+            info.frame_num, info.timestamp, info.direction, hex_print, info.raw_packet, info.packet, event_detail.replace('|', "\\|").replace('`', "'"),
         )?;
     }
 

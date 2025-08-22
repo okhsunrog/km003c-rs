@@ -1,0 +1,9262 @@
+# Protocol Flow
+
+Source: `matching_record/wireshark_0.7.pcapng`
+
+| Frame | Time (s) | Dir | Hex | RawPacket | Packet | EventDetail |
+|---|---|---|---|---|---|---|
+| 14 | 2.882987 | D->H | `03020000` | `Ctrl { header: CtrlHeader { packet_type: 3, flag: false, id: 2, attribute: 0 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 3, flag: false, id: 2, attribute: 0 }, payload: b"" })` | `` |
+| 32 | 3.004819 | H->D | `02010000` | `Ctrl { header: CtrlHeader { packet_type: 2, flag: false, id: 1, attribute: 0 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 2, flag: false, id: 1, attribute: 0 }, payload: b"" })` | `` |
+| 34 | 3.004894 | D->H | `05010000` | `Ctrl { header: CtrlHeader { packet_type: 5, flag: false, id: 1, attribute: 0 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 5, flag: false, id: 1, attribute: 0 }, payload: b"" })` | `` |
+| 36 | 3.006470 | H->D | `4402010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e` | `Data { header: DataHeader { packet_type: 68, flag: false, id: 2, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 30771, next: true, chunk: 6, size: 50 }, payload: b"\0T(\x8c\xdc~Rr\x98&\x87-\xd1\x8bS\x9a9\xc4\x07\xd5\xc0c\xd9\x11\x02\xe3j\x9e" }` | `Generic(Data { header: DataHeader { packet_type: 68, flag: false, id: 2, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 30771, next: true, chunk: 6, size: 50 }, payload: b"\0T(\x8c\xdc~Rr\x98&\x87-\xd1\x8bS\x9a9\xc4\x07\xd5\xc0c\xd9\x11\x02\xe3j\x9e" })` | `` |
+| 38 | 3.006650 | D->H | `c40201012004000040000000ffffffff1b8c1b24` | `Data { header: DataHeader { packet_type: 68, flag: true, id: 2, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 1056, next: false, chunk: 0, size: 0 }, payload: b"@\0\0\0\xff\xff\xff\xff\x1b\x8c\x1b$" }` | `Generic(Data { header: DataHeader { packet_type: 68, flag: true, id: 2, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 1056, next: false, chunk: 0, size: 0 }, payload: b"@\0\0\0\xff\xff\xff\xff\x1b\x8c\x1b$" })` | `Status(
+    StatusPacket {
+        type_id: 64,
+        timestamp_bytes: [
+            0,
+            0,
+            0,
+        ],
+        vbus_raw: U16(
+            65535,
+        ),
+        ibus_raw: U16(
+            65535,
+        ),
+        cc1_raw: U16(
+            35867,
+        ),
+        cc2_raw: U16(
+            9243,
+        ),
+    },
+)
+` |
+| 40 | 3.020515 | D->H | `1a2b930cb87dec505e19aaf8e2bc7d8db71d119d2115b1c6124a3d31f8b849cd0e08467cb8716771ecc3fc3b4eda4ef79a5494e840135207f6c4859272ed9622` | `Ctrl { header: CtrlHeader { packet_type: 26, flag: false, id: 43, attribute: 1609 }, payload: b"\xb8}\xecP^\x19\xaa\xf8\xe2\xbc}\x8d\xb7\x1d\x11\x9d!\x15\xb1\xc6\x12J=1\xf8\xb8I\xcd\x0e\x08F|\xb8qgq\xec\xc3\xfc;N\xdaN\xf7\x9aT\x94\xe8@\x13R\x07\xf6\xc4\x85\x92r\xed\x96\"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 26, flag: false, id: 43, attribute: 1609 }, payload: b"\xb8}\xecP^\x19\xaa\xf8\xe2\xbc}\x8d\xb7\x1d\x11\x9d!\x15\xb1\xc6\x12J=1\xf8\xb8I\xcd\x0e\x08F|\xb8qgq\xec\xc3\xfc;N\xdaN\xf7\x9aT\x94\xe8@\x13R\x07\xf6\xc4\x85\x92r\xed\x96\"" })` | `` |
+| 42 | 3.024011 | H->D | `44030101636beaf3f0856506eee9a27e89722dcfd18b539a39c407d5c063d91102e36a9e` | `Data { header: DataHeader { packet_type: 68, flag: false, id: 3, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 27491, next: false, chunk: 42, size: 975 }, payload: b"\xf0\x85e\x06\xee\xe9\xa2~\x89r-\xcf\xd1\x8bS\x9a9\xc4\x07\xd5\xc0c\xd9\x11\x02\xe3j\x9e" }` | `Generic(Data { header: DataHeader { packet_type: 68, flag: false, id: 3, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 27491, next: false, chunk: 42, size: 975 }, payload: b"\xf0\x85e\x06\xee\xe9\xa2~\x89r-\xcf\xd1\x8bS\x9a9\xc4\x07\xd5\xc0c\xd9\x11\x02\xe3j\x9e" })` | `` |
+| 44 | 3.024105 | D->H | `c40301012044000040000000fffffffff49553f2` | `Data { header: DataHeader { packet_type: 68, flag: true, id: 3, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 17440, next: false, chunk: 0, size: 0 }, payload: b"@\0\0\0\xff\xff\xff\xff\xf4\x95S\xf2" }` | `Generic(Data { header: DataHeader { packet_type: 68, flag: true, id: 3, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 17440, next: false, chunk: 0, size: 0 }, payload: b"@\0\0\0\xff\xff\xff\xff\xf4\x95S\xf2" })` | `Status(
+    StatusPacket {
+        type_id: 64,
+        timestamp_bytes: [
+            0,
+            0,
+            0,
+        ],
+        vbus_raw: U16(
+            65535,
+        ),
+        ibus_raw: U16(
+            65535,
+        ),
+        cc1_raw: U16(
+            38388,
+        ),
+        cc2_raw: U16(
+            62035,
+        ),
+    },
+)
+` |
+| 46 | 3.052046 | D->H | `ba1d82d1e9945530d0ed71413266cd2edf339397b33ee7b2c9073fb21e92dcfa91f5f8b92a08f2b1d28f4de6ed7ef04bfe513f87cc11214c902e3fa51ffd338c` | `Ctrl { header: CtrlHeader { packet_type: 58, flag: true, id: 29, attribute: 26817 }, payload: b"\xe9\x94U0\xd0\xedqA2f\xcd.\xdf3\x93\x97\xb3>\xe7\xb2\xc9\x07?\xb2\x1e\x92\xdc\xfa\x91\xf5\xf8\xb9*\x08\xf2\xb1\xd2\x8fM\xe6\xed~\xf0K\xfeQ?\x87\xcc\x11!L\x90.?\xa5\x1f\xfd3\x8c" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 58, flag: true, id: 29, attribute: 26817 }, payload: b"\xe9\x94U0\xd0\xedqA2f\xcd.\xdf3\x93\x97\xb3>\xe7\xb2\xc9\x07?\xb2\x1e\x92\xdc\xfa\x91\xf5\xf8\xb9*\x08\xf2\xb1\xd2\x8fM\xe6\xed~\xf0K\xfeQ?\x87\xcc\x11!L\x90.?\xa5\x1f\xfd3\x8c" })` | `` |
+| 48 | 3.421577 | H->D | `44040101c51167ae613a6d46ec84a6bde8bd462ad18b539a39c407d5c063d91102e36a9e` | `Data { header: DataHeader { packet_type: 68, flag: false, id: 4, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 4549, next: false, chunk: 39, size: 697 }, payload: b"a:mF\xec\x84\xa6\xbd\xe8\xbdF*\xd1\x8bS\x9a9\xc4\x07\xd5\xc0c\xd9\x11\x02\xe3j\x9e" }` | `Generic(Data { header: DataHeader { packet_type: 68, flag: false, id: 4, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 4549, next: false, chunk: 39, size: 697 }, payload: b"a:mF\xec\x84\xa6\xbd\xe8\xbdF*\xd1\x8bS\x9a9\xc4\x07\xd5\xc0c\xd9\x11\x02\xe3j\x9e" })` | `` |
+| 50 | 3.421707 | D->H | `c4040101000c000340000000ffffffff638a64bf` | `Data { header: DataHeader { packet_type: 68, flag: true, id: 4, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 3072, next: false, chunk: 0, size: 12 }, payload: b"@\0\0\0\xff\xff\xff\xffc\x8ad\xbf" }` | `Generic(Data { header: DataHeader { packet_type: 68, flag: true, id: 4, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 3072, next: false, chunk: 0, size: 12 }, payload: b"@\0\0\0\xff\xff\xff\xffc\x8ad\xbf" })` | `Status(
+    StatusPacket {
+        type_id: 64,
+        timestamp_bytes: [
+            0,
+            0,
+            0,
+        ],
+        vbus_raw: U16(
+            65535,
+        ),
+        ibus_raw: U16(
+            65535,
+        ),
+        cc1_raw: U16(
+            35427,
+        ),
+        cc2_raw: U16(
+            48996,
+        ),
+    },
+)
+` |
+| 52 | 3.435482 | D->H | `c0721034dcf1ce849033b64ae152b7f6b05eaa8f6c8206b3f26cd613f5151035ca703077a0b69a513bea302f352a4b60cdaa1643f4b79afdae476e9c588e8637` | `Data { header: DataHeader { packet_type: 64, flag: true, id: 114, obj_count_words: 208 }, extended: ExtendedHeader { attribute: 29148, next: true, chunk: 14, size: 531 }, payload: b"\x903\xb6J\xe1R\xb7\xf6\xb0^\xaa\x8fl\x82\x06\xb3\xf2l\xd6\x13\xf5\x15\x105\xcap0w\xa0\xb6\x9aQ;\xea0/5*K`\xcd\xaa\x16C\xf4\xb7\x9a\xfd\xaeGn\x9cX\x8e\x867" }` | `Generic(Data { header: DataHeader { packet_type: 64, flag: true, id: 114, obj_count_words: 208 }, extended: ExtendedHeader { attribute: 29148, next: true, chunk: 14, size: 531 }, payload: b"\x903\xb6J\xe1R\xb7\xf6\xb0^\xaa\x8fl\x82\x06\xb3\xf2l\xd6\x13\xf5\x15\x105\xcap0w\xa0\xb6\x9aQ;\xea0/5*K`\xcd\xaa\x16C\xf4\xb7\x9a\xfd\xaeGn\x9cX\x8e\x867" })` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 4896307,
+        pd_bytes: b"\xb7\xf6\xb0^\xaa\x8fl\x82\x06\xb3\xf2l\xd6\x13\xf5\x15\x105\xcap0w\xa0\xb6\x9aQ;\xea0/",
+    },
+)
+` |
+| 54 | 3.436047 | H->D | `440501019c409debc8df53b83b066c315250d05cd18b539a39c407d5c063d91102e36a9e` | `Data { header: DataHeader { packet_type: 68, flag: false, id: 5, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 16540, next: false, chunk: 29, size: 942 }, payload: b"\xc8\xdfS\xb8;\x06l1RP\xd0\\\xd1\x8bS\x9a9\xc4\x07\xd5\xc0c\xd9\x11\x02\xe3j\x9e" }` | `Generic(Data { header: DataHeader { packet_type: 68, flag: false, id: 5, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 16540, next: false, chunk: 29, size: 942 }, payload: b"\xc8\xdfS\xb8;\x06l1RP\xd0\\\xd1\x8bS\x9a9\xc4\x07\xd5\xc0c\xd9\x11\x02\xe3j\x9e" })` | `` |
+| 56 | 3.436149 | D->H | `c4050101500401400c000000ffffffff74b2334f` | `Data { header: DataHeader { packet_type: 68, flag: true, id: 5, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 1104, next: false, chunk: 1, size: 256 }, payload: b"\x0c\0\0\0\xff\xff\xff\xfft\xb23O" }` | `Generic(Data { header: DataHeader { packet_type: 68, flag: true, id: 5, obj_count_words: 4 }, extended: ExtendedHeader { attribute: 1104, next: false, chunk: 1, size: 256 }, payload: b"\x0c\0\0\0\xff\xff\xff\xfft\xb23O" })` | `Status(
+    StatusPacket {
+        type_id: 12,
+        timestamp_bytes: [
+            0,
+            0,
+            0,
+        ],
+        vbus_raw: U16(
+            65535,
+        ),
+        ibus_raw: U16(
+            65535,
+        ),
+        cc1_raw: U16(
+            45684,
+        ),
+        cc2_raw: U16(
+            20275,
+        ),
+    },
+)
+` |
+| 58 | 3.449434 | D->H | `75ebec2faf0469d71a17914910f8c607` | `Data { header: DataHeader { packet_type: 117, flag: false, id: 235, obj_count_words: 191 }, extended: ExtendedHeader { attribute: 1199, next: false, chunk: 41, size: 861 }, payload: b"\x1a\x17\x91I\x10\xf8\xc6\x07" }` | `Generic(Data { header: DataHeader { packet_type: 117, flag: false, id: 235, obj_count_words: 191 }, extended: ExtendedHeader { attribute: 1199, next: false, chunk: 41, size: 861 }, payload: b"\x1a\x17\x91I\x10\xf8\xc6\x07" })` | `` |
+| 60 | 3.450256 | H->D | `4c060002ec9f554426412d14e957b3d73763bae2692045bc7737d7deaed87b0287549dc9` | `Data { header: DataHeader { packet_type: 76, flag: false, id: 6, obj_count_words: 8 }, extended: ExtendedHeader { attribute: 8172, next: true, chunk: 21, size: 273 }, payload: b"&A-\x14\xe9W\xb3\xd77c\xba\xe2i E\xbcw7\xd7\xde\xae\xd8{\x02\x87T\x9d\xc9" }` | `Generic(Data { header: DataHeader { packet_type: 76, flag: false, id: 6, obj_count_words: 8 }, extended: ExtendedHeader { attribute: 8172, next: true, chunk: 21, size: 273 }, payload: b"&A-\x14\xe9W\xb3\xd77c\xba\xe2i E\xbcw7\xd7\xde\xae\xd8{\x02\x87T\x9d\xc9" })` | `` |
+| 62 | 3.450375 | D->H | `4c000302df5fea9fecfa1c3c2d06d248509471cbbe6e58f00e7a59611c35052f1c70b674` | `Data { header: DataHeader { packet_type: 76, flag: false, id: 0, obj_count_words: 8 }, extended: ExtendedHeader { attribute: 24543, next: false, chunk: 42, size: 639 }, payload: b"\xec\xfa\x1c<-\x06\xd2HP\x94q\xcb\xbenX\xf0\x0ezYa\x1c5\x05/\x1cp\xb6t" }` | `Generic(Data { header: DataHeader { packet_type: 76, flag: false, id: 0, obj_count_words: 8 }, extended: ExtendedHeader { attribute: 24543, next: false, chunk: 42, size: 639 }, payload: b"\xec\xfa\x1c<-\x06\xd2HP\x94q\xcb\xbenX\xf0\x0ezYa\x1c5\x05/\x1cp\xb6t" })` | `` |
+| 64 | 3.452142 | H->D | `0c071000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 7, attribute: 8 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 7, attribute: 8 }, payload: b"" })` | `` |
+| 66 | 3.452359 | D->H | `4107020b0800002d610150f800000000102741ff00000000fffffffffffffffffffffffffafffffffafffffffafffffffafffffffaffffffed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f005e000000268bb83a41000000000000000000000000000000504f5745522d5a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a4d4aea` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 7, obj_count_words: 44 }, extended: ExtendedHeader { attribute: 8, next: false, chunk: 0, size: 180 }, payload: b"a\x01P\xf8\0\0\0\0\x10'A\xff\0\0\0\0\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfa\xff\xff\xff\xfa\xff\xff\xff\xfa\xff\xff\xff\xfa\xff\xff\xff\xfa\xff\xff\xff\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0^\0\0\0&\x8b\xb8:A\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0POWER-Z\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\nMJ\xea" }` | `Generic(Data { header: DataHeader { packet_type: 65, flag: false, id: 7, obj_count_words: 44 }, extended: ExtendedHeader { attribute: 8, next: false, chunk: 0, size: 180 }, payload: b"a\x01P\xf8\0\0\0\0\x10'A\xff\0\0\0\0\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfa\xff\xff\xff\xfa\xff\xff\xff\xfa\xff\xff\xff\xfa\xff\xff\xff\xfa\xff\xff\xff\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0\xedJ\x0f\0^\0\0\0&\x8b\xb8:A\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0POWER-Z\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\nMJ\xea" })` | `` |
+| 68 | 3.454067 | H->D | `0c080004` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 8, attribute: 512 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 8, attribute: 512 }, payload: b"" })` | `` |
+| 70 | 3.454647 | D->H | `4108c2ff00020000` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 8, obj_count_words: 1023 }, extended: ExtendedHeader { attribute: 512, next: false, chunk: 0, size: 0 }, payload: b"" }` | `Generic(Data { header: DataHeader { packet_type: 65, flag: false, id: 8, obj_count_words: 1023 }, extended: ExtendedHeader { attribute: 512, next: false, chunk: 0, size: 0 }, payload: b"" })` | `` |
+| 72 | 3.456110 | H->D | `0f090000` | `Ctrl { header: CtrlHeader { packet_type: 15, flag: false, id: 9, attribute: 0 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 15, flag: false, id: 9, attribute: 0 }, payload: b"" })` | `` |
+| 74 | 3.456189 | D->H | `05090000` | `Ctrl { header: CtrlHeader { packet_type: 5, flag: false, id: 9, attribute: 0 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 5, flag: false, id: 9, attribute: 0 }, payload: b"" })` | `` |
+| 76 | 3.516015 | H->D | `0c0a0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 10, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 78 | 3.516112 | D->H | `410a82020100000baa0f0000eeffffffdc0f0000ecffffff401000004a000000510d0400747e2103f9007c7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 10, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xaa\x0f\0\0\xee\xff\xff\xff\xdc\x0f\0\0\xec\xff\xff\xff@\x10\0\0J\0\0\0Q\r\x04\0t~!\x03\xf9\0|~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00401, ibus_a: -1.8e-5, power_w: -7.218e-8, vbus_avg_v: 0.00406, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.0801, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3236, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 80 | 3.726093 | H->D | `0c0b0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 11, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 82 | 3.726208 | D->H | `410b82020100000b0b10000002000000dc0f0000ecffffff401000004a000000530d0400747e2103f9007c7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 11, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x0b\x10\0\0\x02\0\0\0\xdc\x0f\0\0\xec\xff\xff\xff@\x10\0\0J\0\0\0S\r\x04\0t~!\x03\xf9\0|~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004107, ibus_a: 2e-6, power_w: 8.214e-9, vbus_avg_v: 0.00406, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.0801, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3236, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 84 | 3.936069 | H->D | `0c0c0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 12, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 86 | 3.936180 | D->H | `410c82020100000b0b10000002000000dc0f0000ecffffff401000004a000000530d0400757e2003f9007d7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 12, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x0b\x10\0\0\x02\0\0\0\xdc\x0f\0\0\xec\xff\xff\xff@\x10\0\0J\0\0\0S\r\x04\0u~ \x03\xf9\0}~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004107, ibus_a: 2e-6, power_w: 8.214e-9, vbus_avg_v: 0.00406, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2373, cc2_avg_v: 0.3236, internal_vdd_v: 3.2381, sample_rate: Sps1 })` | `` |
+| 88 | 4.145968 | H->D | `0c0d0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 13, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 90 | 4.146073 | D->H | `410d82020100000b15100000eeffffff10100000f8ffffff7410000056000000520d0400757e2003f9007d7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 13, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x15\x10\0\0\xee\xff\xff\xff\x10\x10\0\0\xf8\xff\xff\xfft\x10\0\0V\0\0\0R\r\x04\0u~ \x03\xf9\0}~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004117, ibus_a: -1.8e-5, power_w: -7.4106e-8, vbus_avg_v: 0.004112, ibus_avg_a: -8e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2373, cc2_avg_v: 0.3236, internal_vdd_v: 3.2381, sample_rate: Sps1 })` | `` |
+| 92 | 4.356116 | H->D | `0c0e0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 14, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 94 | 4.356231 | D->H | `410e82020100000b15100000eeffffff10100000f8ffffff7410000056000000520d0400757e2003f9007d7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 14, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x15\x10\0\0\xee\xff\xff\xff\x10\x10\0\0\xf8\xff\xff\xfft\x10\0\0V\0\0\0R\r\x04\0u~ \x03\xf9\0}~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004117, ibus_a: -1.8e-5, power_w: -7.4106e-8, vbus_avg_v: 0.004112, ibus_avg_a: -8e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2373, cc2_avg_v: 0.3236, internal_vdd_v: 3.2381, sample_rate: Sps1 })` | `` |
+| 96 | 4.566141 | H->D | `0c0f0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 15, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 98 | 4.566248 | D->H | `410f82020100000bc60f0000deffffff10100000f8ffffff7410000056000000510d0400767e2003f8007e7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 15, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xc6\x0f\0\0\xde\xff\xff\xff\x10\x10\0\0\xf8\xff\xff\xfft\x10\0\0V\0\0\0Q\r\x04\0v~ \x03\xf8\0~~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004038, ibus_a: -3.4e-5, power_w: -1.37292e-7, vbus_avg_v: 0.004112, ibus_avg_a: -8e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0248, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2374, cc2_avg_v: 0.3236, internal_vdd_v: 3.2382, sample_rate: Sps1 })` | `` |
+| 100 | 4.776091 | H->D | `0c100200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 16, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 102 | 4.776185 | D->H | `411082020100000bc60f0000deffffff10100000f8ffffff7410000056000000510d0400767e2003f8007e7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 16, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xc6\x0f\0\0\xde\xff\xff\xff\x10\x10\0\0\xf8\xff\xff\xfft\x10\0\0V\0\0\0Q\r\x04\0v~ \x03\xf8\0~~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004038, ibus_a: -3.4e-5, power_w: -1.37292e-7, vbus_avg_v: 0.004112, ibus_avg_a: -8e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0248, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2374, cc2_avg_v: 0.3236, internal_vdd_v: 3.2382, sample_rate: Sps1 })` | `` |
+| 104 | 4.990334 | H->D | `0c110200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 17, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 106 | 4.990426 | D->H | `411182020100000bc60f0000deffffff10100000f8ffffff7410000056000000510d0400767e2003f9007e7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 17, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xc6\x0f\0\0\xde\xff\xff\xff\x10\x10\0\0\xf8\xff\xff\xfft\x10\0\0V\0\0\0Q\r\x04\0v~ \x03\xf9\0~~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004038, ibus_a: -3.4e-5, power_w: -1.37292e-7, vbus_avg_v: 0.004112, ibus_avg_a: -8e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2374, cc2_avg_v: 0.3236, internal_vdd_v: 3.2382, sample_rate: Sps1 })` | `` |
+| 108 | 5.196079 | H->D | `0c120200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 18, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 110 | 5.196191 | D->H | `411282020100000bcf0f0000e6ffffffca0f0000e2ffffff2e10000040000000530d0400767e2003f9007e7e0080a00c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 18, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xcf\x0f\0\0\xe6\xff\xff\xff\xca\x0f\0\0\xe2\xff\xff\xff.\x10\0\0@\0\0\0S\r\x04\0v~ \x03\xf9\0~~\0\x80\xa0\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004047, ibus_a: -2.6e-5, power_w: -1.05222e-7, vbus_avg_v: 0.004042, ibus_avg_a: -3e-5, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2374, cc2_avg_v: 0.3232, internal_vdd_v: 3.2382, sample_rate: Sps1 })` | `` |
+| 112 | 5.406140 | H->D | `0c130200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 19, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 114 | 5.406232 | D->H | `411382020100000bcf0f0000e6ffffffca0f0000e2ffffff2e10000040000000530d0400747e2003f9007c7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 19, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xcf\x0f\0\0\xe6\xff\xff\xff\xca\x0f\0\0\xe2\xff\xff\xff.\x10\0\0@\0\0\0S\r\x04\0t~ \x03\xf9\0|~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004047, ibus_a: -2.6e-5, power_w: -1.05222e-7, vbus_avg_v: 0.004042, ibus_avg_a: -3e-5, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3236, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 116 | 5.616054 | H->D | `0c140200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 20, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 118 | 5.616152 | D->H | `411482020100000b64100000eeffffffca0f0000e2ffffff2e10000040000000530d0400747e2003f9007c7e0080a00c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 20, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"d\x10\0\0\xee\xff\xff\xff\xca\x0f\0\0\xe2\xff\xff\xff.\x10\0\0@\0\0\0S\r\x04\0t~ \x03\xf9\0|~\0\x80\xa0\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004196, ibus_a: -1.8e-5, power_w: -7.5528e-8, vbus_avg_v: 0.004042, ibus_avg_a: -3e-5, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3232, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 120 | 5.826076 | H->D | `0c150200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 21, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 122 | 5.826174 | D->H | `411582020100000b64100000eeffffffca0f0000e2ffffff2e10000040000000530d0400747e2003f9007c7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 21, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"d\x10\0\0\xee\xff\xff\xff\xca\x0f\0\0\xe2\xff\xff\xff.\x10\0\0@\0\0\0S\r\x04\0t~ \x03\xf9\0|~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004196, ibus_a: -1.8e-5, power_w: -7.5528e-8, vbus_avg_v: 0.004042, ibus_avg_a: -3e-5, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3236, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 124 | 6.036240 | H->D | `0c160200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 22, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 126 | 6.036347 | D->H | `411682020100000b64100000eeffffffca0f0000e2ffffff2e10000040000000530d0400727e1f03f9007a7e0080a00c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 22, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"d\x10\0\0\xee\xff\xff\xff\xca\x0f\0\0\xe2\xff\xff\xff.\x10\0\0@\0\0\0S\r\x04\0r~\x1f\x03\xf9\0z~\0\x80\xa0\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004196, ibus_a: -1.8e-5, power_w: -7.5528e-8, vbus_avg_v: 0.004042, ibus_avg_a: -3e-5, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3232, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `` |
+| 128 | 6.252438 | H->D | `0c170200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 23, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 130 | 6.252551 | D->H | `411782020100000baf0f0000eaffffff09100000ecffffff6d1000004a000000520d0400727e1f03f9007a7e0080a00c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 23, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xaf\x0f\0\0\xea\xff\xff\xff\t\x10\0\0\xec\xff\xff\xffm\x10\0\0J\0\0\0R\r\x04\0r~\x1f\x03\xf9\0z~\0\x80\xa0\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004015, ibus_a: -2.2e-5, power_w: -8.833000000000001e-8, vbus_avg_v: 0.004105, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3232, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `` |
+| 132 | 6.456180 | H->D | `0c180200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 24, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 134 | 6.456276 | D->H | `411882020100000baf0f0000eaffffff09100000ecffffff6d1000004a000000520d04006f7e1f03f900777e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 24, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xaf\x0f\0\0\xea\xff\xff\xff\t\x10\0\0\xec\xff\xff\xffm\x10\0\0J\0\0\0R\r\x04\0o~\x1f\x03\xf9\0w~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004015, ibus_a: -2.2e-5, power_w: -8.833000000000001e-8, vbus_avg_v: 0.004105, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3236, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 136 | 6.666029 | H->D | `0c190200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 25, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 138 | 6.666131 | D->H | `411982020100000bfc0f0000e6ffffff09100000ecffffff6d1000004a000000530d04006f7e1f03f900777e0080a00c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 25, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xfc\x0f\0\0\xe6\xff\xff\xff\t\x10\0\0\xec\xff\xff\xffm\x10\0\0J\0\0\0S\r\x04\0o~\x1f\x03\xf9\0w~\0\x80\xa0\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004092, ibus_a: -2.6e-5, power_w: -1.0639199999999999e-7, vbus_avg_v: 0.004105, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 140 | 6.876061 | H->D | `0c1a0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 26, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 142 | 6.876158 | D->H | `411a82020100000bfc0f0000e6ffffff09100000ecffffff6d1000004a000000530d04006f7e1f03f900777e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 26, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xfc\x0f\0\0\xe6\xff\xff\xff\t\x10\0\0\xec\xff\xff\xffm\x10\0\0J\0\0\0S\r\x04\0o~\x1f\x03\xf9\0w~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004092, ibus_a: -2.6e-5, power_w: -1.0639199999999999e-7, vbus_avg_v: 0.004105, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3236, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 144 | 7.076215 | H->D | `0c1b0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 27, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 146 | 7.076316 | D->H | `411b82020100000bce0f000006000000e50f0000f6ffffff4910000054000000530d0400737e2003f8007b7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 27, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xce\x0f\0\0\x06\0\0\0\xe5\x0f\0\0\xf6\xff\xff\xffI\x10\0\0T\0\0\0S\r\x04\0s~ \x03\xf8\0{~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004046, ibus_a: 6e-6, power_w: 2.4276000000000002e-8, vbus_avg_v: 0.004069, ibus_avg_a: -1e-5, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0248, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2371, cc2_avg_v: 0.3236, internal_vdd_v: 3.2379, sample_rate: Sps1 })` | `` |
+| 148 | 7.286097 | H->D | `0c1c0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 28, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 150 | 7.286200 | D->H | `411c82020100000bce0f000006000000e50f0000f6ffffff4910000054000000530d0400737e2003f8007b7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 28, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xce\x0f\0\0\x06\0\0\0\xe5\x0f\0\0\xf6\xff\xff\xffI\x10\0\0T\0\0\0S\r\x04\0s~ \x03\xf8\0{~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004046, ibus_a: 6e-6, power_w: 2.4276000000000002e-8, vbus_avg_v: 0.004069, ibus_avg_a: -1e-5, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0248, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2371, cc2_avg_v: 0.3236, internal_vdd_v: 3.2379, sample_rate: Sps1 })` | `` |
+| 152 | 7.496085 | H->D | `0c1d0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 29, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 154 | 7.496193 | D->H | `411d82020100000bce0f000006000000e50f0000f6ffffff4910000054000000530d0400747e1f03f8007c7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 29, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xce\x0f\0\0\x06\0\0\0\xe5\x0f\0\0\xf6\xff\xff\xffI\x10\0\0T\0\0\0S\r\x04\0t~\x1f\x03\xf8\0|~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004046, ibus_a: 6e-6, power_w: 2.4276000000000002e-8, vbus_avg_v: 0.004069, ibus_avg_a: -1e-5, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0248, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3236, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 156 | 7.706201 | H->D | `0c1e0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 30, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 158 | 7.706294 | D->H | `411e82020100000b650f000006000000e50f0000f6ffffff4910000054000000530d0400747e1f03f8007c7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 30, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"e\x0f\0\0\x06\0\0\0\xe5\x0f\0\0\xf6\xff\xff\xffI\x10\0\0T\0\0\0S\r\x04\0t~\x1f\x03\xf8\0|~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.003941, ibus_a: 6e-6, power_w: 2.3646000000000002e-8, vbus_avg_v: 0.004069, ibus_avg_a: -1e-5, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0248, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3236, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 160 | 7.916143 | H->D | `0c1f0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 31, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 162 | 7.916255 | D->H | `411f82020100000b650f000006000000e50f0000f6ffffff4910000054000000530d0400717e2003f900797e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 31, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"e\x0f\0\0\x06\0\0\0\xe5\x0f\0\0\xf6\xff\xff\xffI\x10\0\0T\0\0\0S\r\x04\0q~ \x03\xf9\0y~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.003941, ibus_a: 6e-6, power_w: 2.3646000000000002e-8, vbus_avg_v: 0.004069, ibus_avg_a: -1e-5, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3236, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 164 | 8.126043 | H->D | `0c200200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 32, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 166 | 8.126140 | D->H | `412082020100000b09100000feffffffb70f0000020000001b10000060000000530d0400717e2003f900797e0080a00c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 32, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\t\x10\0\0\xfe\xff\xff\xff\xb7\x0f\0\0\x02\0\0\0\x1b\x10\0\0`\0\0\0S\r\x04\0q~ \x03\xf9\0y~\0\x80\xa0\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004105, ibus_a: -2e-6, power_w: -8.21e-9, vbus_avg_v: 0.004023, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3232, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 168 | 8.332554 | H->D | `0c210200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 33, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 170 | 8.332733 | D->H | `412182020100000b09100000feffffffb70f0000020000001b10000060000000530d0400717e2003f900797e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 33, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\t\x10\0\0\xfe\xff\xff\xff\xb7\x0f\0\0\x02\0\0\0\x1b\x10\0\0`\0\0\0S\r\x04\0q~ \x03\xf9\0y~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004105, ibus_a: -2e-6, power_w: -8.21e-9, vbus_avg_v: 0.004023, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3236, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 172 | 8.536171 | H->D | `0c220200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 34, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 174 | 8.536266 | D->H | `412282020100000b09100000feffffffb70f0000020000001b10000060000000530d0400707e2003fa00787e0080a00c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 34, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\t\x10\0\0\xfe\xff\xff\xff\xb7\x0f\0\0\x02\0\0\0\x1b\x10\0\0`\0\0\0S\r\x04\0p~ \x03\xfa\0x~\0\x80\xa0\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004105, ibus_a: -2e-6, power_w: -8.21e-9, vbus_avg_v: 0.004023, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.025, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 176 | 8.746052 | H->D | `0c230200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 35, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 178 | 8.746153 | D->H | `412382020100000b6610000002000000b70f0000020000001b10000060000000530d0400707e2003fa00787e0080a00c4f001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 35, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"f\x10\0\0\x02\0\0\0\xb7\x0f\0\0\x02\0\0\0\x1b\x10\0\0`\0\0\0S\r\x04\0p~ \x03\xfa\0x~\0\x80\xa0\x0cO\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004198, ibus_a: 2e-6, power_w: 8.396e-9, vbus_avg_v: 0.004023, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.025, vdp_avg_v: 0.0079, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 180 | 8.956044 | H->D | `0c240200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 36, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 182 | 8.956135 | D->H | `412482020100000b6610000002000000b70f0000020000001b10000060000000530d04006f7e2103fc00777e0080a00c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 36, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"f\x10\0\0\x02\0\0\0\xb7\x0f\0\0\x02\0\0\0\x1b\x10\0\0`\0\0\0S\r\x04\0o~!\x03\xfc\0w~\0\x80\xa0\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004198, ibus_a: 2e-6, power_w: 8.396e-9, vbus_avg_v: 0.004023, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.0801, vdm_v: 0.0252, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 184 | 9.166011 | H->D | `0c250200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 37, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 186 | 9.166102 | D->H | `412582020100000bfc0f0000d6ffffff31100000ecffffff951000004a000000540d04006f7e2103fc00777e0080a00c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 37, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xfc\x0f\0\0\xd6\xff\xff\xff1\x10\0\0\xec\xff\xff\xff\x95\x10\0\0J\0\0\0T\r\x04\0o~!\x03\xfc\0w~\0\x80\xa0\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004092, ibus_a: -4.2e-5, power_w: -1.71864e-7, vbus_avg_v: 0.004145, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.0801, vdm_v: 0.0252, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 188 | 9.376112 | H->D | `0c260200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 38, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 190 | 9.376214 | D->H | `412682020100000bfc0f0000d6ffffff31100000ecffffff951000004a000000540d04006f7e2103fc00777e0080a00c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 38, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xfc\x0f\0\0\xd6\xff\xff\xff1\x10\0\0\xec\xff\xff\xff\x95\x10\0\0J\0\0\0T\r\x04\0o~!\x03\xfc\0w~\0\x80\xa0\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004092, ibus_a: -4.2e-5, power_w: -1.71864e-7, vbus_avg_v: 0.004145, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.0801, vdm_v: 0.0252, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 192 | 9.586068 | H->D | `0c270200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 39, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 194 | 9.586167 | D->H | `412782020100000b2a1000000600000031100000ecffffff951000004a000000530d0400707e2103fb00787e0080a00c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 39, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"*\x10\0\0\x06\0\0\01\x10\0\0\xec\xff\xff\xff\x95\x10\0\0J\0\0\0S\r\x04\0p~!\x03\xfb\0x~\0\x80\xa0\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004138, ibus_a: 6e-6, power_w: 2.4828000000000002e-8, vbus_avg_v: 0.004145, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.0801, vdm_v: 0.0251, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 196 | 9.796095 | H->D | `0c280200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 40, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 198 | 9.796196 | D->H | `412882020100000b2a1000000600000031100000ecffffff951000004a000000530d0400707e2103fb00787e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 40, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"*\x10\0\0\x06\0\0\01\x10\0\0\xec\xff\xff\xff\x95\x10\0\0J\0\0\0S\r\x04\0p~!\x03\xfb\0x~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004138, ibus_a: 6e-6, power_w: 2.4828000000000002e-8, vbus_avg_v: 0.004145, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.0801, vdm_v: 0.0251, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3236, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 200 | 10.006164 | H->D | `0c290200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 41, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 202 | 10.006276 | D->H | `412982020100000b2a1000000600000031100000ecffffff951000004a000000530d0400707e2003fc00787e0080a00c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 41, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"*\x10\0\0\x06\0\0\01\x10\0\0\xec\xff\xff\xff\x95\x10\0\0J\0\0\0S\r\x04\0p~ \x03\xfc\0x~\0\x80\xa0\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004138, ibus_a: 6e-6, power_w: 2.4828000000000002e-8, vbus_avg_v: 0.004145, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0252, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 204 | 10.054326 | H->D | `102a0200` | `Ctrl { header: CtrlHeader { packet_type: 16, flag: false, id: 42, attribute: 1 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 16, flag: false, id: 42, attribute: 1 }, payload: b"" })` | `` |
+| 206 | 10.054414 | D->H | `052a0000` | `Ctrl { header: CtrlHeader { packet_type: 5, flag: false, id: 42, attribute: 0 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 5, flag: false, id: 42, attribute: 0 }, payload: b"" })` | `` |
+| 208 | 10.055923 | H->D | `0c2b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 43, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 210 | 10.055995 | D->H | `412b82001000000349480800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 43, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"IH\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"IH\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 73,
+        timestamp_bytes: [
+            72,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 212 | 10.097049 | H->D | `0c2c2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 44, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 214 | 10.097119 | D->H | `412c82001000000372480800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 44, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"rH\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"rH\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 114,
+        timestamp_bytes: [
+            72,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 216 | 10.136174 | H->D | `0c2d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 45, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 218 | 10.136257 | D->H | `412d82001000000399480800060000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 45, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x99H\x08\0\x06\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x99H\x08\0\x06\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2120,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 220 | 10.176040 | H->D | `0c2e2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 46, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 222 | 10.176125 | D->H | `412e820010000003c1480800030000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 46, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xc1H\x08\0\x03\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\xc1H\x08\0\x03\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 193,
+        timestamp_bytes: [
+            72,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 224 | 10.216082 | H->D | `0c2f2200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 47, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 47, attribute: 17 }, payload: b"" })` | `` |
+| 226 | 10.216214 | D->H | `412f82030180000bf90f0000feffffff11100000020000007510000060000000540d0400707e2003fc00787e0080a40c4f00180010000003e9480800050000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 47, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"\xf9\x0f\0\0\xfe\xff\xff\xff\x11\x10\0\0\x02\0\0\0u\x10\0\0`\0\0\0T\r\x04\0p~ \x03\xfc\0x~\0\x80\xa4\x0cO\0\x18\0\x10\0\0\x03\xe9H\x08\0\x05\0\0\0\0\0\xa5\x0c" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 0.004089, ibus_a: -2e-6, power_w: -8.177999999999999e-9, vbus_avg_v: 0.004113, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0252, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3236, internal_vdd_v: 3.2376, sample_rate: Sps1 }, pd: b"\x10\0\0\x03\xe9H\x08\0\x05\0\0\0\0\0\xa5\x0c" }` | `` |
+| 228 | 10.256163 | H->D | `0c302000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 48, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 230 | 10.256253 | D->H | `413082001000000311490800060000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 48, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x11I\x08\0\x06\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x11I\x08\0\x06\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 17,
+        timestamp_bytes: [
+            73,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            6,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 232 | 10.296365 | H->D | `0c312000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 49, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 234 | 10.296454 | D->H | `413182001000000339490800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 49, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"9I\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"9I\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 57,
+        timestamp_bytes: [
+            73,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 236 | 10.342497 | H->D | `0c322000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 50, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 238 | 10.342581 | D->H | `413282001000000368490800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 50, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"hI\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"hI\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 104,
+        timestamp_bytes: [
+            73,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 240 | 10.376102 | H->D | `0c332000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 51, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 242 | 10.376176 | D->H | `413382001000000389490800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 51, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x89I\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\x89I\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2121,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 244 | 10.416195 | H->D | `0c342000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 52, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 246 | 10.416278 | D->H | `4134820010000003b1490800050000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 52, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb1I\x08\0\x05\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\xb1I\x08\0\x05\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 177,
+        timestamp_bytes: [
+            73,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 248 | 10.426015 | H->D | `0c350200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 53, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 250 | 10.426109 | D->H | `413582020100000bf90f0000feffffff11100000020000007510000060000000540d0400727e2003fd007a7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 53, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xf9\x0f\0\0\xfe\xff\xff\xff\x11\x10\0\0\x02\0\0\0u\x10\0\0`\0\0\0T\r\x04\0r~ \x03\xfd\0z~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004089, ibus_a: -2e-6, power_w: -8.177999999999999e-9, vbus_avg_v: 0.004113, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0253, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3236, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `` |
+| 252 | 10.456010 | H->D | `0c362000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 54, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 254 | 10.456101 | D->H | `4136820010000003d9490800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 54, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xd9I\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xd9I\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 217,
+        timestamp_bytes: [
+            73,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 256 | 10.504246 | H->D | `0c372000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 55, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 258 | 10.504319 | D->H | `4137820010000003094a0800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 55, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\tJ\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\tJ\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 9,
+        timestamp_bytes: [
+            74,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 260 | 10.536124 | H->D | `0c382000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 56, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 262 | 10.536200 | D->H | `4138820010000003294a0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 56, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b")J\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b")J\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 41,
+        timestamp_bytes: [
+            74,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 264 | 10.576202 | H->D | `0c392000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 57, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 266 | 10.576277 | D->H | `4139820010000003514a0800030000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 57, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"QJ\x08\0\x03\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"QJ\x08\0\x03\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 81,
+        timestamp_bytes: [
+            74,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 268 | 10.616092 | H->D | `0c3a2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 58, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 270 | 10.616168 | D->H | `413a820010000003794a0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 58, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"yJ\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"yJ\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 121,
+        timestamp_bytes: [
+            74,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 272 | 10.636125 | H->D | `0c3b0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 59, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 274 | 10.636221 | D->H | `413b82020100000b0f1000000600000011100000020000007510000060000000540d0400727e2003fd007a7e0080a00c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 59, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x0f\x10\0\0\x06\0\0\0\x11\x10\0\0\x02\0\0\0u\x10\0\0`\0\0\0T\r\x04\0r~ \x03\xfd\0z~\0\x80\xa0\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004111, ibus_a: 6e-6, power_w: 2.4666e-8, vbus_avg_v: 0.004113, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0253, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3232, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `` |
+| 276 | 10.656134 | H->D | `0c3c2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 60, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 278 | 10.656218 | D->H | `413c820010000003a14a0800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 60, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa1J\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xa1J\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 161,
+        timestamp_bytes: [
+            74,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 280 | 10.697096 | H->D | `0c3d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 61, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 282 | 10.697177 | D->H | `413d820010000003ca4a0800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 61, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xcaJ\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xcaJ\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 202,
+        timestamp_bytes: [
+            74,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 284 | 10.736170 | H->D | `0c3e2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 62, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 286 | 10.736255 | D->H | `413e820010000003f14a0800030000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 62, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf1J\x08\0\x03\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\xf1J\x08\0\x03\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 241,
+        timestamp_bytes: [
+            74,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 288 | 10.776072 | H->D | `0c3f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 63, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 290 | 10.776143 | D->H | `413f820010000003194b0800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 63, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x19K\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\x19K\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 25,
+        timestamp_bytes: [
+            75,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 292 | 10.816353 | H->D | `0c402000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 64, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 294 | 10.816423 | D->H | `4140820010000003414b0800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 64, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"AK\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"AK\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 65,
+        timestamp_bytes: [
+            75,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 296 | 10.846077 | H->D | `0c410200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 65, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 298 | 10.846183 | D->H | `414182020100000b0f1000000600000011100000020000007510000060000000540d0400727e2003fd007a7e0080a40c4f001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 65, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x0f\x10\0\0\x06\0\0\0\x11\x10\0\0\x02\0\0\0u\x10\0\0`\0\0\0T\r\x04\0r~ \x03\xfd\0z~\0\x80\xa4\x0cO\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004111, ibus_a: 6e-6, power_w: 2.4666e-8, vbus_avg_v: 0.004113, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0253, vdp_avg_v: 0.0079, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3236, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `` |
+| 300 | 10.856051 | H->D | `0c422000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 66, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 302 | 10.856142 | D->H | `4142820010000003694b0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 66, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"iK\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"iK\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 105,
+        timestamp_bytes: [
+            75,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 304 | 10.904080 | H->D | `0c432000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 67, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 306 | 10.904157 | D->H | `4143820010000003994b0800020000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 67, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x99K\x08\0\x02\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x99K\x08\0\x02\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2123,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 308 | 10.936190 | H->D | `0c442000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 68, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 310 | 10.936277 | D->H | `4144820010000003b94b0800050000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 68, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb9K\x08\0\x05\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\xb9K\x08\0\x05\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 185,
+        timestamp_bytes: [
+            75,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 312 | 10.976109 | H->D | `0c452000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 69, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 314 | 10.976189 | D->H | `4145820010000003e14b0800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 69, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe1K\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xe1K\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 225,
+        timestamp_bytes: [
+            75,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 316 | 11.016104 | H->D | `0c462000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 70, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 318 | 11.016180 | D->H | `4146820010000003094c0800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 70, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\tL\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\tL\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 9,
+        timestamp_bytes: [
+            76,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 320 | 11.056075 | H->D | `0c472200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 71, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 71, attribute: 17 }, payload: b"" })` | `` |
+| 322 | 11.056221 | D->H | `414782030180000b0f1000000600000011100000020000007510000060000000540d0400747e2003fc007c7e0080a40c4f00180010000003314c0800050000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 71, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"\x0f\x10\0\0\x06\0\0\0\x11\x10\0\0\x02\0\0\0u\x10\0\0`\0\0\0T\r\x04\0t~ \x03\xfc\0|~\0\x80\xa4\x0cO\0\x18\0\x10\0\0\x031L\x08\0\x05\0\0\0\0\0\xa3\x0c" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 0.004111, ibus_a: 6e-6, power_w: 2.4666e-8, vbus_avg_v: 0.004113, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0252, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3236, internal_vdd_v: 3.238, sample_rate: Sps1 }, pd: b"\x10\0\0\x031L\x08\0\x05\0\0\0\0\0\xa3\x0c" }` | `` |
+| 324 | 11.086439 | H->D | `0c482000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 72, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 326 | 11.086513 | D->H | `4148820010000003504c0800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 72, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"PL\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"PL\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 80,
+        timestamp_bytes: [
+            76,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 328 | 11.128517 | H->D | `0c492000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 73, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 330 | 11.128599 | D->H | `41498200100000037a4c0800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 73, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"zL\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"zL\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 122,
+        timestamp_bytes: [
+            76,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 332 | 11.166043 | H->D | `0c4a2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 74, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 334 | 11.166135 | D->H | `414a8200100000039f4c0800060000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 74, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x9fL\x08\0\x06\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\x9fL\x08\0\x06\0\0\0\0\0\xa3\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 2124,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 336 | 11.197035 | H->D | `0c4b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 75, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 338 | 11.197107 | D->H | `414b820010000003be4c0800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 75, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xbeL\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xbeL\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 190,
+        timestamp_bytes: [
+            76,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 340 | 11.236055 | H->D | `0c4c2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 76, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 342 | 11.236128 | D->H | `414c820010000003e54c0800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 76, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe5L\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xe5L\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 229,
+        timestamp_bytes: [
+            76,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 344 | 11.265998 | H->D | `0c4d0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 77, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 346 | 11.266090 | D->H | `414d82020100000bd00f00000e000000ef0f00000a0000005310000068000000550d0400747e2003fc007c7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 77, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xd0\x0f\0\0\x0e\0\0\0\xef\x0f\0\0\n\0\0\0S\x10\0\0h\0\0\0U\r\x04\0t~ \x03\xfc\0|~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004048, ibus_a: 1.4e-5, power_w: 5.6672000000000006e-8, vbus_avg_v: 0.004079, ibus_avg_a: 1e-5, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0252, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3236, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 348 | 11.275962 | H->D | `0c4e2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 78, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 350 | 11.276034 | D->H | `414e8200100000030d4d0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 78, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\rM\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\rM\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 13,
+        timestamp_bytes: [
+            77,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 352 | 11.317090 | H->D | `0c4f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 79, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 354 | 11.317165 | D->H | `414f820010000003364d0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 79, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"6M\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"6M\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 54,
+        timestamp_bytes: [
+            77,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 356 | 11.356079 | H->D | `0c502000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 80, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 358 | 11.356155 | D->H | `41508200100000035d4d0800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 80, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"]M\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"]M\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 93,
+        timestamp_bytes: [
+            77,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 360 | 11.396152 | H->D | `0c512000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 81, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 362 | 11.396234 | D->H | `4151820010000003854d0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 81, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x85M\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x85M\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 2125,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 364 | 11.436101 | H->D | `0c522000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 82, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 366 | 11.436185 | D->H | `4152820010000003ad4d0800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 82, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xadM\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\xadM\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 173,
+        timestamp_bytes: [
+            77,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 368 | 11.477109 | H->D | `0c532200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 83, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 83, attribute: 17 }, payload: b"" })` | `` |
+| 370 | 11.477232 | D->H | `415382030180000bd00f00000e000000ef0f00000a0000005310000068000000550d0400787e2103f900807e0080a40c4f00180010000003d64d0800020000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 83, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"\xd0\x0f\0\0\x0e\0\0\0\xef\x0f\0\0\n\0\0\0S\x10\0\0h\0\0\0U\r\x04\0x~!\x03\xf9\0\x80~\0\x80\xa4\x0cO\0\x18\0\x10\0\0\x03\xd6M\x08\0\x02\0\0\0\0\0\xa3\x0c" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 0.004048, ibus_a: 1.4e-5, power_w: 5.6672000000000006e-8, vbus_avg_v: 0.004079, ibus_avg_a: 1e-5, temp_c: 26.0, vdp_v: 0.0801, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2376, cc2_avg_v: 0.3236, internal_vdd_v: 3.2384, sample_rate: Sps1 }, pd: b"\x10\0\0\x03\xd6M\x08\0\x02\0\0\0\0\0\xa3\x0c" }` | `` |
+| 372 | 11.516194 | H->D | `0c542000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 84, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 374 | 11.516270 | D->H | `4154820010000003fd4d0800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 84, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xfdM\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xfdM\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 253,
+        timestamp_bytes: [
+            77,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 376 | 11.556158 | H->D | `0c552000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 85, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 378 | 11.556239 | D->H | `4155820010000003254e0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 85, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"%N\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"%N\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 37,
+        timestamp_bytes: [
+            78,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 380 | 11.596095 | H->D | `0c562000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 86, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 382 | 11.596174 | D->H | `41568200100000034d4e0800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 86, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"MN\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"MN\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 77,
+        timestamp_bytes: [
+            78,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 384 | 11.636041 | H->D | `0c572000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 87, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 386 | 11.636120 | D->H | `4157820010000003754e0800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 87, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"uN\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"uN\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 117,
+        timestamp_bytes: [
+            78,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 388 | 11.676055 | H->D | `0c582000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 88, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 390 | 11.676138 | D->H | `41588200100000039d4e0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 88, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x9dN\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x9dN\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 2126,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 392 | 11.687397 | H->D | `0c590200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 89, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 394 | 11.687509 | D->H | `415982020100000b2c100000f2ffffffef0f00000a0000005310000068000000550d0400787e2103f900807e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 89, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b",\x10\0\0\xf2\xff\xff\xff\xef\x0f\0\0\n\0\0\0S\x10\0\0h\0\0\0U\r\x04\0x~!\x03\xf9\0\x80~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00414, ibus_a: -1.4e-5, power_w: -5.795999999999999e-8, vbus_avg_v: 0.004079, ibus_avg_a: 1e-5, temp_c: 26.0, vdp_v: 0.0801, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2376, cc2_avg_v: 0.3236, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 396 | 11.716213 | H->D | `0c5a2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 90, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 398 | 11.716299 | D->H | `415a820010000003c54e0800050000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 90, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xc5N\x08\0\x05\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xc5N\x08\0\x05\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 197,
+        timestamp_bytes: [
+            78,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 400 | 11.756147 | H->D | `0c5b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 91, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 402 | 11.756224 | D->H | `415b820010000003ed4e0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 91, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xedN\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xedN\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 237,
+        timestamp_bytes: [
+            78,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 404 | 11.796033 | H->D | `0c5c2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 92, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 406 | 11.796111 | D->H | `415c820010000003154f0800050000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 92, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x15O\x08\0\x05\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x15O\x08\0\x05\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 21,
+        timestamp_bytes: [
+            79,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 408 | 11.836061 | H->D | `0c5d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 93, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 410 | 11.836143 | D->H | `415d8200100000033d4f0800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 93, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"=O\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"=O\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 61,
+        timestamp_bytes: [
+            79,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 412 | 11.875963 | H->D | `0c5e2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 94, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 414 | 11.876036 | D->H | `415e820010000003654f0800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 94, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"eO\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"eO\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 101,
+        timestamp_bytes: [
+            79,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 416 | 11.896211 | H->D | `0c5f0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 95, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 418 | 11.896313 | D->H | `415f82020100000b2c100000f2ffffffef0f00000a0000005310000068000000550d0400787e2103f900807e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 95, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b",\x10\0\0\xf2\xff\xff\xff\xef\x0f\0\0\n\0\0\0S\x10\0\0h\0\0\0U\r\x04\0x~!\x03\xf9\0\x80~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00414, ibus_a: -1.4e-5, power_w: -5.795999999999999e-8, vbus_avg_v: 0.004079, ibus_avg_a: 1e-5, temp_c: 26.0, vdp_v: 0.0801, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2376, cc2_avg_v: 0.3236, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 420 | 11.907048 | H->D | `0c602000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 96, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 422 | 11.907121 | D->H | `4160820010000003844f0800020000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 96, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x84O\x08\0\x02\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x84O\x08\0\x02\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 2127,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 424 | 11.946133 | H->D | `0c612000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 97, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 426 | 11.946208 | D->H | `4161820010000003ab4f0800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 97, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xabO\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xabO\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 171,
+        timestamp_bytes: [
+            79,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 428 | 11.986131 | H->D | `0c622000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 98, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 430 | 11.986213 | D->H | `4162820010000003d34f0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 98, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xd3O\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xd3O\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 211,
+        timestamp_bytes: [
+            79,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 432 | 12.026045 | H->D | `0c632000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 99, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 434 | 12.026118 | D->H | `4163820010000003fb4f0800050000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 99, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xfbO\x08\0\x05\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\xfbO\x08\0\x05\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 251,
+        timestamp_bytes: [
+            79,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 436 | 12.066112 | H->D | `0c642000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 100, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 438 | 12.066188 | D->H | `416482001000000323500800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 100, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"#P\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"#P\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 35,
+        timestamp_bytes: [
+            80,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 440 | 12.106227 | H->D | `0c652200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 101, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 101, attribute: 17 }, payload: b"" })` | `` |
+| 442 | 12.106354 | D->H | `416582030180000b50100000feffffff3e100000f8ffffffa210000056000000550d0400767e1f03f8007e7e0080a40c4f001800100000034b500800020000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 101, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"P\x10\0\0\xfe\xff\xff\xff>\x10\0\0\xf8\xff\xff\xff\xa2\x10\0\0V\0\0\0U\r\x04\0v~\x1f\x03\xf8\0~~\0\x80\xa4\x0cO\0\x18\0\x10\0\0\x03KP\x08\0\x02\0\0\0\0\0\xa3\x0c" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 0.004176, ibus_a: -2e-6, power_w: -8.352e-9, vbus_avg_v: 0.004158, ibus_avg_a: -8e-6, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0248, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2374, cc2_avg_v: 0.3236, internal_vdd_v: 3.2382, sample_rate: Sps1 }, pd: b"\x10\0\0\x03KP\x08\0\x02\0\0\0\0\0\xa3\x0c" }` | `` |
+| 444 | 12.150538 | H->D | `0c662000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 102, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 446 | 12.150622 | D->H | `416682001000000378500800030000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 102, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"xP\x08\0\x03\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"xP\x08\0\x03\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 120,
+        timestamp_bytes: [
+            80,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 448 | 12.186053 | H->D | `0c672000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 103, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 450 | 12.186135 | D->H | `41678200100000039b500800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 103, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x9bP\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x9bP\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2128,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 452 | 12.227068 | H->D | `0c682000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 104, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 454 | 12.227147 | D->H | `4168820010000003c4500800050000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 104, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xc4P\x08\0\x05\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xc4P\x08\0\x05\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 196,
+        timestamp_bytes: [
+            80,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 456 | 12.266040 | H->D | `0c692000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 105, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 458 | 12.266128 | D->H | `4169820010000003eb500800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 105, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xebP\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xebP\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 235,
+        timestamp_bytes: [
+            80,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 460 | 12.297155 | H->D | `0c6a2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 106, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 462 | 12.297231 | D->H | `416a8200100000030a510800030000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 106, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\nQ\x08\0\x03\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\nQ\x08\0\x03\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 10,
+        timestamp_bytes: [
+            81,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 464 | 12.316086 | H->D | `0c6b0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 107, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 466 | 12.316191 | D->H | `416b82020100000b50100000feffffff3e100000f8ffffffa210000056000000550d0400767e1f03f8007e7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 107, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"P\x10\0\0\xfe\xff\xff\xff>\x10\0\0\xf8\xff\xff\xff\xa2\x10\0\0V\0\0\0U\r\x04\0v~\x1f\x03\xf8\0~~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004176, ibus_a: -2e-6, power_w: -8.352e-9, vbus_avg_v: 0.004158, ibus_avg_a: -8e-6, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0248, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2374, cc2_avg_v: 0.3236, internal_vdd_v: 3.2382, sample_rate: Sps1 })` | `` |
+| 468 | 12.343532 | H->D | `0c6c2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 108, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 470 | 12.343612 | D->H | `416c82001000000339510800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 108, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"9Q\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"9Q\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 57,
+        timestamp_bytes: [
+            81,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 472 | 12.376047 | H->D | `0c6d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 109, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 474 | 12.376138 | D->H | `416d82001000000359510800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 109, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"YQ\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"YQ\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 89,
+        timestamp_bytes: [
+            81,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 476 | 12.416048 | H->D | `0c6e2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 110, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 478 | 12.416126 | D->H | `416e82001000000381510800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 110, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x81Q\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x81Q\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2129,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 480 | 12.456027 | H->D | `0c6f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 111, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 482 | 12.456123 | D->H | `416f820010000003a9510800060000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 111, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa9Q\x08\0\x06\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\xa9Q\x08\0\x06\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 169,
+        timestamp_bytes: [
+            81,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            6,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 484 | 12.496142 | H->D | `0c702000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 112, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 486 | 12.496231 | D->H | `4170820010000003d1510800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 112, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xd1Q\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xd1Q\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 209,
+        timestamp_bytes: [
+            81,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 488 | 12.536209 | H->D | `0c710200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 113, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 490 | 12.536309 | D->H | `417182020100000b50100000feffffff3e100000f8ffffffa210000056000000550d0400787e2003f900807e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 113, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"P\x10\0\0\xfe\xff\xff\xff>\x10\0\0\xf8\xff\xff\xff\xa2\x10\0\0V\0\0\0U\r\x04\0x~ \x03\xf9\0\x80~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004176, ibus_a: -2e-6, power_w: -8.352e-9, vbus_avg_v: 0.004158, ibus_avg_a: -8e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2376, cc2_avg_v: 0.3236, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 492 | 12.550521 | H->D | `0c722000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 114, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 494 | 12.550601 | D->H | `417282001000000308520800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 114, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x08R\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x08R\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 8,
+        timestamp_bytes: [
+            82,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 496 | 12.586084 | H->D | `0c732000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 115, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 498 | 12.586170 | D->H | `41738200100000032b520800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 115, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"+R\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"+R\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 43,
+        timestamp_bytes: [
+            82,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 500 | 12.626076 | H->D | `0c742000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 116, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 502 | 12.626168 | D->H | `417482001000000353520800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 116, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"SR\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"SR\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 83,
+        timestamp_bytes: [
+            82,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 504 | 12.666100 | H->D | `0c752000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 117, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 506 | 12.666170 | D->H | `41758200100000037b520800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 117, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"{R\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"{R\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 123,
+        timestamp_bytes: [
+            82,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 508 | 12.706101 | H->D | `0c762000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 118, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 510 | 12.706180 | D->H | `4176820010000003a3520800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 118, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa3R\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xa3R\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 163,
+        timestamp_bytes: [
+            82,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 512 | 12.743242 | H->D | `0c770200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 119, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 514 | 12.743337 | D->H | `417782020100000b641000000e0000003e100000f8ffffffa210000056000000540d0400787e2003f900807e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 119, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"d\x10\0\0\x0e\0\0\0>\x10\0\0\xf8\xff\xff\xff\xa2\x10\0\0V\0\0\0T\r\x04\0x~ \x03\xf9\0\x80~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004196, ibus_a: 1.4e-5, power_w: 5.8744e-8, vbus_avg_v: 0.004158, ibus_avg_a: -8e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2376, cc2_avg_v: 0.3236, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 516 | 12.745956 | H->D | `0c782000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 120, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 518 | 12.746025 | D->H | `4178820010000003cb520800050000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 120, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xcbR\x08\0\x05\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xcbR\x08\0\x05\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 203,
+        timestamp_bytes: [
+            82,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 520 | 12.786158 | H->D | `0c792000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 121, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 522 | 12.786237 | D->H | `4179820010000003f3520800020000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 121, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf3R\x08\0\x02\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xf3R\x08\0\x02\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 243,
+        timestamp_bytes: [
+            82,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            2,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 524 | 12.825968 | H->D | `0c7a2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 122, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 526 | 12.826041 | D->H | `417a8200100000031b530800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 122, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x1bS\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\x1bS\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 27,
+        timestamp_bytes: [
+            83,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 528 | 12.866077 | H->D | `0c7b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 123, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 530 | 12.866155 | D->H | `417b82001000000343530800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 123, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"CS\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"CS\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 67,
+        timestamp_bytes: [
+            83,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 532 | 12.896349 | H->D | `0c7c2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 124, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 534 | 12.896428 | D->H | `417c82001000000361530800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 124, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"aS\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"aS\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 97,
+        timestamp_bytes: [
+            83,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 536 | 12.936105 | H->D | `0c7d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 125, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 538 | 12.936188 | D->H | `417d82001000000389530800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 125, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x89S\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x89S\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2131,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 540 | 12.949993 | H->D | `0c7e0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 126, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 542 | 12.950090 | D->H | `417e82020100000b641000000e0000003e100000f8ffffffa210000056000000540d0400787e1f03f900807e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 126, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"d\x10\0\0\x0e\0\0\0>\x10\0\0\xf8\xff\xff\xff\xa2\x10\0\0V\0\0\0T\r\x04\0x~\x1f\x03\xf9\0\x80~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004196, ibus_a: 1.4e-5, power_w: 5.8744e-8, vbus_avg_v: 0.004158, ibus_avg_a: -8e-6, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2376, cc2_avg_v: 0.3236, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 544 | 12.976112 | H->D | `0c7f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 127, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 546 | 12.976193 | D->H | `417f820010000003b1530800050000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 127, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb1S\x08\0\x05\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xb1S\x08\0\x05\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 177,
+        timestamp_bytes: [
+            83,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 548 | 13.016110 | H->D | `0c802000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 128, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 550 | 13.016190 | D->H | `4180820010000003d9530800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 128, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xd9S\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xd9S\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 217,
+        timestamp_bytes: [
+            83,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 552 | 13.056067 | H->D | `0c812000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 129, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 554 | 13.056154 | D->H | `418182001000000301540800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 129, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x01T\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x01T\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 1,
+        timestamp_bytes: [
+            84,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 556 | 13.096052 | H->D | `0c822000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 130, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 558 | 13.096135 | D->H | `418282001000000329540800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 130, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b")T\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b")T\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 41,
+        timestamp_bytes: [
+            84,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 560 | 13.141599 | H->D | `0c832000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 131, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 562 | 13.141753 | D->H | `418382001000000357540800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 131, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"WT\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"WT\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 87,
+        timestamp_bytes: [
+            84,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 564 | 13.147121 | H->D | `0c840200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 132, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 566 | 13.147213 | D->H | `418482020100000bf80f0000f6ffffff2e100000020000009210000060000000540d0400787e1f03f900807e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 132, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xf8\x0f\0\0\xf6\xff\xff\xff.\x10\0\0\x02\0\0\0\x92\x10\0\0`\0\0\0T\r\x04\0x~\x1f\x03\xf9\0\x80~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004088, ibus_a: -1e-5, power_w: -4.088e-8, vbus_avg_v: 0.004142, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2376, cc2_avg_v: 0.3236, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 568 | 13.176150 | H->D | `0c852000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 133, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 570 | 13.176242 | D->H | `418582001000000379540800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 133, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"yT\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"yT\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 121,
+        timestamp_bytes: [
+            84,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 572 | 13.216083 | H->D | `0c862000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 134, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 574 | 13.216160 | D->H | `4186820010000003a1540800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 134, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa1T\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xa1T\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 161,
+        timestamp_bytes: [
+            84,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 576 | 13.256081 | H->D | `0c872000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 135, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 578 | 13.256159 | D->H | `4187820010000003c9540800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 135, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xc9T\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xc9T\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 201,
+        timestamp_bytes: [
+            84,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 580 | 13.287051 | H->D | `0c882000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 136, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 582 | 13.287136 | D->H | `4188820010000003e8540800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 136, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe8T\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xe8T\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 232,
+        timestamp_bytes: [
+            84,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 584 | 13.327254 | H->D | `0c892000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 137, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 586 | 13.327332 | D->H | `418982001000000310550800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 137, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x10U\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x10U\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 16,
+        timestamp_bytes: [
+            85,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 588 | 13.365795 | H->D | `0c8a0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 138, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 590 | 13.365902 | D->H | `418a82020100000bf80f0000f6ffffff2e100000020000009210000060000000540d0400787e1f03f900807e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 138, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xf8\x0f\0\0\xf6\xff\xff\xff.\x10\0\0\x02\0\0\0\x92\x10\0\0`\0\0\0T\r\x04\0x~\x1f\x03\xf9\0\x80~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004088, ibus_a: -1e-5, power_w: -4.088e-8, vbus_avg_v: 0.004142, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2376, cc2_avg_v: 0.3236, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 592 | 13.376053 | H->D | `0c8b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 139, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 594 | 13.376126 | D->H | `418b82001000000341550800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 139, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"AU\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"AU\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 65,
+        timestamp_bytes: [
+            85,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 596 | 13.416080 | H->D | `0c8c2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 140, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 598 | 13.416158 | D->H | `418c82001000000369550800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 140, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"iU\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"iU\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 105,
+        timestamp_bytes: [
+            85,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 600 | 13.456095 | H->D | `0c8d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 141, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 602 | 13.456170 | D->H | `418d82001000000391550800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 141, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x91U\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x91U\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2133,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 604 | 13.496171 | H->D | `0c8e2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 142, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 606 | 13.496248 | D->H | `418e820010000003b9550800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 142, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb9U\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xb9U\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 185,
+        timestamp_bytes: [
+            85,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 608 | 13.536325 | H->D | `0c8f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 143, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 610 | 13.536432 | D->H | `418f820010000003e1550800020000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 143, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe1U\x08\0\x02\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xe1U\x08\0\x02\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 225,
+        timestamp_bytes: [
+            85,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            2,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 612 | 13.566284 | H->D | `0c900200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 144, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 614 | 13.566395 | D->H | `419082020100000bc50f00001a0000002e100000020000009210000060000000540d04007c7e2003f900847e0080a40c4f001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 144, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xc5\x0f\0\0\x1a\0\0\0.\x10\0\0\x02\0\0\0\x92\x10\0\0`\0\0\0T\r\x04\0|~ \x03\xf9\0\x84~\0\x80\xa4\x0cO\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004037, ibus_a: 2.6e-5, power_w: 1.0496199999999998e-7, vbus_avg_v: 0.004142, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.238, cc2_avg_v: 0.3236, internal_vdd_v: 3.2388, sample_rate: Sps1 })` | `` |
+| 616 | 13.576044 | H->D | `0c912000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 145, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 618 | 13.576134 | D->H | `419182001000000309560800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 145, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\tV\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\tV\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 9,
+        timestamp_bytes: [
+            86,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 620 | 13.616134 | H->D | `0c922000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 146, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 622 | 13.616209 | D->H | `419282001000000331560800050000000000a80c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 146, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"1V\x08\0\x05\0\0\0\0\0\xa8\x0c" }` | `PdRawData(b"1V\x08\0\x05\0\0\0\0\0\xa8\x0c")` | `Status(
+    StatusPacket {
+        type_id: 49,
+        timestamp_bytes: [
+            86,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3240,
+        ),
+    },
+)
+` |
+| 624 | 13.656116 | H->D | `0c932000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 147, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 626 | 13.656197 | D->H | `419382001000000359560800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 147, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"YV\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"YV\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 89,
+        timestamp_bytes: [
+            86,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 628 | 13.696108 | H->D | `0c942000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 148, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 630 | 13.696190 | D->H | `419482001000000381560800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 148, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x81V\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x81V\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2134,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 632 | 13.727240 | H->D | `0c952000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 149, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 634 | 13.727323 | D->H | `4195820010000003a0560800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 149, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa0V\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xa0V\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 160,
+        timestamp_bytes: [
+            86,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 636 | 13.766550 | H->D | `0c962000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 150, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 638 | 13.766618 | D->H | `4196820010000003c8560800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 150, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xc8V\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xc8V\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 200,
+        timestamp_bytes: [
+            86,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 640 | 13.776021 | H->D | `0c970200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 151, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 642 | 13.776123 | D->H | `419782020100000bc50f00001a0000002e100000020000009210000060000000540d04007c7e2003f900847e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 151, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xc5\x0f\0\0\x1a\0\0\0.\x10\0\0\x02\0\0\0\x92\x10\0\0`\0\0\0T\r\x04\0|~ \x03\xf9\0\x84~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004037, ibus_a: 2.6e-5, power_w: 1.0496199999999998e-7, vbus_avg_v: 0.004142, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.238, cc2_avg_v: 0.3236, internal_vdd_v: 3.2388, sample_rate: Sps1 })` | `` |
+| 644 | 13.813651 | H->D | `0c982000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 152, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 646 | 13.813756 | D->H | `4198820010000003f7560800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 152, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf7V\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xf7V\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 247,
+        timestamp_bytes: [
+            86,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 648 | 13.846202 | H->D | `0c992000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 153, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 650 | 13.846289 | D->H | `419982001000000317570800050000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 153, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x17W\x08\0\x05\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x17W\x08\0\x05\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 23,
+        timestamp_bytes: [
+            87,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 652 | 13.886125 | H->D | `0c9a2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 154, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 654 | 13.886214 | D->H | `419a8200100000033f570800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 154, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"?W\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"?W\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 63,
+        timestamp_bytes: [
+            87,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 656 | 13.926244 | H->D | `0c9b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 155, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 658 | 13.926329 | D->H | `419b82001000000367570800020000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 155, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"gW\x08\0\x02\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"gW\x08\0\x02\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 103,
+        timestamp_bytes: [
+            87,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            2,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 660 | 13.971262 | H->D | `0c9c2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 156, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 662 | 13.971332 | D->H | `419c82001000000394570800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 156, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x94W\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\x94W\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 2135,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 664 | 13.986002 | H->D | `0c9d0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 157, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 666 | 13.986082 | D->H | `419d82020100000bc50f00001a0000002e100000020000009210000060000000540d04007c7e2003f900847e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 157, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xc5\x0f\0\0\x1a\0\0\0.\x10\0\0\x02\0\0\0\x92\x10\0\0`\0\0\0T\r\x04\0|~ \x03\xf9\0\x84~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004037, ibus_a: 2.6e-5, power_w: 1.0496199999999998e-7, vbus_avg_v: 0.004142, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.238, cc2_avg_v: 0.3236, internal_vdd_v: 3.2388, sample_rate: Sps1 })` | `` |
+| 668 | 14.006139 | H->D | `0c9e2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 158, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 670 | 14.006213 | D->H | `419e820010000003b7570800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 158, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb7W\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xb7W\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 183,
+        timestamp_bytes: [
+            87,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 672 | 14.046244 | H->D | `0c9f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 159, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 674 | 14.046323 | D->H | `419f820010000003df570800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 159, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xdfW\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xdfW\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 223,
+        timestamp_bytes: [
+            87,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 676 | 14.086268 | H->D | `0ca02000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 160, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 678 | 14.086343 | D->H | `41a082001000000307580800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 160, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x07X\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\x07X\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 7,
+        timestamp_bytes: [
+            88,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 680 | 14.126079 | H->D | `0ca12000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 161, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 682 | 14.126168 | D->H | `41a18200100000032f580800050000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 161, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"/X\x08\0\x05\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"/X\x08\0\x05\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 47,
+        timestamp_bytes: [
+            88,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 684 | 14.166209 | H->D | `0ca22000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 162, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 686 | 14.166291 | D->H | `41a282001000000357580800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 162, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"WX\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"WX\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 87,
+        timestamp_bytes: [
+            88,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 688 | 14.196058 | H->D | `0ca30200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 163, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 690 | 14.196160 | D->H | `41a382020100000b830f00000a000000a40f0000120000000810000070000000540d04007c7e2003f900847e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 163, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x83\x0f\0\0\n\0\0\0\xa4\x0f\0\0\x12\0\0\0\x08\x10\0\0p\0\0\0T\r\x04\0|~ \x03\xf9\0\x84~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.003971, ibus_a: 1e-5, power_w: 3.971e-8, vbus_avg_v: 0.004004, ibus_avg_a: 1.8e-5, temp_c: 26.0, vdp_v: 0.08, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.238, cc2_avg_v: 0.3236, internal_vdd_v: 3.2388, sample_rate: Sps1 })` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 15,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 692 | 14.206073 | H->D | `0ca42000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 164, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 694 | 14.206153 | D->H | `41a48200100000037f580800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 164, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x7fX\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x7fX\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 127,
+        timestamp_bytes: [
+            88,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 696 | 14.246151 | H->D | `0ca52000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 165, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 698 | 14.246227 | D->H | `41a5820010000003a7580800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 165, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa7X\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xa7X\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 167,
+        timestamp_bytes: [
+            88,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 700 | 14.286092 | H->D | `0ca62000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 166, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 702 | 14.286171 | D->H | `41a6820010000003cf580800020000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 166, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xcfX\x08\0\x02\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xcfX\x08\0\x02\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 207,
+        timestamp_bytes: [
+            88,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            2,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 704 | 14.327616 | H->D | `0ca72000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 167, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 706 | 14.327769 | D->H | `41a7820010000003f9580800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 167, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf9X\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xf9X\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 249,
+        timestamp_bytes: [
+            88,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 708 | 14.366415 | H->D | `0ca82000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 168, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 710 | 14.366502 | D->H | `41a882001000000320590800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 168, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b" Y\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b" Y\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 32,
+        timestamp_bytes: [
+            89,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 712 | 14.406096 | H->D | `0ca92200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 169, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 169, attribute: 17 }, payload: b"" })` | `` |
+| 714 | 14.406226 | D->H | `41a982030180000b830f00000a000000a40f0000120000000810000070000000540d0400797e1f03f900817e0080a40c4f0018001000000347590800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 169, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"\x83\x0f\0\0\n\0\0\0\xa4\x0f\0\0\x12\0\0\0\x08\x10\0\0p\0\0\0T\r\x04\0y~\x1f\x03\xf9\0\x81~\0\x80\xa4\x0cO\0\x18\0\x10\0\0\x03GY\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 0.003971, ibus_a: 1e-5, power_w: 3.971e-8, vbus_avg_v: 0.004004, ibus_avg_a: 1.8e-5, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2377, cc2_avg_v: 0.3236, internal_vdd_v: 3.2385, sample_rate: Sps1 }, pd: b"\x10\0\0\x03GY\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 15,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 716 | 14.446121 | H->D | `0caa2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 170, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 718 | 14.446210 | D->H | `41aa8200100000036f590800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 170, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"oY\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"oY\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 111,
+        timestamp_bytes: [
+            89,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 720 | 14.486112 | H->D | `0cab2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 171, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 722 | 14.486200 | D->H | `41ab82001000000397590800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 171, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x97Y\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x97Y\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 2137,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 724 | 14.526142 | H->D | `0cac2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 172, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 726 | 14.526219 | D->H | `41ac820010000003bf590800030000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 172, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xbfY\x08\0\x03\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\xbfY\x08\0\x03\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 191,
+        timestamp_bytes: [
+            89,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 728 | 14.566319 | H->D | `0cad2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 173, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 730 | 14.566387 | D->H | `41ad820010000003e7590800020000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 173, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe7Y\x08\0\x02\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xe7Y\x08\0\x02\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 231,
+        timestamp_bytes: [
+            89,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            2,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 732 | 14.606157 | H->D | `0cae2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 174, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 734 | 14.606236 | D->H | `41ae8200100000030f5a0800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 174, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x0fZ\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\x0fZ\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 15,
+        timestamp_bytes: [
+            90,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 736 | 14.616030 | H->D | `0caf0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 175, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 738 | 14.616131 | D->H | `41af82020100000b4f0f000006000000a40f0000120000000810000070000000540d0400797e1f03f900817e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 175, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"O\x0f\0\0\x06\0\0\0\xa4\x0f\0\0\x12\0\0\0\x08\x10\0\0p\0\0\0T\r\x04\0y~\x1f\x03\xf9\0\x81~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.003919, ibus_a: 6e-6, power_w: 2.3513999999999998e-8, vbus_avg_v: 0.004004, ibus_avg_a: 1.8e-5, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2377, cc2_avg_v: 0.3236, internal_vdd_v: 3.2385, sample_rate: Sps1 })` | `` |
+| 740 | 14.646044 | H->D | `0cb02000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 176, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 742 | 14.646121 | D->H | `41b0820010000003375a0800020000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 176, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"7Z\x08\0\x02\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"7Z\x08\0\x02\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 55,
+        timestamp_bytes: [
+            90,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            2,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 744 | 14.686187 | H->D | `0cb12000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 177, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 746 | 14.686266 | D->H | `41b18200100000035f5a0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 177, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"_Z\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"_Z\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 95,
+        timestamp_bytes: [
+            90,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 748 | 14.726365 | H->D | `0cb22000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 178, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 750 | 14.726451 | D->H | `41b2820010000003885a0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 178, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x88Z\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x88Z\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2138,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 752 | 14.757115 | H->D | `0cb32000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 179, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 754 | 14.757195 | D->H | `41b3820010000003a65a0800030000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 179, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa6Z\x08\0\x03\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\xa6Z\x08\0\x03\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 166,
+        timestamp_bytes: [
+            90,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 756 | 14.796154 | H->D | `0cb42000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 180, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 758 | 14.796225 | D->H | `41b4820010000003cd5a0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 180, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xcdZ\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xcdZ\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 205,
+        timestamp_bytes: [
+            90,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 760 | 14.826167 | H->D | `0cb50200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 181, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 762 | 14.826271 | D->H | `41b582020100000b4f0f000006000000a40f0000120000000810000070000000540d0400797e1f03f900817e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 181, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"O\x0f\0\0\x06\0\0\0\xa4\x0f\0\0\x12\0\0\0\x08\x10\0\0p\0\0\0T\r\x04\0y~\x1f\x03\xf9\0\x81~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.003919, ibus_a: 6e-6, power_w: 2.3513999999999998e-8, vbus_avg_v: 0.004004, ibus_avg_a: 1.8e-5, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2377, cc2_avg_v: 0.3236, internal_vdd_v: 3.2385, sample_rate: Sps1 })` | `` |
+| 764 | 14.836032 | H->D | `0cb62000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 182, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 766 | 14.836107 | D->H | `41b6820010000003f55a0800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 182, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf5Z\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xf5Z\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 245,
+        timestamp_bytes: [
+            90,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 768 | 14.876047 | H->D | `0cb72000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 183, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 770 | 14.876120 | D->H | `41b78200100000031d5b0800040000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 183, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x1d[\x08\0\x04\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\x1d[\x08\0\x04\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 29,
+        timestamp_bytes: [
+            91,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 772 | 14.907072 | H->D | `0cb82000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 184, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 774 | 14.907148 | D->H | `41b88200100000033c5b0800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 184, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"<[\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"<[\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 60,
+        timestamp_bytes: [
+            91,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 776 | 14.946173 | H->D | `0cb92000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 185, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 778 | 14.946265 | D->H | `41b9820010000003635b0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 185, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"c[\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"c[\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 99,
+        timestamp_bytes: [
+            91,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 780 | 14.986311 | H->D | `0cba2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 186, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 782 | 14.986389 | D->H | `41ba8200100000038b5b0800050000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 186, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x8b[\x08\0\x05\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x8b[\x08\0\x05\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2139,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 784 | 15.026112 | H->D | `0cbb2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 187, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 786 | 15.026182 | D->H | `41bb820010000003b35b0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 187, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb3[\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xb3[\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 179,
+        timestamp_bytes: [
+            91,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 788 | 15.036050 | H->D | `0cbc0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 188, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 790 | 15.036152 | D->H | `41bc82020100000b4f0f000006000000a40f0000120000000810000070000000540d0400757e1f03f9007d7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 188, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"O\x0f\0\0\x06\0\0\0\xa4\x0f\0\0\x12\0\0\0\x08\x10\0\0p\0\0\0T\r\x04\0u~\x1f\x03\xf9\0}~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.003919, ibus_a: 6e-6, power_w: 2.3513999999999998e-8, vbus_avg_v: 0.004004, ibus_avg_a: 1.8e-5, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2373, cc2_avg_v: 0.3236, internal_vdd_v: 3.2381, sample_rate: Sps1 })` | `` |
+| 792 | 15.066042 | H->D | `0cbd2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 189, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 794 | 15.066126 | D->H | `41bd820010000003db5b0800030000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 189, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xdb[\x08\0\x03\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\xdb[\x08\0\x03\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 219,
+        timestamp_bytes: [
+            91,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 796 | 15.106097 | H->D | `0cbe2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 190, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 798 | 15.106169 | D->H | `41be820010000003035c0800030000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 190, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x03\\\x08\0\x03\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\x03\\\x08\0\x03\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 3,
+        timestamp_bytes: [
+            92,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 800 | 15.146146 | H->D | `0cbf2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 191, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 802 | 15.146228 | D->H | `41bf8200100000032b5c0800050000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 191, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"+\\\x08\0\x05\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"+\\\x08\0\x05\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 43,
+        timestamp_bytes: [
+            92,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 804 | 15.186121 | H->D | `0cc02000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 192, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 806 | 15.186199 | D->H | `41c0820010000003535c0800050000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 192, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"S\\\x08\0\x05\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"S\\\x08\0\x05\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 83,
+        timestamp_bytes: [
+            92,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 808 | 15.226163 | H->D | `0cc12000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 193, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 810 | 15.226242 | D->H | `41c18200100000037b5c0800030000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 193, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"{\\\x08\0\x03\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"{\\\x08\0\x03\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 123,
+        timestamp_bytes: [
+            92,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 812 | 15.246076 | H->D | `0cc20200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 194, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 814 | 15.246177 | D->H | `41c282020100000bc00f0000e2ffffff870f0000f4ffffffeb0f000052000000550d0400757e1f03f9007d7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 194, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xc0\x0f\0\0\xe2\xff\xff\xff\x87\x0f\0\0\xf4\xff\xff\xff\xeb\x0f\0\0R\0\0\0U\r\x04\0u~\x1f\x03\xf9\0}~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004032, ibus_a: -3e-5, power_w: -1.2096e-7, vbus_avg_v: 0.003975, ibus_avg_a: -1.2e-5, temp_c: 26.0, vdp_v: 0.0799, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2373, cc2_avg_v: 0.3236, internal_vdd_v: 3.2381, sample_rate: Sps1 })` | `` |
+| 816 | 15.266057 | H->D | `0cc32000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 195, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 818 | 15.266138 | D->H | `41c3820010000003a35c0800050000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 195, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa3\\\x08\0\x05\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xa3\\\x08\0\x05\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 163,
+        timestamp_bytes: [
+            92,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 820 | 15.306069 | H->D | `0cc42000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 196, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 822 | 15.306153 | D->H | `41c4820010000003cb5c0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 196, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xcb\\\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xcb\\\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 203,
+        timestamp_bytes: [
+            92,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 824 | 15.346114 | H->D | `0cc52000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 197, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 826 | 15.346195 | D->H | `41c5820010000003f35c0800050000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 197, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf3\\\x08\0\x05\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\xf3\\\x08\0\x05\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 243,
+        timestamp_bytes: [
+            92,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 828 | 15.379086 | H->D | `0cc62000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 198, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 830 | 15.379177 | D->H | `41c6820010000003145d0800030000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 198, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x14]\x08\0\x03\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\x14]\x08\0\x03\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 20,
+        timestamp_bytes: [
+            93,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 832 | 15.416216 | H->D | `0cc72000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 199, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 834 | 15.416314 | D->H | `41c7820010000003395d0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 199, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"9]\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"9]\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 57,
+        timestamp_bytes: [
+            93,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 836 | 15.456099 | H->D | `0cc82200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 200, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 200, attribute: 17 }, payload: b"" })` | `` |
+| 838 | 15.456225 | D->H | `41c882030180000bc00f0000e2ffffff870f0000f4ffffffeb0f000052000000550d0400747e2103f9007c7e0080a40c4f00180010000003615d0800050000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 200, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"\xc0\x0f\0\0\xe2\xff\xff\xff\x87\x0f\0\0\xf4\xff\xff\xff\xeb\x0f\0\0R\0\0\0U\r\x04\0t~!\x03\xf9\0|~\0\x80\xa4\x0cO\0\x18\0\x10\0\0\x03a]\x08\0\x05\0\0\0\0\0\xa5\x0c" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 0.004032, ibus_a: -3e-5, power_w: -1.2096e-7, vbus_avg_v: 0.003975, ibus_avg_a: -1.2e-5, temp_c: 26.0, vdp_v: 0.0801, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3236, internal_vdd_v: 3.238, sample_rate: Sps1 }, pd: b"\x10\0\0\x03a]\x08\0\x05\0\0\0\0\0\xa5\x0c" }` | `` |
+| 840 | 15.496425 | H->D | `0cc92000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 201, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 842 | 15.496511 | D->H | `41c98200100000038a5d0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 201, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x8a]\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x8a]\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2141,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 844 | 15.536204 | H->D | `0cca2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 202, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 846 | 15.536282 | D->H | `41ca820010000003b15d0800040000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 202, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb1]\x08\0\x04\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xb1]\x08\0\x04\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 177,
+        timestamp_bytes: [
+            93,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 848 | 15.576169 | H->D | `0ccb2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 203, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 850 | 15.576247 | D->H | `41cb820010000003d95d0800030000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 203, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xd9]\x08\0\x03\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xd9]\x08\0\x03\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 217,
+        timestamp_bytes: [
+            93,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 852 | 15.616174 | H->D | `0ccc2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 204, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 854 | 15.616262 | D->H | `41cc820010000003015e0800030000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 204, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x01^\x08\0\x03\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\x01^\x08\0\x03\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 1,
+        timestamp_bytes: [
+            94,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 856 | 15.656116 | H->D | `0ccd2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 205, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 858 | 15.656192 | D->H | `41cd820010000003295e08000300000000006506` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 205, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b")^\x08\0\x03\0\0\0\0\0e\x06" }` | `PdRawData(b")^\x08\0\x03\0\0\0\0\0e\x06")` | `Status(
+    StatusPacket {
+        type_id: 41,
+        timestamp_bytes: [
+            94,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1637,
+        ),
+    },
+)
+` |
+| 860 | 15.665995 | H->D | `0cce0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 206, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 862 | 15.666083 | D->H | `41ce82020100000b2d100000e6ffffff870f0000f4ffffffeb0f000052000000530d0400747e2103f9007c7e0080a40c4f001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 206, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"-\x10\0\0\xe6\xff\xff\xff\x87\x0f\0\0\xf4\xff\xff\xff\xeb\x0f\0\0R\0\0\0S\r\x04\0t~!\x03\xf9\0|~\0\x80\xa4\x0cO\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004141, ibus_a: -2.6e-5, power_w: -1.0766599999999998e-7, vbus_avg_v: 0.003975, ibus_avg_a: -1.2e-5, temp_c: 26.0, vdp_v: 0.0801, vdm_v: 0.0249, vdp_avg_v: 0.0079, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3236, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 864 | 15.696086 | H->D | `0ccf2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 207, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 866 | 15.696167 | D->H | `41cfc20010008004515e08000400000000006906454f5e080021` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 207, obj_count_words: 3 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 18 }, payload: b"Q^\x08\0\x04\0\0\0\0\0i\x06EO^\x08\0!" }` | `PdRawData(b"Q^\x08\0\x04\0\0\0\0\0i\x06EO^\x08\0!")` | `` |
+| 868 | 15.736349 | H->D | `0cd02000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 208, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 870 | 15.736441 | D->H | `41d08200100000037a5e08000400000000006806` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 208, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"z^\x08\0\x04\0\0\0\0\0h\x06" }` | `PdRawData(b"z^\x08\0\x04\0\0\0\0\0h\x06")` | `Status(
+    StatusPacket {
+        type_id: 122,
+        timestamp_bytes: [
+            94,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1640,
+        ),
+    },
+)
+` |
+| 872 | 15.776137 | H->D | `0cd12000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 209, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 874 | 15.776220 | D->H | `41d1820010000003a15e08000300000000006906` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 209, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa1^\x08\0\x03\0\0\0\0\0i\x06" }` | `PdRawData(b"\xa1^\x08\0\x03\0\0\0\0\0i\x06")` | `Status(
+    StatusPacket {
+        type_id: 161,
+        timestamp_bytes: [
+            94,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1641,
+        ),
+    },
+)
+` |
+| 876 | 15.816285 | H->D | `0cd22000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 210, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 878 | 15.816364 | D->H | `41d2820010000003c95e08000200000000006906` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 210, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xc9^\x08\0\x02\0\0\0\0\0i\x06" }` | `PdRawData(b"\xc9^\x08\0\x02\0\0\0\0\0i\x06")` | `Status(
+    StatusPacket {
+        type_id: 201,
+        timestamp_bytes: [
+            94,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            2,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1641,
+        ),
+    },
+)
+` |
+| 880 | 15.856244 | H->D | `0cd32000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 211, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 882 | 15.856322 | D->H | `41d3820010000003f15e08000300000003006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 211, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf1^\x08\0\x03\0\0\0\x03\0n\x06" }` | `PdRawData(b"\xf1^\x08\0\x03\0\0\0\x03\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 241,
+        timestamp_bytes: [
+            94,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            3,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 884 | 15.876074 | H->D | `0cd40200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 212, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 886 | 15.876176 | D->H | `41d482020100000b2d100000e6ffffff870f0000f4ffffffeb0f000052000000530d0400747e2103f9007c7e0080640621000e00` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 212, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"-\x10\0\0\xe6\xff\xff\xff\x87\x0f\0\0\xf4\xff\xff\xff\xeb\x0f\0\0R\0\0\0S\r\x04\0t~!\x03\xf9\0|~\0\x80d\x06!\0\x0e\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004141, ibus_a: -2.6e-5, power_w: -1.0766599999999998e-7, vbus_avg_v: 0.003975, ibus_avg_a: -1.2e-5, temp_c: 26.0, vdp_v: 0.0801, vdm_v: 0.0249, vdp_avg_v: 0.0033, vdm_avg_v: 0.0014, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.1636, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 888 | 15.896102 | H->D | `0cd52000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 213, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 890 | 15.896189 | D->H | `41d5820010000003195f08000400000000007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 213, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x19_\x08\0\x04\0\0\0\0\0q\x06" }` | `PdRawData(b"\x19_\x08\0\x04\0\0\0\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 25,
+        timestamp_bytes: [
+            95,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 892 | 15.936339 | H->D | `0cd62000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 214, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 894 | 15.936424 | D->H | `41d6820010000003415f08000300000001006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 214, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"A_\x08\0\x03\0\0\0\x01\0o\x06" }` | `PdRawData(b"A_\x08\0\x03\0\0\0\x01\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 65,
+        timestamp_bytes: [
+            95,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            1,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 896 | 15.976266 | H->D | `0cd72000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 215, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 898 | 15.976353 | D->H | `41d7820010000003695f08000000000000007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 215, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"i_\x08\0\0\0\0\0\0\0p\x06" }` | `PdRawData(b"i_\x08\0\0\0\0\0\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 105,
+        timestamp_bytes: [
+            95,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            0,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 900 | 16.016278 | H->D | `0cd82000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 216, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 902 | 16.016356 | D->H | `41d8820010000003915f08000000000001007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 216, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x91_\x08\0\0\0\0\0\x01\0p\x06" }` | `PdRawData(b"\x91_\x08\0\0\0\0\0\x01\0p\x06")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2143,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 904 | 16.056199 | H->D | `0cd92000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 217, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 906 | 16.056277 | D->H | `41d9820010000003b95f08000000000000007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 217, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb9_\x08\0\0\0\0\0\0\0p\x06" }` | `PdRawData(b"\xb9_\x08\0\0\0\0\0\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 185,
+        timestamp_bytes: [
+            95,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            0,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 908 | 16.086073 | H->D | `0cda0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 218, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 910 | 16.086186 | D->H | `41da82020100000b8e0e0000020000005d0f0000f4ffffffc10f000052000000530d09000e5f3802c5007e7e0080700621000e00` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 218, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x8e\x0e\0\0\x02\0\0\0]\x0f\0\0\xf4\xff\xff\xff\xc1\x0f\0\0R\0\0\0S\r\t\0\x0e_8\x02\xc5\0~~\0\x80p\x06!\0\x0e\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.003726, ibus_a: 2e-6, power_w: 7.452e-9, vbus_avg_v: 0.003933, ibus_avg_a: -1.2e-5, temp_c: 26.0, vdp_v: 0.0568, vdm_v: 0.0197, vdp_avg_v: 0.0033, vdm_avg_v: 0.0014, cc1_v: 0.0009, cc2_v: 2.4334, cc2_avg_v: 0.1648, internal_vdd_v: 3.2382, sample_rate: Sps1 })` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 14,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 912 | 16.096071 | H->D | `0cdb2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 219, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 914 | 16.096149 | D->H | `41db820010000003e15f08000100000001006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 219, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe1_\x08\0\x01\0\0\0\x01\0o\x06" }` | `PdRawData(b"\xe1_\x08\0\x01\0\0\0\x01\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 225,
+        timestamp_bytes: [
+            95,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            1,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            1,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 916 | 16.136071 | H->D | `0cdc2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 220, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 918 | 16.136148 | D->H | `41dc820010000003096008000000000000007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 220, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\t`\x08\0\0\0\0\0\0\0p\x06" }` | `PdRawData(b"\t`\x08\0\0\0\0\0\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 9,
+        timestamp_bytes: [
+            96,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            0,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 920 | 16.176112 | H->D | `0cdd2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 221, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 922 | 16.176185 | D->H | `41dd820010000003316008000200000001007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 221, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"1`\x08\0\x02\0\0\0\x01\0q\x06" }` | `PdRawData(b"1`\x08\0\x02\0\0\0\x01\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 49,
+        timestamp_bytes: [
+            96,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            2,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            1,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 924 | 16.216191 | H->D | `0cde2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 222, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 926 | 16.216275 | D->H | `41de820010000003596008000300000000007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 222, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Y`\x08\0\x03\0\0\0\0\0p\x06" }` | `PdRawData(b"Y`\x08\0\x03\0\0\0\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 89,
+        timestamp_bytes: [
+            96,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 928 | 16.256067 | H->D | `0cdf2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 223, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 930 | 16.256145 | D->H | `41df820010000003816008000100000001006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 223, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x81`\x08\0\x01\0\0\0\x01\0o\x06" }` | `PdRawData(b"\x81`\x08\0\x01\0\0\0\x01\0o\x06")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2144,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 932 | 16.296082 | H->D | `0ce02200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 224, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 224, attribute: 17 }, payload: b"" })` | `` |
+| 934 | 16.296205 | D->H | `41e082030180000b8e0e0000020000005d0f0000f4ffffffc10f000052000000530d09000e5f3802c5007e7e0080700621000e0010000003a96008000400000000007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 224, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"\x8e\x0e\0\0\x02\0\0\0]\x0f\0\0\xf4\xff\xff\xff\xc1\x0f\0\0R\0\0\0S\r\t\0\x0e_8\x02\xc5\0~~\0\x80p\x06!\0\x0e\0\x10\0\0\x03\xa9`\x08\0\x04\0\0\0\0\0q\x06" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 0.003726, ibus_a: 2e-6, power_w: 7.452e-9, vbus_avg_v: 0.003933, ibus_avg_a: -1.2e-5, temp_c: 26.0, vdp_v: 0.0568, vdm_v: 0.0197, vdp_avg_v: 0.0033, vdm_avg_v: 0.0014, cc1_v: 0.0009, cc2_v: 2.4334, cc2_avg_v: 0.1648, internal_vdd_v: 3.2382, sample_rate: Sps1 }, pd: b"\x10\0\0\x03\xa9`\x08\0\x04\0\0\0\0\0q\x06" }` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 14,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 936 | 16.336094 | H->D | `0ce12000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 225, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 938 | 16.336176 | D->H | `41e1820010000003d16008000100000001006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 225, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xd1`\x08\0\x01\0\0\0\x01\0o\x06" }` | `PdRawData(b"\xd1`\x08\0\x01\0\0\0\x01\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 209,
+        timestamp_bytes: [
+            96,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            1,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            1,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 940 | 16.376153 | H->D | `0ce22000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 226, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 942 | 16.376233 | D->H | `41e2820010000003f96008000300000001007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 226, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf9`\x08\0\x03\0\0\0\x01\0q\x06" }` | `PdRawData(b"\xf9`\x08\0\x03\0\0\0\x01\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 249,
+        timestamp_bytes: [
+            96,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            1,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 944 | 16.416099 | H->D | `0ce32000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 227, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 946 | 16.416180 | D->H | `41e3820010000003216108000300000001007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 227, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"!a\x08\0\x03\0\0\0\x01\0p\x06" }` | `PdRawData(b"!a\x08\0\x03\0\0\0\x01\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 33,
+        timestamp_bytes: [
+            97,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            1,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 948 | 16.456166 | H->D | `0ce42000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 228, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 950 | 16.456243 | D->H | `41e4820010000003496108000300000000007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 228, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Ia\x08\0\x03\0\0\0\0\0q\x06" }` | `PdRawData(b"Ia\x08\0\x03\0\0\0\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 73,
+        timestamp_bytes: [
+            97,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 952 | 16.496124 | H->D | `0ce52000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 229, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 954 | 16.496196 | D->H | `41e5820010000003716108000200000001007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 229, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"qa\x08\0\x02\0\0\0\x01\0q\x06" }` | `PdRawData(b"qa\x08\0\x02\0\0\0\x01\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 113,
+        timestamp_bytes: [
+            97,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            2,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            1,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 956 | 16.506066 | H->D | `0ce60200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 230, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 958 | 16.506165 | D->H | `41e682020100000b8e0e0000020000005d0f0000f4ffffffc10f000052000000530d0c00694053019400807e0080700621000e00` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 230, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x8e\x0e\0\0\x02\0\0\0]\x0f\0\0\xf4\xff\xff\xff\xc1\x0f\0\0R\0\0\0S\r\x0c\0i@S\x01\x94\0\x80~\0\x80p\x06!\0\x0e\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.003726, ibus_a: 2e-6, power_w: 7.452e-9, vbus_avg_v: 0.003933, ibus_avg_a: -1.2e-5, temp_c: 26.0, vdp_v: 0.0339, vdm_v: 0.0148, vdp_avg_v: 0.0033, vdm_avg_v: 0.0014, cc1_v: 0.0012, cc2_v: 1.6489, cc2_avg_v: 0.1648, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 14,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 960 | 16.536076 | H->D | `0ce72000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 231, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 962 | 16.536158 | D->H | `41e7820010000003996108000400000001007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 231, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x99a\x08\0\x04\0\0\0\x01\0q\x06" }` | `PdRawData(b"\x99a\x08\0\x04\0\0\0\x01\0q\x06")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2145,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 964 | 16.576123 | H->D | `0ce82000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 232, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 966 | 16.576193 | D->H | `41e8820010000003c16108000300000001006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 232, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xc1a\x08\0\x03\0\0\0\x01\0o\x06" }` | `PdRawData(b"\xc1a\x08\0\x03\0\0\0\x01\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 193,
+        timestamp_bytes: [
+            97,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            1,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 968 | 16.616241 | H->D | `0ce92000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 233, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 970 | 16.616317 | D->H | `41e9820010000003e96108000200000001007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 233, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe9a\x08\0\x02\0\0\0\x01\0q\x06" }` | `PdRawData(b"\xe9a\x08\0\x02\0\0\0\x01\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 233,
+        timestamp_bytes: [
+            97,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            2,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            1,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 972 | 16.656129 | H->D | `0cea2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 234, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 974 | 16.656201 | D->H | `41ea820010000003116208000200000001007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 234, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x11b\x08\0\x02\0\0\0\x01\0p\x06" }` | `PdRawData(b"\x11b\x08\0\x02\0\0\0\x01\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 17,
+        timestamp_bytes: [
+            98,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            2,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            1,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 976 | 16.696103 | H->D | `0ceb2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 235, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 978 | 16.696183 | D->H | `41eb820010000003396208000100000000007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 235, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"9b\x08\0\x01\0\0\0\0\0p\x06" }` | `PdRawData(b"9b\x08\0\x01\0\0\0\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 57,
+        timestamp_bytes: [
+            98,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            1,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 980 | 16.716081 | H->D | `0cec0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 236, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 982 | 16.716178 | D->H | `41ec82020100000b3a0900000e0000005d0f0000f4ffffffc10f000052000000530d0c00694053019400807e0080700621000e00` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 236, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b":\t\0\0\x0e\0\0\0]\x0f\0\0\xf4\xff\xff\xff\xc1\x0f\0\0R\0\0\0S\r\x0c\0i@S\x01\x94\0\x80~\0\x80p\x06!\0\x0e\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.002362, ibus_a: 1.4e-5, power_w: 3.3068e-8, vbus_avg_v: 0.003933, ibus_avg_a: -1.2e-5, temp_c: 26.0, vdp_v: 0.0339, vdm_v: 0.0148, vdp_avg_v: 0.0033, vdm_avg_v: 0.0014, cc1_v: 0.0012, cc2_v: 1.6489, cc2_avg_v: 0.1648, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 984 | 16.736090 | H->D | `0ced2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 237, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 986 | 16.736173 | D->H | `41ed820010000003616208000100000000006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 237, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"ab\x08\0\x01\0\0\0\0\0n\x06" }` | `PdRawData(b"ab\x08\0\x01\0\0\0\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 97,
+        timestamp_bytes: [
+            98,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            1,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 988 | 16.766438 | H->D | `0cee2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 238, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 990 | 16.766526 | D->H | `41ee820010000003806208000400000000007206` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 238, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x80b\x08\0\x04\0\0\0\0\0r\x06" }` | `PdRawData(b"\x80b\x08\0\x04\0\0\0\0\0r\x06")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2146,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 992 | 16.806182 | H->D | `0cef2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 239, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 994 | 16.806263 | D->H | `41ef820010000003a76208000300000001006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 239, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa7b\x08\0\x03\0\0\0\x01\0o\x06" }` | `PdRawData(b"\xa7b\x08\0\x03\0\0\0\x01\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 167,
+        timestamp_bytes: [
+            98,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            1,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 996 | 16.846244 | H->D | `0cf02000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 240, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 998 | 16.846334 | D->H | `41f0820010000003cf6208000300000001007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 240, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xcfb\x08\0\x03\0\0\0\x01\0p\x06" }` | `PdRawData(b"\xcfb\x08\0\x03\0\0\0\x01\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 207,
+        timestamp_bytes: [
+            98,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            3,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            1,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1000 | 16.886066 | H->D | `0cf12000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 241, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1002 | 16.886150 | D->H | `41f1820010000003f76208000200000001006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 241, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf7b\x08\0\x02\0\0\0\x01\0o\x06" }` | `PdRawData(b"\xf7b\x08\0\x02\0\0\0\x01\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 247,
+        timestamp_bytes: [
+            98,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            2,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            1,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1004 | 16.926127 | H->D | `0cf22200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 242, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 242, attribute: 17 }, payload: b"" })` | `` |
+| 1006 | 16.926250 | D->H | `41f282030180000b3a0900000e0000005d0f0000f4ffffffc10f000052000000530d0c00694054019300817e0080700621000e00100000031f6308000200000001007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 242, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b":\t\0\0\x0e\0\0\0]\x0f\0\0\xf4\xff\xff\xff\xc1\x0f\0\0R\0\0\0S\r\x0c\0i@T\x01\x93\0\x81~\0\x80p\x06!\0\x0e\0\x10\0\0\x03\x1fc\x08\0\x02\0\0\0\x01\0p\x06" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 0.002362, ibus_a: 1.4e-5, power_w: 3.3068e-8, vbus_avg_v: 0.003933, ibus_avg_a: -1.2e-5, temp_c: 26.0, vdp_v: 0.034, vdm_v: 0.0147, vdp_avg_v: 0.0033, vdm_avg_v: 0.0014, cc1_v: 0.0012, cc2_v: 1.6489, cc2_avg_v: 0.1648, internal_vdd_v: 3.2385, sample_rate: Sps1 }, pd: b"\x10\0\0\x03\x1fc\x08\0\x02\0\0\0\x01\0p\x06" }` | `` |
+| 1008 | 16.966080 | H->D | `0cf32000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 243, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1010 | 16.966159 | D->H | `41f3820010000003476308000400000000006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 243, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Gc\x08\0\x04\0\0\0\0\0o\x06" }` | `PdRawData(b"Gc\x08\0\x04\0\0\0\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 71,
+        timestamp_bytes: [
+            99,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1012 | 16.997124 | H->D | `0cf42000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 244, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1014 | 16.997196 | D->H | `41f4820010000003666308000200000000007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 244, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"fc\x08\0\x02\0\0\0\0\0p\x06" }` | `PdRawData(b"fc\x08\0\x02\0\0\0\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 102,
+        timestamp_bytes: [
+            99,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            2,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1016 | 17.036272 | H->D | `0cf52000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 245, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1018 | 17.036357 | D->H | `41f58200100000038d6308000200000000007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 245, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x8dc\x08\0\x02\0\0\0\0\0q\x06" }` | `PdRawData(b"\x8dc\x08\0\x02\0\0\0\0\0q\x06")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 2147,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 1020 | 17.076080 | H->D | `0cf62000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 246, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1022 | 17.076177 | D->H | `41f6820010000003b5630800ec13f6ff01007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 246, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb5c\x08\0\xec\x13\xf6\xff\x01\0p\x06" }` | `PdRawData(b"\xb5c\x08\0\xec\x13\xf6\xff\x01\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 181,
+        timestamp_bytes: [
+            99,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5100,
+        ),
+        ibus_raw: U16(
+            65526,
+        ),
+        cc1_raw: U16(
+            1,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1024 | 17.116096 | H->D | `0cf72000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 247, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1026 | 17.116185 | D->H | `41f7820010000003dd630800eb13000000006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 247, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xddc\x08\0\xeb\x13\0\0\0\0o\x06" }` | `PdRawData(b"\xddc\x08\0\xeb\x13\0\0\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 221,
+        timestamp_bytes: [
+            99,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5099,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1028 | 17.136069 | H->D | `0cf80200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 248, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1030 | 17.136180 | D->H | `41f882020100000b6f590100eeffffff54b10000feffffffb8b100005c000000520d0c00694054019300817e00806c0619041104` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 248, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"oY\x01\0\xee\xff\xff\xffT\xb1\0\0\xfe\xff\xff\xff\xb8\xb1\0\0\\\0\0\0R\r\x0c\0i@T\x01\x93\0\x81~\0\x80l\x06\x19\x04\x11\x04" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.088431, ibus_a: -1.8e-5, power_w: -1.591758e-6, vbus_avg_v: 0.045396, ibus_avg_a: -2e-6, temp_c: 26.0, vdp_v: 0.034, vdm_v: 0.0147, vdp_avg_v: 0.1049, vdm_avg_v: 0.1041, cc1_v: 0.0012, cc2_v: 1.6489, cc2_avg_v: 0.1644, internal_vdd_v: 3.2385, sample_rate: Sps1 })` | `` |
+| 1032 | 17.156063 | H->D | `0cf92000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 249, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1034 | 17.156138 | D->H | `41f982001000000305640800ec13ffff00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 249, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x05d\x08\0\xec\x13\xff\xff\0\0o\x06" }` | `PdRawData(b"\x05d\x08\0\xec\x13\xff\xff\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 5,
+        timestamp_bytes: [
+            100,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5100,
+        ),
+        ibus_raw: U16(
+            65535,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1036 | 17.202706 | H->D | `0cfa2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 250, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1038 | 17.202955 | D->H | `41fac2081000002434640800ed13ffff000070068b1c640800018f1001a000ff871c6408000101019b1e640800018f5141a000ff00000018000000000000000040460a00871f6408000101009f2064080000a1612c9101082cd102002cc103002cb10400454106006421dcc087216408000041008b25640800008210dc7003238726640800002101872a64080000a303872a640800004102` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 250, obj_count_words: 35 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 144 }, payload: b"4d\x08\0\xed\x13\xff\xff\0\0p\x06\x8b\x1cd\x08\0\x01\x8f\x10\x01\xa0\0\xff\x87\x1cd\x08\0\x01\x01\x01\x9b\x1ed\x08\0\x01\x8fQA\xa0\0\xff\0\0\0\x18\0\0\0\0\0\0\0\0@F\n\0\x87\x1fd\x08\0\x01\x01\0\x9f d\x08\0\0\xa1a,\x91\x01\x08,\xd1\x02\0,\xc1\x03\0,\xb1\x04\0EA\x06\0d!\xdc\xc0\x87!d\x08\0\0A\0\x8b%d\x08\0\0\x82\x10\xdcp\x03#\x87&d\x08\0\0!\x01\x87*d\x08\0\0\xa3\x03\x87*d\x08\0\0A\x02" }` | `PdRawData(b"4d\x08\0\xed\x13\xff\xff\0\0p\x06\x8b\x1cd\x08\0\x01\x8f\x10\x01\xa0\0\xff\x87\x1cd\x08\0\x01\x01\x01\x9b\x1ed\x08\0\x01\x8fQA\xa0\0\xff\0\0\0\x18\0\0\0\0\0\0\0\0@F\n\0\x87\x1fd\x08\0\x01\x01\0\x9f d\x08\0\0\xa1a,\x91\x01\x08,\xd1\x02\0,\xc1\x03\0,\xb1\x04\0EA\x06\0d!\xdc\xc0\x87!d\x08\0\0A\0\x8b%d\x08\0\0\x82\x10\xdcp\x03#\x87&d\x08\0\0!\x01\x87*d\x08\0\0\xa3\x03\x87*d\x08\0\0A\x02")` | `` |
+| 1040 | 17.236222 | H->D | `0cfb2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 251, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1042 | 17.236307 | D->H | `41fb82001000000355640800d022f9ff00006906` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 251, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Ud\x08\0\xd0\"\xf9\xff\0\0i\x06" }` | `PdRawData(b"Ud\x08\0\xd0\"\xf9\xff\0\0i\x06")` | `Status(
+    StatusPacket {
+        type_id: 85,
+        timestamp_bytes: [
+            100,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8912,
+        ),
+        ibus_raw: U16(
+            65529,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1641,
+        ),
+    },
+)
+` |
+| 1044 | 17.276122 | H->D | `0cfc2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 252, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1046 | 17.276202 | D->H | `41fc8200100000037d6408008823ffff00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 252, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"}d\x08\0\x88#\xff\xff\0\0q\x06" }` | `PdRawData(b"}d\x08\0\x88#\xff\xff\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 125,
+        timestamp_bytes: [
+            100,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9096,
+        ),
+        ibus_raw: U16(
+            65535,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1048 | 17.316098 | H->D | `0cfd2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 253, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1050 | 17.316171 | D->H | `41fd820010000003a56408008923ffff00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 253, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa5d\x08\0\x89#\xff\xff\0\0q\x06" }` | `PdRawData(b"\xa5d\x08\0\x89#\xff\xff\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 165,
+        timestamp_bytes: [
+            100,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9097,
+        ),
+        ibus_raw: U16(
+            65535,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1052 | 17.346133 | H->D | `0cfe0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 254, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1054 | 17.346230 | D->H | `41fe82020100000b6f590100eeffffff54b10000feffffffb8b100005c000000520d0c00694054019300817e008070062f033003` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 254, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"oY\x01\0\xee\xff\xff\xffT\xb1\0\0\xfe\xff\xff\xff\xb8\xb1\0\0\\\0\0\0R\r\x0c\0i@T\x01\x93\0\x81~\0\x80p\x06/\x030\x03" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.088431, ibus_a: -1.8e-5, power_w: -1.591758e-6, vbus_avg_v: 0.045396, ibus_avg_a: -2e-6, temp_c: 26.0, vdp_v: 0.034, vdm_v: 0.0147, vdp_avg_v: 0.0815, vdm_avg_v: 0.0816, cc1_v: 0.0012, cc2_v: 1.6489, cc2_avg_v: 0.1648, internal_vdd_v: 3.2385, sample_rate: Sps1 })` | `` |
+| 1056 | 17.356068 | H->D | `0cff2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 255, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1058 | 17.356196 | D->H | `41ffc20310000010cd64080065235efd0500a90287ae64080000a60587af6408000041048bc2640800008f1201a000ff87c364080000210387c964080000b00787ca640800004106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 255, obj_count_words: 15 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 64 }, payload: b"\xcdd\x08\0e#^\xfd\x05\0\xa9\x02\x87\xaed\x08\0\0\xa6\x05\x87\xafd\x08\0\0A\x04\x8b\xc2d\x08\0\0\x8f\x12\x01\xa0\0\xff\x87\xc3d\x08\0\0!\x03\x87\xc9d\x08\0\0\xb0\x07\x87\xcad\x08\0\0A\x06" }` | `PdRawData(b"\xcdd\x08\0e#^\xfd\x05\0\xa9\x02\x87\xaed\x08\0\0\xa6\x05\x87\xafd\x08\0\0A\x04\x8b\xc2d\x08\0\0\x8f\x12\x01\xa0\0\xff\x87\xc3d\x08\0\0!\x03\x87\xc9d\x08\0\0\xb0\x07\x87\xcad\x08\0\0A\x06")` | `` |
+| 1060 | 17.397137 | H->D | `0c002000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 0, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1062 | 17.397211 | D->H | `4100820010000003f6640800472392fb00007d06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 0, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf6d\x08\0G#\x92\xfb\0\0}\x06" }` | `PdRawData(b"\xf6d\x08\0G#\x92\xfb\0\0}\x06")` | `Status(
+    StatusPacket {
+        type_id: 246,
+        timestamp_bytes: [
+            100,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9031,
+        ),
+        ibus_raw: U16(
+            64402,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1661,
+        ),
+    },
+)
+` |
+| 1064 | 17.436167 | H->D | `0c012000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 1, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1066 | 17.436242 | D->H | `41018200100000031d6508005123e4fb00007806` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 1, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x1de\x08\0Q#\xe4\xfb\0\0x\x06" }` | `PdRawData(b"\x1de\x08\0Q#\xe4\xfb\0\0x\x06")` | `Status(
+    StatusPacket {
+        type_id: 29,
+        timestamp_bytes: [
+            101,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9041,
+        ),
+        ibus_raw: U16(
+            64484,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1656,
+        ),
+    },
+)
+` |
+| 1068 | 17.476232 | H->D | `0c022000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 2, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1070 | 17.476339 | D->H | `410282021000000b4565080047237afb0000790687206508000088048721650800002105872865080000b0098728650800004108` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 2, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 44 }, payload: b"Ee\x08\0G#z\xfb\0\0y\x06\x87 e\x08\0\0\x88\x04\x87!e\x08\0\0!\x05\x87(e\x08\0\0\xb0\t\x87(e\x08\0\0A\x08" }` | `PdRawData(b"Ee\x08\0G#z\xfb\0\0y\x06\x87 e\x08\0\0\x88\x04\x87!e\x08\0\0!\x05\x87(e\x08\0\0\xb0\t\x87(e\x08\0\0A\x08")` | `` |
+| 1072 | 17.516127 | H->D | `0c032000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 3, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1074 | 17.516200 | D->H | `41038200100000036d6508004423a4fb00007c06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 3, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"me\x08\0D#\xa4\xfb\0\0|\x06" }` | `PdRawData(b"me\x08\0D#\xa4\xfb\0\0|\x06")` | `Status(
+    StatusPacket {
+        type_id: 109,
+        timestamp_bytes: [
+            101,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9028,
+        ),
+        ibus_raw: U16(
+            64420,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1660,
+        ),
+    },
+)
+` |
+| 1076 | 17.556094 | H->D | `0c042200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 4, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 4, attribute: 17 }, payload: b"" })` | `` |
+| 1078 | 17.556216 | D->H | `410482030180000b6f590100eeffffff54b10000feffffffb8b100005c000000520d07005c3f93185918757e0080540656025402100000039565080047230bfb00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 4, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"oY\x01\0\xee\xff\xff\xffT\xb1\0\0\xfe\xff\xff\xff\xb8\xb1\0\0\\\0\0\0R\r\x07\0\\?\x93\x18Y\x18u~\0\x80T\x06V\x02T\x02\x10\0\0\x03\x95e\x08\0G#\x0b\xfb\0\0t\x06" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 0.088431, ibus_a: -1.8e-5, power_w: -1.591758e-6, vbus_avg_v: 0.045396, ibus_avg_a: -2e-6, temp_c: 26.0, vdp_v: 0.6291, vdm_v: 0.6233, vdp_avg_v: 0.0598, vdm_avg_v: 0.0596, cc1_v: 0.0007, cc2_v: 1.622, cc2_avg_v: 0.162, internal_vdd_v: 3.2373, sample_rate: Sps1 }, pd: b"\x10\0\0\x03\x95e\x08\0G#\x0b\xfb\0\0t\x06" }` | `` |
+| 1080 | 17.596284 | H->D | `0c052000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 5, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1082 | 17.596365 | D->H | `4105820010000003bd65080047239cfb00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 5, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xbde\x08\0G#\x9c\xfb\0\0t\x06" }` | `PdRawData(b"\xbde\x08\0G#\x9c\xfb\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 189,
+        timestamp_bytes: [
+            101,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9031,
+        ),
+        ibus_raw: U16(
+            64412,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1084 | 17.636474 | H->D | `0c062000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 6, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1086 | 17.636549 | D->H | `4106820010000003e6650800352376fa00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 6, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe6e\x08\05#v\xfa\0\0t\x06" }` | `PdRawData(b"\xe6e\x08\05#v\xfa\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 230,
+        timestamp_bytes: [
+            101,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9013,
+        ),
+        ibus_raw: U16(
+            64118,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1088 | 17.676239 | H->D | `0c072000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 7, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1090 | 17.676328 | D->H | `41078200100000030d660800492387fb00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 7, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\rf\x08\0I#\x87\xfb\0\0q\x06" }` | `PdRawData(b"\rf\x08\0I#\x87\xfb\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 13,
+        timestamp_bytes: [
+            102,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9033,
+        ),
+        ibus_raw: U16(
+            64391,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1092 | 17.716028 | H->D | `0c082000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 8, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1094 | 17.716119 | D->H | `4108820010000003356608004c239dfb00007206` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 8, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"5f\x08\0L#\x9d\xfb\0\0r\x06" }` | `PdRawData(b"5f\x08\0L#\x9d\xfb\0\0r\x06")` | `Status(
+    StatusPacket {
+        type_id: 53,
+        timestamp_bytes: [
+            102,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9036,
+        ),
+        ibus_raw: U16(
+            64413,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1650,
+        ),
+    },
+)
+` |
+| 1096 | 17.756104 | H->D | `0c092000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 9, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1098 | 17.756178 | D->H | `41098200100000035d66080048232ffb00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 9, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"]f\x08\0H#/\xfb\0\0q\x06" }` | `PdRawData(b"]f\x08\0H#/\xfb\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 93,
+        timestamp_bytes: [
+            102,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9032,
+        ),
+        ibus_raw: U16(
+            64303,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1100 | 17.766277 | H->D | `0c0a0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 10, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1102 | 17.766389 | D->H | `410a82020100000be66875007436f8ff54b10000feffffffb8b100005c000000520d07005c3f93185918757e0080700655025502` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 10, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xe6hu\0t6\xf8\xffT\xb1\0\0\xfe\xff\xff\xff\xb8\xb1\0\0\\\0\0\0R\r\x07\0\\?\x93\x18Y\x18u~\0\x80p\x06U\x02U\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 7.694566, ibus_a: -0.510348, power_w: -3.9269063689680004, vbus_avg_v: 0.045396, ibus_avg_a: -2e-6, temp_c: 26.0, vdp_v: 0.6291, vdm_v: 0.6233, vdp_avg_v: 0.0597, vdm_avg_v: 0.0597, cc1_v: 0.0007, cc2_v: 1.622, cc2_avg_v: 0.1648, internal_vdd_v: 3.2373, sample_rate: Sps1 })` | `` |
+| 1104 | 17.796273 | H->D | `0c0b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 11, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1106 | 17.796364 | D->H | `410b82001000000385660800432300fb00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 11, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x85f\x08\0C#\0\xfb\0\0q\x06" }` | `PdRawData(b"\x85f\x08\0C#\0\xfb\0\0q\x06")` | `` |
+| 1108 | 17.841775 | H->D | `0c0c2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 12, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1110 | 17.841858 | D->H | `410c820010000003b36608003b2329fb00007506` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 12, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb3f\x08\0;#)\xfb\0\0u\x06" }` | `PdRawData(b"\xb3f\x08\0;#)\xfb\0\0u\x06")` | `Status(
+    StatusPacket {
+        type_id: 179,
+        timestamp_bytes: [
+            102,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9019,
+        ),
+        ibus_raw: U16(
+            64297,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1653,
+        ),
+    },
+)
+` |
+| 1112 | 17.876181 | H->D | `0c0d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 13, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1114 | 17.876254 | D->H | `410d820010000003d5660800392386fa00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 13, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xd5f\x08\09#\x86\xfa\0\0q\x06" }` | `PdRawData(b"\xd5f\x08\09#\x86\xfa\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 213,
+        timestamp_bytes: [
+            102,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9017,
+        ),
+        ibus_raw: U16(
+            64134,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1116 | 17.907091 | H->D | `0c0e2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 14, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1118 | 17.907169 | D->H | `410e820010000003f4660800332359fa00007506` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 14, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf4f\x08\03#Y\xfa\0\0u\x06" }` | `PdRawData(b"\xf4f\x08\03#Y\xfa\0\0u\x06")` | `Status(
+    StatusPacket {
+        type_id: 244,
+        timestamp_bytes: [
+            102,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9011,
+        ),
+        ibus_raw: U16(
+            64089,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1653,
+        ),
+    },
+)
+` |
+| 1120 | 17.946000 | H->D | `0c0f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 15, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1122 | 17.946073 | D->H | `410f8200100000031b6708003e23cdfa00007306` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 15, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x1bg\x08\0>#\xcd\xfa\0\0s\x06" }` | `PdRawData(b"\x1bg\x08\0>#\xcd\xfa\0\0s\x06")` | `Status(
+    StatusPacket {
+        type_id: 27,
+        timestamp_bytes: [
+            103,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9022,
+        ),
+        ibus_raw: U16(
+            64205,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1651,
+        ),
+    },
+)
+` |
+| 1124 | 17.976176 | H->D | `0c100200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 16, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1126 | 17.976282 | D->H | `411082020100000be66875007436f8ff54b10000feffffffb8b100005c000000520d000054405c175e17817e0080700655025602` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 16, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xe6hu\0t6\xf8\xffT\xb1\0\0\xfe\xff\xff\xff\xb8\xb1\0\0\\\0\0\0R\r\0\0T@\\\x17^\x17\x81~\0\x80p\x06U\x02V\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 7.694566, ibus_a: -0.510348, power_w: -3.9269063689680004, vbus_avg_v: 0.045396, ibus_avg_a: -2e-6, temp_c: 26.0, vdp_v: 0.598, vdm_v: 0.5982, vdp_avg_v: 0.0597, vdm_avg_v: 0.0598, cc1_v: 0.0, cc2_v: 1.6468, cc2_avg_v: 0.1648, internal_vdd_v: 3.2385, sample_rate: Sps1 })` | `` |
+| 1128 | 17.986094 | H->D | `0c112000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 17, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1130 | 17.986168 | D->H | `4111820010000003436708003923e7fa00007306` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 17, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Cg\x08\09#\xe7\xfa\0\0s\x06" }` | `PdRawData(b"Cg\x08\09#\xe7\xfa\0\0s\x06")` | `Status(
+    StatusPacket {
+        type_id: 67,
+        timestamp_bytes: [
+            103,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9017,
+        ),
+        ibus_raw: U16(
+            64231,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1651,
+        ),
+    },
+)
+` |
+| 1132 | 18.032626 | H->D | `0c122000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 18, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1134 | 18.032709 | D->H | `41128200100000037267080036233ffa00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 18, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"rg\x08\06#?\xfa\0\0t\x06" }` | `PdRawData(b"rg\x08\06#?\xfa\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 114,
+        timestamp_bytes: [
+            103,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9014,
+        ),
+        ibus_raw: U16(
+            64063,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1136 | 18.066168 | H->D | `0c132000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 19, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1138 | 18.066252 | D->H | `4113820010000003936708003f23e7fa00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 19, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x93g\x08\0?#\xe7\xfa\0\0t\x06" }` | `PdRawData(b"\x93g\x08\0?#\xe7\xfa\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 147,
+        timestamp_bytes: [
+            103,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9023,
+        ),
+        ibus_raw: U16(
+            64231,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1140 | 18.106141 | H->D | `0c142000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 20, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1142 | 18.106214 | D->H | `4114820010000003bb67080049232afb00007306` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 20, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xbbg\x08\0I#*\xfb\0\0s\x06" }` | `PdRawData(b"\xbbg\x08\0I#*\xfb\0\0s\x06")` | `Status(
+    StatusPacket {
+        type_id: 187,
+        timestamp_bytes: [
+            103,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9033,
+        ),
+        ibus_raw: U16(
+            64298,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1651,
+        ),
+    },
+)
+` |
+| 1144 | 18.146123 | H->D | `0c152000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 21, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1146 | 18.146212 | D->H | `4115820010000003e3670800492330fb00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 21, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe3g\x08\0I#0\xfb\0\0t\x06" }` | `PdRawData(b"\xe3g\x08\0I#0\xfb\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 227,
+        timestamp_bytes: [
+            103,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9033,
+        ),
+        ibus_raw: U16(
+            64304,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1148 | 18.186618 | H->D | `0c162200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 22, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 22, attribute: 17 }, payload: b"" })` | `` |
+| 1150 | 18.186804 | D->H | `411682030180000b44bf89009c11ecff15947f00e42bf2ff1b947f00422cf2ff530d000054405c175e17817e0080700656025602100000030c680800452300fb00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 22, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"D\xbf\x89\0\x9c\x11\xec\xff\x15\x94\x7f\0\xe4+\xf2\xff\x1b\x94\x7f\0B,\xf2\xffS\r\0\0T@\\\x17^\x17\x81~\0\x80p\x06V\x02V\x02\x10\0\0\x03\x0ch\x08\0E#\0\xfb\0\0t\x06" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 9.027396, ibus_a: -1.306212, power_w: -11.791692983951998, vbus_avg_v: 8.360981, ibus_avg_a: -0.906268, temp_c: 26.0, vdp_v: 0.598, vdm_v: 0.5982, vdp_avg_v: 0.0598, vdm_avg_v: 0.0598, cc1_v: 0.0, cc2_v: 1.6468, cc2_avg_v: 0.1648, internal_vdd_v: 3.2385, sample_rate: Sps1 }, pd: b"\x10\0\0\x03\x0ch\x08\0E#\0\xfb\0\0t\x06" }` | `` |
+| 1152 | 18.226183 | H->D | `0c172000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 23, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1154 | 18.226266 | D->H | `41178200100000033368080038235cfa00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 23, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"3h\x08\08#\\\xfa\0\0t\x06" }` | `PdRawData(b"3h\x08\08#\\\xfa\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 51,
+        timestamp_bytes: [
+            104,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9016,
+        ),
+        ibus_raw: U16(
+            64092,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1156 | 18.266226 | H->D | `0c182000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 24, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1158 | 18.266320 | D->H | `41188200100000035b680800422328fb00007606` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 24, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"[h\x08\0B#(\xfb\0\0v\x06" }` | `PdRawData(b"[h\x08\0B#(\xfb\0\0v\x06")` | `Status(
+    StatusPacket {
+        type_id: 91,
+        timestamp_bytes: [
+            104,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9026,
+        ),
+        ibus_raw: U16(
+            64296,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1654,
+        ),
+    },
+)
+` |
+| 1160 | 18.306121 | H->D | `0c192000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 25, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1162 | 18.306210 | D->H | `4119820010000003836808003e2331fb00007706` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 25, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x83h\x08\0>#1\xfb\0\0w\x06" }` | `PdRawData(b"\x83h\x08\0>#1\xfb\0\0w\x06")` | `` |
+| 1164 | 18.346160 | H->D | `0c1a2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 26, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1166 | 18.346250 | D->H | `411a820010000003ab680800472302fb00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 26, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xabh\x08\0G#\x02\xfb\0\0t\x06" }` | `PdRawData(b"\xabh\x08\0G#\x02\xfb\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 171,
+        timestamp_bytes: [
+            104,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9031,
+        ),
+        ibus_raw: U16(
+            64258,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1168 | 18.386570 | H->D | `0c1b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 27, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1170 | 18.386655 | D->H | `411b820010000003d46808004f239dfb00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 27, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xd4h\x08\0O#\x9d\xfb\0\0t\x06" }` | `PdRawData(b"\xd4h\x08\0O#\x9d\xfb\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 212,
+        timestamp_bytes: [
+            104,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9039,
+        ),
+        ibus_raw: U16(
+            64413,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1172 | 18.397629 | H->D | `0c1c0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 28, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1174 | 18.397737 | D->H | `411c82020100000b44bf89009c11ecff15947f00e42bf2ff1b947f00422cf2ff530d000054405c175e17817e0080740656025402` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 28, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"D\xbf\x89\0\x9c\x11\xec\xff\x15\x94\x7f\0\xe4+\xf2\xff\x1b\x94\x7f\0B,\xf2\xffS\r\0\0T@\\\x17^\x17\x81~\0\x80t\x06V\x02T\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.027396, ibus_a: -1.306212, power_w: -11.791692983951998, vbus_avg_v: 8.360981, ibus_avg_a: -0.906268, temp_c: 26.0, vdp_v: 0.598, vdm_v: 0.5982, vdp_avg_v: 0.0598, vdm_avg_v: 0.0596, cc1_v: 0.0, cc2_v: 1.6468, cc2_avg_v: 0.1652, internal_vdd_v: 3.2385, sample_rate: Sps1 })` | `` |
+| 1176 | 18.432909 | H->D | `0c1d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 29, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1178 | 18.432991 | D->H | `411d82001000000302690800482361fb00007a06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 29, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x02i\x08\0H#a\xfb\0\0z\x06" }` | `PdRawData(b"\x02i\x08\0H#a\xfb\0\0z\x06")` | `Status(
+    StatusPacket {
+        type_id: 2,
+        timestamp_bytes: [
+            105,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9032,
+        ),
+        ibus_raw: U16(
+            64353,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1658,
+        ),
+    },
+)
+` |
+| 1180 | 18.466050 | H->D | `0c1e2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 30, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1182 | 18.466121 | D->H | `411e820010000003236908004623d9fa00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 30, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"#i\x08\0F#\xd9\xfa\0\0t\x06" }` | `PdRawData(b"#i\x08\0F#\xd9\xfa\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 35,
+        timestamp_bytes: [
+            105,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9030,
+        ),
+        ibus_raw: U16(
+            64217,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1184 | 18.506187 | H->D | `0c1f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 31, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1186 | 18.506271 | D->H | `411f8200100000034b690800392399fa00007606` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 31, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Ki\x08\09#\x99\xfa\0\0v\x06" }` | `PdRawData(b"Ki\x08\09#\x99\xfa\0\0v\x06")` | `Status(
+    StatusPacket {
+        type_id: 75,
+        timestamp_bytes: [
+            105,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9017,
+        ),
+        ibus_raw: U16(
+            64153,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1654,
+        ),
+    },
+)
+` |
+| 1188 | 18.546179 | H->D | `0c202000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 32, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1190 | 18.546260 | D->H | `41208200100000037369080048231efb00007506` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 32, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"si\x08\0H#\x1e\xfb\0\0u\x06" }` | `PdRawData(b"si\x08\0H#\x1e\xfb\0\0u\x06")` | `Status(
+    StatusPacket {
+        type_id: 115,
+        timestamp_bytes: [
+            105,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9032,
+        ),
+        ibus_raw: U16(
+            64286,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1653,
+        ),
+    },
+)
+` |
+| 1192 | 18.586550 | H->D | `0c212000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 33, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1194 | 18.586630 | D->H | `41218200100000039c6908004c2397fb00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 33, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x9ci\x08\0L#\x97\xfb\0\0t\x06" }` | `PdRawData(b"\x9ci\x08\0L#\x97\xfb\0\0t\x06")` | `` |
+| 1196 | 18.606137 | H->D | `0c220200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 34, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1198 | 18.606242 | D->H | `412282020100000b0fb58900664eecff15947f00e42bf2ff1b947f00422cf2ff530d0000904064175f17837e0080700654025502` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 34, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x0f\xb5\x89\0fN\xec\xff\x15\x94\x7f\0\xe4+\xf2\xff\x1b\x94\x7f\0B,\xf2\xffS\r\0\0\x90@d\x17_\x17\x83~\0\x80p\x06T\x02U\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.024783, ibus_a: -1.29065, power_w: -11.64783617895, vbus_avg_v: 8.360981, ibus_avg_a: -0.906268, temp_c: 26.0, vdp_v: 0.5988, vdm_v: 0.5983, vdp_avg_v: 0.0596, vdm_avg_v: 0.0597, cc1_v: 0.0, cc2_v: 1.6528, cc2_avg_v: 0.1648, internal_vdd_v: 3.2387, sample_rate: Sps1 })` | `` |
+| 1200 | 18.626493 | H->D | `0c232000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 35, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1202 | 18.626574 | D->H | `4123820010000003c4690800422396fb00007206` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 35, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xc4i\x08\0B#\x96\xfb\0\0r\x06" }` | `PdRawData(b"\xc4i\x08\0B#\x96\xfb\0\0r\x06")` | `Status(
+    StatusPacket {
+        type_id: 196,
+        timestamp_bytes: [
+            105,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9026,
+        ),
+        ibus_raw: U16(
+            64406,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1650,
+        ),
+    },
+)
+` |
+| 1204 | 18.666217 | H->D | `0c242000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 36, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1206 | 18.666298 | D->H | `4124820010000003eb690800512351fb00007206` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 36, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xebi\x08\0Q#Q\xfb\0\0r\x06" }` | `PdRawData(b"\xebi\x08\0Q#Q\xfb\0\0r\x06")` | `Status(
+    StatusPacket {
+        type_id: 235,
+        timestamp_bytes: [
+            105,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9041,
+        ),
+        ibus_raw: U16(
+            64337,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1650,
+        ),
+    },
+)
+` |
+| 1208 | 18.706180 | H->D | `0c252000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 37, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1210 | 18.706262 | D->H | `4125820010000003136a08004823dffb00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 37, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x13j\x08\0H#\xdf\xfb\0\0t\x06" }` | `PdRawData(b"\x13j\x08\0H#\xdf\xfb\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 19,
+        timestamp_bytes: [
+            106,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9032,
+        ),
+        ibus_raw: U16(
+            64479,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1212 | 18.746198 | H->D | `0c262000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 38, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1214 | 18.746277 | D->H | `41268200100000033b6a080043231dfb00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 38, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b";j\x08\0C#\x1d\xfb\0\0t\x06" }` | `PdRawData(b";j\x08\0C#\x1d\xfb\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 59,
+        timestamp_bytes: [
+            106,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9027,
+        ),
+        ibus_raw: U16(
+            64285,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1216 | 18.786111 | H->D | `0c272000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 39, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1218 | 18.786186 | D->H | `4127820010000003636a08005223e3fb00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 39, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"cj\x08\0R#\xe3\xfb\0\0p\x06" }` | `PdRawData(b"cj\x08\0R#\xe3\xfb\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 99,
+        timestamp_bytes: [
+            106,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9042,
+        ),
+        ibus_raw: U16(
+            64483,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1220 | 18.816139 | H->D | `0c280200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 40, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1222 | 18.816245 | D->H | `412882020100000b0fb58900664eecff15947f00e42bf2ff1b947f00422cf2ff530d0000904064175f17837e0080700654025402` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 40, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x0f\xb5\x89\0fN\xec\xff\x15\x94\x7f\0\xe4+\xf2\xff\x1b\x94\x7f\0B,\xf2\xffS\r\0\0\x90@d\x17_\x17\x83~\0\x80p\x06T\x02T\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.024783, ibus_a: -1.29065, power_w: -11.64783617895, vbus_avg_v: 8.360981, ibus_avg_a: -0.906268, temp_c: 26.0, vdp_v: 0.5988, vdm_v: 0.5983, vdp_avg_v: 0.0596, vdm_avg_v: 0.0596, cc1_v: 0.0, cc2_v: 1.6528, cc2_avg_v: 0.1648, internal_vdd_v: 3.2387, sample_rate: Sps1 })` | `` |
+| 1224 | 18.833195 | H->D | `0c292000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 41, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1226 | 18.833274 | D->H | `4129820010000003926a08004523e2fa00007306` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 41, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x92j\x08\0E#\xe2\xfa\0\0s\x06" }` | `PdRawData(b"\x92j\x08\0E#\xe2\xfa\0\0s\x06")` | `Status(
+    StatusPacket {
+        type_id: 146,
+        timestamp_bytes: [
+            106,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9029,
+        ),
+        ibus_raw: U16(
+            64226,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1651,
+        ),
+    },
+)
+` |
+| 1228 | 18.866201 | H->D | `0c2a2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 42, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1230 | 18.866281 | D->H | `412a820010000003b36a08005323b7fb00007206` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 42, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb3j\x08\0S#\xb7\xfb\0\0r\x06" }` | `PdRawData(b"\xb3j\x08\0S#\xb7\xfb\0\0r\x06")` | `Status(
+    StatusPacket {
+        type_id: 179,
+        timestamp_bytes: [
+            106,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9043,
+        ),
+        ibus_raw: U16(
+            64439,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1650,
+        ),
+    },
+)
+` |
+| 1232 | 18.907085 | H->D | `0c2b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 43, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1234 | 18.907153 | D->H | `412b820010000003dc6a080051234bfc00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 43, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xdcj\x08\0Q#K\xfc\0\0q\x06" }` | `PdRawData(b"\xdcj\x08\0Q#K\xfc\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 220,
+        timestamp_bytes: [
+            106,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9041,
+        ),
+        ibus_raw: U16(
+            64587,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1236 | 18.946115 | H->D | `0c2c2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 44, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1238 | 18.946189 | D->H | `412c820010000003036b080041234afb00007706` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 44, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x03k\x08\0A#J\xfb\0\0w\x06" }` | `PdRawData(b"\x03k\x08\0A#J\xfb\0\0w\x06")` | `Status(
+    StatusPacket {
+        type_id: 3,
+        timestamp_bytes: [
+            107,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9025,
+        ),
+        ibus_raw: U16(
+            64330,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1655,
+        ),
+    },
+)
+` |
+| 1240 | 18.986325 | H->D | `0c2d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 45, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1242 | 18.986421 | D->H | `412d8200100000032c6b08004c2382fb00007a06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 45, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b",k\x08\0L#\x82\xfb\0\0z\x06" }` | `PdRawData(b",k\x08\0L#\x82\xfb\0\0z\x06")` | `Status(
+    StatusPacket {
+        type_id: 44,
+        timestamp_bytes: [
+            107,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9036,
+        ),
+        ibus_raw: U16(
+            64386,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1658,
+        ),
+    },
+)
+` |
+| 1244 | 19.027158 | H->D | `0c2e2200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 46, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 46, attribute: 17 }, payload: b"" })` | `` |
+| 1246 | 19.027279 | D->H | `412e82030180000b0fb58900664eecff15947f00e42bf2ff1b947f00422cf2ff530d0000884055175417857e008078065a025a0210000003546b08005123b6fc00007506` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 46, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"\x0f\xb5\x89\0fN\xec\xff\x15\x94\x7f\0\xe4+\xf2\xff\x1b\x94\x7f\0B,\xf2\xffS\r\0\0\x88@U\x17T\x17\x85~\0\x80x\x06Z\x02Z\x02\x10\0\0\x03Tk\x08\0Q#\xb6\xfc\0\0u\x06" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 9.024783, ibus_a: -1.29065, power_w: -11.64783617895, vbus_avg_v: 8.360981, ibus_avg_a: -0.906268, temp_c: 26.0, vdp_v: 0.5973, vdm_v: 0.5972, vdp_avg_v: 0.0602, vdm_avg_v: 0.0602, cc1_v: 0.0, cc2_v: 1.652, cc2_avg_v: 0.1656, internal_vdd_v: 3.2389, sample_rate: Sps1 }, pd: b"\x10\0\0\x03Tk\x08\0Q#\xb6\xfc\0\0u\x06" }` | `` |
+| 1248 | 19.066354 | H->D | `0c2f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 47, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1250 | 19.066433 | D->H | `412f8200100000037c6b08004a23aafb00007806` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 47, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"|k\x08\0J#\xaa\xfb\0\0x\x06" }` | `PdRawData(b"|k\x08\0J#\xaa\xfb\0\0x\x06")` | `Status(
+    StatusPacket {
+        type_id: 124,
+        timestamp_bytes: [
+            107,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9034,
+        ),
+        ibus_raw: U16(
+            64426,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1656,
+        ),
+    },
+)
+` |
+| 1252 | 19.106137 | H->D | `0c302000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 48, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1254 | 19.106218 | D->H | `4130820010000003a36b080056234dfc00007b06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 48, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa3k\x08\0V#M\xfc\0\0{\x06" }` | `PdRawData(b"\xa3k\x08\0V#M\xfc\0\0{\x06")` | `Status(
+    StatusPacket {
+        type_id: 163,
+        timestamp_bytes: [
+            107,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9046,
+        ),
+        ibus_raw: U16(
+            64589,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1659,
+        ),
+    },
+)
+` |
+| 1256 | 19.146105 | H->D | `0c312000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 49, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1258 | 19.146189 | D->H | `4131820010000003cb6b0800492383fb00007a06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 49, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xcbk\x08\0I#\x83\xfb\0\0z\x06" }` | `PdRawData(b"\xcbk\x08\0I#\x83\xfb\0\0z\x06")` | `Status(
+    StatusPacket {
+        type_id: 203,
+        timestamp_bytes: [
+            107,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9033,
+        ),
+        ibus_raw: U16(
+            64387,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1658,
+        ),
+    },
+)
+` |
+| 1260 | 19.186099 | H->D | `0c322000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 50, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1262 | 19.186175 | D->H | `4132820010000003f36b08005d23d4fc00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 50, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf3k\x08\0]#\xd4\xfc\0\0q\x06" }` | `PdRawData(b"\xf3k\x08\0]#\xd4\xfc\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 243,
+        timestamp_bytes: [
+            107,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9053,
+        ),
+        ibus_raw: U16(
+            64724,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1264 | 19.234462 | H->D | `0c332000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 51, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1266 | 19.234556 | D->H | `4133820010000003246c0800602319fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 51, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"$l\x08\0`#\x19\xfd\0\0q\x06" }` | `PdRawData(b"$l\x08\0`#\x19\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 36,
+        timestamp_bytes: [
+            108,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9056,
+        ),
+        ibus_raw: U16(
+            64793,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1268 | 19.236599 | H->D | `0c340200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 52, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1270 | 19.236681 | D->H | `413482020100000b3fc68900c3d0eeffa7bd89005d91edffadbd8900689aedff540d0000884055175417857e0080740658025802` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 52, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"?\xc6\x89\0\xc3\xd0\xee\xff\xa7\xbd\x89\0]\x91\xed\xff\xad\xbd\x89\0h\x9a\xed\xffT\r\0\0\x88@U\x17T\x17\x85~\0\x80t\x06X\x02X\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.029183, ibus_a: -1.126205, power_w: -10.168711040515, vbus_avg_v: 9.026983, ibus_avg_a: -1.207971, temp_c: 26.0, vdp_v: 0.5973, vdm_v: 0.5972, vdp_avg_v: 0.06, vdm_avg_v: 0.06, cc1_v: 0.0, cc2_v: 1.652, cc2_avg_v: 0.1652, internal_vdd_v: 3.2389, sample_rate: Sps1 })` | `` |
+| 1272 | 19.266225 | H->D | `0c352000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 53, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1274 | 19.266318 | D->H | `4135820010000003436c080067238efd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 53, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Cl\x08\0g#\x8e\xfd\0\0q\x06" }` | `PdRawData(b"Cl\x08\0g#\x8e\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 67,
+        timestamp_bytes: [
+            108,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9063,
+        ),
+        ibus_raw: U16(
+            64910,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1276 | 19.306122 | H->D | `0c362000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 54, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1278 | 19.306204 | D->H | `41368200100000036b6c0800652362fd00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 54, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"kl\x08\0e#b\xfd\0\0t\x06" }` | `PdRawData(b"kl\x08\0e#b\xfd\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 107,
+        timestamp_bytes: [
+            108,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9061,
+        ),
+        ibus_raw: U16(
+            64866,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1280 | 19.346110 | H->D | `0c372000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 55, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1282 | 19.346201 | D->H | `4137820010000003936c08006323b1fd00007206` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 55, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x93l\x08\0c#\xb1\xfd\0\0r\x06" }` | `PdRawData(b"\x93l\x08\0c#\xb1\xfd\0\0r\x06")` | `` |
+| 1284 | 19.386274 | H->D | `0c382000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 56, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1286 | 19.386359 | D->H | `4138820010000003bb6c08005f2325fd00007306` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 56, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xbbl\x08\0_#%\xfd\0\0s\x06" }` | `PdRawData(b"\xbbl\x08\0_#%\xfd\0\0s\x06")` | `Status(
+    StatusPacket {
+        type_id: 187,
+        timestamp_bytes: [
+            108,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9055,
+        ),
+        ibus_raw: U16(
+            64805,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1651,
+        ),
+    },
+)
+` |
+| 1288 | 19.427230 | H->D | `0c392000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 57, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1290 | 19.427307 | D->H | `4139820010000003e46c0800612341fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 57, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe4l\x08\0a#A\xfd\0\0q\x06" }` | `PdRawData(b"\xe4l\x08\0a#A\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 228,
+        timestamp_bytes: [
+            108,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9057,
+        ),
+        ibus_raw: U16(
+            64833,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1292 | 19.446214 | H->D | `0c3a0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 58, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1294 | 19.446318 | D->H | `413a82020100000b3fc68900c3d0eeffa7bd89005d91edffadbd8900689aedff540d00009f406d176f17827e0080700653025302` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 58, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"?\xc6\x89\0\xc3\xd0\xee\xff\xa7\xbd\x89\0]\x91\xed\xff\xad\xbd\x89\0h\x9a\xed\xffT\r\0\0\x9f@m\x17o\x17\x82~\0\x80p\x06S\x02S\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.029183, ibus_a: -1.126205, power_w: -10.168711040515, vbus_avg_v: 9.026983, ibus_avg_a: -1.207971, temp_c: 26.0, vdp_v: 0.5997, vdm_v: 0.5999, vdp_avg_v: 0.0595, vdm_avg_v: 0.0595, cc1_v: 0.0, cc2_v: 1.6543, cc2_avg_v: 0.1648, internal_vdd_v: 3.2386, sample_rate: Sps1 })` | `` |
+| 1296 | 19.466171 | H->D | `0c3b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 59, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1298 | 19.466242 | D->H | `413b8200100000030b6d0800622362fd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 59, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x0bm\x08\0b#b\xfd\0\0p\x06" }` | `PdRawData(b"\x0bm\x08\0b#b\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 11,
+        timestamp_bytes: [
+            109,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9058,
+        ),
+        ibus_raw: U16(
+            64866,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1300 | 19.507136 | H->D | `0c3c2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 60, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1302 | 19.507219 | D->H | `413c820010000003346d0800642355fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 60, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"4m\x08\0d#U\xfd\0\0q\x06" }` | `PdRawData(b"4m\x08\0d#U\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 52,
+        timestamp_bytes: [
+            109,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9060,
+        ),
+        ibus_raw: U16(
+            64853,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1304 | 19.546024 | H->D | `0c3d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 61, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1306 | 19.546101 | D->H | `413d8200100000035b6d080062236cfd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 61, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"[m\x08\0b#l\xfd\0\0q\x06" }` | `PdRawData(b"[m\x08\0b#l\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 91,
+        timestamp_bytes: [
+            109,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9058,
+        ),
+        ibus_raw: U16(
+            64876,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1308 | 19.586017 | H->D | `0c3e2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 62, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1310 | 19.586089 | D->H | `413e820010000003836d08005e23eefc00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 62, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x83m\x08\0^#\xee\xfc\0\0o\x06" }` | `PdRawData(b"\x83m\x08\0^#\xee\xfc\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 131,
+        timestamp_bytes: [
+            109,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9054,
+        ),
+        ibus_raw: U16(
+            64750,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1312 | 19.617206 | H->D | `0c3f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 63, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1314 | 19.617303 | D->H | `413f820010000003a26d0800642354fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 63, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa2m\x08\0d#T\xfd\0\0q\x06" }` | `PdRawData(b"\xa2m\x08\0d#T\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 162,
+        timestamp_bytes: [
+            109,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9060,
+        ),
+        ibus_raw: U16(
+            64852,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1316 | 19.664786 | H->D | `0c402200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 64, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 64, attribute: 17 }, payload: b"" })` | `` |
+| 1318 | 19.664913 | D->H | `414082030180000bf5fd89007235f4ffa7bd89005d91edffadbd8900689aedff530d00009f406d176f17827e008070065202510210000003d26d08005e2300fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 64, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"\xf5\xfd\x89\0r5\xf4\xff\xa7\xbd\x89\0]\x91\xed\xff\xad\xbd\x89\0h\x9a\xed\xffS\r\0\0\x9f@m\x17o\x17\x82~\0\x80p\x06R\x02Q\x02\x10\0\0\x03\xd2m\x08\0^#\0\xfd\0\0q\x06" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 9.043445, ibus_a: -0.77275, power_w: -6.988322123750001, vbus_avg_v: 9.026983, ibus_avg_a: -1.207971, temp_c: 26.0, vdp_v: 0.5997, vdm_v: 0.5999, vdp_avg_v: 0.0594, vdm_avg_v: 0.0593, cc1_v: 0.0, cc2_v: 1.6543, cc2_avg_v: 0.1648, internal_vdd_v: 3.2386, sample_rate: Sps1 }, pd: b"\x10\0\0\x03\xd2m\x08\0^#\0\xfd\0\0q\x06" }` | `` |
+| 1320 | 19.696155 | H->D | `0c412000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 65, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1322 | 19.696241 | D->H | `4141820010000003f16d0800692395fd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 65, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf1m\x08\0i#\x95\xfd\0\0p\x06" }` | `PdRawData(b"\xf1m\x08\0i#\x95\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 241,
+        timestamp_bytes: [
+            109,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9065,
+        ),
+        ibus_raw: U16(
+            64917,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1324 | 19.736122 | H->D | `0c422000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 66, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1326 | 19.736208 | D->H | `4142820010000003196e0800662396fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 66, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x19n\x08\0f#\x96\xfd\0\0o\x06" }` | `PdRawData(b"\x19n\x08\0f#\x96\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 25,
+        timestamp_bytes: [
+            110,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9062,
+        ),
+        ibus_raw: U16(
+            64918,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1328 | 19.776120 | H->D | `0c432000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 67, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1330 | 19.776198 | D->H | `4143820010000003416e0800662355fd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 67, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"An\x08\0f#U\xfd\0\0p\x06" }` | `PdRawData(b"An\x08\0f#U\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 65,
+        timestamp_bytes: [
+            110,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9062,
+        ),
+        ibus_raw: U16(
+            64853,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1332 | 19.817107 | H->D | `0c442000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 68, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1334 | 19.817187 | D->H | `41448200100000036a6e0800632384fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 68, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"jn\x08\0c#\x84\xfd\0\0o\x06" }` | `PdRawData(b"jn\x08\0c#\x84\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 106,
+        timestamp_bytes: [
+            110,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9059,
+        ),
+        ibus_raw: U16(
+            64900,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1336 | 19.860107 | H->D | `0c452000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 69, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1338 | 19.860186 | D->H | `4145820010000003956e0800612356fd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 69, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x95n\x08\0a#V\xfd\0\0n\x06" }` | `PdRawData(b"\x95n\x08\0a#V\xfd\0\0n\x06")` | `` |
+| 1340 | 19.866110 | H->D | `0c460200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 70, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1342 | 19.866206 | D->H | `414682020100000bf5fd89007235f4ffa7bd89005d91edffadbd8900689aedff530d00009f406d176f17827e0080700650025102` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 70, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xf5\xfd\x89\0r5\xf4\xff\xa7\xbd\x89\0]\x91\xed\xff\xad\xbd\x89\0h\x9a\xed\xffS\r\0\0\x9f@m\x17o\x17\x82~\0\x80p\x06P\x02Q\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.043445, ibus_a: -0.77275, power_w: -6.988322123750001, vbus_avg_v: 9.026983, ibus_avg_a: -1.207971, temp_c: 26.0, vdp_v: 0.5997, vdm_v: 0.5999, vdp_avg_v: 0.0592, vdm_avg_v: 0.0593, cc1_v: 0.0, cc2_v: 1.6543, cc2_avg_v: 0.1648, internal_vdd_v: 3.2386, sample_rate: Sps1 })` | `` |
+| 1344 | 19.896192 | H->D | `0c472000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 71, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1346 | 19.896282 | D->H | `4147820010000003b96e080066238efd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 71, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb9n\x08\0f#\x8e\xfd\0\0q\x06" }` | `PdRawData(b"\xb9n\x08\0f#\x8e\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 185,
+        timestamp_bytes: [
+            110,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9062,
+        ),
+        ibus_raw: U16(
+            64910,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1348 | 19.936310 | H->D | `0c482000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 72, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1350 | 19.936392 | D->H | `4148820010000003e26e08006123cefc00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 72, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe2n\x08\0a#\xce\xfc\0\0n\x06" }` | `PdRawData(b"\xe2n\x08\0a#\xce\xfc\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 226,
+        timestamp_bytes: [
+            110,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9057,
+        ),
+        ibus_raw: U16(
+            64718,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1352 | 19.976131 | H->D | `0c492000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 73, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1354 | 19.976206 | D->H | `4149820010000003096f0800622383fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 73, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\to\x08\0b#\x83\xfd\0\0o\x06" }` | `PdRawData(b"\to\x08\0b#\x83\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 9,
+        timestamp_bytes: [
+            111,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9058,
+        ),
+        ibus_raw: U16(
+            64899,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1356 | 20.017169 | H->D | `0c4a2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 74, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1358 | 20.017245 | D->H | `414a820010000003326f080065238dfd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 74, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"2o\x08\0e#\x8d\xfd\0\0o\x06" }` | `PdRawData(b"2o\x08\0e#\x8d\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 50,
+        timestamp_bytes: [
+            111,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9061,
+        ),
+        ibus_raw: U16(
+            64909,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1360 | 20.056132 | H->D | `0c4b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 75, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1362 | 20.056217 | D->H | `414b820010000003596f0800612340fd00006d06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 75, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Yo\x08\0a#@\xfd\0\0m\x06" }` | `PdRawData(b"Yo\x08\0a#@\xfd\0\0m\x06")` | `Status(
+    StatusPacket {
+        type_id: 89,
+        timestamp_bytes: [
+            111,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9057,
+        ),
+        ibus_raw: U16(
+            64832,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1645,
+        ),
+    },
+)
+` |
+| 1364 | 20.076266 | H->D | `0c4c0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 76, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1366 | 20.076375 | D->H | `414c82020100000b50308a00a068f5ff22178a0062d5f4ff28178a00c0d5f4ff550d00006d4034173217807e00806c0651025002` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 76, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"P0\x8a\0\xa0h\xf5\xff\"\x17\x8a\0b\xd5\xf4\xff(\x17\x8a\0\xc0\xd5\xf4\xffU\r\0\0m@4\x172\x17\x80~\0\x80l\x06Q\x02P\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.056336, ibus_a: -0.694112, power_w: -6.286111493631999, vbus_avg_v: 9.04989, ibus_avg_a: -0.731806, temp_c: 26.0, vdp_v: 0.594, vdm_v: 0.5938, vdp_avg_v: 0.0593, vdm_avg_v: 0.0592, cc1_v: 0.0, cc2_v: 1.6493, cc2_avg_v: 0.1644, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 1368 | 20.096117 | H->D | `0c4d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 77, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1370 | 20.096205 | D->H | `414d820010000003816f080065233cfd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 77, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x81o\x08\0e#<\xfd\0\0q\x06" }` | `PdRawData(b"\x81o\x08\0e#<\xfd\0\0q\x06")` | `` |
+| 1372 | 20.136136 | H->D | `0c4e2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 78, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1374 | 20.136206 | D->H | `414e820010000003a96f0800582329fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 78, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa9o\x08\0X#)\xfd\0\0o\x06" }` | `PdRawData(b"\xa9o\x08\0X#)\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 169,
+        timestamp_bytes: [
+            111,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9048,
+        ),
+        ibus_raw: U16(
+            64809,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1376 | 20.176136 | H->D | `0c4f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 79, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1378 | 20.176205 | D->H | `414f820010000003d16f08005d23e3fc00007206` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 79, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xd1o\x08\0]#\xe3\xfc\0\0r\x06" }` | `PdRawData(b"\xd1o\x08\0]#\xe3\xfc\0\0r\x06")` | `Status(
+    StatusPacket {
+        type_id: 209,
+        timestamp_bytes: [
+            111,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9053,
+        ),
+        ibus_raw: U16(
+            64739,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1650,
+        ),
+    },
+)
+` |
+| 1380 | 20.216398 | H->D | `0c502000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 80, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1382 | 20.216478 | D->H | `4150820010000003fa6f080063234efd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 80, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xfao\x08\0c#N\xfd\0\0q\x06" }` | `PdRawData(b"\xfao\x08\0c#N\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 250,
+        timestamp_bytes: [
+            111,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9059,
+        ),
+        ibus_raw: U16(
+            64846,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1384 | 20.256345 | H->D | `0c512000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 81, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1386 | 20.256431 | D->H | `41518200100000032270080064238afd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 81, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\"p\x08\0d#\x8a\xfd\0\0p\x06" }` | `PdRawData(b"\"p\x08\0d#\x8a\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 34,
+        timestamp_bytes: [
+            112,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9060,
+        ),
+        ibus_raw: U16(
+            64906,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1388 | 20.286304 | H->D | `0c522200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 82, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 82, attribute: 17 }, payload: b"" })` | `` |
+| 1390 | 20.286465 | D->H | `415282030180000b50308a00a068f5ff22178a0062d5f4ff28178a00c0d5f4ff550d00006d4034173217807e00807006510251021000000340700800642392fd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 82, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"P0\x8a\0\xa0h\xf5\xff\"\x17\x8a\0b\xd5\xf4\xff(\x17\x8a\0\xc0\xd5\xf4\xffU\r\0\0m@4\x172\x17\x80~\0\x80p\x06Q\x02Q\x02\x10\0\0\x03@p\x08\0d#\x92\xfd\0\0p\x06" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 9.056336, ibus_a: -0.694112, power_w: -6.286111493631999, vbus_avg_v: 9.04989, ibus_avg_a: -0.731806, temp_c: 26.0, vdp_v: 0.594, vdm_v: 0.5938, vdp_avg_v: 0.0593, vdm_avg_v: 0.0593, cc1_v: 0.0, cc2_v: 1.6493, cc2_avg_v: 0.1648, internal_vdd_v: 3.2384, sample_rate: Sps1 }, pd: b"\x10\0\0\x03@p\x08\0d#\x92\xfd\0\0p\x06" }` | `` |
+| 1392 | 20.326203 | H->D | `0c532000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 83, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1394 | 20.326296 | D->H | `415382001000000367700800632316fd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 83, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"gp\x08\0c#\x16\xfd\0\0p\x06" }` | `PdRawData(b"gp\x08\0c#\x16\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 103,
+        timestamp_bytes: [
+            112,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9059,
+        ),
+        ibus_raw: U16(
+            64790,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1396 | 20.366086 | H->D | `0c542000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 84, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1398 | 20.366167 | D->H | `41548200100000038f7008006a23a5fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 84, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x8fp\x08\0j#\xa5\xfd\0\0o\x06" }` | `PdRawData(b"\x8fp\x08\0j#\xa5\xfd\0\0o\x06")` | `` |
+| 1400 | 20.406129 | H->D | `0c552000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 85, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1402 | 20.406217 | D->H | `4155820010000003b770080060235afd00007206` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 85, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb7p\x08\0`#Z\xfd\0\0r\x06" }` | `PdRawData(b"\xb7p\x08\0`#Z\xfd\0\0r\x06")` | `Status(
+    StatusPacket {
+        type_id: 183,
+        timestamp_bytes: [
+            112,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9056,
+        ),
+        ibus_raw: U16(
+            64858,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1650,
+        ),
+    },
+)
+` |
+| 1404 | 20.446181 | H->D | `0c562000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 86, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1406 | 20.446269 | D->H | `4156820010000003df700800612313fd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 86, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xdfp\x08\0a#\x13\xfd\0\0p\x06" }` | `PdRawData(b"\xdfp\x08\0a#\x13\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 223,
+        timestamp_bytes: [
+            112,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9057,
+        ),
+        ibus_raw: U16(
+            64787,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1408 | 20.486248 | H->D | `0c572000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 87, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1410 | 20.486327 | D->H | `415782001000000307710800652355fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 87, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x07q\x08\0e#U\xfd\0\0q\x06" }` | `PdRawData(b"\x07q\x08\0e#U\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 7,
+        timestamp_bytes: [
+            113,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9061,
+        ),
+        ibus_raw: U16(
+            64853,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1412 | 20.496093 | H->D | `0c580200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 88, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1414 | 20.496194 | D->H | `415882020100000b50308a00a068f5ff22178a0062d5f4ff28178a00c0d5f4ff550d0000644033172b17817e0080700651025002` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 88, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"P0\x8a\0\xa0h\xf5\xff\"\x17\x8a\0b\xd5\xf4\xff(\x17\x8a\0\xc0\xd5\xf4\xffU\r\0\0d@3\x17+\x17\x81~\0\x80p\x06Q\x02P\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.056336, ibus_a: -0.694112, power_w: -6.286111493631999, vbus_avg_v: 9.04989, ibus_avg_a: -0.731806, temp_c: 26.0, vdp_v: 0.5939, vdm_v: 0.5931, vdp_avg_v: 0.0593, vdm_avg_v: 0.0592, cc1_v: 0.0, cc2_v: 1.6484, cc2_avg_v: 0.1648, internal_vdd_v: 3.2385, sample_rate: Sps1 })` | `` |
+| 1416 | 20.526194 | H->D | `0c592000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 89, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1418 | 20.526265 | D->H | `41598200100000032f710800652355fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 89, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"/q\x08\0e#U\xfd\0\0o\x06" }` | `PdRawData(b"/q\x08\0e#U\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 47,
+        timestamp_bytes: [
+            113,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9061,
+        ),
+        ibus_raw: U16(
+            64853,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1420 | 20.566142 | H->D | `0c5a2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 90, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1422 | 20.566232 | D->H | `415a820010000003577108006b234cfd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 90, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Wq\x08\0k#L\xfd\0\0p\x06" }` | `PdRawData(b"Wq\x08\0k#L\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 87,
+        timestamp_bytes: [
+            113,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9067,
+        ),
+        ibus_raw: U16(
+            64844,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1424 | 20.597111 | H->D | `0c5b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 91, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1426 | 20.597183 | D->H | `415b82001000000376710800692362fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 91, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"vq\x08\0i#b\xfd\0\0q\x06" }` | `PdRawData(b"vq\x08\0i#b\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 118,
+        timestamp_bytes: [
+            113,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9065,
+        ),
+        ibus_raw: U16(
+            64866,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1428 | 20.636227 | H->D | `0c5c2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 92, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1430 | 20.636309 | D->H | `415c8200100000039d710800652327fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 92, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x9dq\x08\0e#'\xfd\0\0q\x06" }` | `PdRawData(b"\x9dq\x08\0e#'\xfd\0\0q\x06")` | `` |
+| 1432 | 20.676960 | H->D | `0c5d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 93, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1434 | 20.677032 | D->H | `415d820010000003c6710800632381fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 93, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xc6q\x08\0c#\x81\xfd\0\0o\x06" }` | `PdRawData(b"\xc6q\x08\0c#\x81\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 198,
+        timestamp_bytes: [
+            113,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9059,
+        ),
+        ibus_raw: U16(
+            64897,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1436 | 20.706119 | H->D | `0c5e0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 94, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1438 | 20.706252 | D->H | `415e82020100000b30378a00a562f5ff22178a0062d5f4ff28178a00c0d5f4ff540d0000644033172b17817e0080700652025002` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 94, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"07\x8a\0\xa5b\xf5\xff\"\x17\x8a\0b\xd5\xf4\xff(\x17\x8a\0\xc0\xd5\xf4\xffT\r\0\0d@3\x17+\x17\x81~\0\x80p\x06R\x02P\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.058096, ibus_a: -0.695643, power_w: -6.301201075728001, vbus_avg_v: 9.04989, ibus_avg_a: -0.731806, temp_c: 26.0, vdp_v: 0.5939, vdm_v: 0.5931, vdp_avg_v: 0.0594, vdm_avg_v: 0.0592, cc1_v: 0.0, cc2_v: 1.6484, cc2_avg_v: 0.1648, internal_vdd_v: 3.2385, sample_rate: Sps1 })` | `` |
+| 1440 | 20.716097 | H->D | `0c5f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 95, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1442 | 20.716172 | D->H | `415f820010000003ed710800662343fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 95, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xedq\x08\0f#C\xfd\0\0q\x06" }` | `PdRawData(b"\xedq\x08\0f#C\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 237,
+        timestamp_bytes: [
+            113,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9062,
+        ),
+        ibus_raw: U16(
+            64835,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1444 | 20.756122 | H->D | `0c602000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 96, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1446 | 20.756213 | D->H | `4160820010000003157208006523a7fd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 96, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x15r\x08\0e#\xa7\xfd\0\0p\x06" }` | `PdRawData(b"\x15r\x08\0e#\xa7\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 21,
+        timestamp_bytes: [
+            114,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9061,
+        ),
+        ibus_raw: U16(
+            64935,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1448 | 20.796135 | H->D | `0c612000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 97, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1450 | 20.796210 | D->H | `41618200100000033d72080062235cfd00007206` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 97, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"=r\x08\0b#\\\xfd\0\0r\x06" }` | `PdRawData(b"=r\x08\0b#\\\xfd\0\0r\x06")` | `Status(
+    StatusPacket {
+        type_id: 61,
+        timestamp_bytes: [
+            114,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9058,
+        ),
+        ibus_raw: U16(
+            64860,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1650,
+        ),
+    },
+)
+` |
+| 1452 | 20.836312 | H->D | `0c622000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 98, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1454 | 20.836396 | D->H | `416282001000000366720800632335fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 98, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"fr\x08\0c#5\xfd\0\0q\x06" }` | `PdRawData(b"fr\x08\0c#5\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 102,
+        timestamp_bytes: [
+            114,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9059,
+        ),
+        ibus_raw: U16(
+            64821,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1456 | 20.882034 | H->D | `0c632000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 99, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1458 | 20.882114 | D->H | `4163820010000003937208002f23d1fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 99, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x93r\x08\0/#\xd1\xfd\0\0o\x06" }` | `PdRawData(b"\x93r\x08\0/#\xd1\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 147,
+        timestamp_bytes: [
+            114,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9007,
+        ),
+        ibus_raw: U16(
+            64977,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1460 | 20.907123 | H->D | `0c642200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 100, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 100, attribute: 17 }, payload: b"" })` | `` |
+| 1462 | 20.907255 | D->H | `416482030180000b30378a00a562f5ff22178a0062d5f4ff28178a00c0d5f4ff540d00006c4035173117827e008070065202510210000003ac7208002d238bfd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 100, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"07\x8a\0\xa5b\xf5\xff\"\x17\x8a\0b\xd5\xf4\xff(\x17\x8a\0\xc0\xd5\xf4\xffT\r\0\0l@5\x171\x17\x82~\0\x80p\x06R\x02Q\x02\x10\0\0\x03\xacr\x08\0-#\x8b\xfd\0\0q\x06" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 9.058096, ibus_a: -0.695643, power_w: -6.301201075728001, vbus_avg_v: 9.04989, ibus_avg_a: -0.731806, temp_c: 26.0, vdp_v: 0.5941, vdm_v: 0.5937, vdp_avg_v: 0.0594, vdm_avg_v: 0.0593, cc1_v: 0.0, cc2_v: 1.6492, cc2_avg_v: 0.1648, internal_vdd_v: 3.2386, sample_rate: Sps1 }, pd: b"\x10\0\0\x03\xacr\x08\0-#\x8b\xfd\0\0q\x06" }` | `` |
+| 1464 | 20.946281 | H->D | `0c652000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 101, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1466 | 20.946384 | D->H | `4165820010000003d3720800162374fd00007306` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 101, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xd3r\x08\0\x16#t\xfd\0\0s\x06" }` | `PdRawData(b"\xd3r\x08\0\x16#t\xfd\0\0s\x06")` | `Status(
+    StatusPacket {
+        type_id: 211,
+        timestamp_bytes: [
+            114,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8982,
+        ),
+        ibus_raw: U16(
+            64884,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1651,
+        ),
+    },
+)
+` |
+| 1468 | 20.986151 | H->D | `0c662000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 102, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1470 | 20.986255 | D->H | `4166820010000003fb7208002c232dfd00007206` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 102, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xfbr\x08\0,#-\xfd\0\0r\x06" }` | `PdRawData(b"\xfbr\x08\0,#-\xfd\0\0r\x06")` | `Status(
+    StatusPacket {
+        type_id: 251,
+        timestamp_bytes: [
+            114,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9004,
+        ),
+        ibus_raw: U16(
+            64813,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1650,
+        ),
+    },
+)
+` |
+| 1472 | 21.026328 | H->D | `0c672000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 103, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1474 | 21.026426 | D->H | `416782001000000324730800222363fd00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 103, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"$s\x08\0\"#c\xfd\0\0t\x06" }` | `PdRawData(b"$s\x08\0\"#c\xfd\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 36,
+        timestamp_bytes: [
+            115,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8994,
+        ),
+        ibus_raw: U16(
+            64867,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1476 | 21.071982 | H->D | `0c682000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 104, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1478 | 21.072065 | D->H | `41688200100000035173080016234ffd00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 104, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Qs\x08\0\x16#O\xfd\0\0t\x06" }` | `PdRawData(b"Qs\x08\0\x16#O\xfd\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 81,
+        timestamp_bytes: [
+            115,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8982,
+        ),
+        ibus_raw: U16(
+            64847,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1480 | 21.106238 | H->D | `0c692000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 105, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1482 | 21.106329 | D->H | `4169820010000003737308003123bcfd00007506` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 105, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"ss\x08\01#\xbc\xfd\0\0u\x06" }` | `PdRawData(b"ss\x08\01#\xbc\xfd\0\0u\x06")` | `Status(
+    StatusPacket {
+        type_id: 115,
+        timestamp_bytes: [
+            115,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9009,
+        ),
+        ibus_raw: U16(
+            64956,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1653,
+        ),
+    },
+)
+` |
+| 1484 | 21.116121 | H->D | `0c6a0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 106, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1486 | 21.116220 | D->H | `416a82020100000bedd18900b6b2f5ff8e048a009c90f5ff94048a00fa90f5ff550d00006c4035173117827e0080700654025402` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 106, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xed\xd1\x89\0\xb6\xb2\xf5\xff\x8e\x04\x8a\0\x9c\x90\xf5\xff\x94\x04\x8a\0\xfa\x90\xf5\xffU\r\0\0l@5\x171\x17\x82~\0\x80p\x06T\x02T\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.032173, ibus_a: -0.675146, power_w: -6.098035472258, vbus_avg_v: 9.045134, ibus_avg_a: -0.683876, temp_c: 26.0, vdp_v: 0.5941, vdm_v: 0.5937, vdp_avg_v: 0.0596, vdm_avg_v: 0.0596, cc1_v: 0.0, cc2_v: 1.6492, cc2_avg_v: 0.1648, internal_vdd_v: 3.2386, sample_rate: Sps1 })` | `` |
+| 1488 | 21.146166 | H->D | `0c6b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 107, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1490 | 21.146236 | D->H | `416b8200100000039b730800052356fd00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 107, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x9bs\x08\0\x05#V\xfd\0\0t\x06" }` | `PdRawData(b"\x9bs\x08\0\x05#V\xfd\0\0t\x06")` | `` |
+| 1492 | 21.186139 | H->D | `0c6c2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 108, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1494 | 21.186230 | D->H | `416c820010000003c3730800222354fd00007206` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 108, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xc3s\x08\0\"#T\xfd\0\0r\x06" }` | `PdRawData(b"\xc3s\x08\0\"#T\xfd\0\0r\x06")` | `Status(
+    StatusPacket {
+        type_id: 195,
+        timestamp_bytes: [
+            115,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8994,
+        ),
+        ibus_raw: U16(
+            64852,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1650,
+        ),
+    },
+)
+` |
+| 1496 | 21.226212 | H->D | `0c6d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 109, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1498 | 21.226290 | D->H | `416d820010000003eb730800242380fd00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 109, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xebs\x08\0$#\x80\xfd\0\0t\x06" }` | `PdRawData(b"\xebs\x08\0$#\x80\xfd\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 235,
+        timestamp_bytes: [
+            115,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8996,
+        ),
+        ibus_raw: U16(
+            64896,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1500 | 21.266993 | H->D | `0c6e2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 110, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1502 | 21.267063 | D->H | `416e820010000003147408002b2380fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 110, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x14t\x08\0+#\x80\xfd\0\0q\x06" }` | `PdRawData(b"\x14t\x08\0+#\x80\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 20,
+        timestamp_bytes: [
+            116,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9003,
+        ),
+        ibus_raw: U16(
+            64896,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1504 | 21.306243 | H->D | `0c6f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 111, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1506 | 21.306330 | D->H | `416f8200100000033b7408002a2356fd00007306` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 111, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b";t\x08\0*#V\xfd\0\0s\x06" }` | `PdRawData(b";t\x08\0*#V\xfd\0\0s\x06")` | `Status(
+    StatusPacket {
+        type_id: 59,
+        timestamp_bytes: [
+            116,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9002,
+        ),
+        ibus_raw: U16(
+            64854,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1651,
+        ),
+    },
+)
+` |
+| 1508 | 21.326089 | H->D | `0c700200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 112, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1510 | 21.326200 | D->H | `417082020100000bedd18900b6b2f5ff8e048a009c90f5ff94048a00fa90f5ff550d00006c4035173117827e0080700652025202` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 112, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xed\xd1\x89\0\xb6\xb2\xf5\xff\x8e\x04\x8a\0\x9c\x90\xf5\xff\x94\x04\x8a\0\xfa\x90\xf5\xffU\r\0\0l@5\x171\x17\x82~\0\x80p\x06R\x02R\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.032173, ibus_a: -0.675146, power_w: -6.098035472258, vbus_avg_v: 9.045134, ibus_avg_a: -0.683876, temp_c: 26.0, vdp_v: 0.5941, vdm_v: 0.5937, vdp_avg_v: 0.0594, vdm_avg_v: 0.0594, cc1_v: 0.0, cc2_v: 1.6492, cc2_avg_v: 0.1648, internal_vdd_v: 3.2386, sample_rate: Sps1 })` | `` |
+| 1512 | 21.346174 | H->D | `0c712000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 113, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1514 | 21.346244 | D->H | `41718200100000036374080025236afd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 113, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"ct\x08\0%#j\xfd\0\0q\x06" }` | `PdRawData(b"ct\x08\0%#j\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 99,
+        timestamp_bytes: [
+            116,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8997,
+        ),
+        ibus_raw: U16(
+            64874,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1516 | 21.386130 | H->D | `0c722000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 114, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1518 | 21.386207 | D->H | `41728200100000038b74080021232ffd00007306` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 114, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x8bt\x08\0!#/\xfd\0\0s\x06" }` | `PdRawData(b"\x8bt\x08\0!#/\xfd\0\0s\x06")` | `` |
+| 1520 | 21.426158 | H->D | `0c732000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 115, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1522 | 21.426246 | D->H | `4173820010000003b3740800222346fd00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 115, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb3t\x08\0\"#F\xfd\0\0t\x06" }` | `PdRawData(b"\xb3t\x08\0\"#F\xfd\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 179,
+        timestamp_bytes: [
+            116,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8994,
+        ),
+        ibus_raw: U16(
+            64838,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1524 | 21.471980 | H->D | `0c742000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 116, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1526 | 21.472069 | D->H | `4174820010000003e174080022236dfd00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 116, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe1t\x08\0\"#m\xfd\0\0t\x06" }` | `PdRawData(b"\xe1t\x08\0\"#m\xfd\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 225,
+        timestamp_bytes: [
+            116,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8994,
+        ),
+        ibus_raw: U16(
+            64877,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1528 | 21.506259 | H->D | `0c752000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 117, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1530 | 21.506341 | D->H | `417582001000000303750800282352fd00007206` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 117, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x03u\x08\0(#R\xfd\0\0r\x06" }` | `PdRawData(b"\x03u\x08\0(#R\xfd\0\0r\x06")` | `Status(
+    StatusPacket {
+        type_id: 3,
+        timestamp_bytes: [
+            117,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9000,
+        ),
+        ibus_raw: U16(
+            64850,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1650,
+        ),
+    },
+)
+` |
+| 1532 | 21.536290 | H->D | `0c760200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 118, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1534 | 21.536397 | D->H | `417682020100000bedd18900b6b2f5ff8e048a009c90f5ff94048a00fa90f5ff550d0000824046174617827e0080700652025102` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 118, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xed\xd1\x89\0\xb6\xb2\xf5\xff\x8e\x04\x8a\0\x9c\x90\xf5\xff\x94\x04\x8a\0\xfa\x90\xf5\xffU\r\0\0\x82@F\x17F\x17\x82~\0\x80p\x06R\x02Q\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.032173, ibus_a: -0.675146, power_w: -6.098035472258, vbus_avg_v: 9.045134, ibus_avg_a: -0.683876, temp_c: 26.0, vdp_v: 0.5958, vdm_v: 0.5958, vdp_avg_v: 0.0594, vdm_avg_v: 0.0593, cc1_v: 0.0, cc2_v: 1.6514, cc2_avg_v: 0.1648, internal_vdd_v: 3.2386, sample_rate: Sps1 })` | `` |
+| 1536 | 21.546133 | H->D | `0c772000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 119, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1538 | 21.546209 | D->H | `41778200100000032b75080021233afd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 119, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"+u\x08\0!#:\xfd\0\0q\x06" }` | `PdRawData(b"+u\x08\0!#:\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 43,
+        timestamp_bytes: [
+            117,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8993,
+        ),
+        ibus_raw: U16(
+            64826,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1540 | 21.586114 | H->D | `0c782000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 120, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1542 | 21.586194 | D->H | `417882001000000353750800252368fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 120, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Su\x08\0%#h\xfd\0\0q\x06" }` | `PdRawData(b"Su\x08\0%#h\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 83,
+        timestamp_bytes: [
+            117,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8997,
+        ),
+        ibus_raw: U16(
+            64872,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1544 | 21.626048 | H->D | `0c792000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 121, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1546 | 21.626125 | D->H | `41798200100000037b750800272328fd00007306` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 121, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"{u\x08\0'#(\xfd\0\0s\x06" }` | `PdRawData(b"{u\x08\0'#(\xfd\0\0s\x06")` | `Status(
+    StatusPacket {
+        type_id: 123,
+        timestamp_bytes: [
+            117,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8999,
+        ),
+        ibus_raw: U16(
+            64808,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1651,
+        ),
+    },
+)
+` |
+| 1548 | 21.667161 | H->D | `0c7a2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 122, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1550 | 21.667234 | D->H | `417a820010000003a475080028237efd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 122, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa4u\x08\0(#~\xfd\0\0n\x06" }` | `PdRawData(b"\xa4u\x08\0(#~\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 164,
+        timestamp_bytes: [
+            117,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9000,
+        ),
+        ibus_raw: U16(
+            64894,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1552 | 21.706305 | H->D | `0c7b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 123, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1554 | 21.706394 | D->H | `417b820010000003cc7508002e2343fd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 123, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xccu\x08\0.#C\xfd\0\0p\x06" }` | `PdRawData(b"\xccu\x08\0.#C\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 204,
+        timestamp_bytes: [
+            117,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9006,
+        ),
+        ibus_raw: U16(
+            64835,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1556 | 21.746182 | H->D | `0c7c2200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 124, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 124, attribute: 17 }, payload: b"" })` | `` |
+| 1558 | 21.746301 | D->H | `417c82030180000b7c4a8900697ff5ff8e048a009c90f5ff94048a00fa90f5ff550d0000824046174617827e008070065102500210000003f3750800272390fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 124, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"|J\x89\0i\x7f\xf5\xff\x8e\x04\x8a\0\x9c\x90\xf5\xff\x94\x04\x8a\0\xfa\x90\xf5\xffU\r\0\0\x82@F\x17F\x17\x82~\0\x80p\x06Q\x02P\x02\x10\0\0\x03\xf3u\x08\0'#\x90\xfd\0\0q\x06" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 8.9975, ibus_a: -0.688279, power_w: -6.1927903025, vbus_avg_v: 9.045134, ibus_avg_a: -0.683876, temp_c: 26.0, vdp_v: 0.5958, vdm_v: 0.5958, vdp_avg_v: 0.0593, vdm_avg_v: 0.0592, cc1_v: 0.0, cc2_v: 1.6514, cc2_avg_v: 0.1648, internal_vdd_v: 3.2386, sample_rate: Sps1 }, pd: b"\x10\0\0\x03\xf3u\x08\0'#\x90\xfd\0\0q\x06" }` | `` |
+| 1560 | 21.786146 | H->D | `0c7d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 125, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1562 | 21.786216 | D->H | `417d8200100000031b7608001f231bfd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 125, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x1bv\x08\0\x1f#\x1b\xfd\0\0p\x06" }` | `PdRawData(b"\x1bv\x08\0\x1f#\x1b\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 27,
+        timestamp_bytes: [
+            118,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8991,
+        ),
+        ibus_raw: U16(
+            64795,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1564 | 21.826129 | H->D | `0c7e2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 126, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1566 | 21.826212 | D->H | `417e820010000003437608003423b3fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 126, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Cv\x08\04#\xb3\xfd\0\0o\x06" }` | `PdRawData(b"Cv\x08\04#\xb3\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 67,
+        timestamp_bytes: [
+            118,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9012,
+        ),
+        ibus_raw: U16(
+            64947,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1568 | 21.871894 | H->D | `0c7f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 127, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1570 | 21.871978 | D->H | `417f820010000003717608003223a9fd00007206` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 127, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"qv\x08\02#\xa9\xfd\0\0r\x06" }` | `PdRawData(b"qv\x08\02#\xa9\xfd\0\0r\x06")` | `Status(
+    StatusPacket {
+        type_id: 113,
+        timestamp_bytes: [
+            118,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9010,
+        ),
+        ibus_raw: U16(
+            64937,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1650,
+        ),
+    },
+)
+` |
+| 1572 | 21.907207 | H->D | `0c802000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 128, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1574 | 21.907285 | D->H | `418082001000000394760800272330fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 128, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x94v\x08\0'#0\xfd\0\0q\x06" }` | `PdRawData(b"\x94v\x08\0'#0\xfd\0\0q\x06")` | `` |
+| 1576 | 21.946234 | H->D | `0c812000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 129, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1578 | 21.946322 | D->H | `4181820010000003bb7608002e2385fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 129, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xbbv\x08\0.#\x85\xfd\0\0o\x06" }` | `PdRawData(b"\xbbv\x08\0.#\x85\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 187,
+        timestamp_bytes: [
+            118,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9006,
+        ),
+        ibus_raw: U16(
+            64901,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1580 | 21.956213 | H->D | `0c820200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 130, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1582 | 21.956308 | D->H | `418282020100000b7c4a8900697ff5ff8e048a009c90f5ff94048a00fa90f5ff550d00006e4038172e17807e0080700651025002` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 130, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"|J\x89\0i\x7f\xf5\xff\x8e\x04\x8a\0\x9c\x90\xf5\xff\x94\x04\x8a\0\xfa\x90\xf5\xffU\r\0\0n@8\x17.\x17\x80~\0\x80p\x06Q\x02P\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 8.9975, ibus_a: -0.688279, power_w: -6.1927903025, vbus_avg_v: 9.045134, ibus_avg_a: -0.683876, temp_c: 26.0, vdp_v: 0.5944, vdm_v: 0.5934, vdp_avg_v: 0.0593, vdm_avg_v: 0.0592, cc1_v: 0.0, cc2_v: 1.6494, cc2_avg_v: 0.1648, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 1584 | 21.986242 | H->D | `0c832000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 131, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1586 | 21.986322 | D->H | `4183820010000003e37608001b233efd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 131, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe3v\x08\0\x1b#>\xfd\0\0p\x06" }` | `PdRawData(b"\xe3v\x08\0\x1b#>\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 227,
+        timestamp_bytes: [
+            118,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8987,
+        ),
+        ibus_raw: U16(
+            64830,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1588 | 22.026275 | H->D | `0c842000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 132, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1590 | 22.026364 | D->H | `41848200100000030b770800222329fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 132, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x0bw\x08\0\"#)\xfd\0\0q\x06" }` | `PdRawData(b"\x0bw\x08\0\"#)\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 11,
+        timestamp_bytes: [
+            119,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8994,
+        ),
+        ibus_raw: U16(
+            64809,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1592 | 22.066276 | H->D | `0c852000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 133, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1594 | 22.066367 | D->H | `4185820010000003337708001a2379fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 133, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"3w\x08\0\x1a#y\xfd\0\0q\x06" }` | `PdRawData(b"3w\x08\0\x1a#y\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 51,
+        timestamp_bytes: [
+            119,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8986,
+        ),
+        ibus_raw: U16(
+            64889,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1596 | 22.106332 | H->D | `0c862000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 134, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1598 | 22.106403 | D->H | `41868200100000035c7708000723c1fc00007406` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 134, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\\w\x08\0\x07#\xc1\xfc\0\0t\x06" }` | `PdRawData(b"\\w\x08\0\x07#\xc1\xfc\0\0t\x06")` | `Status(
+    StatusPacket {
+        type_id: 92,
+        timestamp_bytes: [
+            119,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8967,
+        ),
+        ibus_raw: U16(
+            64705,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1652,
+        ),
+    },
+)
+` |
+| 1600 | 22.146132 | H->D | `0c872000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 135, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1602 | 22.146211 | D->H | `4187820010000003837708001823d0fc00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 135, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x83w\x08\0\x18#\xd0\xfc\0\0q\x06" }` | `PdRawData(b"\x83w\x08\0\x18#\xd0\xfc\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 131,
+        timestamp_bytes: [
+            119,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8984,
+        ),
+        ibus_raw: U16(
+            64720,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1604 | 22.166111 | H->D | `0c880200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 136, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1606 | 22.166221 | D->H | `418882020100000b994e8900bdbef5ff8a4c8900f6a4f5ff904c890054a5f5ff560d00006e4038172e17807e0080700651025102` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 136, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x99N\x89\0\xbd\xbe\xf5\xff\x8aL\x89\0\xf6\xa4\xf5\xff\x90L\x89\0T\xa5\xf5\xffV\r\0\0n@8\x17.\x17\x80~\0\x80p\x06Q\x02Q\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 8.998553, ibus_a: -0.672067, power_w: -6.047630519050999, vbus_avg_v: 8.998026, ibus_avg_a: -0.678666, temp_c: 26.0, vdp_v: 0.5944, vdm_v: 0.5934, vdp_avg_v: 0.0593, vdm_avg_v: 0.0593, cc1_v: 0.0, cc2_v: 1.6494, cc2_avg_v: 0.1648, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 1608 | 22.186045 | H->D | `0c892000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 137, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1610 | 22.186119 | D->H | `4189820010000003ab770800222393fd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 137, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xabw\x08\0\"#\x93\xfd\0\0n\x06" }` | `PdRawData(b"\xabw\x08\0\"#\x93\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 171,
+        timestamp_bytes: [
+            119,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8994,
+        ),
+        ibus_raw: U16(
+            64915,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1612 | 22.226197 | H->D | `0c8a2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 138, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1614 | 22.226284 | D->H | `418a820010000003d377080027235afd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 138, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xd3w\x08\0'#Z\xfd\0\0q\x06" }` | `PdRawData(b"\xd3w\x08\0'#Z\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 211,
+        timestamp_bytes: [
+            119,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8999,
+        ),
+        ibus_raw: U16(
+            64858,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1616 | 22.266473 | H->D | `0c8b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 139, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1618 | 22.266566 | D->H | `418b820010000003fc7708001f23f6fc00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 139, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xfcw\x08\0\x1f#\xf6\xfc\0\0q\x06" }` | `PdRawData(b"\xfcw\x08\0\x1f#\xf6\xfc\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 252,
+        timestamp_bytes: [
+            119,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8991,
+        ),
+        ibus_raw: U16(
+            64758,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1620 | 22.306241 | H->D | `0c8c2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 140, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1622 | 22.306324 | D->H | `418c82001000000323780800202361fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 140, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"#x\x08\0 #a\xfd\0\0q\x06" }` | `PdRawData(b"#x\x08\0 #a\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 35,
+        timestamp_bytes: [
+            120,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8992,
+        ),
+        ibus_raw: U16(
+            64865,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1624 | 22.346100 | H->D | `0c8d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 141, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1626 | 22.346176 | D->H | `418d8200100000034b7808001c23f9fc00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 141, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Kx\x08\0\x1c#\xf9\xfc\0\0q\x06" }` | `PdRawData(b"Kx\x08\0\x1c#\xf9\xfc\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 75,
+        timestamp_bytes: [
+            120,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8988,
+        ),
+        ibus_raw: U16(
+            64761,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1628 | 22.376182 | H->D | `0c8e0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 142, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1630 | 22.376283 | D->H | `418e82020100000b994e8900bdbef5ff8a4c8900f6a4f5ff904c890054a5f5ff560d00006e4038172e17807e00806c0652025002` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 142, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x99N\x89\0\xbd\xbe\xf5\xff\x8aL\x89\0\xf6\xa4\xf5\xff\x90L\x89\0T\xa5\xf5\xffV\r\0\0n@8\x17.\x17\x80~\0\x80l\x06R\x02P\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 8.998553, ibus_a: -0.672067, power_w: -6.047630519050999, vbus_avg_v: 8.998026, ibus_avg_a: -0.678666, temp_c: 26.0, vdp_v: 0.5944, vdm_v: 0.5934, vdp_avg_v: 0.0594, vdm_avg_v: 0.0592, cc1_v: 0.0, cc2_v: 1.6494, cc2_avg_v: 0.1644, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 1632 | 22.387208 | H->D | `0c8f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 143, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1634 | 22.387278 | D->H | `418f8200100000037478080025236afd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 143, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"tx\x08\0%#j\xfd\0\0q\x06" }` | `PdRawData(b"tx\x08\0%#j\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 116,
+        timestamp_bytes: [
+            120,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8997,
+        ),
+        ibus_raw: U16(
+            64874,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1636 | 22.426267 | H->D | `0c902000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 144, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1638 | 22.426369 | D->H | `41908200100000039b7808002d234afd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 144, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x9bx\x08\0-#J\xfd\0\0o\x06" }` | `PdRawData(b"\x9bx\x08\0-#J\xfd\0\0o\x06")` | `` |
+| 1640 | 22.466235 | H->D | `0c912000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 145, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1642 | 22.466319 | D->H | `4191820010000003c37808002d236dfd00007206` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 145, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xc3x\x08\0-#m\xfd\0\0r\x06" }` | `PdRawData(b"\xc3x\x08\0-#m\xfd\0\0r\x06")` | `Status(
+    StatusPacket {
+        type_id: 195,
+        timestamp_bytes: [
+            120,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9005,
+        ),
+        ibus_raw: U16(
+            64877,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1650,
+        ),
+    },
+)
+` |
+| 1644 | 22.506260 | H->D | `0c922000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 146, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1646 | 22.506332 | D->H | `4192820010000003eb7808001d2371fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 146, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xebx\x08\0\x1d#q\xfd\0\0q\x06" }` | `PdRawData(b"\xebx\x08\0\x1d#q\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 235,
+        timestamp_bytes: [
+            120,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8989,
+        ),
+        ibus_raw: U16(
+            64881,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1648 | 22.546180 | H->D | `0c932000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 147, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1650 | 22.546245 | D->H | `4193820010000003137908002f2374fd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 147, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x13y\x08\0/#t\xfd\0\0p\x06" }` | `PdRawData(b"\x13y\x08\0/#t\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 19,
+        timestamp_bytes: [
+            121,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9007,
+        ),
+        ibus_raw: U16(
+            64884,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1652 | 22.586133 | H->D | `0c942200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 148, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 148, attribute: 17 }, payload: b"" })` | `` |
+| 1654 | 22.586251 | D->H | `419482030180000be63c89009b18f5ff8a4c8900f6a4f5ff904c890054a5f5ff550d00006b403a173217837e00806c0650025102100000033b7908003123a7fd00006c06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 148, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"\xe6<\x89\0\x9b\x18\xf5\xff\x8aL\x89\0\xf6\xa4\xf5\xff\x90L\x89\0T\xa5\xf5\xffU\r\0\0k@:\x172\x17\x83~\0\x80l\x06P\x02Q\x02\x10\0\0\x03;y\x08\01#\xa7\xfd\0\0l\x06" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 8.994022, ibus_a: -0.714597, power_w: -6.427101139134, vbus_avg_v: 8.998026, ibus_avg_a: -0.678666, temp_c: 26.0, vdp_v: 0.5946, vdm_v: 0.5938, vdp_avg_v: 0.0592, vdm_avg_v: 0.0593, cc1_v: 0.0, cc2_v: 1.6491, cc2_avg_v: 0.1644, internal_vdd_v: 3.2387, sample_rate: Sps1 }, pd: b"\x10\0\0\x03;y\x08\01#\xa7\xfd\0\0l\x06" }` | `` |
+| 1656 | 22.626167 | H->D | `0c952000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 149, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1658 | 22.626255 | D->H | `4195820010000003637908002a2340fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 149, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"cy\x08\0*#@\xfd\0\0q\x06" }` | `PdRawData(b"cy\x08\0*#@\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 99,
+        timestamp_bytes: [
+            121,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9002,
+        ),
+        ibus_raw: U16(
+            64832,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1660 | 22.666298 | H->D | `0c962000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 150, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1662 | 22.666378 | D->H | `41968200100000038c79080040234cfd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 150, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x8cy\x08\0@#L\xfd\0\0n\x06" }` | `PdRawData(b"\x8cy\x08\0@#L\xfd\0\0n\x06")` | `` |
+| 1664 | 22.706236 | H->D | `0c972000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 151, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1666 | 22.706318 | D->H | `4197820010000003b379080026239afd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 151, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb3y\x08\0&#\x9a\xfd\0\0n\x06" }` | `PdRawData(b"\xb3y\x08\0&#\x9a\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 179,
+        timestamp_bytes: [
+            121,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8998,
+        ),
+        ibus_raw: U16(
+            64922,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1668 | 22.746106 | H->D | `0c982000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 152, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1670 | 22.746189 | D->H | `4198820010000003db79080028239cfd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 152, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xdby\x08\0(#\x9c\xfd\0\0o\x06" }` | `PdRawData(b"\xdby\x08\0(#\x9c\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 219,
+        timestamp_bytes: [
+            121,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9000,
+        ),
+        ibus_raw: U16(
+            64924,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1672 | 22.786121 | H->D | `0c992000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 153, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1674 | 22.786201 | D->H | `4199820010000003037a080023231dfd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 153, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x03z\x08\0##\x1d\xfd\0\0n\x06" }` | `PdRawData(b"\x03z\x08\0##\x1d\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 3,
+        timestamp_bytes: [
+            122,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8995,
+        ),
+        ibus_raw: U16(
+            64797,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1676 | 22.796238 | H->D | `0c9a0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 154, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1678 | 22.796333 | D->H | `419a82020100000be63c89009b18f5ff8a4c8900f6a4f5ff904c890054a5f5ff550d00006b403a173217837e00806c0650025002` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 154, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xe6<\x89\0\x9b\x18\xf5\xff\x8aL\x89\0\xf6\xa4\xf5\xff\x90L\x89\0T\xa5\xf5\xffU\r\0\0k@:\x172\x17\x83~\0\x80l\x06P\x02P\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 8.994022, ibus_a: -0.714597, power_w: -6.427101139134, vbus_avg_v: 8.998026, ibus_avg_a: -0.678666, temp_c: 26.0, vdp_v: 0.5946, vdm_v: 0.5938, vdp_avg_v: 0.0592, vdm_avg_v: 0.0592, cc1_v: 0.0, cc2_v: 1.6491, cc2_avg_v: 0.1644, internal_vdd_v: 3.2387, sample_rate: Sps1 })` | `` |
+| 1680 | 22.828202 | H->D | `0c9b2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 155, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1682 | 22.828280 | D->H | `419b8200100000032d7a08002a23bafd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 155, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"-z\x08\0*#\xba\xfd\0\0n\x06" }` | `PdRawData(b"-z\x08\0*#\xba\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 45,
+        timestamp_bytes: [
+            122,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9002,
+        ),
+        ibus_raw: U16(
+            64954,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1684 | 22.866185 | H->D | `0c9c2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 156, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1686 | 22.866255 | D->H | `419c820010000003537a08003d23bdfd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 156, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Sz\x08\0=#\xbd\xfd\0\0n\x06" }` | `PdRawData(b"Sz\x08\0=#\xbd\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 83,
+        timestamp_bytes: [
+            122,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9021,
+        ),
+        ibus_raw: U16(
+            64957,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1688 | 22.909990 | H->D | `0c9d2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 157, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1690 | 22.910067 | D->H | `419d8200100000037f7a08001e2396fd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 157, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x7fz\x08\0\x1e#\x96\xfd\0\0n\x06" }` | `PdRawData(b"\x7fz\x08\0\x1e#\x96\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 127,
+        timestamp_bytes: [
+            122,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8990,
+        ),
+        ibus_raw: U16(
+            64918,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1692 | 22.946080 | H->D | `0c9e2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 158, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1694 | 22.946150 | D->H | `419e820010000003a37a08002e2327fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 158, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa3z\x08\0.#'\xfd\0\0o\x06" }` | `PdRawData(b"\xa3z\x08\0.#'\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 163,
+        timestamp_bytes: [
+            122,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9006,
+        ),
+        ibus_raw: U16(
+            64807,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1696 | 22.986128 | H->D | `0c9f2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 159, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1698 | 22.986211 | D->H | `419f820010000003cb7a080030239afd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 159, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xcbz\x08\00#\x9a\xfd\0\0n\x06" }` | `PdRawData(b"\xcbz\x08\00#\x9a\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 203,
+        timestamp_bytes: [
+            122,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9008,
+        ),
+        ibus_raw: U16(
+            64922,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1700 | 23.006178 | H->D | `0ca00200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 160, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1702 | 23.006272 | D->H | `41a082020100000be63c89009b18f5ff8a4c8900f6a4f5ff904c890054a5f5ff550d000060402e172e17807e00806c0651025002` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 160, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xe6<\x89\0\x9b\x18\xf5\xff\x8aL\x89\0\xf6\xa4\xf5\xff\x90L\x89\0T\xa5\xf5\xffU\r\0\0`@.\x17.\x17\x80~\0\x80l\x06Q\x02P\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 8.994022, ibus_a: -0.714597, power_w: -6.427101139134, vbus_avg_v: 8.998026, ibus_avg_a: -0.678666, temp_c: 26.0, vdp_v: 0.5934, vdm_v: 0.5934, vdp_avg_v: 0.0593, vdm_avg_v: 0.0592, cc1_v: 0.0, cc2_v: 1.648, cc2_avg_v: 0.1644, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 1704 | 23.026190 | H->D | `0ca12000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 161, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1706 | 23.026259 | D->H | `41a1820010000003f37a08001f2378fd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 161, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf3z\x08\0\x1f#x\xfd\0\0p\x06" }` | `PdRawData(b"\xf3z\x08\0\x1f#x\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 243,
+        timestamp_bytes: [
+            122,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8991,
+        ),
+        ibus_raw: U16(
+            64888,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1708 | 23.067228 | H->D | `0ca22000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 162, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1710 | 23.067307 | D->H | `41a28200100000031c7b080028236dfd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 162, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x1c{\x08\0(#m\xfd\0\0p\x06" }` | `PdRawData(b"\x1c{\x08\0(#m\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 28,
+        timestamp_bytes: [
+            123,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9000,
+        ),
+        ibus_raw: U16(
+            64877,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1712 | 23.106237 | H->D | `0ca32000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 163, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1714 | 23.106314 | D->H | `41a3820010000003437b08003c230dfe00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 163, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"C{\x08\0<#\r\xfe\0\0n\x06" }` | `PdRawData(b"C{\x08\0<#\r\xfe\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 67,
+        timestamp_bytes: [
+            123,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9020,
+        ),
+        ibus_raw: U16(
+            65037,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1716 | 23.146219 | H->D | `0ca42000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 164, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1718 | 23.146309 | D->H | `41a48200100000036b7b08001f239ffd00006d06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 164, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"k{\x08\0\x1f#\x9f\xfd\0\0m\x06" }` | `PdRawData(b"k{\x08\0\x1f#\x9f\xfd\0\0m\x06")` | `Status(
+    StatusPacket {
+        type_id: 107,
+        timestamp_bytes: [
+            123,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8991,
+        ),
+        ibus_raw: U16(
+            64927,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1645,
+        ),
+    },
+)
+` |
+| 1720 | 23.186127 | H->D | `0ca52000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 165, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1722 | 23.186209 | D->H | `41a5820010000003937b08002e2364fd00006c06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 165, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x93{\x08\0.#d\xfd\0\0l\x06" }` | `PdRawData(b"\x93{\x08\0.#d\xfd\0\0l\x06")` | `` |
+| 1724 | 23.216046 | H->D | `0ca60200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 166, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1726 | 23.216144 | D->H | `41a682020100000b02528900d631f6ff7447890018abf5ff7a47890076abf5ff570d000060402e172e17807e00806c0650025002` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 166, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x02R\x89\0\xd61\xf6\xfftG\x89\0\x18\xab\xf5\xffzG\x89\0v\xab\xf5\xffW\r\0\0`@.\x17.\x17\x80~\0\x80l\x06P\x02P\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 8.999426, ibus_a: -0.642602, power_w: -5.783049146452, vbus_avg_v: 8.996724, ibus_avg_a: -0.677096, temp_c: 26.0, vdp_v: 0.5934, vdm_v: 0.5934, vdp_avg_v: 0.0592, vdm_avg_v: 0.0592, cc1_v: 0.0, cc2_v: 1.648, cc2_avg_v: 0.1644, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 1728 | 23.226160 | H->D | `0ca72000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 167, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1730 | 23.226239 | D->H | `41a7820010000003bb7b08001e2396fd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 167, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xbb{\x08\0\x1e#\x96\xfd\0\0n\x06" }` | `PdRawData(b"\xbb{\x08\0\x1e#\x96\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 187,
+        timestamp_bytes: [
+            123,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8990,
+        ),
+        ibus_raw: U16(
+            64918,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1732 | 23.266251 | H->D | `0ca82000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 168, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1734 | 23.266328 | D->H | `41a8820010000003e37b08001f2347fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 168, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe3{\x08\0\x1f#G\xfd\0\0o\x06" }` | `PdRawData(b"\xe3{\x08\0\x1f#G\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 227,
+        timestamp_bytes: [
+            123,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8991,
+        ),
+        ibus_raw: U16(
+            64839,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1736 | 23.311249 | H->D | `0ca92000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 169, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1738 | 23.311329 | D->H | `41a9820010000003107c0800262381fd00006d06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 169, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x10|\x08\0&#\x81\xfd\0\0m\x06" }` | `PdRawData(b"\x10|\x08\0&#\x81\xfd\0\0m\x06")` | `Status(
+    StatusPacket {
+        type_id: 16,
+        timestamp_bytes: [
+            124,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8998,
+        ),
+        ibus_raw: U16(
+            64897,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1645,
+        ),
+    },
+)
+` |
+| 1740 | 23.346313 | H->D | `0caa2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 170, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1742 | 23.346393 | D->H | `41aa820010000003347c08002823dffd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 170, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"4|\x08\0(#\xdf\xfd\0\0n\x06" }` | `PdRawData(b"4|\x08\0(#\xdf\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 52,
+        timestamp_bytes: [
+            124,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9000,
+        ),
+        ibus_raw: U16(
+            64991,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1744 | 23.386249 | H->D | `0cab2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 171, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1746 | 23.386324 | D->H | `41ab8200100000035b7c080024231cfd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 171, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"[|\x08\0$#\x1c\xfd\0\0n\x06" }` | `PdRawData(b"[|\x08\0$#\x1c\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 91,
+        timestamp_bytes: [
+            124,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8996,
+        ),
+        ibus_raw: U16(
+            64796,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1748 | 23.417269 | H->D | `0cac2200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 172, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 172, attribute: 17 }, payload: b"" })` | `` |
+| 1750 | 23.417390 | D->H | `41ac82030180000b02528900d631f6ff7447890018abf5ff7a47890076abf5ff570d00005f4033172b17817e00806c0651025002100000037a7c08001423e3fc00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 172, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"\x02R\x89\0\xd61\xf6\xfftG\x89\0\x18\xab\xf5\xffzG\x89\0v\xab\xf5\xffW\r\0\0_@3\x17+\x17\x81~\0\x80l\x06Q\x02P\x02\x10\0\0\x03z|\x08\0\x14#\xe3\xfc\0\0o\x06" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 8.999426, ibus_a: -0.642602, power_w: -5.783049146452, vbus_avg_v: 8.996724, ibus_avg_a: -0.677096, temp_c: 26.0, vdp_v: 0.5939, vdm_v: 0.5931, vdp_avg_v: 0.0593, vdm_avg_v: 0.0592, cc1_v: 0.0, cc2_v: 1.6479, cc2_avg_v: 0.1644, internal_vdd_v: 3.2385, sample_rate: Sps1 }, pd: b"\x10\0\0\x03z|\x08\0\x14#\xe3\xfc\0\0o\x06" }` | `` |
+| 1752 | 23.456459 | H->D | `0cad2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 173, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1754 | 23.456535 | D->H | `41ad820010000003a27c08003523a4fd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 173, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa2|\x08\05#\xa4\xfd\0\0n\x06" }` | `PdRawData(b"\xa2|\x08\05#\xa4\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 162,
+        timestamp_bytes: [
+            124,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9013,
+        ),
+        ibus_raw: U16(
+            64932,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1756 | 23.501523 | H->D | `0cae2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 174, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1758 | 23.501597 | D->H | `41ae820010000003cf7c0800232311fd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 174, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xcf|\x08\0##\x11\xfd\0\0n\x06" }` | `PdRawData(b"\xcf|\x08\0##\x11\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 207,
+        timestamp_bytes: [
+            124,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8995,
+        ),
+        ibus_raw: U16(
+            64785,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1760 | 23.536313 | H->D | `0caf2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 175, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1762 | 23.536397 | D->H | `41af820010000003f27c080026235afd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 175, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf2|\x08\0&#Z\xfd\0\0o\x06" }` | `PdRawData(b"\xf2|\x08\0&#Z\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 242,
+        timestamp_bytes: [
+            124,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8998,
+        ),
+        ibus_raw: U16(
+            64858,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1764 | 23.576236 | H->D | `0cb02000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 176, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1766 | 23.576308 | D->H | `41b0820010000003197d08002723b7fd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 176, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x19}\x08\0'#\xb7\xfd\0\0n\x06" }` | `PdRawData(b"\x19}\x08\0'#\xb7\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 25,
+        timestamp_bytes: [
+            125,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8999,
+        ),
+        ibus_raw: U16(
+            64951,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1768 | 23.616160 | H->D | `0cb12000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 177, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1770 | 23.616248 | D->H | `41b1820010000003417d08001b2342fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 177, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"A}\x08\0\x1b#B\xfd\0\0o\x06" }` | `PdRawData(b"A}\x08\0\x1b#B\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 65,
+        timestamp_bytes: [
+            125,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8987,
+        ),
+        ibus_raw: U16(
+            64834,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1772 | 23.626179 | H->D | `0cb20200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 178, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1774 | 23.626281 | D->H | `41b282020100000bb255890093e4f5ff7447890018abf5ff7a47890076abf5ff560d00005f4033172b17817e00806c0650025002` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 178, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xb2U\x89\0\x93\xe4\xf5\xfftG\x89\0\x18\xab\xf5\xffzG\x89\0v\xab\xf5\xffV\r\0\0_@3\x17+\x17\x81~\0\x80l\x06P\x02P\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.00037, ibus_a: -0.662381, power_w: -5.96167408097, vbus_avg_v: 8.996724, ibus_avg_a: -0.677096, temp_c: 26.0, vdp_v: 0.5939, vdm_v: 0.5931, vdp_avg_v: 0.0592, vdm_avg_v: 0.0592, cc1_v: 0.0, cc2_v: 1.6479, cc2_avg_v: 0.1644, internal_vdd_v: 3.2385, sample_rate: Sps1 })` | `` |
+| 1776 | 23.656362 | H->D | `0cb32000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 179, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1778 | 23.656439 | D->H | `41b38200100000036a7d080028234bfd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 179, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"j}\x08\0(#K\xfd\0\0o\x06" }` | `PdRawData(b"j}\x08\0(#K\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 106,
+        timestamp_bytes: [
+            125,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9000,
+        ),
+        ibus_raw: U16(
+            64843,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1780 | 23.696202 | H->D | `0cb42000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 180, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1782 | 23.696282 | D->H | `41b4820010000003917d08003423e8fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 180, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x91}\x08\04#\xe8\xfd\0\0o\x06" }` | `PdRawData(b"\x91}\x08\04#\xe8\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 145,
+        timestamp_bytes: [
+            125,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9012,
+        ),
+        ibus_raw: U16(
+            65000,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1784 | 23.736278 | H->D | `0cb52000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 181, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1786 | 23.736367 | D->H | `41b5820010000003ba7d080028236dfd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 181, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xba}\x08\0(#m\xfd\0\0n\x06" }` | `PdRawData(b"\xba}\x08\0(#m\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 186,
+        timestamp_bytes: [
+            125,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9000,
+        ),
+        ibus_raw: U16(
+            64877,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1788 | 23.776159 | H->D | `0cb62000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 182, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1790 | 23.776239 | D->H | `41b6820010000003e17d0800372394fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 182, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe1}\x08\07#\x94\xfd\0\0o\x06" }` | `PdRawData(b"\xe1}\x08\07#\x94\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 225,
+        timestamp_bytes: [
+            125,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9015,
+        ),
+        ibus_raw: U16(
+            64916,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1792 | 23.816215 | H->D | `0cb72000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 183, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1794 | 23.816306 | D->H | `41b7820010000003097e08002823e9fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 183, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\t~\x08\0(#\xe9\xfd\0\0o\x06" }` | `PdRawData(b"\t~\x08\0(#\xe9\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 9,
+        timestamp_bytes: [
+            126,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9000,
+        ),
+        ibus_raw: U16(
+            65001,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1796 | 23.836054 | H->D | `0cb80200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 184, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1798 | 23.836148 | D->H | `41b882020100000bb255890093e4f5ff7447890018abf5ff7a47890076abf5ff560d00005f4033172b17817e00806c0650024f02` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 184, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xb2U\x89\0\x93\xe4\xf5\xfftG\x89\0\x18\xab\xf5\xffzG\x89\0v\xab\xf5\xffV\r\0\0_@3\x17+\x17\x81~\0\x80l\x06P\x02O\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.00037, ibus_a: -0.662381, power_w: -5.96167408097, vbus_avg_v: 8.996724, ibus_avg_a: -0.677096, temp_c: 26.0, vdp_v: 0.5939, vdm_v: 0.5931, vdp_avg_v: 0.0592, vdm_avg_v: 0.0591, cc1_v: 0.0, cc2_v: 1.6479, cc2_avg_v: 0.1644, internal_vdd_v: 3.2385, sample_rate: Sps1 })` | `` |
+| 1800 | 23.856161 | H->D | `0cb92000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 185, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1802 | 23.856252 | D->H | `41b9820010000003317e0800332383fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 185, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"1~\x08\03#\x83\xfd\0\0o\x06" }` | `PdRawData(b"1~\x08\03#\x83\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 49,
+        timestamp_bytes: [
+            126,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9011,
+        ),
+        ibus_raw: U16(
+            64899,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1804 | 23.896207 | H->D | `0cba2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 186, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1806 | 23.896287 | D->H | `41ba820010000003597e08003723d2fd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 186, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Y~\x08\07#\xd2\xfd\0\0n\x06" }` | `PdRawData(b"Y~\x08\07#\xd2\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 89,
+        timestamp_bytes: [
+            126,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9015,
+        ),
+        ibus_raw: U16(
+            64978,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1808 | 23.936738 | H->D | `0cbb2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 187, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1810 | 23.936859 | D->H | `41bb820010000003827e08002e23b5fd00007206` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 187, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x82~\x08\0.#\xb5\xfd\0\0r\x06" }` | `PdRawData(b"\x82~\x08\0.#\xb5\xfd\0\0r\x06")` | `` |
+| 1812 | 23.976221 | H->D | `0cbc2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 188, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1814 | 23.976301 | D->H | `41bc820010000003a97e08002e23a5fd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 188, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa9~\x08\0.#\xa5\xfd\0\0p\x06" }` | `PdRawData(b"\xa9~\x08\0.#\xa5\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 169,
+        timestamp_bytes: [
+            126,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9006,
+        ),
+        ibus_raw: U16(
+            64933,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1816 | 24.016182 | H->D | `0cbd2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 189, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1818 | 24.016262 | D->H | `41bd820010000003d17e08003023e9fd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 189, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xd1~\x08\00#\xe9\xfd\0\0p\x06" }` | `PdRawData(b"\xd1~\x08\00#\xe9\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 209,
+        timestamp_bytes: [
+            126,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9008,
+        ),
+        ibus_raw: U16(
+            65001,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1820 | 24.046146 | H->D | `0cbe0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 190, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1822 | 24.046244 | D->H | `41be82020100000bb255890093e4f5ff7447890018abf5ff7a47890076abf5ff560d00005b402c172c17817e00806c0650024f02` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 190, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xb2U\x89\0\x93\xe4\xf5\xfftG\x89\0\x18\xab\xf5\xffzG\x89\0v\xab\xf5\xffV\r\0\0[@,\x17,\x17\x81~\0\x80l\x06P\x02O\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.00037, ibus_a: -0.662381, power_w: -5.96167408097, vbus_avg_v: 8.996724, ibus_avg_a: -0.677096, temp_c: 26.0, vdp_v: 0.5932, vdm_v: 0.5932, vdp_avg_v: 0.0592, vdm_avg_v: 0.0591, cc1_v: 0.0, cc2_v: 1.6475, cc2_avg_v: 0.1644, internal_vdd_v: 3.2385, sample_rate: Sps1 })` | `` |
+| 1824 | 24.056253 | H->D | `0cbf2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 191, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1826 | 24.056332 | D->H | `41bf820010000003f97e0800382371fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 191, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf9~\x08\08#q\xfd\0\0o\x06" }` | `PdRawData(b"\xf9~\x08\08#q\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 249,
+        timestamp_bytes: [
+            126,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9016,
+        ),
+        ibus_raw: U16(
+            64881,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1828 | 24.096310 | H->D | `0cc02000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 192, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1830 | 24.096400 | D->H | `41c0820010000003227f080031236efd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 192, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\"\x7f\x08\01#n\xfd\0\0n\x06" }` | `PdRawData(b"\"\x7f\x08\01#n\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 34,
+        timestamp_bytes: [
+            127,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9009,
+        ),
+        ibus_raw: U16(
+            64878,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1832 | 24.136278 | H->D | `0cc12000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 193, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1834 | 24.136367 | D->H | `41c18200100000034a7f08002a23cbfd00006c06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 193, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"J\x7f\x08\0*#\xcb\xfd\0\0l\x06" }` | `PdRawData(b"J\x7f\x08\0*#\xcb\xfd\0\0l\x06")` | `Status(
+    StatusPacket {
+        type_id: 74,
+        timestamp_bytes: [
+            127,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9002,
+        ),
+        ibus_raw: U16(
+            64971,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1644,
+        ),
+    },
+)
+` |
+| 1836 | 24.176192 | H->D | `0cc22000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 194, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1838 | 24.176278 | D->H | `41c2820010000003717f0800232357fd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 194, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"q\x7f\x08\0##W\xfd\0\0p\x06" }` | `PdRawData(b"q\x7f\x08\0##W\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 113,
+        timestamp_bytes: [
+            127,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8995,
+        ),
+        ibus_raw: U16(
+            64855,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1840 | 24.216210 | H->D | `0cc32000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 195, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1842 | 24.216296 | D->H | `41c3820010000003997f08003023b6fd00006d06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 195, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x99\x7f\x08\00#\xb6\xfd\0\0m\x06" }` | `PdRawData(b"\x99\x7f\x08\00#\xb6\xfd\0\0m\x06")` | `` |
+| 1844 | 24.256188 | H->D | `0cc42200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 196, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 196, attribute: 17 }, payload: b"" })` | `` |
+| 1846 | 24.256319 | D->H | `41c482030180000b9d5f89004fc6f6ffa75a8900ec5af6ffad5a89004a5bf6ff560d00005b402c172c17817e00806c065002500210000003c17f08001b234bfd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 196, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"\x9d_\x89\0O\xc6\xf6\xff\xa7Z\x89\0\xecZ\xf6\xff\xadZ\x89\0J[\xf6\xffV\r\0\0[@,\x17,\x17\x81~\0\x80l\x06P\x02P\x02\x10\0\0\x03\xc1\x7f\x08\0\x1b#K\xfd\0\0o\x06" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 9.002909, ibus_a: -0.604593, power_w: -5.443095761037001, vbus_avg_v: 9.001639, ibus_avg_a: -0.632084, temp_c: 26.0, vdp_v: 0.5932, vdm_v: 0.5932, vdp_avg_v: 0.0592, vdm_avg_v: 0.0592, cc1_v: 0.0, cc2_v: 1.6475, cc2_avg_v: 0.1644, internal_vdd_v: 3.2385, sample_rate: Sps1 }, pd: b"\x10\0\0\x03\xc1\x7f\x08\0\x1b#K\xfd\0\0o\x06" }` | `` |
+| 1848 | 24.296331 | H->D | `0cc52000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 197, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1850 | 24.296413 | D->H | `41c5820010000003ea7f08002f2351fd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 197, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xea\x7f\x08\0/#Q\xfd\0\0p\x06" }` | `PdRawData(b"\xea\x7f\x08\0/#Q\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 234,
+        timestamp_bytes: [
+            127,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9007,
+        ),
+        ibus_raw: U16(
+            64849,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1852 | 24.336263 | H->D | `0cc62000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 198, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1854 | 24.336439 | D->H | `41c6820010000003118008002d23f2fd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 198, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x11\x80\x08\0-#\xf2\xfd\0\0n\x06" }` | `PdRawData(b"\x11\x80\x08\0-#\xf2\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 17,
+        timestamp_bytes: [
+            128,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9005,
+        ),
+        ibus_raw: U16(
+            65010,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1856 | 24.376129 | H->D | `0cc72000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 199, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1858 | 24.376205 | D->H | `41c7820010000003398008003c23effd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 199, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"9\x80\x08\0<#\xef\xfd\0\0n\x06" }` | `PdRawData(b"9\x80\x08\0<#\xef\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 57,
+        timestamp_bytes: [
+            128,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9020,
+        ),
+        ibus_raw: U16(
+            65007,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1860 | 24.416151 | H->D | `0cc82000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 200, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1862 | 24.416237 | D->H | `41c8820010000003618008003f23dffd00006d06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 200, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"a\x80\x08\0?#\xdf\xfd\0\0m\x06" }` | `PdRawData(b"a\x80\x08\0?#\xdf\xfd\0\0m\x06")` | `Status(
+    StatusPacket {
+        type_id: 97,
+        timestamp_bytes: [
+            128,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9023,
+        ),
+        ibus_raw: U16(
+            64991,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1645,
+        ),
+    },
+)
+` |
+| 1864 | 24.456249 | H->D | `0cc92000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 201, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1866 | 24.456321 | D->H | `41c9820010000003898008002e23fbfd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 201, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x89\x80\x08\0.#\xfb\xfd\0\0p\x06" }` | `PdRawData(b"\x89\x80\x08\0.#\xfb\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 137,
+        timestamp_bytes: [
+            128,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9006,
+        ),
+        ibus_raw: U16(
+            65019,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1868 | 24.466244 | H->D | `0cca0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 202, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1870 | 24.466342 | D->H | `41ca82020100000b9d5f89004fc6f6ffa75a8900ec5af6ffad5a89004a5bf6ff560d000059402a172717807e00806c0650024f02` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 202, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x9d_\x89\0O\xc6\xf6\xff\xa7Z\x89\0\xecZ\xf6\xff\xadZ\x89\0J[\xf6\xffV\r\0\0Y@*\x17'\x17\x80~\0\x80l\x06P\x02O\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.002909, ibus_a: -0.604593, power_w: -5.443095761037001, vbus_avg_v: 9.001639, ibus_avg_a: -0.632084, temp_c: 26.0, vdp_v: 0.593, vdm_v: 0.5927, vdp_avg_v: 0.0592, vdm_avg_v: 0.0591, cc1_v: 0.0, cc2_v: 1.6473, cc2_avg_v: 0.1644, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 1872 | 24.496274 | H->D | `0ccb2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 203, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1874 | 24.496368 | D->H | `41cb820010000003b280080033238bfd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 203, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb2\x80\x08\03#\x8b\xfd\0\0n\x06" }` | `PdRawData(b"\xb2\x80\x08\03#\x8b\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 178,
+        timestamp_bytes: [
+            128,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9011,
+        ),
+        ibus_raw: U16(
+            64907,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1876 | 24.542877 | H->D | `0ccc2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 204, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1878 | 24.542960 | D->H | `41cc820010000003e08008003523dafd00006d06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 204, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe0\x80\x08\05#\xda\xfd\0\0m\x06" }` | `PdRawData(b"\xe0\x80\x08\05#\xda\xfd\0\0m\x06")` | `Status(
+    StatusPacket {
+        type_id: 224,
+        timestamp_bytes: [
+            128,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9013,
+        ),
+        ibus_raw: U16(
+            64986,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1645,
+        ),
+    },
+)
+` |
+| 1880 | 24.576219 | H->D | `0ccd2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 205, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1882 | 24.576308 | D->H | `41cd82001000000301810800322384fd00006d06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 205, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x01\x81\x08\02#\x84\xfd\0\0m\x06" }` | `PdRawData(b"\x01\x81\x08\02#\x84\xfd\0\0m\x06")` | `Status(
+    StatusPacket {
+        type_id: 1,
+        timestamp_bytes: [
+            129,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9010,
+        ),
+        ibus_raw: U16(
+            64900,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1645,
+        ),
+    },
+)
+` |
+| 1884 | 24.616197 | H->D | `0cce2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 206, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1886 | 24.616284 | D->H | `41ce82001000000329810800302378fd00006d06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 206, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b")\x81\x08\00#x\xfd\0\0m\x06" }` | `PdRawData(b")\x81\x08\00#x\xfd\0\0m\x06")` | `Status(
+    StatusPacket {
+        type_id: 41,
+        timestamp_bytes: [
+            129,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9008,
+        ),
+        ibus_raw: U16(
+            64888,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1645,
+        ),
+    },
+)
+` |
+| 1888 | 24.656207 | H->D | `0ccf2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 207, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1890 | 24.656295 | D->H | `41cf82001000000351810800172363fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 207, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"Q\x81\x08\0\x17#c\xfd\0\0q\x06" }` | `PdRawData(b"Q\x81\x08\0\x17#c\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 81,
+        timestamp_bytes: [
+            129,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8983,
+        ),
+        ibus_raw: U16(
+            64867,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1892 | 24.676193 | H->D | `0cd00200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 208, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1894 | 24.676297 | D->H | `41d082020100000b24708900b9d7f6ffa75a8900ec5af6ffad5a89004a5bf6ff570d000059402a172717807e00806c0650024f02` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 208, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"$p\x89\0\xb9\xd7\xf6\xff\xa7Z\x89\0\xecZ\xf6\xff\xadZ\x89\0J[\xf6\xffW\r\0\0Y@*\x17'\x17\x80~\0\x80l\x06P\x02O\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.00714, ibus_a: -0.600135, power_w: -5.4054999639, vbus_avg_v: 9.001639, ibus_avg_a: -0.632084, temp_c: 26.0, vdp_v: 0.593, vdm_v: 0.5927, vdp_avg_v: 0.0592, vdm_avg_v: 0.0591, cc1_v: 0.0, cc2_v: 1.6473, cc2_avg_v: 0.1644, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 1896 | 24.696636 | H->D | `0cd12000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 209, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1898 | 24.696722 | D->H | `41d18200100000037a8108001923ecfc00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 209, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"z\x81\x08\0\x19#\xec\xfc\0\0p\x06" }` | `PdRawData(b"z\x81\x08\0\x19#\xec\xfc\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 122,
+        timestamp_bytes: [
+            129,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            8985,
+        ),
+        ibus_raw: U16(
+            64748,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1900 | 24.736265 | H->D | `0cd22000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 210, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1902 | 24.736351 | D->H | `41d2820010000003a28108002e236dfd00007006` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 210, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa2\x81\x08\0.#m\xfd\0\0p\x06" }` | `PdRawData(b"\xa2\x81\x08\0.#m\xfd\0\0p\x06")` | `Status(
+    StatusPacket {
+        type_id: 162,
+        timestamp_bytes: [
+            129,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9006,
+        ),
+        ibus_raw: U16(
+            64877,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1648,
+        ),
+    },
+)
+` |
+| 1904 | 24.776225 | H->D | `0cd32000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 211, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1906 | 24.776302 | D->H | `41d3820010000003c98108002c236dfd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 211, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xc9\x81\x08\0,#m\xfd\0\0n\x06" }` | `PdRawData(b"\xc9\x81\x08\0,#m\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 201,
+        timestamp_bytes: [
+            129,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9004,
+        ),
+        ibus_raw: U16(
+            64877,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1908 | 24.816222 | H->D | `0cd42000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 212, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1910 | 24.816296 | D->H | `41d4820010000003f1810800342390fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 212, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf1\x81\x08\04#\x90\xfd\0\0o\x06" }` | `PdRawData(b"\xf1\x81\x08\04#\x90\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 241,
+        timestamp_bytes: [
+            129,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9012,
+        ),
+        ibus_raw: U16(
+            64912,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1912 | 24.856240 | H->D | `0cd52000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 213, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1914 | 24.856310 | D->H | `41d5820010000003198208003123f0fd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 213, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x19\x82\x08\01#\xf0\xfd\0\0q\x06" }` | `PdRawData(b"\x19\x82\x08\01#\xf0\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 25,
+        timestamp_bytes: [
+            130,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9009,
+        ),
+        ibus_raw: U16(
+            65008,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1916 | 24.886278 | H->D | `0cd60200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 214, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1918 | 24.886377 | D->H | `41d682020100000b24708900b9d7f6ffa75a8900ec5af6ffad5a89004a5bf6ff570d000059402a172717807e00806c0651025102` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 214, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"$p\x89\0\xb9\xd7\xf6\xff\xa7Z\x89\0\xecZ\xf6\xff\xadZ\x89\0J[\xf6\xffW\r\0\0Y@*\x17'\x17\x80~\0\x80l\x06Q\x02Q\x02" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.00714, ibus_a: -0.600135, power_w: -5.4054999639, vbus_avg_v: 9.001639, ibus_avg_a: -0.632084, temp_c: 26.0, vdp_v: 0.593, vdm_v: 0.5927, vdp_avg_v: 0.0593, vdm_avg_v: 0.0593, cc1_v: 0.0, cc2_v: 1.6473, cc2_avg_v: 0.1644, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 1920 | 24.896185 | H->D | `0cd72000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 215, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1922 | 24.896270 | D->H | `41d7820010000003418208002b2375fd00006f06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 215, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"A\x82\x08\0+#u\xfd\0\0o\x06" }` | `PdRawData(b"A\x82\x08\0+#u\xfd\0\0o\x06")` | `Status(
+    StatusPacket {
+        type_id: 65,
+        timestamp_bytes: [
+            130,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9003,
+        ),
+        ibus_raw: U16(
+            64885,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1647,
+        ),
+    },
+)
+` |
+| 1924 | 24.943111 | H->D | `0cd82000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 216, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1926 | 24.943195 | D->H | `41d8820010000003708208002a2389fd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 216, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"p\x82\x08\0*#\x89\xfd\0\0n\x06" }` | `PdRawData(b"p\x82\x08\0*#\x89\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 112,
+        timestamp_bytes: [
+            130,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9002,
+        ),
+        ibus_raw: U16(
+            64905,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1928 | 24.976237 | H->D | `0cd92000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 217, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1930 | 24.976325 | D->H | `41d9820010000003918208002b23a6fd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 217, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x91\x82\x08\0+#\xa6\xfd\0\0n\x06" }` | `PdRawData(b"\x91\x82\x08\0+#\xa6\xfd\0\0n\x06")` | `` |
+| 1932 | 25.016278 | H->D | `0cda2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 218, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1934 | 25.016356 | D->H | `41da820010000003ba8208002f237dfd00007106` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 218, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xba\x82\x08\0/#}\xfd\0\0q\x06" }` | `PdRawData(b"\xba\x82\x08\0/#}\xfd\0\0q\x06")` | `Status(
+    StatusPacket {
+        type_id: 186,
+        timestamp_bytes: [
+            130,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9007,
+        ),
+        ibus_raw: U16(
+            64893,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1649,
+        ),
+    },
+)
+` |
+| 1936 | 25.056211 | H->D | `0cdb2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 219, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1938 | 25.056289 | D->H | `41db820010000003e18208003623c8fd00006e06` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 219, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xe1\x82\x08\06#\xc8\xfd\0\0n\x06" }` | `PdRawData(b"\xe1\x82\x08\06#\xc8\xfd\0\0n\x06")` | `Status(
+    StatusPacket {
+        type_id: 225,
+        timestamp_bytes: [
+            130,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9014,
+        ),
+        ibus_raw: U16(
+            64968,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            1646,
+        ),
+    },
+)
+` |
+| 1940 | 25.097235 | H->D | `0cdc2200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 220, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 220, attribute: 17 }, payload: b"" })` | `` |
+| 1942 | 25.097358 | D->H | `41dc82030180000bdc6b8900f160f6ff006e8900a8a1f6ff066e890006a2f6ff540d00005c4031172917807e00806c0651024f02100000030a830800842300000000a10c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 220, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"\xdck\x89\0\xf1`\xf6\xff\0n\x89\0\xa8\xa1\xf6\xff\x06n\x89\0\x06\xa2\xf6\xffT\r\0\0\\@1\x17)\x17\x80~\0\x80l\x06Q\x02O\x02\x10\0\0\x03\n\x83\x08\0\x84#\0\0\0\0\xa1\x0c" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 9.006044, ibus_a: -0.630543, power_w: -5.678698001891999, vbus_avg_v: 9.006592, ibus_avg_a: -0.613976, temp_c: 26.0, vdp_v: 0.5937, vdm_v: 0.5929, vdp_avg_v: 0.0593, vdm_avg_v: 0.0591, cc1_v: 0.0, cc2_v: 1.6476, cc2_avg_v: 0.1644, internal_vdd_v: 3.2384, sample_rate: Sps1 }, pd: b"\x10\0\0\x03\n\x83\x08\0\x84#\0\0\0\0\xa1\x0c" }` | `` |
+| 1944 | 25.136293 | H->D | `0cdd2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 221, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1946 | 25.136366 | D->H | `41dd82001000000332830800f61300000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 221, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"2\x83\x08\0\xf6\x13\0\0\0\0\xa5\x0c" }` | `PdRawData(b"2\x83\x08\0\xf6\x13\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 50,
+        timestamp_bytes: [
+            131,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5110,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 1948 | 25.176408 | H->D | `0cde2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 222, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1950 | 25.176505 | D->H | `41dec200100080045a830800e61300000000a50c453f83080022` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 222, obj_count_words: 3 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 18 }, payload: b"Z\x83\x08\0\xe6\x13\0\0\0\0\xa5\x0cE?\x83\x08\0\"" }` | `PdRawData(b"Z\x83\x08\0\xe6\x13\0\0\0\0\xa5\x0cE?\x83\x08\0\"")` | `` |
+| 1952 | 25.216229 | H->D | `0cdf2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 223, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1954 | 25.216312 | D->H | `41df82001000000381830800e81300000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 223, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x81\x83\x08\0\xe8\x13\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x81\x83\x08\0\xe8\x13\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2179,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 1956 | 25.256189 | H->D | `0ce02000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 224, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1958 | 25.256271 | D->H | `41e0820010000003a9830800e91300000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 224, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa9\x83\x08\0\xe9\x13\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xa9\x83\x08\0\xe9\x13\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 169,
+        timestamp_bytes: [
+            131,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5097,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 1960 | 25.296187 | H->D | `0ce12000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 225, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1962 | 25.296262 | D->H | `41e1820010000003d1830800751000000000200d` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 225, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xd1\x83\x08\0u\x10\0\0\0\0 \r" }` | `PdRawData(b"\xd1\x83\x08\0u\x10\0\0\0\0 \r")` | `Status(
+    StatusPacket {
+        type_id: 209,
+        timestamp_bytes: [
+            131,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            4213,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3360,
+        ),
+    },
+)
+` |
+| 1964 | 25.307777 | H->D | `0ce20200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 226, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1966 | 25.307892 | D->H | `41e282020100000bdc6b8900f160f6ff006e8900a8a1f6ff066e890006a2f6ff540d00005c4031172917807e0080ac0cb103a803` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 226, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xdck\x89\0\xf1`\xf6\xff\0n\x89\0\xa8\xa1\xf6\xff\x06n\x89\0\x06\xa2\xf6\xffT\r\0\0\\@1\x17)\x17\x80~\0\x80\xac\x0c\xb1\x03\xa8\x03" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.006044, ibus_a: -0.630543, power_w: -5.678698001891999, vbus_avg_v: 9.006592, ibus_avg_a: -0.613976, temp_c: 26.0, vdp_v: 0.5937, vdm_v: 0.5929, vdp_avg_v: 0.0945, vdm_avg_v: 0.0936, cc1_v: 0.0, cc2_v: 1.6476, cc2_avg_v: 0.3244, internal_vdd_v: 3.2384, sample_rate: Sps1 })` | `` |
+| 1968 | 25.336126 | H->D | `0ce32000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 227, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1970 | 25.336199 | D->H | `41e3820010000003f9830800020000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 227, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf9\x83\x08\0\x02\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xf9\x83\x08\0\x02\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 249,
+        timestamp_bytes: [
+            131,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            2,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 1972 | 25.376401 | H->D | `0ce42000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 228, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1974 | 25.376481 | D->H | `41e482001000000322840800000000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 228, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\"\x84\x08\0\0\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\"\x84\x08\0\0\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 34,
+        timestamp_bytes: [
+            132,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            0,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 1976 | 25.416090 | H->D | `0ce52000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 229, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1978 | 25.416163 | D->H | `41e582001000000349840800000000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 229, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"I\x84\x08\0\0\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"I\x84\x08\0\0\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 73,
+        timestamp_bytes: [
+            132,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            0,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 1980 | 25.456152 | H->D | `0ce62000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 230, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1982 | 25.456232 | D->H | `41e682001000000371840800000000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 230, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"q\x84\x08\0\0\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"q\x84\x08\0\0\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 113,
+        timestamp_bytes: [
+            132,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            0,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 1984 | 25.497372 | H->D | `0ce72000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 231, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1986 | 25.497447 | D->H | `41e78200100000039b840800010000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 231, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x9b\x84\x08\0\x01\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x9b\x84\x08\0\x01\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 2180,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 1988 | 25.516163 | H->D | `0ce80200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 232, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 1990 | 25.516268 | D->H | `41e882020100000bdc6b8900f160f6ff006e8900a8a1f6ff066e890006a2f6ff540d0200f567851acc199e7e0080a00c52001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 232, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xdck\x89\0\xf1`\xf6\xff\0n\x89\0\xa8\xa1\xf6\xff\x06n\x89\0\x06\xa2\xf6\xffT\r\x02\0\xf5g\x85\x1a\xcc\x19\x9e~\0\x80\xa0\x0cR\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 9.006044, ibus_a: -0.630543, power_w: -5.678698001891999, vbus_avg_v: 9.006592, ibus_avg_a: -0.613976, temp_c: 26.0, vdp_v: 0.6789, vdm_v: 0.6604, vdp_avg_v: 0.0082, vdm_avg_v: 0.0025, cc1_v: 0.0002, cc2_v: 2.6613, cc2_avg_v: 0.3232, internal_vdd_v: 3.2414, sample_rate: Sps1 })` | `` |
+| 1992 | 25.536242 | H->D | `0ce92000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 233, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1994 | 25.536321 | D->H | `41e9820010000003c1840800050000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 233, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xc1\x84\x08\0\x05\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\xc1\x84\x08\0\x05\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 193,
+        timestamp_bytes: [
+            132,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            5,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 1996 | 25.576279 | H->D | `0cea2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 234, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 1998 | 25.576369 | D->H | `41ea820010000003ea840800090000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 234, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xea\x84\x08\0\t\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xea\x84\x08\0\t\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 234,
+        timestamp_bytes: [
+            132,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            9,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 2000 | 25.616190 | H->D | `0ceb2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 235, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2002 | 25.616275 | D->H | `41eb820010000003118508000c00000000009e0c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 235, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x11\x85\x08\0\x0c\0\0\0\0\0\x9e\x0c" }` | `PdRawData(b"\x11\x85\x08\0\x0c\0\0\0\0\0\x9e\x0c")` | `Status(
+    StatusPacket {
+        type_id: 17,
+        timestamp_bytes: [
+            133,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            12,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3230,
+        ),
+    },
+)
+` |
+| 2004 | 25.656261 | H->D | `0cec2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 236, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2006 | 25.656353 | D->H | `41ec8200100000033a8508000e0000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 236, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b":\x85\x08\0\x0e\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b":\x85\x08\0\x0e\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 58,
+        timestamp_bytes: [
+            133,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            14,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 2008 | 25.696249 | H->D | `0ced2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 237, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2010 | 25.696334 | D->H | `41ed820010000003618508000f0000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 237, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"a\x85\x08\0\x0f\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"a\x85\x08\0\x0f\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 97,
+        timestamp_bytes: [
+            133,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            15,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 2012 | 25.727207 | H->D | `0cee2200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 238, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 238, attribute: 17 }, payload: b"" })` | `` |
+| 2014 | 25.727326 | D->H | `41ee82030180000be9b929000460ffff006e8900a8a1f6ff066e890006a2f6ff540d0200f567851acc199e7e0080a00c510019001000000380850800100000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 238, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"\xe9\xb9)\0\x04`\xff\xff\0n\x89\0\xa8\xa1\xf6\xff\x06n\x89\0\x06\xa2\xf6\xffT\r\x02\0\xf5g\x85\x1a\xcc\x19\x9e~\0\x80\xa0\x0cQ\0\x19\0\x10\0\0\x03\x80\x85\x08\0\x10\0\0\0\0\0\xa3\x0c" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 2.734569, ibus_a: -0.040956, power_w: -0.111997007964, vbus_avg_v: 9.006592, ibus_avg_a: -0.613976, temp_c: 26.0, vdp_v: 0.6789, vdm_v: 0.6604, vdp_avg_v: 0.0081, vdm_avg_v: 0.0025, cc1_v: 0.0002, cc2_v: 2.6613, cc2_avg_v: 0.3232, internal_vdd_v: 3.2414, sample_rate: Sps1 }, pd: b"\x10\0\0\x03\x80\x85\x08\0\x10\0\0\0\0\0\xa3\x0c" }` | `` |
+| 2016 | 25.766536 | H->D | `0cef2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 239, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2018 | 25.766617 | D->H | `41ef820010000003a8850800100000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 239, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa8\x85\x08\0\x10\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xa8\x85\x08\0\x10\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 168,
+        timestamp_bytes: [
+            133,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            16,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 2020 | 25.806119 | H->D | `0cf02000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 240, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2022 | 25.806195 | D->H | `41f0820010000003cf8508000f0000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 240, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xcf\x85\x08\0\x0f\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xcf\x85\x08\0\x0f\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 207,
+        timestamp_bytes: [
+            133,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            15,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 2024 | 25.846199 | H->D | `0cf12000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 241, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2026 | 25.846296 | D->H | `41f1820010000003f7850800100000000000a10c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 241, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xf7\x85\x08\0\x10\0\0\0\0\0\xa1\x0c" }` | `PdRawData(b"\xf7\x85\x08\0\x10\0\0\0\0\0\xa1\x0c")` | `Status(
+    StatusPacket {
+        type_id: 247,
+        timestamp_bytes: [
+            133,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            16,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3233,
+        ),
+    },
+)
+` |
+| 2028 | 25.886209 | H->D | `0cf22000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 242, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2030 | 25.886286 | D->H | `41f28200100000031f8608000f0000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 242, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x1f\x86\x08\0\x0f\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\x1f\x86\x08\0\x0f\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 31,
+        timestamp_bytes: [
+            134,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            15,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 2032 | 25.932519 | H->D | `0cf32000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 243, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2034 | 25.932605 | D->H | `41f38200100000034e860800100000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 243, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"N\x86\x08\0\x10\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"N\x86\x08\0\x10\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 78,
+        timestamp_bytes: [
+            134,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            16,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 2036 | 25.936164 | H->D | `0cf40200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 244, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2038 | 25.936262 | D->H | `41f482020100000be9b929000460ffff006e8900a8a1f6ff066e890006a2f6ff540d0400727e360300017a7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 244, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xe9\xb9)\0\x04`\xff\xff\0n\x89\0\xa8\xa1\xf6\xff\x06n\x89\0\x06\xa2\xf6\xffT\r\x04\0r~6\x03\0\x01z~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 2.734569, ibus_a: -0.040956, power_w: -0.111997007964, vbus_avg_v: 9.006592, ibus_avg_a: -0.613976, temp_c: 26.0, vdp_v: 0.0822, vdm_v: 0.0256, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3236, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `` |
+| 2040 | 25.966306 | H->D | `0cf52000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 245, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2042 | 25.966378 | D->H | `41f582001000000370860800100000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 245, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"p\x86\x08\0\x10\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"p\x86\x08\0\x10\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 112,
+        timestamp_bytes: [
+            134,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            16,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 2044 | 25.997225 | H->D | `0cf62000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 246, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2046 | 25.997309 | D->H | `41f68200100000038e8608000f0000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 246, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x8e\x86\x08\0\x0f\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x8e\x86\x08\0\x0f\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 2182,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 2048 | 26.036220 | H->D | `0cf72000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 247, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2050 | 26.036301 | D->H | `41f7820010000003b58608000f0000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 247, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xb5\x86\x08\0\x0f\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\xb5\x86\x08\0\x0f\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 181,
+        timestamp_bytes: [
+            134,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            15,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 2052 | 26.076236 | H->D | `0cf82000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 248, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2054 | 26.076315 | D->H | `41f8820010000003dd8608000d0000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 248, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xdd\x86\x08\0\r\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xdd\x86\x08\0\r\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 221,
+        timestamp_bytes: [
+            134,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            13,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 2056 | 26.116304 | H->D | `0cf92000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 249, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2058 | 26.116384 | D->H | `41f9820010000003068708000f0000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 249, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x06\x87\x08\0\x0f\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"\x06\x87\x08\0\x0f\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 6,
+        timestamp_bytes: [
+            135,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            15,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 2060 | 26.155133 | H->D | `0cfa0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 250, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2062 | 26.155224 | D->H | `41fa82020100000b082d0000eeffffff49f3140026b0ffffadf3140084b0ffff560d0400727e360300017a7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 250, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x08-\0\0\xee\xff\xff\xffI\xf3\x14\0&\xb0\xff\xff\xad\xf3\x14\0\x84\xb0\xff\xffV\r\x04\0r~6\x03\0\x01z~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.011528, ibus_a: -1.8e-5, power_w: -2.07504e-7, vbus_avg_v: 1.373001, ibus_avg_a: -0.020442, temp_c: 26.0, vdp_v: 0.0822, vdm_v: 0.0256, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3236, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `` |
+| 2064 | 26.156314 | H->D | `0cfb2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 251, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2066 | 26.156392 | D->H | `41fb8200100000032e8708000f0000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 251, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b".\x87\x08\0\x0f\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b".\x87\x08\0\x0f\0\0\0\0\0\xa3\x0c")` | `Status(
+    StatusPacket {
+        type_id: 46,
+        timestamp_bytes: [
+            135,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            15,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3235,
+        ),
+    },
+)
+` |
+| 2068 | 26.196202 | H->D | `0cfc2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 252, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2070 | 26.196290 | D->H | `41fc820010000003558708000e0000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 252, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"U\x87\x08\0\x0e\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"U\x87\x08\0\x0e\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 85,
+        timestamp_bytes: [
+            135,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            14,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 2072 | 26.236201 | H->D | `0cfd2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 253, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2074 | 26.236306 | D->H | `41fd8200100000037d8708000c0000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 253, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"}\x87\x08\0\x0c\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"}\x87\x08\0\x0c\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 125,
+        timestamp_bytes: [
+            135,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            12,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 2076 | 26.276173 | H->D | `0cfe2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 254, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2078 | 26.276260 | D->H | `41fe820010000003a58708000d0000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 254, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xa5\x87\x08\0\r\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xa5\x87\x08\0\r\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 165,
+        timestamp_bytes: [
+            135,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            13,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 2080 | 26.316312 | H->D | `0cff2000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 255, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2082 | 26.316401 | D->H | `41ff820010000003ce8708000c0000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 255, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\xce\x87\x08\0\x0c\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\xce\x87\x08\0\x0c\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 206,
+        timestamp_bytes: [
+            135,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            12,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 2084 | 26.362469 | H->D | `0c002200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 0, attribute: 17 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 0, attribute: 17 }, payload: b"" })` | `` |
+| 2086 | 26.362590 | D->H | `410082030180000b082d0000eeffffff49f3140026b0ffffadf3140084b0ffff560d0400727e360300017a7e0080a40c5100180010000003fc8708000d0000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 0, obj_count_words: 14 }, extended: ExtendedHeader { attribute: 1, next: true, chunk: 0, size: 44 }, payload: b"\x08-\0\0\xee\xff\xff\xffI\xf3\x14\0&\xb0\xff\xff\xad\xf3\x14\0\x84\xb0\xff\xffV\r\x04\0r~6\x03\0\x01z~\0\x80\xa4\x0cQ\0\x18\0\x10\0\0\x03\xfc\x87\x08\0\r\0\0\0\0\0\xa3\x0c" }` | `CombinedAdcPdData { adc: AdcDataSimple { vbus_v: 0.011528, ibus_a: -1.8e-5, power_w: -2.07504e-7, vbus_avg_v: 1.373001, ibus_avg_a: -0.020442, temp_c: 26.0, vdp_v: 0.0822, vdm_v: 0.0256, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3236, internal_vdd_v: 3.2378, sample_rate: Sps1 }, pd: b"\x10\0\0\x03\xfc\x87\x08\0\r\0\0\0\0\0\xa3\x0c" }` | `` |
+| 2088 | 26.396164 | H->D | `0c012000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 1, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2090 | 26.396245 | D->H | `41018200100000031d8808000b0000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 1, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x1d\x88\x08\0\x0b\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x1d\x88\x08\0\x0b\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 29,
+        timestamp_bytes: [
+            136,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            11,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 2092 | 26.436179 | H->D | `0c022000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 2, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2094 | 26.436269 | D->H | `4102820010000003458808000b0000000000a30c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 2, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"E\x88\x08\0\x0b\0\0\0\0\0\xa3\x0c" }` | `PdRawData(b"E\x88\x08\0\x0b\0\0\0\0\0\xa3\x0c")` | `` |
+| 2096 | 26.476287 | H->D | `0c032000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 3, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2098 | 26.476370 | D->H | `41038200100000036e8808000b0000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 3, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"n\x88\x08\0\x0b\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"n\x88\x08\0\x0b\0\0\0\0\0\xa5\x0c")` | `Status(
+    StatusPacket {
+        type_id: 110,
+        timestamp_bytes: [
+            136,
+            8,
+            0,
+        ],
+        vbus_raw: U16(
+            11,
+        ),
+        ibus_raw: U16(
+            0,
+        ),
+        cc1_raw: U16(
+            0,
+        ),
+        cc2_raw: U16(
+            3237,
+        ),
+    },
+)
+` |
+| 2100 | 26.516219 | H->D | `0c042000` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 4, attribute: 16 }, payload: b"" }` | `CmdGetPdData` | `` |
+| 2102 | 26.516294 | D->H | `4104820010000003958808000b0000000000a50c` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 4, obj_count_words: 2 }, extended: ExtendedHeader { attribute: 16, next: false, chunk: 0, size: 12 }, payload: b"\x95\x88\x08\0\x0b\0\0\0\0\0\xa5\x0c" }` | `PdRawData(b"\x95\x88\x08\0\x0b\0\0\0\0\0\xa5\x0c")` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 2184,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 2104 | 26.530948 | H->D | `11050000` | `Ctrl { header: CtrlHeader { packet_type: 17, flag: false, id: 5, attribute: 0 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 17, flag: false, id: 5, attribute: 0 }, payload: b"" })` | `` |
+| 2106 | 26.531029 | D->H | `05050000` | `Ctrl { header: CtrlHeader { packet_type: 5, flag: false, id: 5, attribute: 0 }, payload: b"" }` | `Generic(Ctrl { header: CtrlHeader { packet_type: 5, flag: false, id: 5, attribute: 0 }, payload: b"" })` | `` |
+| 2108 | 26.566297 | H->D | `0c060200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 6, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2110 | 26.566399 | D->H | `410682020100000b8d350000faffffff49f3140026b0ffffadf3140084b0ffff540d0400727e3503fc007a7e0080a40c51001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 6, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x8d5\0\0\xfa\xff\xff\xffI\xf3\x14\0&\xb0\xff\xff\xad\xf3\x14\0\x84\xb0\xff\xffT\r\x04\0r~5\x03\xfc\0z~\0\x80\xa4\x0cQ\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.013709, ibus_a: -6e-6, power_w: -8.2254e-8, vbus_avg_v: 1.373001, ibus_avg_a: -0.020442, temp_c: 26.0, vdp_v: 0.0821, vdm_v: 0.0252, vdp_avg_v: 0.0081, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3236, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `` |
+| 2112 | 26.776307 | H->D | `0c070200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 7, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2114 | 26.776401 | D->H | `410782020100000b8d350000faffffff49f3140026b0ffffadf3140084b0ffff540d0400727e3503fc007a7e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 7, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x8d5\0\0\xfa\xff\xff\xffI\xf3\x14\0&\xb0\xff\xff\xad\xf3\x14\0\x84\xb0\xff\xffT\r\x04\0r~5\x03\xfc\0z~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.013709, ibus_a: -6e-6, power_w: -8.2254e-8, vbus_avg_v: 1.373001, ibus_avg_a: -0.020442, temp_c: 26.0, vdp_v: 0.0821, vdm_v: 0.0252, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3232, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `` |
+| 2116 | 26.986241 | H->D | `0c080200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 8, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2118 | 26.986335 | D->H | `410882020100000b8d350000faffffff49f3140026b0ffffadf3140084b0ffff540d0400717e3403fb00797e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 8, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x8d5\0\0\xfa\xff\xff\xffI\xf3\x14\0&\xb0\xff\xff\xad\xf3\x14\0\x84\xb0\xff\xffT\r\x04\0q~4\x03\xfb\0y~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.013709, ibus_a: -6e-6, power_w: -8.2254e-8, vbus_avg_v: 1.373001, ibus_avg_a: -0.020442, temp_c: 26.0, vdp_v: 0.082, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3232, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2120 | 27.196303 | H->D | `0c090200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 9, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2122 | 27.196408 | D->H | `410982020100000bcf2b0000faffffffae300000faffffff1231000058000000540d0400717e3403fb00797e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 9, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xcf+\0\0\xfa\xff\xff\xff\xae0\0\0\xfa\xff\xff\xff\x121\0\0X\0\0\0T\r\x04\0q~4\x03\xfb\0y~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.011215, ibus_a: -6e-6, power_w: -6.729e-8, vbus_avg_v: 0.012462, ibus_avg_a: -6e-6, temp_c: 26.0, vdp_v: 0.082, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3232, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2124 | 27.406225 | H->D | `0c0a0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 10, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2126 | 27.406327 | D->H | `410a82020100000bcf2b0000faffffffae300000faffffff1231000058000000540d0400707e3403fa00787e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 10, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xcf+\0\0\xfa\xff\xff\xff\xae0\0\0\xfa\xff\xff\xff\x121\0\0X\0\0\0T\r\x04\0p~4\x03\xfa\0x~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.011215, ibus_a: -6e-6, power_w: -6.729e-8, vbus_avg_v: 0.012462, ibus_avg_a: -6e-6, temp_c: 26.0, vdp_v: 0.082, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2128 | 27.616361 | H->D | `0c0b0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 11, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2130 | 27.616471 | D->H | `410b82020100000b8724000006000000ae300000faffffff1231000058000000530d0400707e3403fa00787e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 11, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x87$\0\0\x06\0\0\0\xae0\0\0\xfa\xff\xff\xff\x121\0\0X\0\0\0S\r\x04\0p~4\x03\xfa\0x~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.009351, ibus_a: 6e-6, power_w: 5.6106e-8, vbus_avg_v: 0.012462, ibus_avg_a: -6e-6, temp_c: 26.0, vdp_v: 0.082, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3236, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 36,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 2132 | 27.826267 | H->D | `0c0c0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 12, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2134 | 27.826371 | D->H | `410c82020100000b8724000006000000ae300000faffffff1231000058000000530d0400707e3403fa00787e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 12, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x87$\0\0\x06\0\0\0\xae0\0\0\xfa\xff\xff\xff\x121\0\0X\0\0\0S\r\x04\0p~4\x03\xfa\0x~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.009351, ibus_a: 6e-6, power_w: 5.6106e-8, vbus_avg_v: 0.012462, ibus_avg_a: -6e-6, temp_c: 26.0, vdp_v: 0.082, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3236, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 36,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 2136 | 28.036258 | H->D | `0c0d0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 13, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2138 | 28.036365 | D->H | `410d82020100000b8724000006000000ae300000faffffff1231000058000000530d0400747e3303fc007c7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 13, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x87$\0\0\x06\0\0\0\xae0\0\0\xfa\xff\xff\xff\x121\0\0X\0\0\0S\r\x04\0t~3\x03\xfc\0|~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.009351, ibus_a: 6e-6, power_w: 5.6106e-8, vbus_avg_v: 0.012462, ibus_avg_a: -6e-6, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0252, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3236, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 36,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 2140 | 28.246259 | H->D | `0c0e0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 14, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2142 | 28.246355 | D->H | `410e82020100000b64200000feffffff7522000002000000d922000060000000530d0400747e3303fc007c7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 14, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"d \0\0\xfe\xff\xff\xffu\"\0\0\x02\0\0\0\xd9\"\0\0`\0\0\0S\r\x04\0t~3\x03\xfc\0|~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.008292, ibus_a: -2e-6, power_w: -1.6584e-8, vbus_avg_v: 0.008821, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0252, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3236, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 2144 | 28.456186 | H->D | `0c0f0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 15, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2146 | 28.456281 | D->H | `410f82020100000b64200000feffffff7522000002000000d922000060000000530d0400757e3403fa007d7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 15, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"d \0\0\xfe\xff\xff\xffu\"\0\0\x02\0\0\0\xd9\"\0\0`\0\0\0S\r\x04\0u~4\x03\xfa\0}~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.008292, ibus_a: -2e-6, power_w: -1.6584e-8, vbus_avg_v: 0.008821, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.082, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2373, cc2_avg_v: 0.3236, internal_vdd_v: 3.2381, sample_rate: Sps1 })` | `` |
+| 2148 | 28.666295 | H->D | `0c100200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 16, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2150 | 28.666409 | D->H | `411082020100000b861d0000faffffff7522000002000000d922000060000000520d0400757e3403fa007d7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 16, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x86\x1d\0\0\xfa\xff\xff\xffu\"\0\0\x02\0\0\0\xd9\"\0\0`\0\0\0R\r\x04\0u~4\x03\xfa\0}~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.007558, ibus_a: -6e-6, power_w: -4.5348e-8, vbus_avg_v: 0.008821, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.082, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2373, cc2_avg_v: 0.3236, internal_vdd_v: 3.2381, sample_rate: Sps1 })` | `` |
+| 2152 | 28.876255 | H->D | `0c110200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 17, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2154 | 28.876356 | D->H | `411182020100000b861d0000faffffff7522000002000000d922000060000000520d0400757e3403fa007d7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 17, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x86\x1d\0\0\xfa\xff\xff\xffu\"\0\0\x02\0\0\0\xd9\"\0\0`\0\0\0R\r\x04\0u~4\x03\xfa\0}~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.007558, ibus_a: -6e-6, power_w: -4.5348e-8, vbus_avg_v: 0.008821, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.082, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2373, cc2_avg_v: 0.3236, internal_vdd_v: 3.2381, sample_rate: Sps1 })` | `` |
+| 2156 | 29.086317 | H->D | `0c120200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 18, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2158 | 29.086439 | D->H | `411282020100000b051c0000f2ffffffc51c0000f6ffffff291d000054000000510d0400747e3403fb007c7e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 18, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x05\x1c\0\0\xf2\xff\xff\xff\xc5\x1c\0\0\xf6\xff\xff\xff)\x1d\0\0T\0\0\0Q\r\x04\0t~4\x03\xfb\0|~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.007173, ibus_a: -1.4e-5, power_w: -1.00422e-7, vbus_avg_v: 0.007365, ibus_avg_a: -1e-5, temp_c: 26.0, vdp_v: 0.082, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3232, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 2160 | 29.296259 | H->D | `0c130200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 19, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2162 | 29.296372 | D->H | `411382020100000b051c0000f2ffffffc51c0000f6ffffff291d000054000000510d0400747e3403fb007c7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 19, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x05\x1c\0\0\xf2\xff\xff\xff\xc5\x1c\0\0\xf6\xff\xff\xff)\x1d\0\0T\0\0\0Q\r\x04\0t~4\x03\xfb\0|~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.007173, ibus_a: -1.4e-5, power_w: -1.00422e-7, vbus_avg_v: 0.007365, ibus_avg_a: -1e-5, temp_c: 26.0, vdp_v: 0.082, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3236, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 2164 | 29.506260 | H->D | `0c140200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 20, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2166 | 29.506364 | D->H | `411482020100000b051c0000f2ffffffc51c0000f6ffffff291d000054000000510d04006f7e3303fa00777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 20, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x05\x1c\0\0\xf2\xff\xff\xff\xc5\x1c\0\0\xf6\xff\xff\xff)\x1d\0\0T\0\0\0Q\r\x04\0o~3\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.007173, ibus_a: -1.4e-5, power_w: -1.00422e-7, vbus_avg_v: 0.007365, ibus_avg_a: -1e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2168 | 29.716393 | H->D | `0c150200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 21, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2170 | 29.716493 | D->H | `411582020100000bae1a000012000000c51c0000f6ffffff291d000054000000510d04006f7e3303fa00777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 21, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xae\x1a\0\0\x12\0\0\0\xc5\x1c\0\0\xf6\xff\xff\xff)\x1d\0\0T\0\0\0Q\r\x04\0o~3\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00683, ibus_a: 1.8e-5, power_w: 1.2294000000000001e-7, vbus_avg_v: 0.007365, ibus_avg_a: -1e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2172 | 29.926290 | H->D | `0c160200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 22, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2174 | 29.926383 | D->H | `411682020100000bae1a000012000000c51c0000f6ffffff291d000054000000510d04006f7e3303fa00777e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 22, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xae\x1a\0\0\x12\0\0\0\xc5\x1c\0\0\xf6\xff\xff\xff)\x1d\0\0T\0\0\0Q\r\x04\0o~3\x03\xfa\0w~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00683, ibus_a: 1.8e-5, power_w: 1.2294000000000001e-7, vbus_avg_v: 0.007365, ibus_avg_a: -1e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3236, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2176 | 30.136297 | H->D | `0c170200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 23, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2178 | 30.136398 | D->H | `411782020100000b3d190000e6fffffff5190000fcffffff591a00005a000000510d04006f7e3303fa00777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 23, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"=\x19\0\0\xe6\xff\xff\xff\xf5\x19\0\0\xfc\xff\xff\xffY\x1a\0\0Z\0\0\0Q\r\x04\0o~3\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.006461, ibus_a: -2.6e-5, power_w: -1.6798599999999998e-7, vbus_avg_v: 0.006645, ibus_avg_a: -4e-6, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2180 | 30.346335 | H->D | `0c180200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 24, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2182 | 30.346444 | D->H | `411882020100000b3d190000e6fffffff5190000fcffffff591a00005a000000510d04006f7e3303fa00777e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 24, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"=\x19\0\0\xe6\xff\xff\xff\xf5\x19\0\0\xfc\xff\xff\xffY\x1a\0\0Z\0\0\0Q\r\x04\0o~3\x03\xfa\0w~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.006461, ibus_a: -2.6e-5, power_w: -1.6798599999999998e-7, vbus_avg_v: 0.006645, ibus_avg_a: -4e-6, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3236, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2184 | 30.556267 | H->D | `0c190200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 25, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2186 | 30.556378 | D->H | `411982020100000b3d190000e6fffffff5190000fcffffff591a00005a000000510d0400717e3303fa00797e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 25, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"=\x19\0\0\xe6\xff\xff\xff\xf5\x19\0\0\xfc\xff\xff\xffY\x1a\0\0Z\0\0\0Q\r\x04\0q~3\x03\xfa\0y~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.006461, ibus_a: -2.6e-5, power_w: -1.6798599999999998e-7, vbus_avg_v: 0.006645, ibus_avg_a: -4e-6, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3236, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2188 | 30.766309 | H->D | `0c1a0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 26, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2190 | 30.766415 | D->H | `411a82020100000ba2180000fafffffff5190000fcffffff591a00005a0000004f0d0400717e3303fa00797e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 26, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xa2\x18\0\0\xfa\xff\xff\xff\xf5\x19\0\0\xfc\xff\xff\xffY\x1a\0\0Z\0\0\0O\r\x04\0q~3\x03\xfa\0y~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.006306, ibus_a: -6e-6, power_w: -3.7836e-8, vbus_avg_v: 0.006645, ibus_avg_a: -4e-6, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3236, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2192 | 30.976287 | H->D | `0c1b0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 27, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2194 | 30.976386 | D->H | `411b82020100000ba2180000fafffffff5190000fcffffff591a00005a0000004f0d0400737e3303fa007b7e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 27, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xa2\x18\0\0\xfa\xff\xff\xff\xf5\x19\0\0\xfc\xff\xff\xffY\x1a\0\0Z\0\0\0O\r\x04\0s~3\x03\xfa\0{~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.006306, ibus_a: -6e-6, power_w: -3.7836e-8, vbus_avg_v: 0.006645, ibus_avg_a: -4e-6, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2371, cc2_avg_v: 0.3232, internal_vdd_v: 3.2379, sample_rate: Sps1 })` | `` |
+| 2196 | 31.186402 | H->D | `0c1c0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 28, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2198 | 31.186518 | D->H | `411c82020100000bff170000060000005018000000000000b41800005e000000500d0400737e3303fa007b7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 28, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xff\x17\0\0\x06\0\0\0P\x18\0\0\0\0\0\0\xb4\x18\0\0^\0\0\0P\r\x04\0s~3\x03\xfa\0{~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.006143, ibus_a: 6e-6, power_w: 3.6858e-8, vbus_avg_v: 0.006224, ibus_avg_a: 0.0, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2371, cc2_avg_v: 0.3236, internal_vdd_v: 3.2379, sample_rate: Sps1 })` | `` |
+| 2200 | 31.396403 | H->D | `0c1d0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 29, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2202 | 31.396519 | D->H | `411d82020100000bff170000060000005018000000000000b41800005e000000500d0400737e3303fa007b7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 29, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xff\x17\0\0\x06\0\0\0P\x18\0\0\0\0\0\0\xb4\x18\0\0^\0\0\0P\r\x04\0s~3\x03\xfa\0{~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.006143, ibus_a: 6e-6, power_w: 3.6858e-8, vbus_avg_v: 0.006224, ibus_avg_a: 0.0, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2371, cc2_avg_v: 0.3236, internal_vdd_v: 3.2379, sample_rate: Sps1 })` | `` |
+| 2204 | 31.606428 | H->D | `0c1e0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 30, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2206 | 31.606531 | D->H | `411e82020100000b28170000060000005018000000000000b41800005e000000500d0400737e3303fb007b7e0080a00c51001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 30, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"(\x17\0\0\x06\0\0\0P\x18\0\0\0\0\0\0\xb4\x18\0\0^\0\0\0P\r\x04\0s~3\x03\xfb\0{~\0\x80\xa0\x0cQ\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005928, ibus_a: 6e-6, power_w: 3.5568000000000005e-8, vbus_avg_v: 0.006224, ibus_avg_a: 0.0, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.2371, cc2_avg_v: 0.3232, internal_vdd_v: 3.2379, sample_rate: Sps1 })` | `` |
+| 2208 | 31.817192 | H->D | `0c1f0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 31, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2210 | 31.817285 | D->H | `411f82020100000b28170000060000005018000000000000b41800005e000000500d0400737e3303fb007b7e0080a40c51001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 31, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"(\x17\0\0\x06\0\0\0P\x18\0\0\0\0\0\0\xb4\x18\0\0^\0\0\0P\r\x04\0s~3\x03\xfb\0{~\0\x80\xa4\x0cQ\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005928, ibus_a: 6e-6, power_w: 3.5568000000000005e-8, vbus_avg_v: 0.006224, ibus_avg_a: 0.0, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.2371, cc2_avg_v: 0.3236, internal_vdd_v: 3.2379, sample_rate: Sps1 })` | `` |
+| 2212 | 32.026358 | H->D | `0c200200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 32, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2214 | 32.026460 | D->H | `412082020100000b28170000060000005018000000000000b41800005e000000500d0400707e3303ff00787e0080a40c51001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 32, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"(\x17\0\0\x06\0\0\0P\x18\0\0\0\0\0\0\xb4\x18\0\0^\0\0\0P\r\x04\0p~3\x03\xff\0x~\0\x80\xa4\x0cQ\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005928, ibus_a: 6e-6, power_w: 3.5568000000000005e-8, vbus_avg_v: 0.006224, ibus_avg_a: 0.0, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0255, vdp_avg_v: 0.0081, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3236, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2216 | 32.236310 | H->D | `0c210200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 33, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2218 | 32.236417 | D->H | `412182020100000b7a1600002a000000d11600001800000035170000760000004e0d0400707e3303ff00787e0080a00c51001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 33, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"z\x16\0\0*\0\0\0\xd1\x16\0\0\x18\0\0\05\x17\0\0v\0\0\0N\r\x04\0p~3\x03\xff\0x~\0\x80\xa0\x0cQ\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005754, ibus_a: 4.2e-5, power_w: 2.4166799999999996e-7, vbus_avg_v: 0.005841, ibus_avg_a: 2.4e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0255, vdp_avg_v: 0.0081, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2220 | 32.446293 | H->D | `0c220200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 34, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2222 | 32.446384 | D->H | `412282020100000b7a1600002a000000d11600001800000035170000760000004e0d0400707e3303ff00787e0080a00c51001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 34, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"z\x16\0\0*\0\0\0\xd1\x16\0\0\x18\0\0\05\x17\0\0v\0\0\0N\r\x04\0p~3\x03\xff\0x~\0\x80\xa0\x0cQ\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005754, ibus_a: 4.2e-5, power_w: 2.4166799999999996e-7, vbus_avg_v: 0.005841, ibus_avg_a: 2.4e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0255, vdp_avg_v: 0.0081, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2224 | 32.656290 | H->D | `0c230200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 35, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2226 | 32.656384 | D->H | `412382020100000bdd150000faffffffd11600001800000035170000760000004e0d0400707e3303ff00787e0080a00c51001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 35, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xdd\x15\0\0\xfa\xff\xff\xff\xd1\x16\0\0\x18\0\0\05\x17\0\0v\0\0\0N\r\x04\0p~3\x03\xff\0x~\0\x80\xa0\x0cQ\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005597, ibus_a: -6e-6, power_w: -3.3582e-8, vbus_avg_v: 0.005841, ibus_avg_a: 2.4e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0255, vdp_avg_v: 0.0081, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2228 | 32.866384 | H->D | `0c240200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 36, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2230 | 32.866485 | D->H | `412482020100000bdd150000faffffffd11600001800000035170000760000004e0d0400707e3303ff00787e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 36, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xdd\x15\0\0\xfa\xff\xff\xff\xd1\x16\0\0\x18\0\0\05\x17\0\0v\0\0\0N\r\x04\0p~3\x03\xff\0x~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005597, ibus_a: -6e-6, power_w: -3.3582e-8, vbus_avg_v: 0.005841, ibus_avg_a: 2.4e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0255, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3236, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2232 | 33.076337 | H->D | `0c250200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 37, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2234 | 33.076438 | D->H | `412582020100000b48150000eaffffff92150000f2fffffff6150000500000004f0d0400727e3303fe007a7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 37, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"H\x15\0\0\xea\xff\xff\xff\x92\x15\0\0\xf2\xff\xff\xff\xf6\x15\0\0P\0\0\0O\r\x04\0r~3\x03\xfe\0z~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005448, ibus_a: -2.2e-5, power_w: -1.1985599999999998e-7, vbus_avg_v: 0.005522, ibus_avg_a: -1.4e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0254, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3236, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `` |
+| 2236 | 33.286230 | H->D | `0c260200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 38, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2238 | 33.286330 | D->H | `412682020100000b48150000eaffffff92150000f2fffffff6150000500000004f0d0400727e3303fe007a7e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 38, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"H\x15\0\0\xea\xff\xff\xff\x92\x15\0\0\xf2\xff\xff\xff\xf6\x15\0\0P\0\0\0O\r\x04\0r~3\x03\xfe\0z~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005448, ibus_a: -2.2e-5, power_w: -1.1985599999999998e-7, vbus_avg_v: 0.005522, ibus_avg_a: -1.4e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0254, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3232, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `` |
+| 2240 | 33.487270 | H->D | `0c270200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 39, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2242 | 33.487369 | D->H | `412782020100000b48150000eaffffff92150000f2fffffff6150000500000004f0d0400707e3303fb00787e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 39, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"H\x15\0\0\xea\xff\xff\xff\x92\x15\0\0\xf2\xff\xff\xff\xf6\x15\0\0P\0\0\0O\r\x04\0p~3\x03\xfb\0x~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005448, ibus_a: -2.2e-5, power_w: -1.1985599999999998e-7, vbus_avg_v: 0.005522, ibus_avg_a: -1.4e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2244 | 33.702354 | H->D | `0c280200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 40, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2246 | 33.702455 | D->H | `412882020100000b09150000e6ffffff92150000f2fffffff6150000500000004d0d0400707e3303fb00787e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 40, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\t\x15\0\0\xe6\xff\xff\xff\x92\x15\0\0\xf2\xff\xff\xff\xf6\x15\0\0P\0\0\0M\r\x04\0p~3\x03\xfb\0x~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005385, ibus_a: -2.6e-5, power_w: -1.4001e-7, vbus_avg_v: 0.005522, ibus_avg_a: -1.4e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2248 | 33.907291 | H->D | `0c290200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 41, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2250 | 33.907395 | D->H | `412982020100000b09150000e6ffffff92150000f2fffffff6150000500000004d0d04006f7e3303fa00777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 41, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\t\x15\0\0\xe6\xff\xff\xff\x92\x15\0\0\xf2\xff\xff\xff\xf6\x15\0\0P\0\0\0M\r\x04\0o~3\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005385, ibus_a: -2.6e-5, power_w: -1.4001e-7, vbus_avg_v: 0.005522, ibus_avg_a: -1.4e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2252 | 34.116349 | H->D | `0c2a0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 42, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2254 | 34.116450 | D->H | `412a82020100000b88140000e6ffffffc8140000e6ffffff2c150000440000004d0d04006f7e3303fa00777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 42, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x88\x14\0\0\xe6\xff\xff\xff\xc8\x14\0\0\xe6\xff\xff\xff,\x15\0\0D\0\0\0M\r\x04\0o~3\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005256, ibus_a: -2.6e-5, power_w: -1.36656e-7, vbus_avg_v: 0.00532, ibus_avg_a: -2.6e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2256 | 34.326333 | H->D | `0c2b0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 43, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2258 | 34.326444 | D->H | `412b82020100000b88140000e6ffffffc8140000e6ffffff2c150000440000004d0d04006f7e3303fa00777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 43, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x88\x14\0\0\xe6\xff\xff\xff\xc8\x14\0\0\xe6\xff\xff\xff,\x15\0\0D\0\0\0M\r\x04\0o~3\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005256, ibus_a: -2.6e-5, power_w: -1.36656e-7, vbus_avg_v: 0.00532, ibus_avg_a: -2.6e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2260 | 34.536313 | H->D | `0c2c0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 44, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2262 | 34.536416 | D->H | `412c82020100000b88140000e6ffffffc8140000e6ffffff2c150000440000004d0d0400707e3303fa00787e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 44, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x88\x14\0\0\xe6\xff\xff\xff\xc8\x14\0\0\xe6\xff\xff\xff,\x15\0\0D\0\0\0M\r\x04\0p~3\x03\xfa\0x~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005256, ibus_a: -2.6e-5, power_w: -1.36656e-7, vbus_avg_v: 0.00532, ibus_avg_a: -2.6e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3236, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2264 | 34.751257 | H->D | `0c2d0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 45, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2266 | 34.751363 | D->H | `412d82020100000b3a140000eeffffffc8140000e6ffffff2c150000440000004b0d0400707e3303fa00787e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 45, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b":\x14\0\0\xee\xff\xff\xff\xc8\x14\0\0\xe6\xff\xff\xff,\x15\0\0D\0\0\0K\r\x04\0p~3\x03\xfa\0x~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005178, ibus_a: -1.8e-5, power_w: -9.3204e-8, vbus_avg_v: 0.00532, ibus_avg_a: -2.6e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3236, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2268 | 34.956307 | H->D | `0c2e0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 46, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2270 | 34.956408 | D->H | `412e82020100000b3a140000eeffffffc8140000e6ffffff2c150000440000004b0d0400747e3403fb007c7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 46, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b":\x14\0\0\xee\xff\xff\xff\xc8\x14\0\0\xe6\xff\xff\xff,\x15\0\0D\0\0\0K\r\x04\0t~4\x03\xfb\0|~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005178, ibus_a: -1.8e-5, power_w: -9.3204e-8, vbus_avg_v: 0.00532, ibus_avg_a: -2.6e-5, temp_c: 26.0, vdp_v: 0.082, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3236, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 2272 | 35.156679 | H->D | `0c2f0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 47, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2274 | 35.156775 | D->H | `412f82020100000ba8130000d6fffffff1130000e2ffffff5514000040000000490d0400747e3403fb007c7e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 47, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xa8\x13\0\0\xd6\xff\xff\xff\xf1\x13\0\0\xe2\xff\xff\xffU\x14\0\0@\0\0\0I\r\x04\0t~4\x03\xfb\0|~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005032, ibus_a: -4.2e-5, power_w: -2.11344e-7, vbus_avg_v: 0.005105, ibus_avg_a: -3e-5, temp_c: 26.0, vdp_v: 0.082, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3232, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 2276 | 35.366332 | H->D | `0c300200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 48, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2278 | 35.366440 | D->H | `413082020100000ba8130000d6fffffff1130000e2ffffff5514000040000000490d0400747e3403fb007c7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 48, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xa8\x13\0\0\xd6\xff\xff\xff\xf1\x13\0\0\xe2\xff\xff\xffU\x14\0\0@\0\0\0I\r\x04\0t~4\x03\xfb\0|~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.005032, ibus_a: -4.2e-5, power_w: -2.11344e-7, vbus_avg_v: 0.005105, ibus_avg_a: -3e-5, temp_c: 26.0, vdp_v: 0.082, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2372, cc2_avg_v: 0.3236, internal_vdd_v: 3.238, sample_rate: Sps1 })` | `` |
+| 2280 | 35.576265 | H->D | `0c310200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 49, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2282 | 35.576357 | D->H | `413182020100000b47130000eafffffff1130000e2ffffff55140000400000004a0d0400717e3303fb00797e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 49, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"G\x13\0\0\xea\xff\xff\xff\xf1\x13\0\0\xe2\xff\xff\xffU\x14\0\0@\0\0\0J\r\x04\0q~3\x03\xfb\0y~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004935, ibus_a: -2.2e-5, power_w: -1.0857e-7, vbus_avg_v: 0.005105, ibus_avg_a: -3e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3232, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2284 | 35.786280 | H->D | `0c320200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 50, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2286 | 35.786385 | D->H | `413282020100000b47130000eafffffff1130000e2ffffff55140000400000004a0d0400717e3303fb00797e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 50, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"G\x13\0\0\xea\xff\xff\xff\xf1\x13\0\0\xe2\xff\xff\xffU\x14\0\0@\0\0\0J\r\x04\0q~3\x03\xfb\0y~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004935, ibus_a: -2.2e-5, power_w: -1.0857e-7, vbus_avg_v: 0.005105, ibus_avg_a: -3e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3232, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2288 | 35.996318 | H->D | `0c330200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 51, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2290 | 35.996409 | D->H | `413382020100000b47130000eafffffff1130000e2ffffff55140000400000004a0d04006f7e3303fb00777e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 51, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"G\x13\0\0\xea\xff\xff\xff\xf1\x13\0\0\xe2\xff\xff\xffU\x14\0\0@\0\0\0J\r\x04\0o~3\x03\xfb\0w~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004935, ibus_a: -2.2e-5, power_w: -1.0857e-7, vbus_avg_v: 0.005105, ibus_avg_a: -3e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3236, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2292 | 36.206401 | H->D | `0c340200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 52, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2294 | 36.206500 | D->H | `413482020100000b241300001200000035130000feffffff991300005c000000490d04006f7e3303fb00777e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 52, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"$\x13\0\0\x12\0\0\05\x13\0\0\xfe\xff\xff\xff\x99\x13\0\0\\\0\0\0I\r\x04\0o~3\x03\xfb\0w~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.0049, ibus_a: 1.8e-5, power_w: 8.82e-8, vbus_avg_v: 0.004917, ibus_avg_a: -2e-6, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3236, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2296 | 36.416333 | H->D | `0c350200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 53, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2298 | 36.416434 | D->H | `413582020100000b241300001200000035130000feffffff991300005c000000490d04006f7e3303f900777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 53, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"$\x13\0\0\x12\0\0\05\x13\0\0\xfe\xff\xff\xff\x99\x13\0\0\\\0\0\0I\r\x04\0o~3\x03\xf9\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.0049, ibus_a: 1.8e-5, power_w: 8.82e-8, vbus_avg_v: 0.004917, ibus_avg_a: -2e-6, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0249, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2300 | 36.626318 | H->D | `0c360200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 54, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2302 | 36.626406 | D->H | `413682020100000b52120000eeffffff35130000feffffff991300005c000000490d04006f7e3303f900777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 54, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"R\x12\0\0\xee\xff\xff\xff5\x13\0\0\xfe\xff\xff\xff\x99\x13\0\0\\\0\0\0I\r\x04\0o~3\x03\xf9\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00469, ibus_a: -1.8e-5, power_w: -8.442e-8, vbus_avg_v: 0.004917, ibus_avg_a: -2e-6, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0249, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2304 | 36.836338 | H->D | `0c370200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 55, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2306 | 36.836462 | D->H | `413782020100000b52120000eeffffff35130000feffffff991300005c000000490d04006f7e3303f900777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 55, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"R\x12\0\0\xee\xff\xff\xff5\x13\0\0\xfe\xff\xff\xff\x99\x13\0\0\\\0\0\0I\r\x04\0o~3\x03\xf9\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00469, ibus_a: -1.8e-5, power_w: -8.442e-8, vbus_avg_v: 0.004917, ibus_avg_a: -2e-6, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0249, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2308 | 37.046335 | H->D | `0c380200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 56, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2310 | 37.046448 | D->H | `413882020100000b52120000eeffffff35130000feffffff991300005c000000490d04006d7e3203f900757e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 56, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"R\x12\0\0\xee\xff\xff\xff5\x13\0\0\xfe\xff\xff\xff\x99\x13\0\0\\\0\0\0I\r\x04\0m~2\x03\xf9\0u~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00469, ibus_a: -1.8e-5, power_w: -8.442e-8, vbus_avg_v: 0.004917, ibus_avg_a: -2e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.0249, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2365, cc2_avg_v: 0.3232, internal_vdd_v: 3.2373, sample_rate: Sps1 })` | `` |
+| 2312 | 37.256490 | H->D | `0c390200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 57, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2314 | 37.256584 | D->H | `413982020100000b10120000feffffff31120000f6ffffff9512000054000000490d04006d7e3203f900757e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 57, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x10\x12\0\0\xfe\xff\xff\xff1\x12\0\0\xf6\xff\xff\xff\x95\x12\0\0T\0\0\0I\r\x04\0m~2\x03\xf9\0u~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004624, ibus_a: -2e-6, power_w: -9.248e-9, vbus_avg_v: 0.004657, ibus_avg_a: -1e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.0249, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2365, cc2_avg_v: 0.3232, internal_vdd_v: 3.2373, sample_rate: Sps1 })` | `` |
+| 2316 | 37.475326 | H->D | `0c3a0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 58, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2318 | 37.475420 | D->H | `413a82020100000b10120000feffffff31120000f6ffffff9512000054000000490d04006f7e3203fa00777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 58, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x10\x12\0\0\xfe\xff\xff\xff1\x12\0\0\xf6\xff\xff\xff\x95\x12\0\0T\0\0\0I\r\x04\0o~2\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004624, ibus_a: -2e-6, power_w: -9.248e-9, vbus_avg_v: 0.004657, ibus_avg_a: -1e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2320 | 37.676470 | H->D | `0c3b0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 59, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2322 | 37.676590 | D->H | `413b82020100000b53110000eaffffff31120000f6ffffff9512000054000000480d04006f7e3203fa00777e0080a00c51001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 59, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"S\x11\0\0\xea\xff\xff\xff1\x12\0\0\xf6\xff\xff\xff\x95\x12\0\0T\0\0\0H\r\x04\0o~2\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004435, ibus_a: -2.2e-5, power_w: -9.756999999999999e-8, vbus_avg_v: 0.004657, ibus_avg_a: -1e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2324 | 37.886413 | H->D | `0c3c0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 60, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2326 | 37.886520 | D->H | `413c82020100000b53110000eaffffff31120000f6ffffff9512000054000000480d04006f7e3203fa00777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 60, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"S\x11\0\0\xea\xff\xff\xff1\x12\0\0\xf6\xff\xff\xff\x95\x12\0\0T\0\0\0H\r\x04\0o~2\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004435, ibus_a: -2.2e-5, power_w: -9.756999999999999e-8, vbus_avg_v: 0.004657, ibus_avg_a: -1e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2328 | 38.096398 | H->D | `0c3d0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 61, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2330 | 38.096498 | D->H | `413d82020100000b401100000a00000049110000faffffffad11000058000000470d0400707e3203fd00787e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 61, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"@\x11\0\0\n\0\0\0I\x11\0\0\xfa\xff\xff\xff\xad\x11\0\0X\0\0\0G\r\x04\0p~2\x03\xfd\0x~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004416, ibus_a: 1e-5, power_w: 4.416e-8, vbus_avg_v: 0.004425, ibus_avg_a: -6e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.0253, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2332 | 38.306418 | H->D | `0c3e0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 62, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2334 | 38.306521 | D->H | `413e82020100000b401100000a00000049110000faffffffad11000058000000470d0400707e3203fd00787e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 62, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"@\x11\0\0\n\0\0\0I\x11\0\0\xfa\xff\xff\xff\xad\x11\0\0X\0\0\0G\r\x04\0p~2\x03\xfd\0x~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004416, ibus_a: 1e-5, power_w: 4.416e-8, vbus_avg_v: 0.004425, ibus_avg_a: -6e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.0253, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3236, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2336 | 38.516428 | H->D | `0c3f0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 63, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2338 | 38.516524 | D->H | `413f82020100000b401100000a00000049110000faffffffad11000058000000470d04006e7e3203fa00767e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 63, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"@\x11\0\0\n\0\0\0I\x11\0\0\xfa\xff\xff\xff\xad\x11\0\0X\0\0\0G\r\x04\0n~2\x03\xfa\0v~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004416, ibus_a: 1e-5, power_w: 4.416e-8, vbus_avg_v: 0.004425, ibus_avg_a: -6e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2366, cc2_avg_v: 0.3232, internal_vdd_v: 3.2374, sample_rate: Sps1 })` | `` |
+| 2340 | 38.726494 | H->D | `0c400200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 64, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2342 | 38.726589 | D->H | `414082020100000b61110000f6ffffff49110000faffffffad11000058000000470d04006e7e3203fa00767e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 64, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"a\x11\0\0\xf6\xff\xff\xffI\x11\0\0\xfa\xff\xff\xff\xad\x11\0\0X\0\0\0G\r\x04\0n~2\x03\xfa\0v~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004449, ibus_a: -1e-5, power_w: -4.4490000000000003e-8, vbus_avg_v: 0.004425, ibus_avg_a: -6e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2366, cc2_avg_v: 0.3232, internal_vdd_v: 3.2374, sample_rate: Sps1 })` | `` |
+| 2344 | 38.936395 | H->D | `0c410200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 65, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2346 | 38.936500 | D->H | `414182020100000b61110000f6ffffff49110000faffffffad11000058000000470d0400717e3303fa00797e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 65, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"a\x11\0\0\xf6\xff\xff\xffI\x11\0\0\xfa\xff\xff\xff\xad\x11\0\0X\0\0\0G\r\x04\0q~3\x03\xfa\0y~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004449, ibus_a: -1e-5, power_w: -4.4490000000000003e-8, vbus_avg_v: 0.004425, ibus_avg_a: -6e-6, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3236, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2348 | 39.146419 | H->D | `0c420200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 66, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2350 | 39.146523 | D->H | `414282020100000b1a110000160000003d11000006000000a111000064000000470d0400717e3303fa00797e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 66, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x1a\x11\0\0\x16\0\0\0=\x11\0\0\x06\0\0\0\xa1\x11\0\0d\0\0\0G\r\x04\0q~3\x03\xfa\0y~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004378, ibus_a: 2.2e-5, power_w: 9.6316e-8, vbus_avg_v: 0.004413, ibus_avg_a: 6e-6, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3232, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2352 | 39.356430 | H->D | `0c430200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 67, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2354 | 39.356524 | D->H | `414382020100000b1a110000160000003d11000006000000a111000064000000470d0400717e3303fa00797e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 67, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x1a\x11\0\0\x16\0\0\0=\x11\0\0\x06\0\0\0\xa1\x11\0\0d\0\0\0G\r\x04\0q~3\x03\xfa\0y~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004378, ibus_a: 2.2e-5, power_w: 9.6316e-8, vbus_avg_v: 0.004413, ibus_avg_a: 6e-6, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3232, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2356 | 39.566282 | H->D | `0c440200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 68, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2358 | 39.566398 | D->H | `414482020100000ba41000000e0000003d11000006000000a111000064000000450d04006f7e3203fa00777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 68, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xa4\x10\0\0\x0e\0\0\0=\x11\0\0\x06\0\0\0\xa1\x11\0\0d\0\0\0E\r\x04\0o~2\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00426, ibus_a: 1.4e-5, power_w: 5.964e-8, vbus_avg_v: 0.004413, ibus_avg_a: 6e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2360 | 39.776412 | H->D | `0c450200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 69, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2362 | 39.776522 | D->H | `414582020100000ba41000000e0000003d11000006000000a111000064000000450d04006f7e3203fa00777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 69, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xa4\x10\0\0\x0e\0\0\0=\x11\0\0\x06\0\0\0\xa1\x11\0\0d\0\0\0E\r\x04\0o~2\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00426, ibus_a: 1.4e-5, power_w: 5.964e-8, vbus_avg_v: 0.004413, ibus_avg_a: 6e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2364 | 39.990832 | H->D | `0c460200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 70, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2366 | 39.990935 | D->H | `414682020100000ba41000000e0000003d11000006000000a111000064000000450d04006f7e3103fa00777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 70, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xa4\x10\0\0\x0e\0\0\0=\x11\0\0\x06\0\0\0\xa1\x11\0\0d\0\0\0E\r\x04\0o~1\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00426, ibus_a: 1.4e-5, power_w: 5.964e-8, vbus_avg_v: 0.004413, ibus_avg_a: 6e-6, temp_c: 26.0, vdp_v: 0.0817, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2368 | 40.198661 | H->D | `0c470200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 71, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2370 | 40.198763 | D->H | `414782020100000bb810000012000000ae10000010000000121100006e000000450d04006f7e3103fa00777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 71, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xb8\x10\0\0\x12\0\0\0\xae\x10\0\0\x10\0\0\0\x12\x11\0\0n\0\0\0E\r\x04\0o~1\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00428, ibus_a: 1.8e-5, power_w: 7.704000000000001e-8, vbus_avg_v: 0.00427, ibus_avg_a: 1.6e-5, temp_c: 26.0, vdp_v: 0.0817, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2372 | 40.396772 | H->D | `0c480200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 72, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2374 | 40.396875 | D->H | `414882020100000bb810000012000000ae10000010000000121100006e000000450d04006f7e3103fa00777e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 72, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xb8\x10\0\0\x12\0\0\0\xae\x10\0\0\x10\0\0\0\x12\x11\0\0n\0\0\0E\r\x04\0o~1\x03\xfa\0w~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00428, ibus_a: 1.8e-5, power_w: 7.704000000000001e-8, vbus_avg_v: 0.00427, ibus_avg_a: 1.6e-5, temp_c: 26.0, vdp_v: 0.0817, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3236, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2376 | 40.611982 | H->D | `0c490200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 73, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2378 | 40.612083 | D->H | `414982020100000b9d1000001e000000ae10000010000000121100006e000000440d0400727e3203fa007a7e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 73, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x9d\x10\0\0\x1e\0\0\0\xae\x10\0\0\x10\0\0\0\x12\x11\0\0n\0\0\0D\r\x04\0r~2\x03\xfa\0z~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004253, ibus_a: 3e-5, power_w: 1.2759e-7, vbus_avg_v: 0.00427, ibus_avg_a: 1.6e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3232, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 16,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 2380 | 40.817128 | H->D | `0c4a0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 74, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2382 | 40.817234 | D->H | `414a82020100000b9d1000001e000000ae10000010000000121100006e000000440d0400727e3203fa007a7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 74, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x9d\x10\0\0\x1e\0\0\0\xae\x10\0\0\x10\0\0\0\x12\x11\0\0n\0\0\0D\r\x04\0r~2\x03\xfa\0z~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004253, ibus_a: 3e-5, power_w: 1.2759e-7, vbus_avg_v: 0.00427, ibus_avg_a: 1.6e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3236, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 16,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 2384 | 41.017470 | H->D | `0c4b0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 75, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2386 | 41.017579 | D->H | `414b82020100000b9d1000001e000000ae10000010000000121100006e000000440d0400737e3203fa007b7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 75, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x9d\x10\0\0\x1e\0\0\0\xae\x10\0\0\x10\0\0\0\x12\x11\0\0n\0\0\0D\r\x04\0s~2\x03\xfa\0{~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004253, ibus_a: 3e-5, power_w: 1.2759e-7, vbus_avg_v: 0.00427, ibus_avg_a: 1.6e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2371, cc2_avg_v: 0.3236, internal_vdd_v: 3.2379, sample_rate: Sps1 })` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: true,
+        timestamp: 16,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 2388 | 41.226361 | H->D | `0c4c0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 76, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2390 | 41.226457 | D->H | `414c82020100000b691000001a000000831000001c000000e71000007a000000460d0400737e3203fa007b7e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 76, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"i\x10\0\0\x1a\0\0\0\x83\x10\0\0\x1c\0\0\0\xe7\x10\0\0z\0\0\0F\r\x04\0s~2\x03\xfa\0{~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004201, ibus_a: 2.6e-5, power_w: 1.0922599999999999e-7, vbus_avg_v: 0.004227, ibus_avg_a: 2.8e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2371, cc2_avg_v: 0.3236, internal_vdd_v: 3.2379, sample_rate: Sps1 })` | `` |
+| 2392 | 41.436406 | H->D | `0c4d0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 77, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2394 | 41.436504 | D->H | `414d82020100000b691000001a000000831000001c000000e71000007a000000460d0400727e3303fb007a7e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 77, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"i\x10\0\0\x1a\0\0\0\x83\x10\0\0\x1c\0\0\0\xe7\x10\0\0z\0\0\0F\r\x04\0r~3\x03\xfb\0z~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004201, ibus_a: 2.6e-5, power_w: 1.0922599999999999e-7, vbus_avg_v: 0.004227, ibus_avg_a: 2.8e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3232, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `` |
+| 2396 | 41.646364 | H->D | `0c4e0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 78, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2398 | 41.646460 | D->H | `414e82020100000b6410000012000000831000001c000000e71000007a000000440d0400727e3303fb007a7e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 78, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"d\x10\0\0\x12\0\0\0\x83\x10\0\0\x1c\0\0\0\xe7\x10\0\0z\0\0\0D\r\x04\0r~3\x03\xfb\0z~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004196, ibus_a: 1.8e-5, power_w: 7.5528e-8, vbus_avg_v: 0.004227, ibus_avg_a: 2.8e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3232, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `` |
+| 2400 | 41.856511 | H->D | `0c4f0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 79, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2402 | 41.856611 | D->H | `414f82020100000b6410000012000000831000001c000000e71000007a000000440d0400727e3303fb007a7e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 79, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"d\x10\0\0\x12\0\0\0\x83\x10\0\0\x1c\0\0\0\xe7\x10\0\0z\0\0\0D\r\x04\0r~3\x03\xfb\0z~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004196, ibus_a: 1.8e-5, power_w: 7.5528e-8, vbus_avg_v: 0.004227, ibus_avg_a: 2.8e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0251, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.237, cc2_avg_v: 0.3232, internal_vdd_v: 3.2378, sample_rate: Sps1 })` | `` |
+| 2404 | 42.066388 | H->D | `0c500200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 80, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2406 | 42.066500 | D->H | `415082020100000b64100000120000006410000012000000c810000070000000440d0400717e3103fa00797e0080a00c51001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 80, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"d\x10\0\0\x12\0\0\0d\x10\0\0\x12\0\0\0\xc8\x10\0\0p\0\0\0D\r\x04\0q~1\x03\xfa\0y~\0\x80\xa0\x0cQ\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004196, ibus_a: 1.8e-5, power_w: 7.5528e-8, vbus_avg_v: 0.004196, ibus_avg_a: 1.8e-5, temp_c: 26.0, vdp_v: 0.0817, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3232, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2408 | 42.276744 | H->D | `0c510200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 81, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2410 | 42.276834 | D->H | `415182020100000b64100000120000006410000012000000c810000070000000440d0400717e3103fa00797e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 81, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"d\x10\0\0\x12\0\0\0d\x10\0\0\x12\0\0\0\xc8\x10\0\0p\0\0\0D\r\x04\0q~1\x03\xfa\0y~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004196, ibus_a: 1.8e-5, power_w: 7.5528e-8, vbus_avg_v: 0.004196, ibus_avg_a: 1.8e-5, temp_c: 26.0, vdp_v: 0.0817, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3232, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2412 | 42.486393 | H->D | `0c520200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 82, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2414 | 42.486496 | D->H | `415282020100000b64100000120000006410000012000000c810000070000000440d0400707e3303fc00787e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 82, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"d\x10\0\0\x12\0\0\0d\x10\0\0\x12\0\0\0\xc8\x10\0\0p\0\0\0D\r\x04\0p~3\x03\xfc\0x~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004196, ibus_a: 1.8e-5, power_w: 7.5528e-8, vbus_avg_v: 0.004196, ibus_avg_a: 1.8e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0252, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3236, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2416 | 42.696431 | H->D | `0c530200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 83, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2418 | 42.696539 | D->H | `415382020100000b9a100000f2ffffff6410000012000000c810000070000000430d0400707e3303fc00787e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 83, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x9a\x10\0\0\xf2\xff\xff\xffd\x10\0\0\x12\0\0\0\xc8\x10\0\0p\0\0\0C\r\x04\0p~3\x03\xfc\0x~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00425, ibus_a: -1.4e-5, power_w: -5.9500000000000003e-8, vbus_avg_v: 0.004196, ibus_avg_a: 1.8e-5, temp_c: 26.0, vdp_v: 0.0819, vdm_v: 0.0252, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2420 | 42.906372 | H->D | `0c540200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 84, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2422 | 42.906487 | D->H | `415482020100000b9a100000f2ffffff6410000012000000c810000070000000430d0400717e3203fa00797e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 84, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x9a\x10\0\0\xf2\xff\xff\xffd\x10\0\0\x12\0\0\0\xc8\x10\0\0p\0\0\0C\r\x04\0q~2\x03\xfa\0y~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00425, ibus_a: -1.4e-5, power_w: -5.9500000000000003e-8, vbus_avg_v: 0.004196, ibus_avg_a: 1.8e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3236, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2424 | 43.106798 | H->D | `0c550200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 85, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2426 | 43.106897 | D->H | `415582020100000bd8100000e2ffffffb9100000eaffffff1d11000048000000430d0400717e3203fa00797e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 85, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xd8\x10\0\0\xe2\xff\xff\xff\xb9\x10\0\0\xea\xff\xff\xff\x1d\x11\0\0H\0\0\0C\r\x04\0q~2\x03\xfa\0y~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004312, ibus_a: -3e-5, power_w: -1.2936e-7, vbus_avg_v: 0.004281, ibus_avg_a: -2.2e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3232, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2428 | 43.316553 | H->D | `0c560200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 86, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2430 | 43.316653 | D->H | `415682020100000bd8100000e2ffffffb9100000eaffffff1d11000048000000430d0400717e3203fa00797e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 86, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xd8\x10\0\0\xe2\xff\xff\xff\xb9\x10\0\0\xea\xff\xff\xff\x1d\x11\0\0H\0\0\0C\r\x04\0q~2\x03\xfa\0y~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004312, ibus_a: -3e-5, power_w: -1.2936e-7, vbus_avg_v: 0.004281, ibus_avg_a: -2.2e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3232, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2432 | 43.526458 | H->D | `0c570200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 87, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2434 | 43.526558 | D->H | `415782020100000bd8100000e2ffffffb9100000eaffffff1d11000048000000430d04006f7e3203fa00777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 87, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xd8\x10\0\0\xe2\xff\xff\xff\xb9\x10\0\0\xea\xff\xff\xff\x1d\x11\0\0H\0\0\0C\r\x04\0o~2\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004312, ibus_a: -3e-5, power_w: -1.2936e-7, vbus_avg_v: 0.004281, ibus_avg_a: -2.2e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2436 | 43.736689 | H->D | `0c580200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 88, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2438 | 43.736793 | D->H | `415882020100000bc2100000f2ffffffb9100000eaffffff1d11000048000000430d04006f7e3203fa00777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 88, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xc2\x10\0\0\xf2\xff\xff\xff\xb9\x10\0\0\xea\xff\xff\xff\x1d\x11\0\0H\0\0\0C\r\x04\0o~2\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00429, ibus_a: -1.4e-5, power_w: -6.006000000000001e-8, vbus_avg_v: 0.004281, ibus_avg_a: -2.2e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2440 | 43.946506 | H->D | `0c590200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 89, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2442 | 43.946614 | D->H | `415982020100000bc2100000f2ffffffb9100000eaffffff1d11000048000000430d0400717e3203f900797e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 89, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xc2\x10\0\0\xf2\xff\xff\xff\xb9\x10\0\0\xea\xff\xff\xff\x1d\x11\0\0H\0\0\0C\r\x04\0q~2\x03\xf9\0y~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.00429, ibus_a: -1.4e-5, power_w: -6.006000000000001e-8, vbus_avg_v: 0.004281, ibus_avg_a: -2.2e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.0249, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3236, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2444 | 44.156283 | H->D | `0c5a0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 90, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2446 | 44.156383 | D->H | `415a82020100000b64100000e6ffffff93100000ecfffffff71000004a000000420d0400717e3203f900797e0080a40c51001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 90, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"d\x10\0\0\xe6\xff\xff\xff\x93\x10\0\0\xec\xff\xff\xff\xf7\x10\0\0J\0\0\0B\r\x04\0q~2\x03\xf9\0y~\0\x80\xa4\x0cQ\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004196, ibus_a: -2.6e-5, power_w: -1.09096e-7, vbus_avg_v: 0.004243, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.0249, vdp_avg_v: 0.0081, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3236, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2448 | 44.371586 | H->D | `0c5b0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 91, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2450 | 44.371686 | D->H | `415b82020100000b64100000e6ffffff93100000ecfffffff71000004a000000420d0400717e3203f900797e0080a00c51001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 91, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"d\x10\0\0\xe6\xff\xff\xff\x93\x10\0\0\xec\xff\xff\xff\xf7\x10\0\0J\0\0\0B\r\x04\0q~2\x03\xf9\0y~\0\x80\xa0\x0cQ\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004196, ibus_a: -2.6e-5, power_w: -1.09096e-7, vbus_avg_v: 0.004243, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.0249, vdp_avg_v: 0.0081, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.2369, cc2_avg_v: 0.3232, internal_vdd_v: 3.2377, sample_rate: Sps1 })` | `` |
+| 2452 | 44.576394 | H->D | `0c5c0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 92, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2454 | 44.576492 | D->H | `415c82020100000b42100000f6ffffff93100000ecfffffff71000004a000000410d0400737e3203fe007b7e0080a00c51001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 92, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"B\x10\0\0\xf6\xff\xff\xff\x93\x10\0\0\xec\xff\xff\xff\xf7\x10\0\0J\0\0\0A\r\x04\0s~2\x03\xfe\0{~\0\x80\xa0\x0cQ\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004162, ibus_a: -1e-5, power_w: -4.1620000000000005e-8, vbus_avg_v: 0.004243, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.0254, vdp_avg_v: 0.0081, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.2371, cc2_avg_v: 0.3232, internal_vdd_v: 3.2379, sample_rate: Sps1 })` | `` |
+| 2456 | 44.786470 | H->D | `0c5d0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 93, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2458 | 44.786572 | D->H | `415d82020100000b42100000f6ffffff93100000ecfffffff71000004a000000410d0400737e3203fe007b7e0080a00c51001900` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 93, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"B\x10\0\0\xf6\xff\xff\xff\x93\x10\0\0\xec\xff\xff\xff\xf7\x10\0\0J\0\0\0A\r\x04\0s~2\x03\xfe\0{~\0\x80\xa0\x0cQ\0\x19\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004162, ibus_a: -1e-5, power_w: -4.1620000000000005e-8, vbus_avg_v: 0.004243, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.0254, vdp_avg_v: 0.0081, vdm_avg_v: 0.0025, cc1_v: 0.0004, cc2_v: 3.2371, cc2_avg_v: 0.3232, internal_vdd_v: 3.2379, sample_rate: Sps1 })` | `` |
+| 2460 | 44.996408 | H->D | `0c5e0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 94, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2462 | 44.996510 | D->H | `415e82020100000b42100000f6ffffff93100000ecfffffff71000004a000000410d04006e7e3203fd00767e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 94, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"B\x10\0\0\xf6\xff\xff\xff\x93\x10\0\0\xec\xff\xff\xff\xf7\x10\0\0J\0\0\0A\r\x04\0n~2\x03\xfd\0v~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004162, ibus_a: -1e-5, power_w: -4.1620000000000005e-8, vbus_avg_v: 0.004243, ibus_avg_a: -2e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.0253, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2366, cc2_avg_v: 0.3236, internal_vdd_v: 3.2374, sample_rate: Sps1 })` | `` |
+| 2464 | 45.207016 | H->D | `0c5f0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 95, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2466 | 45.207121 | D->H | `415f82020100000b56100000120000004c10000004000000b010000062000000410d04006e7e3203fd00767e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 95, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"V\x10\0\0\x12\0\0\0L\x10\0\0\x04\0\0\0\xb0\x10\0\0b\0\0\0A\r\x04\0n~2\x03\xfd\0v~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004182, ibus_a: 1.8e-5, power_w: 7.5276e-8, vbus_avg_v: 0.004172, ibus_avg_a: 4e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.0253, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2366, cc2_avg_v: 0.3232, internal_vdd_v: 3.2374, sample_rate: Sps1 })` | `` |
+| 2468 | 45.416446 | H->D | `0c600200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 96, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2470 | 45.416545 | D->H | `416082020100000b56100000120000004c10000004000000b010000062000000410d04006f7e3203f900777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 96, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"V\x10\0\0\x12\0\0\0L\x10\0\0\x04\0\0\0\xb0\x10\0\0b\0\0\0A\r\x04\0o~2\x03\xf9\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004182, ibus_a: 1.8e-5, power_w: 7.5276e-8, vbus_avg_v: 0.004172, ibus_avg_a: 4e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.0249, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2472 | 45.626848 | H->D | `0c610200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 97, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2474 | 45.626942 | D->H | `416182020100000b92100000320000004c10000004000000b010000062000000410d04006f7e3203f900777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 97, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x92\x10\0\02\0\0\0L\x10\0\0\x04\0\0\0\xb0\x10\0\0b\0\0\0A\r\x04\0o~2\x03\xf9\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004242, ibus_a: 5e-5, power_w: 2.1210000000000003e-7, vbus_avg_v: 0.004172, ibus_avg_a: 4e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.0249, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 16,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 2476 | 45.836523 | H->D | `0c620200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 98, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2478 | 45.836634 | D->H | `416282020100000b92100000320000004c10000004000000b010000062000000410d04006f7e3203f900777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 98, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x92\x10\0\02\0\0\0L\x10\0\0\x04\0\0\0\xb0\x10\0\0b\0\0\0A\r\x04\0o~2\x03\xf9\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004242, ibus_a: 5e-5, power_w: 2.1210000000000003e-7, vbus_avg_v: 0.004172, ibus_avg_a: 4e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.0249, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 16,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 2480 | 46.046434 | H->D | `0c630200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 99, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2482 | 46.046528 | D->H | `416382020100000b92100000320000004c10000004000000b010000062000000410d0400707e3203fa00787e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 99, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\x92\x10\0\02\0\0\0L\x10\0\0\x04\0\0\0\xb0\x10\0\0b\0\0\0A\r\x04\0p~2\x03\xfa\0x~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004242, ibus_a: 5e-5, power_w: 2.1210000000000003e-7, vbus_avg_v: 0.004172, ibus_avg_a: 4e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `PdMessage(
+    WrappedPdMessage {
+        is_src_to_snk: false,
+        timestamp: 16,
+        pd_bytes: b"\0\0",
+    },
+)
+` |
+| 2484 | 46.256763 | H->D | `0c640200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 100, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2486 | 46.256860 | D->H | `416482020100000b601000001a0000007910000026000000dd10000084000000430d0400707e3203fa00787e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 100, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"`\x10\0\0\x1a\0\0\0y\x10\0\0&\0\0\0\xdd\x10\0\0\x84\0\0\0C\r\x04\0p~2\x03\xfa\0x~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004192, ibus_a: 2.6e-5, power_w: 1.08992e-7, vbus_avg_v: 0.004217, ibus_avg_a: 3.8e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2488 | 46.466482 | H->D | `0c650200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 101, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2490 | 46.466592 | D->H | `416582020100000b601000001a0000007910000026000000dd10000084000000430d0400707e3103f900787e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 101, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"`\x10\0\0\x1a\0\0\0y\x10\0\0&\0\0\0\xdd\x10\0\0\x84\0\0\0C\r\x04\0p~1\x03\xf9\0x~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004192, ibus_a: 2.6e-5, power_w: 1.08992e-7, vbus_avg_v: 0.004217, ibus_avg_a: 3.8e-5, temp_c: 26.0, vdp_v: 0.0817, vdm_v: 0.0249, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2492 | 46.676479 | H->D | `0c660200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 102, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2494 | 46.676576 | D->H | `416682020100000b44100000120000007910000026000000dd10000084000000420d0400707e3103f900787e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 102, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"D\x10\0\0\x12\0\0\0y\x10\0\0&\0\0\0\xdd\x10\0\0\x84\0\0\0B\r\x04\0p~1\x03\xf9\0x~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004164, ibus_a: 1.8e-5, power_w: 7.495200000000001e-8, vbus_avg_v: 0.004217, ibus_avg_a: 3.8e-5, temp_c: 26.0, vdp_v: 0.0817, vdm_v: 0.0249, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2496 | 46.886500 | H->D | `0c670200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 103, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2498 | 46.886609 | D->H | `416782020100000b44100000120000007910000026000000dd10000084000000420d0400707e3103f900787e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 103, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"D\x10\0\0\x12\0\0\0y\x10\0\0&\0\0\0\xdd\x10\0\0\x84\0\0\0B\r\x04\0p~1\x03\xf9\0x~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004164, ibus_a: 1.8e-5, power_w: 7.495200000000001e-8, vbus_avg_v: 0.004217, ibus_avg_a: 3.8e-5, temp_c: 26.0, vdp_v: 0.0817, vdm_v: 0.0249, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2500 | 47.096665 | H->D | `0c680200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 104, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2502 | 47.096759 | D->H | `416882020100000b42100000f2ffffff4310000002000000a710000060000000410d0400707e3203fa00787e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 104, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"B\x10\0\0\xf2\xff\xff\xffC\x10\0\0\x02\0\0\0\xa7\x10\0\0`\0\0\0A\r\x04\0p~2\x03\xfa\0x~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004162, ibus_a: -1.4e-5, power_w: -5.8267999999999996e-8, vbus_avg_v: 0.004163, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2504 | 47.307821 | H->D | `0c690200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 105, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2506 | 47.307917 | D->H | `416982020100000b42100000f2ffffff4310000002000000a710000060000000410d0400707e3203fa00787e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 105, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"B\x10\0\0\xf2\xff\xff\xffC\x10\0\0\x02\0\0\0\xa7\x10\0\0`\0\0\0A\r\x04\0p~2\x03\xfa\0x~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004162, ibus_a: -1.4e-5, power_w: -5.8267999999999996e-8, vbus_avg_v: 0.004163, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2368, cc2_avg_v: 0.3232, internal_vdd_v: 3.2376, sample_rate: Sps1 })` | `` |
+| 2508 | 47.516505 | H->D | `0c6a0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 106, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2510 | 47.516608 | D->H | `416a82020100000b42100000f2ffffff4310000002000000a710000060000000410d04006d7e3203fa00757e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 106, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"B\x10\0\0\xf2\xff\xff\xffC\x10\0\0\x02\0\0\0\xa7\x10\0\0`\0\0\0A\r\x04\0m~2\x03\xfa\0u~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004162, ibus_a: -1.4e-5, power_w: -5.8267999999999996e-8, vbus_avg_v: 0.004163, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2365, cc2_avg_v: 0.3232, internal_vdd_v: 3.2373, sample_rate: Sps1 })` | `` |
+| 2512 | 47.726460 | H->D | `0c6b0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 107, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2514 | 47.726564 | D->H | `416b82020100000b7a100000faffffff4310000002000000a710000060000000400d04006d7e3203fa00757e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 107, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"z\x10\0\0\xfa\xff\xff\xffC\x10\0\0\x02\0\0\0\xa7\x10\0\0`\0\0\0@\r\x04\0m~2\x03\xfa\0u~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004218, ibus_a: -6e-6, power_w: -2.5308000000000004e-8, vbus_avg_v: 0.004163, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2365, cc2_avg_v: 0.3232, internal_vdd_v: 3.2373, sample_rate: Sps1 })` | `` |
+| 2516 | 47.936485 | H->D | `0c6c0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 108, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2518 | 47.936592 | D->H | `416c82020100000b7a100000faffffff4310000002000000a710000060000000400d04006f7e3203fa00777e0080a40c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 108, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"z\x10\0\0\xfa\xff\xff\xffC\x10\0\0\x02\0\0\0\xa7\x10\0\0`\0\0\0@\r\x04\0o~2\x03\xfa\0w~\0\x80\xa4\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004218, ibus_a: -6e-6, power_w: -2.5308000000000004e-8, vbus_avg_v: 0.004163, ibus_avg_a: 2e-6, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3236, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
+| 2520 | 48.146511 | H->D | `0c6d0200` | `Ctrl { header: CtrlHeader { packet_type: 12, flag: false, id: 109, attribute: 1 }, payload: b"" }` | `CmdGetSimpleAdcData` | `` |
+| 2522 | 48.146610 | D->H | `416d82020100000bec100000e6ffffffb3100000f0ffffff171100004e000000400d04006f7e3203fa00777e0080a00c51001800` | `Data { header: DataHeader { packet_type: 65, flag: false, id: 109, obj_count_words: 10 }, extended: ExtendedHeader { attribute: 1, next: false, chunk: 0, size: 44 }, payload: b"\xec\x10\0\0\xe6\xff\xff\xff\xb3\x10\0\0\xf0\xff\xff\xff\x17\x11\0\0N\0\0\0@\r\x04\0o~2\x03\xfa\0w~\0\x80\xa0\x0cQ\0\x18\0" }` | `SimpleAdcData(AdcDataSimple { vbus_v: 0.004332, ibus_a: -2.6e-5, power_w: -1.1263199999999999e-7, vbus_avg_v: 0.004275, ibus_avg_a: -1.6e-5, temp_c: 26.0, vdp_v: 0.0818, vdm_v: 0.025, vdp_avg_v: 0.0081, vdm_avg_v: 0.0024, cc1_v: 0.0004, cc2_v: 3.2367, cc2_avg_v: 0.3232, internal_vdd_v: 3.2375, sample_rate: Sps1 })` | `` |
