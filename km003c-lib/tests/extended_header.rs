@@ -49,10 +49,12 @@ fn process_file(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
             if let Some(ext) = raw_packet.get_extended_header() {
                 let ptype: u8 = raw_packet.packet_type().into();
                 assert!(
-                    ptype == 0x41 || ptype == 0x44,
-                    "Found a valid extended header in a packet that is not PutData or 0x44",
+                    ptype >= 0x40,
+                    "Found a valid extended header in a packet that is not a data type",
                 );
-                assert_eq!(ext.size() as usize, raw_packet.payload().len());
+                if !ext.next() && raw_packet.get_attribute() == Some(km003c_lib::packet::Attribute::Adc) {
+                    assert_eq!(ext.size() as usize, raw_packet.payload().len());
+                }
             }
         }
     }

@@ -52,6 +52,37 @@ fn test_adc_data_packet() {
         Packet::CmdGetPdData => panic!("Expected SimpleAdcData packet, got CmdGetPdData"),
         Packet::CmdGetPdStatus => panic!("Expected SimpleAdcData packet, got CmdGetPdStatus"),
         Packet::Generic(_) => panic!("Expected SimpleAdcData packet, got Generic"),
+        _ => panic!("Packet was not SimpleAdcData"),
+    }
+}
+
+#[test]
+fn test_combined_adc_pd_packet_parsing() {
+    let bytes_data = hex_to_bytes(COMBINED_ADC_PD_DATA);
+    let packet = RawPacket::try_from(bytes_data).unwrap();
+
+    // Ensure the extended header has the `next` flag set
+    let ext_header = packet.get_extended_header().unwrap();
+    assert!(ext_header.next(), "Combined packet's extended header should have `next` flag set");
+
+    let parsed = Packet::try_from(packet).unwrap();
+
+    match parsed {
+        Packet::CombinedAdcPdData { adc, pd } => {
+            // Check ADC data for plausible values
+            assert!((adc.vbus_v - 0.004089).abs() < 1e-6, "Parsed ADC voltage is incorrect");
+            assert!((adc.ibus_a - (-0.000002)).abs() < 1e-6, "Parsed ADC current is incorrect");
+            assert_eq!(adc.sample_rate, SampleRate::Sps1, "Parsed ADC sample rate is incorrect");
+
+            // Check that the PD data is the correct remaining part of the payload
+            let expected_pd_bytes = hex::decode("10000003e9480800050000000000a50c").unwrap();
+            assert_eq!(pd.as_ref(), expected_pd_bytes.as_slice(), "Parsed PD data is incorrect");
+
+            println!("Successfully parsed combined packet.");
+            println!("  ADC: {}", adc);
+            println!("  PD:  {}", hex::encode(pd));
+        }
+        _ => panic!("Expected CombinedAdcPdData packet, got {:?}", parsed),
     }
 }
 

@@ -8,6 +8,11 @@ use zerocopy::{FromBytes, IntoBytes};
 pub enum Packet {
     /// Simple ADC data packet containing processed ADC readings
     SimpleAdcData(AdcDataSimple),
+    /// A combined packet containing both ADC data and a raw PD event stream
+    CombinedAdcPdData {
+        adc: AdcDataSimple,
+        pd: Bytes,
+    },
     /// Command to request simple ADC data
     CmdGetSimpleAdcData,
     /// Raw PD event stream from the device
@@ -29,15 +34,35 @@ impl TryFrom<RawPacket> for Packet {
         // Use the new cleaner pattern with tuple matching
         match (raw_packet.packet_type(), raw_packet.get_attribute()) {
             (PacketType::PutData, Some(Attribute::Adc)) => {
-                // Parse ADC data using payload (extended header already removed)
+                let ext_header = raw_packet.get_extended_header().ok_or_else(|| {
+                    KMError::InvalidPacket("PutData with ADC attribute missing extended header".to_string())
+                })?;
+
                 let payload_data = raw_packet.payload();
-                let adc_data_raw = AdcDataRaw::ref_from_bytes(payload_data.as_ref())
-                    .map_err(|_| KMError::InvalidPacket("Failed to parse ADC data: incorrect size".to_string()))?;
+                let adc_data_size = std::mem::size_of::<AdcDataRaw>();
 
-                // Convert to user-friendly format
-                let adc_data = AdcDataSimple::from(*adc_data_raw);
-
-                Ok(Packet::SimpleAdcData(adc_data))
+                if ext_header.next() {
+                    // This is a combined packet
+                    if payload_data.len() < adc_data_size {
+                        return Err(KMError::InvalidPacket(
+                            "Combined ADC packet too small for ADC data".to_string(),
+                        ));
+                    }
+                    let (adc_bytes, pd_bytes) = payload_data.split_at(adc_data_size);
+                    let adc_data_raw = AdcDataRaw::ref_from_bytes(adc_bytes)
+                        .map_err(|_| KMError::InvalidPacket("Failed to parse ADC data in combined packet".to_string()))?;
+                    let adc_data = AdcDataSimple::from(*adc_data_raw);
+                    Ok(Packet::CombinedAdcPdData {
+                        adc: adc_data,
+                        pd: Bytes::copy_from_slice(pd_bytes),
+                    })
+                } else {
+                    // This is a standard ADC packet
+                    let adc_data_raw = AdcDataRaw::ref_from_bytes(payload_data.as_ref())
+                        .map_err(|_| KMError::InvalidPacket("Failed to parse ADC data: incorrect size".to_string()))?;
+                    let adc_data = AdcDataSimple::from(*adc_data_raw);
+                    Ok(Packet::SimpleAdcData(adc_data))
+                }
             }
             (PacketType::PutData, Some(Attribute::PdPacket)) => {
                 let payload_data = raw_packet.payload();
@@ -95,6 +120,10 @@ impl Packet {
                     extended: ext_header,
                     payload: Bytes::from(buffer),
                 }
+            }
+            Packet::CombinedAdcPdData { .. } => {
+                // Serialization for combined packets is not implemented as it's a device-to-host only packet
+                unimplemented!("Serialization for CombinedAdcPdData is not supported")
             }
             Packet::CmdGetSimpleAdcData => RawPacket::Ctrl {
                 header: CtrlHeader::new()
