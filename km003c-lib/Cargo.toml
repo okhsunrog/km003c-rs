@@ -33,3 +33,4 @@ clap = { version = "4.5", features = ["derive"] }
 clap-verbosity-flag = { version = "3.0", default-features = false, features = ["tracing"] }
 tracing-appender = "0.2"
 rusqlite = { version = "0.37", features = [] }
+csv = "1.3"

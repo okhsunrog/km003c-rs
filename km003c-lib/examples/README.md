@@ -25,3 +25,4 @@ cargo run --example sqlite_pd
 - **`process_pcapng.rs`**: Processes a `.pcapng` file and saves the extracted data to a `.parquet` file.
 - **`sqlite_pd.rs`**: Reads and parses PD data from a `pd_new.sqlite` database file.
 - **`summarize_parquet.rs`**: Prints a summary of the data contained in a `.parquet` file.
+- **`pcap_to_csv.rs`**: Logs USB packets from a `.pcapng` file to CSV and Markdown, with optional filters.
