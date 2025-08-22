@@ -102,11 +102,13 @@ fn process_and_collect(
     let data = hex::decode(&clean_hex)?;
     let bytes = Bytes::from(data);
 
-    if let Ok(parsed_packet) = RawPacket::try_from(bytes) {
-        // We only care about PutData packets, which contain the inner stream
-        if parsed_packet.packet_type() == km003c_lib::packet::PacketType::PutData {
-            // Get the inner payload, skipping the Extended Header
-            let mut inner_stream = parsed_packet.get_payload_data();
+    if let Ok(raw_packet) = RawPacket::try_from(bytes) {
+        if let Ok(packet) = km003c_lib::message::Packet::try_from(raw_packet) {
+            let mut inner_stream = match packet {
+                km003c_lib::message::Packet::PdRawData(data) => data,
+                km003c_lib::message::Packet::CombinedAdcPdData { pd_data, .. } => pd_data,
+                _ => return Ok(()),
+            };
 
             // The inner payload can contain multiple concatenated event packets.
             // We loop through it and parse each one.

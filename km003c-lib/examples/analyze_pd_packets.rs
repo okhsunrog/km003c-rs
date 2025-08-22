@@ -82,23 +82,30 @@ fn process_file(filename: &PathBuf, verbose: bool) -> Result<(), Box<dyn std::er
 
         match RawPacket::try_from(bytes) {
             Ok(raw_packet) => match Packet::try_from(raw_packet) {
-                Ok(Packet::PdRawData(data)) => {
-                    if verbose {
-                        match parse_event_stream(&data) {
-                            Ok(events) => {
-                                for event in events {
-                                    println!("[PD EVENT] {}", event);
+                                Ok(packet) => {
+                    let pd_data = match packet {
+                        Packet::PdRawData(data) => Some(data),
+                        Packet::CombinedAdcPdData { pd_data, .. } => Some(pd_data),
+                        _ => None,
+                    };
+
+                    if let Some(data) = pd_data {
+                        if verbose {
+                            match parse_event_stream(&data) {
+                                Ok(events) => {
+                                    for event in events {
+                                        println!("[PD EVENT] {}", event);
+                                    }
+                                }
+                                Err(e) => {
+                                    println!("[PD EVENT] Error parsing events: {:?}", e);
                                 }
                             }
-                            Err(e) => {
-                                println!("[PD EVENT] Error parsing events: {:?}", e);
-                            }
+                        } else {
+                            println!("{}", hex::encode(&data));
                         }
-                    } else {
-                        println!("{}", hex::encode(&data));
                     }
                 }
-                _ => {}
             },
             Err(e) => {
                 println!("[ERROR] Failed to parse raw packet: {}", e);
