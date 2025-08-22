@@ -17,12 +17,8 @@ pub enum Packet {
     CmdGetSimpleAdcData,
     /// Raw PD event stream from the device
     PdRawData(Bytes),
-    /// Raw PD status stream (voltage/current updates)
-    PdStatusData(Bytes),
     /// Command to request PD packet stream
     CmdGetPdData,
-    /// Command to request PD status stream
-    CmdGetPdStatus,
     /// Generic packet for types we haven't specifically implemented yet
     Generic(RawPacket),
 }
@@ -68,16 +64,12 @@ impl TryFrom<RawPacket> for Packet {
                 let payload_data = raw_packet.payload();
                 Ok(Packet::PdRawData(payload_data))
             }
-            (PacketType::PutData, Some(Attribute::PdStatus)) => {
-                let payload_data = raw_packet.payload();
-                Ok(Packet::PdStatusData(payload_data))
-            }
+            
             (PacketType::GetData, Some(Attribute::Adc)) => {
                 // ADC request command
                 Ok(Packet::CmdGetSimpleAdcData)
             }
             (PacketType::GetData, Some(Attribute::PdPacket)) => Ok(Packet::CmdGetPdData),
-            (PacketType::GetData, Some(Attribute::PdStatus)) => Ok(Packet::CmdGetPdStatus),
             _ => {
                 // If we don't recognize the packet type or can't parse it, return it as Generic
                 Ok(Packet::Generic(raw_packet))
@@ -137,24 +129,12 @@ impl Packet {
                 let attribute_value: u16 = Attribute::PdPacket.into();
                 build_put_data_packet(id, attribute_value, data)
             }
-            Packet::PdStatusData(data) => {
-                let attribute_value: u16 = Attribute::PdStatus.into();
-                build_put_data_packet(id, attribute_value, data)
-            }
             Packet::CmdGetPdData => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::GetData.into())
                     .with_flag(false)
                     .with_id(id)
                     .with_attribute(Attribute::PdPacket.into()),
-                payload: Bytes::new(),
-            },
-            Packet::CmdGetPdStatus => RawPacket::Ctrl {
-                header: CtrlHeader::new()
-                    .with_packet_type(PacketType::GetData.into())
-                    .with_flag(false)
-                    .with_id(id)
-                    .with_attribute(Attribute::PdStatus.into()),
                 payload: Bytes::new(),
             },
             Packet::Generic(raw_packet) => raw_packet,

@@ -48,9 +48,7 @@ fn test_adc_data_packet() {
         }
         Packet::CmdGetSimpleAdcData => panic!("Expected SimpleAdcData packet, got CmdGetSimpleAdcData"),
         Packet::PdRawData(_) => panic!("Expected SimpleAdcData packet, got PdRawData"),
-        Packet::PdStatusData(_) => panic!("Expected SimpleAdcData packet, got PdStatusData"),
         Packet::CmdGetPdData => panic!("Expected SimpleAdcData packet, got CmdGetPdData"),
-        Packet::CmdGetPdStatus => panic!("Expected SimpleAdcData packet, got CmdGetPdStatus"),
         Packet::Generic(_) => panic!("Expected SimpleAdcData packet, got Generic"),
         _ => panic!("Packet was not SimpleAdcData"),
     }

@@ -85,7 +85,7 @@ fn process_file(filename: &PathBuf, verbose: bool) -> Result<(), Box<dyn std::er
                                 Ok(packet) => {
                     let pd_data = match packet {
                         Packet::PdRawData(data) => Some(data),
-                        Packet::CombinedAdcPdData { pd_data, .. } => Some(pd_data),
+                        Packet::CombinedAdcPdData { pd, .. } => Some(pd),
                         _ => None,
                     };
 
@@ -105,6 +105,9 @@ fn process_file(filename: &PathBuf, verbose: bool) -> Result<(), Box<dyn std::er
                             println!("{}", hex::encode(&data));
                         }
                     }
+                }
+                Err(e) => {
+                    println!("[ERROR] Failed to parse packet: {}", e);
                 }
             },
             Err(e) => {

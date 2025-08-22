@@ -106,7 +106,7 @@ fn process_and_collect(
         if let Ok(packet) = km003c_lib::message::Packet::try_from(raw_packet) {
             let mut inner_stream = match packet {
                 km003c_lib::message::Packet::PdRawData(data) => data,
-                km003c_lib::message::Packet::CombinedAdcPdData { pd_data, .. } => pd_data,
+                km003c_lib::message::Packet::CombinedAdcPdData { pd, .. } => pd,
                 _ => return Ok(()),
             };
 

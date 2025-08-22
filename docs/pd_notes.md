@@ -15,11 +15,9 @@
 - The library previously ignored `PdStatus` packets; only `PdPacket` was exposed.
 
 ## Implemented Changes
-- Added `PdStatusData` and `CmdGetPdStatus` variants to `Packet` so callers can request and receive the status stream.
-- Refactored `to_raw_packet` to share header-building logic for PD packet and status responses.
+- Refactored `to_raw_packet` to share header-building logic for PD packets.
 - Parsed `ExtendedHeader` once during `RawPacket` construction and stored it in the `Data` variant to avoid redundant slicing when accessing attributes or payload.
 
 ## Ideas and Next Steps
-- Use `parse_event_stream` on `PdStatusData` to feed real-time voltage/current into analysis tools.
 - Explore remaining unknown packet type `0x44` seen in capture.
 - Investigate timestamp origin to align pcap and SQLite traces precisely.
