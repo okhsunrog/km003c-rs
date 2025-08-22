@@ -27,12 +27,25 @@ fn test_roundtrip_bytes_to_rawpacket_to_bytes_ctrl() {
 #[test]
 fn test_roundtrip_bytes_to_rawpacket_to_bytes_data() {
     // Test round-trip conversion with Data packet
-    let original_bytes = Bytes::from_static(&[0x40, 0x01, 0x00, 0x01, 0xAA, 0xBB, 0xCC, 0xDD]);
+    let payload = Bytes::from_static(&[0xAA, 0xBB]);
+    let ext = ExtendedHeader::new()
+        .with_attribute(0)
+        .with_next(false)
+        .with_chunk(0)
+        .with_size(payload.len() as u16);
+    let packet = RawPacket::Data {
+        header: DataHeader::new()
+            .with_packet_type(65)
+            .with_flag(false)
+            .with_id(1)
+            .with_obj_count_words(0),
+        extended: ext,
+        payload: payload.clone(),
+    };
+    let original_bytes: Bytes = packet.clone().into();
 
-    // Convert to RawPacket
     let raw_packet = RawPacket::try_from(original_bytes.clone()).expect("Failed to parse packet");
 
-    // Convert back to Bytes
     let roundtrip_bytes = Bytes::from(raw_packet);
 
     assert_eq!(

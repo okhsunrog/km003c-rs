@@ -113,11 +113,11 @@ fn process_packet(packet: RtSharkPacket, packet_num: usize) -> Result<()> {
             // Print additional packet details
             println!("  Type:    {:?}", parsed_packet.packet_type());
             println!("  ID:      {}", parsed_packet.id());
-            if parsed_packet.is_extended() {
-                println!("  Extended: true");
-                if let Some(ext_header) = parsed_packet.get_extended_header() {
-                    println!("  Ext Header: {:?}", ext_header);
-                }
+            if parsed_packet.flag() {
+                println!("  Flag: true");
+            }
+            if let Some(ext_header) = parsed_packet.get_extended_header() {
+                println!("  Ext Header: {:?}", ext_header);
             }
             if let Some(attr) = parsed_packet.get_attribute() {
                 println!("  Attribute: {:?}", attr);

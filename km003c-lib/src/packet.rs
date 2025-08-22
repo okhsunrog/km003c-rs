@@ -7,7 +7,7 @@ use num_enum::{FromPrimitive, IntoPrimitive};
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CtrlHeader {
     pub packet_type: B7,
-    pub extend: bool,
+    pub flag: bool,
     pub id: u8,
     #[skip]
     unused: bool,
@@ -18,7 +18,7 @@ pub struct CtrlHeader {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DataHeader {
     pub packet_type: B7,
-    pub extend: bool,
+    pub flag: bool,
     pub id: u8,
     #[skip]
     unused: B6,
@@ -87,8 +87,16 @@ pub enum Attribute {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RawPacket {
-    Ctrl { header: CtrlHeader, payload: Bytes },
-    Data { header: DataHeader, payload: Bytes },
+    Ctrl {
+        header: CtrlHeader,
+        payload: Bytes,
+    },
+    Data {
+        header: DataHeader,
+        extended: ExtendedHeader,
+        /// Payload without the 4-byte extended header
+        payload: Bytes,
+    },
 }
 
 impl RawPacket {
@@ -99,10 +107,10 @@ impl RawPacket {
         }
     }
 
-    pub fn is_extended(&self) -> bool {
+    pub fn flag(&self) -> bool {
         match self {
-            RawPacket::Ctrl { header, .. } => header.extend(),
-            RawPacket::Data { header, .. } => header.extend(),
+            RawPacket::Ctrl { header, .. } => header.flag(),
+            RawPacket::Data { header, .. } => header.flag(),
         }
     }
 
@@ -122,46 +130,22 @@ impl RawPacket {
 
     /// Get the extended header if present, without modifying the packet
     pub fn get_extended_header(&self) -> Option<ExtendedHeader> {
-        // Check if packet has extended header based on packet type
-        // For now, assume only PutData packets have extended headers
-        if self.packet_type() != PacketType::PutData {
-            return None;
+        match self {
+            RawPacket::Data { extended, .. } => Some(*extended),
+            _ => None,
         }
-
-        let payload = self.payload();
-        if payload.len() < 4 {
-            return None;
-        }
-
-        let ext_header_bytes: [u8; 4] = match payload.as_ref()[..4].try_into() {
-            Ok(bytes) => bytes,
-            Err(_) => return None,
-        };
-
-        Some(ExtendedHeader::from_bytes(ext_header_bytes))
     }
 
-    /// Get payload data, skipping extended header if present
+    /// Get payload data (for `Data` packets this excludes the extended header)
     pub fn get_payload_data(&self) -> Bytes {
-        let payload = self.payload();
-
-        if self.get_extended_header().is_some() {
-            // Skip the first 4 bytes (extended header)
-            payload.slice(4..)
-        } else {
-            payload
-        }
+        self.payload()
     }
 
     /// Get the attribute for this packet
     pub fn get_attribute(&self) -> Option<Attribute> {
         match self {
             RawPacket::Ctrl { header, .. } => Some(Attribute::from_primitive(header.attribute())),
-            RawPacket::Data { .. } => {
-                // For Data packets, attribute comes from extended header
-                self.get_extended_header()
-                    .map(|ext_header| Attribute::from_primitive(ext_header.attribute()))
-            }
+            RawPacket::Data { extended, .. } => Some(Attribute::from_primitive(extended.attribute())),
         }
     }
 }
@@ -175,9 +159,9 @@ impl TryFrom<Bytes> for RawPacket {
             return Err(KMError::InvalidPacket("Packet too short for header".to_string()));
         }
 
-        // the first byte contains packet type (7 bits) + extend bit
+        // the first byte contains packet type (7 bits) + an unknown flag bit
         let first_byte = bytes[0]; // Safe now that we know len >= 4
-        // Extract only the packet type (lower 7 bits), ignoring the extend bit
+        // Extract only the packet type (lower 7 bits), ignoring the flag bit
         let package_type_byte = first_byte & 0x7F;
         let is_ctrl_packet = PacketType::from_primitive(package_type_byte).is_ctrl_type();
 
@@ -186,29 +170,48 @@ impl TryFrom<Bytes> for RawPacket {
             .as_ref()
             .try_into()
             .unwrap(); // Safe to unwrap since we know the slice is exactly 4 bytes
-        let payload = bytes;
+        let mut payload = bytes;
         if is_ctrl_packet {
             let header = CtrlHeader::from_bytes(header_bytes);
             Ok(RawPacket::Ctrl { header, payload })
         } else {
+            if payload.len() < 4 {
+                return Err(KMError::InvalidPacket(
+                    "Packet too short for extended header".to_string(),
+                ));
+            }
+            let ext_bytes: [u8; 4] = payload.split_to(4).as_ref().try_into().unwrap();
+            let extended = ExtendedHeader::from_bytes(ext_bytes);
             let header = DataHeader::from_bytes(header_bytes);
-            Ok(RawPacket::Data { header, payload })
+            Ok(RawPacket::Data {
+                header,
+                extended,
+                payload,
+            })
         }
     }
 }
 
 impl From<RawPacket> for Bytes {
     fn from(packet: RawPacket) -> Self {
-        let (header_bytes, payload) = match packet {
-            RawPacket::Ctrl { header, payload } => (header.into_bytes(), payload),
-            RawPacket::Data { header, payload } => (header.into_bytes(), payload),
-        };
-
-        // Create the full message by combining header and payload
-        let mut message = Vec::with_capacity(4 + payload.len());
-        message.extend_from_slice(&header_bytes);
-        message.extend_from_slice(payload.as_ref());
-
-        Bytes::from(message)
+        match packet {
+            RawPacket::Ctrl { header, payload } => {
+                let mut message = Vec::with_capacity(4 + payload.len());
+                message.extend_from_slice(&header.into_bytes());
+                message.extend_from_slice(payload.as_ref());
+                Bytes::from(message)
+            }
+            RawPacket::Data {
+                header,
+                extended,
+                payload,
+            } => {
+                let mut message = Vec::with_capacity(8 + payload.len());
+                message.extend_from_slice(&header.into_bytes());
+                message.extend_from_slice(&extended.into_bytes());
+                message.extend_from_slice(payload.as_ref());
+                Bytes::from(message)
+            }
+        }
     }
 }

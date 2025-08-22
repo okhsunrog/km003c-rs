@@ -1,6 +1,6 @@
 use clap::Parser;
 use km003c_lib::capture::CaptureCollection;
-use km003c_lib::packet::{ExtendedHeader, RawPacket};
+use km003c_lib::packet::RawPacket;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -28,7 +28,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     payload.len()
                 );
 
-                // Try normal parsing first
                 if let Some(ext) = pkt.get_extended_header() {
                     println!(
                         "  Extended header: attribute=0x{:x} next={} chunk={} size={} ",
@@ -37,23 +36,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         ext.chunk(),
                         ext.size()
                     );
-                }
-
-                // Always attempt to interpret the first four bytes as an extended header
-                if payload.len() >= 4 {
-                    if let Ok(bytes) = payload[..4].try_into() {
-                        let raw_ext = ExtendedHeader::from_bytes(bytes);
-                        let data_len = payload.len().saturating_sub(4);
-                        let matches = raw_ext.size() as usize == data_len;
-                        println!(
-                            "  Raw ext header: attribute=0x{:x} next={} chunk={} size={} (matches payload: {})",
-                            raw_ext.attribute(),
-                            raw_ext.next(),
-                            raw_ext.chunk(),
-                            raw_ext.size(),
-                            matches
-                        );
-                    }
                 }
             }
             Err(e) => {

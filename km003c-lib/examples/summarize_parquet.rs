@@ -18,14 +18,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(pkt) = RawPacket::try_from(bytes::Bytes::from(cap.raw_bytes.clone())) {
             let ptype: u8 = pkt.packet_type().into();
             let attr = pkt.get_attribute().map(|a| a.into());
-            let ext = pkt.is_extended();
-            *counts.entry((ptype, attr, ext)).or_default() += 1;
+            let flg = pkt.flag();
+            *counts.entry((ptype, attr, flg)).or_default() += 1;
         } else {
             *counts.entry((255, None, false)).or_default() += 1;
         }
     }
-    for ((ptype, attr, ext), c) in counts {
-        println!("type 0x{:02x} attr {:?} ext {} -> {}", ptype, attr, ext, c);
+    for ((ptype, attr, flg), c) in counts {
+        println!("type 0x{:02x} attr {:?} flag {} -> {}", ptype, attr, flg, c);
     }
     Ok(())
 }

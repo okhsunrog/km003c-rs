@@ -21,7 +21,7 @@ Used for commands and simple responses.
 ```rust
 struct CtrlHeader {
     packet_type: u8,    // Command type
-    extend: bool,       // Purpose unknown (previously thought to be an extended packet flag)
+    flag: bool,         // Purpose unknown (previously named `extend`)
     id: u8,            // Transaction ID
     attribute: u16,    // Command attribute
 }
@@ -33,7 +33,7 @@ Used for data transfer with extended headers for large payloads.
 ```rust
 struct DataHeader {
     packet_type: u8,    // Data type
-    extend: bool,       // Purpose unknown (previously thought to be an extended packet flag)
+    flag: bool,         // Purpose unknown (previously named `extend`)
     id: u8,            // Transaction ID
     obj_count_words: u8, // Object count
 }
@@ -48,7 +48,9 @@ struct ExtendedHeader {
 
 Empirical analysis of packet captures shows that the `ExtendedHeader` is only present in `PutData` (type `0x41`) and `0x44` type packets. Its presence is determined by checking if the first four bytes of the payload correctly decode to a header whose `size` field matches the remaining payload length.
 
-The `extend` flag in the main `CtrlHeader` and `DataHeader` does **not** indicate the presence of an `ExtendedHeader`, nor does it indicate that another packet will follow. Its true purpose is currently unknown.
+All observed data packets include this 4-byte header, so the library parses it on input and stores it alongside the `Data` packet payload.
+
+The `flag` bit in the main `CtrlHeader` and `DataHeader` does **not** indicate the presence of an `ExtendedHeader`, nor does it indicate that another packet will follow. Its true purpose is currently unknown.
 
 ## Packet Types
 
