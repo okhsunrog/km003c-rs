@@ -2,7 +2,7 @@
 name = "km003c-lib"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.89"
+rust-version = "1.87"
 authors = ["Danila Gornushko <me@okhsunrog.dev>"]
 license = "MIT"
 repository = "https://github.com/okhsunrog/km003c-rs"
