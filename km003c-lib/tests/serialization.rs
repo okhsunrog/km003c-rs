@@ -10,7 +10,7 @@ fn test_rawpacket_to_bytes_ctrl() {
     let raw_packet = RawPacket::Ctrl {
         header: CtrlHeader::new()
             .with_packet_type(2)
-            .with_extend(false)
+            .with_flag(false)
             .with_id(1)
             .with_attribute(0),
         payload: Bytes::new(),
@@ -29,25 +29,41 @@ fn test_rawpacket_to_bytes_ctrl() {
 
 #[test]
 fn test_rawpacket_to_bytes_data() {
-    // Test direct conversion of Data packet to bytes
+    // Test direct conversion of Data packet with extended header to bytes
     let payload = Bytes::from_static(&[0xAA, 0xBB, 0xCC, 0xDD]);
+    let ext = ExtendedHeader::new()
+        .with_attribute(0)
+        .with_next(false)
+        .with_chunk(0)
+        .with_size(payload.len() as u16);
     let raw_packet = RawPacket::Data {
         header: DataHeader::new()
-            .with_packet_type(64)
-            .with_extend(false)
+            .with_packet_type(65)
+            .with_flag(false)
             .with_id(1)
-            .with_obj_count_words(4),
-        payload,
+            .with_obj_count_words(0),
+        extended: ext,
+        payload: payload.clone(),
     };
 
     let bytes = Bytes::from(raw_packet);
-    let expected_bytes = [0x40, 0x01, 0x00, 0x01, 0xAA, 0xBB, 0xCC, 0xDD];
+
+    let mut expected = Vec::new();
+    expected.extend_from_slice(
+        &DataHeader::new()
+            .with_packet_type(65)
+            .with_flag(false)
+            .with_id(1)
+            .with_obj_count_words(0)
+            .into_bytes(),
+    );
+    expected.extend_from_slice(&ext.into_bytes());
+    expected.extend_from_slice(payload.as_ref());
 
     assert_eq!(
         bytes.as_ref(),
-        &expected_bytes,
-        "Data packet should convert to [40, 01, 00, 01, AA, BB, CC, DD], got {:02x?}",
-        bytes.as_ref()
+        expected.as_slice(),
+        "Data packet should include extended header and payload"
     );
 }
 
@@ -58,7 +74,7 @@ fn test_rawpacket_to_bytes_ctrl_with_payload() {
     let raw_packet = RawPacket::Ctrl {
         header: CtrlHeader::new()
             .with_packet_type(5)
-            .with_extend(true)
+            .with_flag(true)
             .with_id(7)
             .with_attribute(0x123),
         payload,
@@ -77,7 +93,7 @@ fn test_rawpacket_to_bytes_ctrl_with_payload() {
             payload: parsed_payload,
         } => {
             assert_eq!(header.packet_type(), 5, "Packet type should be 5");
-            assert_eq!(header.extend(), true, "Extend should be true");
+            assert_eq!(header.flag(), true, "Flag should be true");
             assert_eq!(header.id(), 7, "ID should be 7");
             assert_eq!(header.attribute(), 0x123, "Attribute should be 0x123");
             assert_eq!(parsed_payload.as_ref(), &[0x12, 0x34], "Payload should match");
@@ -98,7 +114,7 @@ fn test_rawpacket_to_bytes_empty_payload() {
     let ctrl_packet = RawPacket::Ctrl {
         header: CtrlHeader::new()
             .with_packet_type(12)
-            .with_extend(false)
+            .with_flag(false)
             .with_id(0)
             .with_attribute(1),
         payload: Bytes::new(),
@@ -107,9 +123,14 @@ fn test_rawpacket_to_bytes_empty_payload() {
     let data_packet = RawPacket::Data {
         header: DataHeader::new()
             .with_packet_type(65)
-            .with_extend(false)
+            .with_flag(false)
             .with_id(0)
             .with_obj_count_words(0),
+        extended: ExtendedHeader::new()
+            .with_attribute(0)
+            .with_next(false)
+            .with_chunk(0)
+            .with_size(0),
         payload: Bytes::new(),
     };
 
@@ -117,31 +138,41 @@ fn test_rawpacket_to_bytes_empty_payload() {
     let data_bytes = Bytes::from(data_packet);
 
     assert_eq!(ctrl_bytes.len(), 4, "Ctrl packet with empty payload should be 4 bytes");
-    assert_eq!(data_bytes.len(), 4, "Data packet with empty payload should be 4 bytes");
+    assert_eq!(
+        data_bytes.len(),
+        8,
+        "Data packet with empty payload should be 8 bytes (header + ext header)"
+    );
 }
 
 #[test]
 fn test_rawpacket_to_bytes_large_payload() {
     // Test with a larger payload to ensure the trait handles size correctly
     let large_payload: Vec<u8> = (0..=255u8).collect();
+    let ext = ExtendedHeader::new()
+        .with_attribute(0)
+        .with_next(false)
+        .with_chunk(0)
+        .with_size(large_payload.len() as u16);
     let raw_packet = RawPacket::Data {
         header: DataHeader::new()
             .with_packet_type(65)
-            .with_extend(true)
+            .with_flag(true)
             .with_id(42)
             .with_obj_count_words(64), // 256 bytes = 64 words (assuming 4 bytes per word)
+        extended: ext,
         payload: Bytes::from(large_payload.clone()),
     };
 
     let bytes = Bytes::from(raw_packet);
 
-    // Verify total length (4 byte header + 256 byte payload = 260 bytes)
-    assert_eq!(bytes.len(), 260, "Large payload packet should be 260 bytes total");
+    // Verify total length (4 byte header + 4 byte ext + 256 byte payload = 264 bytes)
+    assert_eq!(bytes.len(), 264, "Large payload packet should be 264 bytes total");
 
-    // Verify payload is correctly appended
+    // Verify payload is correctly appended after headers
     assert_eq!(
-        &bytes[4..],
+        &bytes[8..],
         &large_payload,
-        "Payload should be correctly appended after header"
+        "Payload should be correctly appended after headers"
     );
 }

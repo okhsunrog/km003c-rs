@@ -14,31 +14,39 @@ fn test_parse_packet_02010000() {
         RawPacket::Ctrl {
             header: CtrlHeader::new()
                 .with_packet_type(2)
-                .with_extend(false)
+                .with_flag(false)
                 .with_id(1)
                 .with_attribute(0),
             payload: Bytes::new(),
         },
-        "Parsed packet does not match expected packet"
+        "Parsed packet does not match expected packet",
     );
 }
 
 #[test]
 fn test_parse_packet_40010001() {
-    let hex_data = "40010001AABBCCDD"; // 4 words = 4 bytes payload (assuming 1 word = 1 byte for payload length calculation)
-    let bytes = hex_to_bytes(hex_data);
+    // Build a simple Data packet and ensure round-trip parsing
+    let payload = Bytes::from_static(&[0xAA, 0xBB]);
+    let ext = ExtendedHeader::new()
+        .with_attribute(0)
+        .with_next(false)
+        .with_chunk(0)
+        .with_size(payload.len() as u16);
+    let packet = RawPacket::Data {
+        header: DataHeader::new()
+            .with_packet_type(65)
+            .with_flag(false)
+            .with_id(1)
+            .with_obj_count_words(0),
+        extended: ext,
+        payload: payload.clone(),
+    };
+    let bytes: Bytes = packet.clone().into();
 
     assert_eq!(
         RawPacket::try_from(bytes).expect("Failed to parse packet"),
-        RawPacket::Data {
-            header: DataHeader::new()
-                .with_packet_type(64)
-                .with_extend(false)
-                .with_id(1)
-                .with_obj_count_words(4),
-            payload: Bytes::from_static(&[0xAA, 0xBB, 0xCC, 0xDD]),
-        },
-        "Parsed data packet does not match expected data packet"
+        packet,
+        "Parsed data packet does not match expected data packet",
     );
 }
 

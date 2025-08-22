@@ -15,7 +15,7 @@ fn test_adc() {
         Attribute::Adc
     ));
     assert!(matches!(packet.packet_type(), PacketType::PutData));
-    assert_eq!(packet.is_extended(), false);
+    assert_eq!(packet.flag(), false);
     assert_eq!(ext_header.size(), 44);
 
     println!("ADC Packet: {:?}, payload len: {}", packet, packet.payload().len());
@@ -48,7 +48,9 @@ fn test_adc_data_packet() {
         }
         Packet::CmdGetSimpleAdcData => panic!("Expected SimpleAdcData packet, got CmdGetSimpleAdcData"),
         Packet::PdRawData(_) => panic!("Expected SimpleAdcData packet, got PdRawData"),
+        Packet::PdStatusData(_) => panic!("Expected SimpleAdcData packet, got PdStatusData"),
         Packet::CmdGetPdData => panic!("Expected SimpleAdcData packet, got CmdGetPdData"),
+        Packet::CmdGetPdStatus => panic!("Expected SimpleAdcData packet, got CmdGetPdStatus"),
         Packet::Generic(_) => panic!("Expected SimpleAdcData packet, got Generic"),
     }
 }
@@ -76,7 +78,7 @@ fn test_adc_request_generation() {
     match raw_packet {
         RawPacket::Ctrl { header, payload } => {
             assert_eq!(header.packet_type(), 12); // CMD_GET_DATA
-            assert_eq!(header.extend(), false);
+            assert_eq!(header.flag(), false);
             assert_eq!(header.id(), 0);
             assert_eq!(header.attribute(), 1); // ATT_ADC
             assert_eq!(payload.len(), 0);
@@ -94,12 +96,16 @@ fn test_adc_response_parsing_real_data() {
 
     // Verify raw packet structure
     match &raw_packet {
-        RawPacket::Data { header, payload } => {
+        RawPacket::Data {
+            header,
+            extended: _,
+            payload,
+        } => {
             assert_eq!(header.packet_type(), 65); // CMD_PUT_DATA
-            assert_eq!(header.extend(), false);
+            assert_eq!(header.flag(), false);
             assert_eq!(header.id(), 0);
             assert_eq!(header.obj_count_words(), 10);
-            assert_eq!(payload.len(), 48);
+            assert_eq!(payload.len(), 44);
         }
         _ => panic!("Expected Data packet"),
     }

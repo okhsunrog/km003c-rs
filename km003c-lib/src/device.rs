@@ -72,9 +72,9 @@ impl KM003C {
     /// Send a raw packet to the device
     async fn send_raw_packet(&mut self, packet: RawPacket) -> Result<(), KMError> {
         debug!(
-            "Sending packet: type={:?}, extend={}, id={}, payload_len={}",
+            "Sending packet: type={:?}, flag={}, id={}, payload_len={}",
             packet.packet_type(),
-            packet.is_extended(),
+            packet.flag(),
             packet.id(),
             packet.payload().len()
         );
@@ -117,9 +117,9 @@ impl KM003C {
         let raw_packet = RawPacket::try_from(bytes)?;
 
         debug!(
-            "Parsed packet: type={:?}, extend={}, id={}, payload_len={}",
+            "Parsed packet: type={:?}, flag={}, id={}, payload_len={}",
             raw_packet.packet_type(),
-            raw_packet.is_extended(),
+            raw_packet.flag(),
             raw_packet.id(),
             raw_packet.payload().len()
         );

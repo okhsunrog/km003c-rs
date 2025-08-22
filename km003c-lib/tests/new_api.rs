@@ -10,7 +10,6 @@ fn test_get_extended_header() {
     let bytes_data = hex_to_bytes(EXTENDED_ADC_DATA);
     let packet = RawPacket::try_from(bytes_data).unwrap();
 
-    // Should have extended header
     let ext_header = packet.get_extended_header();
     assert!(ext_header.is_some(), "PutData packet should have extended header");
 
@@ -22,7 +21,7 @@ fn test_get_extended_header() {
     let ctrl_packet = RawPacket::Ctrl {
         header: CtrlHeader::new()
             .with_packet_type(12)
-            .with_extend(false)
+            .with_flag(false)
             .with_id(0)
             .with_attribute(1),
         payload: Bytes::new(),
@@ -30,22 +29,7 @@ fn test_get_extended_header() {
 
     assert!(
         ctrl_packet.get_extended_header().is_none(),
-        "Ctrl packet should not have extended header"
-    );
-
-    // Test with Data packet that's not PutData (should not have extended header)
-    let data_packet = RawPacket::Data {
-        header: DataHeader::new()
-            .with_packet_type(64) // Head, not PutData
-            .with_extend(false)
-            .with_id(0)
-            .with_obj_count_words(0),
-        payload: Bytes::new(),
-    };
-
-    assert!(
-        data_packet.get_extended_header().is_none(),
-        "Non-PutData packet should not have extended header"
+        "Ctrl packet should not have extended header",
     );
 }
 
@@ -56,28 +40,20 @@ fn test_get_payload_data() {
     let packet = RawPacket::try_from(bytes_data).unwrap();
 
     let payload_data = packet.get_payload_data();
-    let full_payload = packet.payload();
-
-    // Payload data should be 4 bytes shorter (skipping extended header)
-    assert_eq!(
-        payload_data.len(),
-        full_payload.len() - 4,
-        "Payload data should skip 4-byte extended header"
-    );
 
     // Extended header tells us the actual data size should be 44 bytes
     let ext_header = packet.get_extended_header().unwrap();
     assert_eq!(
         payload_data.len(),
         ext_header.size() as usize,
-        "Payload data length should match extended header size"
+        "Payload data length should match extended header size",
     );
 
-    // Test with packet without extended header
+    // Test with packet without extended header (Ctrl)
     let ctrl_packet = RawPacket::Ctrl {
         header: CtrlHeader::new()
             .with_packet_type(12)
-            .with_extend(false)
+            .with_flag(false)
             .with_id(0)
             .with_attribute(1),
         payload: Bytes::from_static(&[0x01, 0x02, 0x03]),
@@ -86,16 +62,10 @@ fn test_get_payload_data() {
     let ctrl_payload_data = ctrl_packet.get_payload_data();
     let ctrl_full_payload = ctrl_packet.payload();
 
-    // Should be the same since no extended header
-    assert_eq!(
-        ctrl_payload_data.len(),
-        ctrl_full_payload.len(),
-        "Payload data should be same as full payload when no extended header"
-    );
     assert_eq!(
         ctrl_payload_data.as_ref(),
         ctrl_full_payload.as_ref(),
-        "Payload data should match full payload when no extended header"
+        "Payload data should match full payload when no extended header",
     );
 }
 
@@ -105,7 +75,7 @@ fn test_get_attribute() {
     let ctrl_packet = RawPacket::Ctrl {
         header: CtrlHeader::new()
             .with_packet_type(12)
-            .with_extend(false)
+            .with_flag(false)
             .with_id(0)
             .with_attribute(1), // ADC attribute
         payload: Bytes::new(),
@@ -116,7 +86,7 @@ fn test_get_attribute() {
     assert_eq!(
         attribute.unwrap(),
         Attribute::Adc,
-        "Ctrl packet should have ADC attribute"
+        "Ctrl packet should have ADC attribute",
     );
 
     // Test Data packet with extended header (ADC data)
@@ -126,28 +96,12 @@ fn test_get_attribute() {
     let data_attribute = data_packet.get_attribute();
     assert!(
         data_attribute.is_some(),
-        "Data packet with extended header should have attribute"
+        "Data packet with extended header should have attribute",
     );
     assert_eq!(
         data_attribute.unwrap(),
         Attribute::Adc,
-        "Data packet should have ADC attribute from extended header"
-    );
-
-    // Test Data packet without extended header
-    let data_no_ext = RawPacket::Data {
-        header: DataHeader::new()
-            .with_packet_type(64) // Head, not PutData
-            .with_extend(false)
-            .with_id(0)
-            .with_obj_count_words(0),
-        payload: Bytes::new(),
-    };
-
-    let no_ext_attribute = data_no_ext.get_attribute();
-    assert!(
-        no_ext_attribute.is_none(),
-        "Data packet without extended header should have no attribute"
+        "Data packet should have ADC attribute from extended header",
     );
 }
 
@@ -159,16 +113,14 @@ fn test_tuple_matching_pattern() {
     let adc_request = RawPacket::Ctrl {
         header: CtrlHeader::new()
             .with_packet_type(12) // GetData
-            .with_extend(false)
+            .with_flag(false)
             .with_id(0)
             .with_attribute(1), // ADC
         payload: Bytes::new(),
     };
 
     match (adc_request.packet_type(), adc_request.get_attribute()) {
-        (PacketType::GetData, Some(Attribute::Adc)) => {
-            // Expected path
-        }
+        (PacketType::GetData, Some(Attribute::Adc)) => {}
         _ => panic!("ADC request should match (GetData, Some(Adc))"),
     }
 
@@ -177,9 +129,7 @@ fn test_tuple_matching_pattern() {
     let adc_data = RawPacket::try_from(bytes_data).unwrap();
 
     match (adc_data.packet_type(), adc_data.get_attribute()) {
-        (PacketType::PutData, Some(Attribute::Adc)) => {
-            // Expected path
-        }
+        (PacketType::PutData, Some(Attribute::Adc)) => {}
         _ => panic!("ADC data should match (PutData, Some(Adc))"),
     }
 
@@ -187,16 +137,19 @@ fn test_tuple_matching_pattern() {
     let generic_packet = RawPacket::Data {
         header: DataHeader::new()
             .with_packet_type(64) // Head
-            .with_extend(false)
+            .with_flag(false)
             .with_id(0)
             .with_obj_count_words(0),
+        extended: ExtendedHeader::new()
+            .with_attribute(0)
+            .with_next(false)
+            .with_chunk(0)
+            .with_size(0),
         payload: Bytes::new(),
     };
 
     match (generic_packet.packet_type(), generic_packet.get_attribute()) {
-        (PacketType::Head, None) => {
-            // Expected path for generic packet
-        }
-        _ => panic!("Generic packet should match (Head, None)"),
+        (PacketType::Head, Some(Attribute::None)) => {}
+        _ => panic!("Generic packet should match (Head, Some(None))"),
     }
 }

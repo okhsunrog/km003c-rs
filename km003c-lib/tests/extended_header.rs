@@ -46,20 +46,13 @@ fn process_file(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
         let bytes = bytes::Bytes::from(data);
 
         if let Ok(raw_packet) = km003c_lib::packet::RawPacket::try_from(bytes) {
-            let payload = raw_packet.payload();
-            if payload.len() >= 4 {
-                if let Ok(header_bytes) = payload[..4].try_into() {
-                    let potential_header = km003c_lib::packet::ExtendedHeader::from_bytes(header_bytes);
-                    let expected_size = payload.len() - 4;
-
-                    if potential_header.size() as usize == expected_size {
-                        let ptype: u8 = raw_packet.packet_type().into();
-                        assert!(
-                            ptype == 0x41 || ptype == 0x44,
-                            "Found a valid extended header in a packet that is not PutData or 0x44"
-                        );
-                    }
-                }
+            if let Some(ext) = raw_packet.get_extended_header() {
+                let ptype: u8 = raw_packet.packet_type().into();
+                assert!(
+                    ptype == 0x41 || ptype == 0x44,
+                    "Found a valid extended header in a packet that is not PutData or 0x44",
+                );
+                assert_eq!(ext.size() as usize, raw_packet.payload().len());
             }
         }
     }
