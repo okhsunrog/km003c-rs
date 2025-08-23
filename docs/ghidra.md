@@ -58,15 +58,42 @@ local_res20[0] = (int)_Var1 << 0x16 | local_res20[0] & 0x3fffff;
 
 **Key Processing Logic**:
 1. **Packet Type Check**: Verifies response is type 0x41 (PutData)
+2. **Attribute-based Processing**:
+   - Attribute 0x01: Process ADC data
+   - Attribute 0x02: Process ADC data with sample count
+   - Attribute 0x10: PD sniffer mode data
+   - Attribute 0x20: PD status data (PdStatus) - logs data as hex but doesn't process further
+   - Attribute 0x40: PD packet data (PdPacket) - emits PD data signal
+   - Attribute 0x200: Additional processing
 
----
+#### `emit_pd_data_signal` (0x140161150)
+**Purpose**: Emits signals when PD data is received
+**Signature**: `void emit_pd_data_signal(QObject *param_1,undefined8 param_2)`
+
+**Implementation**:
+```c
+void emit_pd_data_signal(QObject *param_1,undefined8 param_2)
+{
+  void *local_18;
+  undefined8 local_10;
+  
+  local_18 = (void *)0x0;
+  local_10 = param_2;
+  QMetaObject::activate(param_1,(QMetaObject *)&DAT_14022d610,0xd,&local_18);
+  return;
+}
+```
+
+#### `on_pd_data_received` (0x1401585e0)
+**Purpose**: Handles the signal when PD data is received
+**Signature**: `void on_pd_data_received(QObject *param_1,undefined8 param_2)`
 
 ## CC/PD Attach-Detach Event Parsing
 
 ### Event Parser – "Parse PD/CC Connection Events" (0x140063a50)
 - **Function**: `void FUN_140063a50(QTableWidget *table, QByteArray *raw, QString *out)`
 - **Purpose**: Parses incoming buffer for CC/PD attach/detach events, maps to state/UI strings
-- **Event mapping logic:**
+- **Event mapping logic**:
   - Raw bytes parsed:
     - Index 8: Event type/state
     - Index 9-10: Encodes type (bits: port roles, cable/source/sink/etc)
@@ -77,7 +104,7 @@ local_res20[0] = (int)_Var1 << 0x16 | local_res20[0] & 0x3fffff;
 - **Attachment or Detachment trigger**:
   - Attach: When state moves to "Attach Wait" or "Attached"
   - Detach: When moves to "Unattached" or Error/Disabled
-- **Calls:**
+- **Calls**:
   - Downstream calls update another widget/table for display
   - Handles PD state (PD extended logic at lines with object count/attributes)
   - Related: 0x140059920 (calls this for event receive), 0x14005a070 (dispatches multiple events)
@@ -99,14 +126,29 @@ local_res20[0] = (int)_Var1 << 0x16 | local_res20[0] & 0x3fffff;
   - Unattached: state==2
 - Other fields: further struct or inline logic parses PD-specific fields (e.g. parsing roles, port types, Vbus/CC states)
 
----
+## Inner Event Stream Processing
+
+### PD Status Data (Attribute 0x20)
+- Contains an "inner event stream" within the payload
+- Currently only logged as hex data but not fully processed
+- Likely contains the same concatenated event types as PdPacket data
+
+### PD Packet Data (Attribute 0x40)
+- Contains the same "inner event stream" format
+- Parsed and emitted as signals for further processing
+- The stream is a concatenation of different event packet types:
+  1. Connection events (identified by byte 0x45)
+  2. Status updates (12 bytes) with voltage/current readings
+  3. PD message wrappers (0x80-0x9F range) followed by standard USB PD messages
 
 ## Names/Comments Added from Ghidra Analysis
 - 0x140063a50: "Parse PD/CC attachment/detachment event, set state for table UI, maps raw bytes to human-readable CC/PD connection info."
 - 0x140024870: "Sets up meter/CC1-CC2/DM/DP widgets—static text layout for UI, not parsing events or PD."
 - 0x140059920: "Calls PD/CC attach-detach event parser (0x140063a50), likely receives or buffers PD/CC connection events."
 - 0x14005a070: "Receives and processes multiple PD/CC events, calls event/state parser (0x140063a50), probably main event dispatcher for PD attach/detach."
+- 0x14006d1b0: "Main packet response handler that processes incoming data based on attribute type."
+- 0x140161150: "Emits signals when PD data is received using Qt's meta-object system."
+- 0x1401585e0: "Handles the signal when PD data is received."
 
 ---
-
 **TODO**: continue annotation and variable renaming for all event/PD parsing logic found for km003c protocol, cross-reference packet parsing with UI state updates for 100% coverage.
