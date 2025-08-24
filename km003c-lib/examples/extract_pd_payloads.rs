@@ -3,12 +3,19 @@ use pcap_parser::{*, Block};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Write;
-use std::path::Path;
+use std::path::PathBuf;
 
 fn main() {
-    let pcap_path = std::env::args().nth(1).expect("Usage: cargo run --example extract_pd_payloads <path_to_pcapng>");
-    let out_path = Path::new("extracted_pd_payloads.txt");
-    let mut out_file = File::create(out_path).expect("Failed to create output file");
+    let mut args = std::env::args().skip(1);
+    let pcap_path = args.next().expect("Usage: cargo run --example extract_pd_payloads <path_to_pcapng> [--out <path>]");
+    let mut out_path = PathBuf::from("km003c-lib/tests/extracted_pd_payloads.txt");
+    while let Some(arg) = args.next() {
+        if arg == "--out" {
+            if let Some(p) = args.next() { out_path = PathBuf::from(p); }
+        }
+    }
+    if let Some(parent) = out_path.parent() { let _ = std::fs::create_dir_all(parent); }
+    let mut out_file = File::create(&out_path).expect("Failed to create output file");
 
     let file = File::open(pcap_path).unwrap();
     let mut reader = PcapNGReader::new(65536, file).expect("PcapNGReader");

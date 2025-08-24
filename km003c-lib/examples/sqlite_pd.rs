@@ -26,14 +26,14 @@ fn main() -> Result<()> {
                 for (i, event) in events.iter().enumerate() {
                     println!("  -> {}", event);
                     match event {
-                        km003c_lib::pd::EventPacket::Connection(ev) => {
-                            println!("     [parsed ConnectionEvent] type_id {:02x} ts_bytes {:?} reserved {:02x} event_data {:02x}", ev.type_id, ev.timestamp_bytes, ev._reserved, ev.event_data);
+                        km003c_lib::pd::EventPacket::Connection(ev, ts) => {
+                            println!("     [parsed ConnectionEvent @{}] action={} cc_pin={}", ts, ev.action(), ev.cc_pin());
                         }
-                        km003c_lib::pd::EventPacket::Status(stat) => {
-                            println!("     [parsed StatusPacket] type_id {:02x} ts_bytes {:?} vbus_raw {:04x} ibus_raw {:04x} cc1_raw {:04x} cc2_raw {:04x}", stat.type_id, stat.timestamp_bytes, stat.vbus_raw.get(), stat.ibus_raw.get(), stat.cc1_raw.get(), stat.cc2_raw.get());
+                        km003c_lib::pd::EventPacket::Status(stat, ts) => {
+                            println!("     [parsed StatusPacket @{}] vbus={} ibus={} cc1={} cc2={}", ts, stat.vbus_raw.get(), stat.ibus_raw.get(), stat.cc1_raw.get(), stat.cc2_raw.get());
                         }
-                        km003c_lib::pd::EventPacket::PdMessage(pd) => {
-                            println!("     [parsed PdMessage] is_src_to_snk {} timestamp {} pd_bytes {:02x?}", pd.is_src_to_snk, pd.timestamp, pd.pd_bytes);
+                        km003c_lib::pd::EventPacket::PdMessage(pd, ts) => {
+                            println!("     [parsed PdMessage @{}] dir={} len={} bytes {:02x?}", ts, if pd.is_src_to_snk {"->"} else {"<-"}, pd.pd_bytes.len(), pd.pd_bytes);
                         }
                     }
                 }

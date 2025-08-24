@@ -80,14 +80,10 @@ impl EventPacket {
         if is_pd_prelude(body) {
             // body layout: [0]=0xAA, [1..=3]=hdr3, [4]=crc, [5]=0xAA, [6..=12]=aux, [13..]=PD bytes
             let pd_bytes = &body[13..];
-            // Try parse PD to determine message size; if it fails, still return as PD with full bytes
-            let (pd_len, is_src_to_snk) = match Message::from_bytes(pd_bytes) {
-                Ok(msg) => (2 + msg.header.num_objects() * 4, ((body[1] & 0x04) != 0)),
-                Err(_) => (pd_bytes.len(), ((body[1] & 0x04) != 0)),
-            };
-            if pd_bytes.len() < pd_len {
-                return Err(ParseError::UnexpectedEof);
-            }
+            // Calculate PD length from PD header to slice correctly
+            let pd_len = compute_pd_length(pd_bytes).ok_or(ParseError::UnexpectedEof)?;
+            // Direction bit is carried in prelude header[1]
+            let is_src_to_snk = (body[1] & 0x04) != 0;
             let packet = WrappedPdMessage {
                 is_src_to_snk,
                 pd_bytes: Bytes::copy_from_slice(&pd_bytes[..pd_len]),
@@ -298,4 +294,21 @@ fn is_pd_prelude(body: &[u8]) -> bool {
         }
     }
     crc == body[4]
+}
+
+fn compute_pd_length(pd: &[u8]) -> Option<usize> {
+    if pd.len() < 2 { return None; }
+    let hdr = u16::from_le_bytes([pd[0], pd[1]]);
+    let extended = (hdr & 0x8000) != 0;
+    if extended {
+        if pd.len() < 4 { return None; }
+        let ext = u16::from_le_bytes([pd[2], pd[3]]);
+        let size = (ext & 0x01ff) as usize; // 9-bit data size
+        let total = 4 + size;
+        if total <= pd.len() { Some(total) } else { None }
+    } else {
+        let ndo = ((hdr >> 12) & 0x07) as usize; // number of 32-bit data objects
+        let total = 2 + 4 * ndo;
+        if total <= pd.len() { Some(total) } else { None }
+    }
 }
