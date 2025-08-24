@@ -145,11 +145,7 @@ impl RawPacket {
     pub fn get_attribute(&self) -> Option<Attribute> {
         match self {
             RawPacket::Ctrl { header, .. } => Some(Attribute::from_primitive(header.attribute())),
-            RawPacket::Data { .. } => {
-                // For Data packets, attribute comes from extended header
-                self.get_extended_header()
-                    .map(|ext_header| Attribute::from_primitive(ext_header.attribute()))
-            }
+            RawPacket::Data { extended, .. } => Some(Attribute::from_primitive(extended.attribute())),
         }
     }
 }
