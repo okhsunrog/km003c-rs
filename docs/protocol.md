@@ -101,29 +101,75 @@ struct AdcDataRaw {
 }
 ```
 
-## PD "Inner Event Stream" Format
+## PD Inner Event Stream (Revised)
 
-The payload of a `PutData` packet with the `PdPacket` attribute is not a single PD message but a stream of smaller, concatenated "event" packets. Each event packet begins with its own **6-byte header**.
+The payload of a `PutData` packet with `PdPacket` (0x10) or `PdStatus` (0x20) attributes is a concatenated stream of inner records. Each record has an 8-byte meta header followed by a variable-length body. This section supersedes earlier 6-byte header descriptions.
 
-#### Inner Event Header (6 bytes)
+### Outer Framing and Combined Payloads
 
-```pascal
-// As defined in the Pascal example
-TKM003CPacketHeader = packed record
-  Size: Byte;             // Length of the following event data. Bit 7 is a flag.
-  Time: DWord;            // 32-bit timestamp
-  SOP: Byte;              // SOP type (SOP, SOP', etc.)
-end;
-```
-The `Size` field's 8th bit (`(Size & 0x80) != 0`) indicates if the following event is a standard PD message (a "SOP Packet").
+- A `PutData` payload that carries PD/Status begins with a 12-byte ADC snapshot: `u16 VBUS @+4`, `s16 IBUS @+6`, `u16 CC1 @+8`, `u16 CC2 @+10`. After these 12 bytes, the inner event stream begins.
+- Records are concatenated until the end of the payload; a meta flag can indicate more chunks at the outer layer (`next` in the extended header).
 
-### Inner Event Types
+### Inner Record Meta Header (8 bytes)
 
-1.  **Connection Events (`type_id: 0x45`, 6 bytes):** Signals Attach/Detach.
-2.  **Status Packets (12 bytes):** Provides periodic Vbus/Ibus/CC updates.
-3.  **Wrapped PD Messages (variable length):** Contains a standard USB-PD message.
+Bytes are little-endian where applicable. Offsets shown are relative to the start of each record.
 
-These events are parsed from the stream after their 6-byte inner header.
+- [0..=3]: `u32` timestamp (ticks)
+- [4]: flags/status (UI uses bits here to choose DP/DM label)
+- [5]: flags/status (unknown semantics)
+- [6]: `u8` body length (number of bytes following the header)
+- [7]: flags/status (unknown semantics)
+
+The parsing loop advances by `8 + length` per record.
+
+### Record Body Types
+
+1) Connection Event
+
+- Discriminator: first body byte `0x45`
+- Body layout (2 bytes): `0x45, event_data`
+- Meaning: `event_data` lower 4 bits = action (1=Attach, 2=Detach, …); upper 4 bits = CC pin (1=CC1, 2=CC2)
+
+2) Status Update
+
+- Discriminator: not `0x45`, not PD prelude (see below), and body length ≥ 8
+- Body layout (8 bytes): `u16 VBUS, s16 IBUS, u16 CC1, u16 CC2`
+
+3) PD-Wrapped Record
+
+- Discriminator: PD prelude marker present at the start of the body
+- Body layout (indices relative to body start):
+  - [0] = `0xAA`
+  - [1..=3] = 3-byte header; `[1]` contains direction bit (`& 0x04`); `[2] & 0x07` has SOP info (SOP when zero)
+  - [4] = CRC-8 over `[1..=3]` with polynomial `0x29`, init `0x00`
+  - [5] = `0xAA`
+  - [6..=12] = auxiliary bytes (purpose unknown)
+  - [13..] = standard USB-PD message (16-bit header + data objects)
+
+Validation used by the Windows app:
+
+- `body[0] == 0xAA` and `body[5] == 0xAA`
+- `(body[2] & 0x07) == 0` (SOP)
+- `crc8_0x29(body[1..=3]) == body[4]`
+
+Normalization in the Windows app (for display/storage):
+
+- Decrease meta header `[6]` (length) by 5
+- Overwrite the first 7 bytes of the event slice: write relative time (4 bytes), zeros at [4..5], kind `0x05` at [6]
+- Drop the first `0x0D` bytes of the body (the PD prelude) before presenting; prepend the 8-byte meta header
+
+In this repository, the parser instead detects the prelude and exposes the PD bytes directly from `[13..]` as `WrappedPdMessage`.
+
+### Attributes and Flow
+
+- `Attribute::PdPacket (0x10)`: PD sniffer data; when enabled, emits PD inner stream records.
+- `Attribute::PdStatus (0x20)`: Similar inner stream; firmware logs hex in some paths but the structure matches the above.
+- The outer handler uses transaction IDs and the extended-header `next` flag to handle chunked payloads; decryption paths exist for large transfers but aren’t used for PD in observed traces.
+
+### Notes
+
+- Earlier 6-byte inner headers found in Pascal examples appear to be a different or older framing and do not match the Windows app analyzed here.
+- Some meta-header flag bits ([4], [5], [7]) influence UI labeling (DP/DM, role/source/cable). Exact bitfields are still being mapped.
 
 ## Transaction Management
 

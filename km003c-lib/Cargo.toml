@@ -8,6 +8,7 @@ license = "MIT"
 repository = "https://github.com/okhsunrog/km003c-rs"
 
 [dependencies]
+pcap-parser = "0.15.0"
 modular-bitfield = "0.12"
 nusb = { version = "0.2.0", features = ["tokio"] }
 thiserror = "2.0"
@@ -33,8 +34,8 @@ optional = true
 features = ["lazy", "parquet", "csv", "json", "serde"]
 
 [dev-dependencies]
-hex = "0.4"
 rtshark = "3.2"
+hex = "0.4"
 tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
 clap = { version = "4.5", features = ["derive"] }
 clap-verbosity-flag = { version = "3.0", default-features = false, features = ["tracing"] }

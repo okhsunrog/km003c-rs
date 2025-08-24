@@ -17,33 +17,28 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned, byteorde
 /// A single, self-contained event from the KM003C's inner data stream.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EventPacket {
-    /// A physical connection event (Attach/Detach).
-    Connection(ConnectionEvent),
-    /// A periodic status update containing live voltage/current readings.
-    Status(StatusPacket),
-    /// An encapsulated USB Power Delivery message.
-    PdMessage(WrappedPdMessage),
+    /// A physical connection event (Attach/Detach). Carries record timestamp.
+    Connection(ConnectionEvent, u32),
+    /// A periodic status update containing live voltage/current readings. Carries record timestamp.
+    Status(StatusPacket, u32),
+    /// An encapsulated USB Power Delivery message. Carries record timestamp.
+    PdMessage(WrappedPdMessage, u32),
 }
 
-/// A 6-byte connection event packet (Attach/Detach).
-/// Identified by a first byte of `0x45`.
+/// Connection event (Attach/Detach) body.
+/// Identified by the first body byte `0x45`.
 #[repr(C, packed)]
 #[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ConnectionEvent {
-    pub type_id: u8,              // Always 0x45
-    pub timestamp_bytes: [u8; 3], // 24-bit little-endian timestamp
     pub _reserved: u8,
     pub event_data: u8,
 }
 
-/// A 12-byte periodic status packet containing live ADC readings.
-/// This is the default packet type for any identifier that isn't a known
-/// Connection or Wrapped PD Message.
+/// Periodic status packet containing live ADC readings (per-event update).
+/// Body size is 8 bytes (four u16 values).
 #[repr(C, packed)]
 #[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StatusPacket {
-    pub type_id: u8,
-    pub timestamp_bytes: [u8; 3], // 24-bit little-endian timestamp
     pub vbus_raw: U16,
     pub ibus_raw: U16,
     pub cc1_raw: U16,
@@ -56,8 +51,6 @@ pub struct StatusPacket {
 pub struct WrappedPdMessage {
     /// True if the message direction is from Source to Sink.
     pub is_src_to_snk: bool,
-    /// The 24-bit timestamp from the wrapper.
-    pub timestamp: u32,
     /// The raw bytes of the standard PD message (header + data objects).
     /// This can be parsed by `usbpd::protocol_layer::message::Message::from_bytes`.
     pub pd_bytes: Bytes,
@@ -66,71 +59,60 @@ pub struct WrappedPdMessage {
 // --- Parsing Logic ---
 
 impl EventPacket {
-    /// Parses a single `EventPacket` from the start of the given byte slice.
-    ///
-    /// This is the core parsing logic. It correctly identifies the three known
-    /// packet types and handles the ambiguity between `StatusPacket` and
-    /// `WrappedPdMessage` packets that start with a byte in the 0x80-0x9F range.
-    ///
-    /// Returns a `Result` containing the parsed packet and the number of
-    /// bytes consumed, or a `ParseError` if the data is malformed or truncated.
+    /// Parse one inner record. `input` must point at the start of a record header (8 bytes).
     pub fn from_slice(input: &[u8]) -> Result<(Self, usize), ParseError> {
-        if input.is_empty() {
+        if input.len() < 8 {
             return Err(ParseError::UnexpectedEof);
         }
 
-        match input[0] {
-            // Case 1: Connection Event (unambiguous, 6 bytes).
-            0x45 => {
-                let event = ConnectionEvent::ref_from_bytes(input).map_err(|_| ParseError::UnexpectedEof)?;
-                Ok((EventPacket::Connection(*event), std::mem::size_of::<ConnectionEvent>()))
+        // 8-byte meta header
+        let header = &input[0..8];
+        let len = header[6] as usize; // payload length stored at header[6]
+        let total_len = 8 + len;
+        if input.len() < total_len {
+            return Err(ParseError::UnexpectedEof);
+        }
+
+        let ts = u32::from_le_bytes([header[0], header[1], header[2], header[3]]);
+        let body = &input[8..total_len];
+
+        // Detect PD prelude wrapper: AA .. CRC .. AA with SOP check
+        if is_pd_prelude(body) {
+            // body layout: [0]=0xAA, [1..=3]=hdr3, [4]=crc, [5]=0xAA, [6..=12]=aux, [13..]=PD bytes
+            let pd_bytes = &body[13..];
+            // Try parse PD to determine message size; if it fails, still return as PD with full bytes
+            let (pd_len, is_src_to_snk) = match Message::from_bytes(pd_bytes) {
+                Ok(msg) => (2 + msg.header.num_objects() * 4, ((body[1] & 0x04) != 0)),
+                Err(_) => (pd_bytes.len(), ((body[1] & 0x04) != 0)),
+            };
+            if pd_bytes.len() < pd_len {
+                return Err(ParseError::UnexpectedEof);
             }
+            let packet = WrappedPdMessage {
+                is_src_to_snk,
+                pd_bytes: Bytes::copy_from_slice(&pd_bytes[..pd_len]),
+            };
+            return Ok((EventPacket::PdMessage(packet, ts), total_len));
+        }
 
-            // Case 2: Potential Wrapped PD Message (ambiguous).
-            0x80..=0x9F => {
-                const WRAPPER_LEN: usize = 6;
-                const MIN_PD_LEN: usize = 2;
-
-                // Check if we have enough data for a wrapper and the smallest possible PD message.
-                if input.len() < WRAPPER_LEN + MIN_PD_LEN {
-                    // Not enough data for a valid PD message, so it cannot be Type C.
-                    // Fall back to treating it as a potentially truncated Type B.
-                    let status = StatusPacket::ref_from_bytes(input).map_err(|_| ParseError::UnexpectedEof)?;
-                    return Ok((EventPacket::Status(*status), std::mem::size_of::<StatusPacket>()));
-                }
-
-                // Attempt to parse the inner bytes as a PD message to validate it.
-                // We use the fallible `usbpd::protocol_layer::message::Message::from_bytes` for this check.
-                if let Ok(msg) = Message::from_bytes(&input[WRAPPER_LEN..]) {
-                    // Success! It's a real PD message. Calculate its full length.
-                    let pd_len = 2 + (msg.header.num_objects() * 4);
-                    let total_len = WRAPPER_LEN + pd_len;
-
-                    if input.len() < total_len {
-                        return Err(ParseError::UnexpectedEof);
-                    }
-
-                    let ts_bytes = &input[1..4];
-                    let packet = WrappedPdMessage {
-                        is_src_to_snk: (input[0] & 0x04) != 0,
-                        timestamp: u32::from_le_bytes([ts_bytes[0], ts_bytes[1], ts_bytes[2], 0]),
-                        pd_bytes: Bytes::copy_from_slice(&input[WRAPPER_LEN..total_len]),
-                    };
-                    Ok((EventPacket::PdMessage(packet), total_len))
-                } else {
-                    // False positive. The `usbpd` parser rejected it. This means it's a
-                    // 12-byte status packet that happened to start with a "magic" byte.
-                    let status = StatusPacket::ref_from_bytes(input).map_err(|_| ParseError::UnexpectedEof)?;
-                    Ok((EventPacket::Status(*status), std::mem::size_of::<StatusPacket>()))
-                }
+        // Connection event: body starts with 0x45 and has at least 2 bytes
+        if !body.is_empty() && body[0] == 0x45 {
+            if body.len() < 2 {
+                return Err(ParseError::UnexpectedEof);
             }
+            let event = ConnectionEvent::ref_from_bytes(&body[0..2]).map_err(|_| ParseError::UnexpectedEof)?;
+            return Ok((EventPacket::Connection(*event, ts), total_len));
+        }
 
-            // Case 3: Default to Periodic Status Packet (unambiguous, 12 bytes).
-            _ => {
-                let status = StatusPacket::ref_from_bytes(input).map_err(|_| ParseError::UnexpectedEof)?;
-                Ok((EventPacket::Status(*status), std::mem::size_of::<StatusPacket>()))
+        // Status event: expect 8-byte body containing 4 u16 values
+        if body.len() >= 8 {
+            if let Ok(status) = StatusPacket::ref_from_bytes(&body[0..8]) {
+                return Ok((EventPacket::Status(*status, ts), total_len));
             }
         }
+
+        // Fallback: treat as unrecognized status-like record if shorter
+        Err(ParseError::UnexpectedEof)
     }
 }
 
@@ -165,16 +147,6 @@ pub fn parse_event_stream(mut input: &[u8]) -> Result<Vec<EventPacket>, ParseErr
 }
 
 impl ConnectionEvent {
-    /// Gets the 24-bit timestamp as a u32
-    pub fn timestamp(&self) -> u32 {
-        u32::from_le_bytes([
-            self.timestamp_bytes[0],
-            self.timestamp_bytes[1],
-            self.timestamp_bytes[2],
-            0,
-        ])
-    }
-
     /// Decodes the CC pin from the event data.
     pub fn cc_pin(&self) -> u8 {
         (self.event_data & 0xF0) >> 4
@@ -186,15 +158,6 @@ impl ConnectionEvent {
 }
 
 impl StatusPacket {
-    /// Gets the 24-bit timestamp as a u32
-    pub fn timestamp(&self) -> u32 {
-        u32::from_le_bytes([
-            self.timestamp_bytes[0],
-            self.timestamp_bytes[1],
-            self.timestamp_bytes[2],
-            0,
-        ])
-    }
 }
 
 impl WrappedPdMessage {
@@ -213,7 +176,7 @@ impl WrappedPdMessage {
 impl fmt::Display for EventPacket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EventPacket::Connection(ev) => {
+            EventPacket::Connection(ev, ts) => {
                 let action = match ev.action() {
                     1 => "Attach",
                     2 => "Detach",
@@ -224,24 +187,24 @@ impl fmt::Display for EventPacket {
                     2 => "CC2",
                     _ => "Unknown",
                 };
-                write!(f, "[Conn] {}: {}", action, cc)
+                write!(f, "[{}] [Conn] {}: {}", ts, action, cc)
             }
-            EventPacket::Status(ev) => {
+            EventPacket::Status(ev, ts) => {
                 write!(
                     f,
-                    "[Status] Type:0x{:02X} Vbus:{} Ibus:{} CC1:{} CC2:{}",
-                    ev.type_id,
+                    "[{}] [Status] Vbus:{} Ibus:{} CC1:{} CC2:{}",
+                    ts,
                     ev.vbus_raw.get(),
                     ev.ibus_raw.get(),
                     ev.cc1_raw.get(),
                     ev.cc2_raw.get()
                 )
             }
-            EventPacket::PdMessage(ev) => {
+            EventPacket::PdMessage(ev, ts) => {
                 let direction = if ev.is_src_to_snk { "->" } else { "<-" };
                 // Safe to unwrap here because we know it's valid from the parsing step.
                 let msg = ev.parse_message_stateless().unwrap();
-                write!(f, "[PD {}] {}", direction, format_pd_message(&msg))
+                write!(f, "[{}] [PD {}] {}", ts, direction, format_pd_message(&msg))
             }
         }
     }
@@ -307,4 +270,32 @@ fn format_source_capabilities(caps: &SourceCapabilities) -> String {
         writeln!(output, "{}", line).unwrap();
     }
     output
+}
+
+// --- Helpers ---
+
+fn is_pd_prelude(body: &[u8]) -> bool {
+    if body.len() < 14 {
+        return false;
+    }
+    if body[0] != 0xAA || body[5] != 0xAA {
+        return false;
+    }
+    // SOP check: lower 3 bits of body[2] == 0 (SOP)
+    if (body[2] & 0x07) != 0 {
+        return false;
+    }
+    // CRC over body[1..=3] must equal body[4]
+    let mut crc: u8 = 0;
+    for &b in &body[1..=3] {
+        crc ^= b;
+        for _ in 0..8 {
+            let msb = (crc & 0x80) != 0;
+            crc = crc.wrapping_shl(1);
+            if msb {
+                crc ^= 0x29; // matches observed polynomial in binary loop
+            }
+        }
+    }
+    crc == body[4]
 }

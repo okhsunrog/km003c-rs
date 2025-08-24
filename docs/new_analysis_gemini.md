@@ -159,3 +159,103 @@ Looking at the current Rust implementation in `km003c-lib/src/pd.rs`:
 2. Database storage functions for PD data
 3. Memory structures that store parsed PD events
 4. Functions that parse the "inner event stream" format
+### Step 6: Deeper Dive into PD Packet Request and Processing
+
+My goal is to understand the complete flow of PD data, from request to processing. I will focus on the following:
+
+1.  **PD Data Request:** I will investigate how the `build_command_header` function is used to request PD data, specifically looking for calls with command types `0x10` and `0x11`.
+2.  **PD Data Processing:** I will analyze the `handle_response_packet` function to understand how the "inner event stream" is parsed, especially for packets with attributes `0x10`, `0x20`, and `0x40`. I will pay close attention to how the "wrapped" PD messages are handled.
+3.  **Full Descriptions:** I will provide detailed descriptions of the functions and data structures involved in this process.
+
+I will now start by investigating the PD data request mechanism.
+
+### Step 7: Analyzing the PD Data Request Mechanism
+
+I have analyzed the `set_pd_sniffer_mode` function (at `0x14006eda0`) and can now describe how the executable requests PD data.
+
+#### The `set_pd_sniffer_mode` function
+
+This function is responsible for both enabling and disabling the PD sniffer mode. It takes a parameter that determines whether to enable or disable the mode.
+
+*   **Enabling PD Sniffer Mode:**
+    *   When called with a non-null parameter, the function calls `build_command_header` with command type `0x10` and the parameter value as the attribute.
+    *   The command is then sent to the device using the `transceive_data` function.
+    *   A timer is started to periodically fetch the PD data.
+
+*   **Disabling PD Sniffer Mode:**
+    *   When called with a null parameter, the function calls `build_command_header` with command type `0x11` and an attribute of `0`.
+    *   This command is then sent to the device, which likely stops the device from sending PD data.
+
+This confirms that command `0x10` is used to enable PD sniffing with a specific mode (attribute), and command `0x11` is used to disable it.
+
+Now that I understand how the data is requested, I will move on to analyzing how the data is processed, focusing on the "inner event stream" and the "wrapped" PD messages.
+### Step 8: Parsing the PD "Inner Event Stream"
+
+I have analyzed the functions responsible for parsing the "inner event stream" contained within the PD data packets. The main parsing function is `FUN_140063a50`, which is called from `handle_response_packet`.
+
+#### The `FUN_140063a50` function
+
+This function is responsible for parsing the entire "inner event stream". It is a large and complex function that is tightly coupled with the UI, but its core logic can be summarized as follows:
+
+1.  **Input:** It takes the raw "inner event stream" as a `QByteArray`.
+2.  **Event Type:** It determines the type of event based on the 9th byte of the stream.
+3.  **Connection Status:** If the event is a connection status update, it uses a `switch` statement to map the status code to a human-readable string (e.g., "Unattached", "Attached").
+4.  **PD Message:** If the 9th byte is `0xAA`, it treats the event as a PD message and proceeds to parse it.
+5.  **PD Message Parsing:** The function extracts various fields from the PD message payload, including the message type, port role, and voltage. It uses several helper functions to assist with the parsing.
+6.  **UI Update:** Finally, it updates a `QTableWidget` with the parsed information.
+
+#### The `FUN_140063630` helper function
+
+This function is called by `FUN_140063a50` to get a human-readable string for a given PD message type. It works as follows:
+
+1.  **Input:** It takes a `ushort` and a `uint` that represent the message type.
+2.  **Message Type Mapping:** It uses the input parameters to look up the message name in a hardcoded array of strings. It can differentiate between control messages, data messages, and custom messages.
+3.  **Output:** It returns a `QTableWidgetItem` with its text set to the message name.
+
+Now, I will continue by analyzing the other helper functions to get a complete picture of the parsing logic.
+### Step 9: Analyzing the Helper Functions
+
+I have analyzed the helper functions called by `FUN_140063a50` and they provide important insights into the PD message parsing and validation process.
+
+#### The `FUN_140064cc0` function (CRC Calculation)
+
+This function is responsible for calculating an 8-bit CRC (Cyclic Redundancy Check) for a given byte array. It uses a polynomial of `0x29`. This CRC is likely used to verify the integrity of the PD messages.
+
+#### The `FUN_140064bc0` function (Custom Hash/Checksum)
+
+This function calculates a custom hash or checksum for a given byte array. It processes the data in 8-byte chunks and uses a series of additions and bitwise operations to generate the final hash value. This is likely used for a more robust integrity check than the simple CRC.
+
+With the analysis of these helper functions, I now have a comprehensive understanding of how the firmware parses and validates PD messages. The next logical step is to compare this with the existing Rust implementation to ensure its correctness.
+### Step 10: Comparison with Rust Implementation and Recommendations
+
+I have compared my findings from the firmware analysis with the existing Rust implementation in `km003c-lib/src/pd.rs`. While the Rust implementation provides a good foundation, there are several key discrepancies that need to be addressed to ensure correctness.
+
+#### Discrepancies
+
+1.  **Event Type Identification:** The most significant discrepancy is in how different event types are identified within the "inner event stream".
+    *   **Firmware:** The firmware uses the 9th byte of the stream to identify PD messages (when the value is `0xAA`).
+    *   **Rust:** The Rust code uses the first byte of the stream (`0x80-0x9F`) to identify wrapped PD messages. This is incorrect.
+    *   **Recommendation:** The `EventPacket::from_slice` function in the Rust code should be updated to use the 9th byte to identify PD messages. The logic for identifying other event types, such as `ConnectionEvent` (`0x45`), should also be verified against the firmware.
+
+2.  **Integrity Checks:** The Rust implementation is missing the integrity checks that are present in the firmware.
+    *   **Firmware:** The firmware uses two different functions for integrity checks: `FUN_140064cc0` for an 8-bit CRC and `FUN_140064bc0` for a custom hash/checksum.
+    *   **Rust:** The Rust code does not implement these checks.
+    *   **Recommendation:** The CRC and custom hash algorithms should be implemented in Rust and integrated into the parsing logic. The `FUN_140064cc0` and `FUN_140064bc0` functions should be carefully translated to Rust.
+
+3.  **PD Message Parsing:** The Rust code relies on the `usbpd` crate for parsing PD messages.
+    *   **Firmware:** The firmware has its own custom parsing logic in `FUN_140063a50`.
+    *   **Rust:** Using the `usbpd` crate is a good approach, but it's important to ensure that the data passed to it is valid.
+    *   **Recommendation:** The custom integrity checks should be performed before passing the data to the `usbpd` crate.
+
+#### Proposed Corrections to `km003c-lib/src/pd.rs`
+
+1.  **Modify `EventPacket::from_slice`:**
+    *   The function should be updated to check the 9th byte of the stream for `0xAA` to identify PD messages.
+    *   The logic for identifying `ConnectionEvent` and `StatusPacket` should be reviewed and updated to match the firmware's logic.
+
+2.  **Implement Integrity Checks:**
+    *   Create a new Rust module (e.g., `integrity.rs`) to house the CRC and custom hash functions.
+    *   Translate the logic from `FUN_140064cc0` and `FUN_140064bc0` to Rust.
+    *   Call these functions from `EventPacket::from_slice` to verify the integrity of the PD messages before parsing them.
+
+By addressing these discrepancies, the Rust implementation will be much more accurate and reliable. This concludes my analysis of the PD packet processing in the KM003C firmware.
