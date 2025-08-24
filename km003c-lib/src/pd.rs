@@ -312,3 +312,84 @@ fn compute_pd_length(pd: &[u8]) -> Option<usize> {
         if total <= pd.len() { Some(total) } else { None }
     }
 }
+
+// Optional metadata exposure for callers that need header flags without breaking existing API.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EventMetaHeader {
+    pub timestamp: u32,
+    pub flags4: u8,
+    pub flags5: u8,
+    pub len: u8,
+    pub flags7: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DLine {
+    DP,
+    DM,
+}
+
+impl EventMetaHeader {
+    /// Heuristic from Windows app: header[7] bit0 selects D+/D- label (0=DP, 1=DM)
+    pub fn d_line(self) -> DLine {
+        if (self.flags7 & 0x01) == 0 { DLine::DP } else { DLine::DM }
+    }
+}
+
+/// Parse inner stream and return packets alongside their meta headers.
+pub fn parse_event_stream_with_meta(mut input: &[u8]) -> Result<Vec<(EventPacket, EventMetaHeader)>, ParseError> {
+    let mut out = Vec::new();
+    while !input.is_empty() {
+        if input.len() < 8 { return Err(ParseError::UnexpectedEof); }
+        let hdr = &input[..8];
+        let meta = EventMetaHeader {
+            timestamp: u32::from_le_bytes([hdr[0], hdr[1], hdr[2], hdr[3]]),
+            flags4: hdr[4], flags5: hdr[5], len: hdr[6], flags7: hdr[7],
+        };
+        match EventPacket::from_slice(input) {
+            Ok((pkt, consumed)) => { out.push((pkt, meta)); input = &input[consumed..]; }
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::Bytes;
+    use crate::packet::{RawPacket, Attribute};
+
+    #[test]
+    fn crc_and_prelude_detection_synthetic() {
+        // Construct a synthetic PD prelude body with valid CRC and minimal PD header
+        let mut body = Vec::new();
+        body.push(0xAA);
+        let b1 = 0x04; // direction bit set (SRC->SNK)
+        let b2 = 0x00; // SOP
+        let b3 = 0x12; // arbitrary
+        body.push(b1);
+        body.push(b2);
+        body.push(b3);
+        // Compute CRC-8 poly 0x29 over [b1,b2,b3]
+        let mut crc: u8 = 0;
+        for &bb in [b1,b2,b3].iter() {
+            crc ^= bb;
+            for _ in 0..8 { let msb = (crc & 0x80) != 0; crc = crc.wrapping_shl(1); if msb { crc ^= 0x29; } }
+        }
+        body.push(crc);
+        body.push(0xAA);
+        body.extend_from_slice(&[0u8;7]); // aux
+        // Append minimal PD header (no data objects)
+        body.extend_from_slice(&[0x00, 0x00]);
+
+        assert!(is_pd_prelude(&body));
+        let pd = &body[13..];
+        let len = compute_pd_length(pd).expect("pd length");
+        assert_eq!(len, 2);
+        // Tamper with CRC input and ensure detection fails
+        let mut tampered = body.clone();
+        tampered[1] ^= 0x01;
+        assert!(!is_pd_prelude(&tampered));
+    }
+}

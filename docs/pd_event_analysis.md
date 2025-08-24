@@ -42,6 +42,13 @@ This document tracks a fresh analysis of the PD status/event parsing used by the
 ---
 (Keep appending concrete evidence snippets and offsets from Ghidra here.)
 
+### Flag bits mapping (current hypothesis)
+- D+/D- label: meta header byte [7] bit0 (0 = DP, 1 = DM). Evidence: `format_pd_cc_row` inspects the top byte of the first 8 bytes and toggles between "DP" and "DM" when that bit flips.
+- Role/source/cable (within PD rows): extracted from a subsequent byte (`(byte9 >> 5) & 3`) along the PD decoding path in `format_pd_cc_row`; needs correlation with stream structure for a stable spec.
+
+Open items:
+- Confirm semantics of meta header bytes [4] and [5]; identify any per-record status flags used in UI styling.
+
 
 ### Evidence from Mtools.exe (Ghidra)
 - Outer handler `handle_response_packet` splits composite `PutData` by `attribute` and `next` flag.

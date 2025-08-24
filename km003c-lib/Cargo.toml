@@ -25,13 +25,7 @@ serde_json = "1.0"
 hex = "0.4"
 chrono = { version = "0.4", features = ["serde"] }
 
-[features]
-polars = ["dep:polars"]
-
-[dependencies.polars]
-version = "0.50"
-optional = true
-features = ["lazy", "parquet", "csv", "json", "serde"]
+[# No optional features currently]
 
 [dev-dependencies]
 rtshark = "3.2"
