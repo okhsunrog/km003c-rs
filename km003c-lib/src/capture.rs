@@ -1,5 +1,4 @@
-#[cfg(feature = "polars")]
-use polars::prelude::*;
+
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -94,130 +93,11 @@ impl CaptureCollection {
         ids
     }
 
-    /// Save all captures to a parquet file
-    #[cfg(feature = "polars")]
-    pub fn save_to_parquet<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
-        if self.captures.is_empty() {
-            return Err("No captures to save".into());
-        }
+    
 
-        let mut session_ids = Vec::new();
-        let mut timestamps = Vec::new();
-        let mut directions = Vec::new();
-        let mut raw_bytes_vecs = Vec::new();
-        let mut frame_numbers = Vec::new();
-        let mut added_datetimes = Vec::new();
+    
 
-        for capture in &self.captures {
-            session_ids.push(capture.session_id.clone());
-            timestamps.push(capture.timestamp);
-            directions.push(capture.direction.to_string());
-            raw_bytes_vecs.push(capture.raw_bytes.as_slice());
-            frame_numbers.push(capture.frame_number);
-            added_datetimes.push(capture.added_datetime.clone());
-        }
-
-        // Use Series::new with Vec<&[u8]> for Binary type
-        let raw_bytes_series = Series::new("raw_bytes".into(), raw_bytes_vecs);
-
-        let df = DataFrame::new(vec![
-            Series::new("session_id".into(), session_ids).into(),
-            Series::new("timestamp".into(), timestamps).into(),
-            Series::new("direction".into(), directions).into(),
-            raw_bytes_series.into(),
-            Series::new("frame_number".into(), frame_numbers).into(),
-            Series::new("added_datetime".into(), added_datetimes).into(),
-        ])
-        .map_err(|e| format!("DataFrame creation error: {}", e))?;
-
-        let file = std::fs::File::create(path.as_ref())?;
-        ParquetWriter::new(file)
-            .finish(&mut df.clone())
-            .map_err(|e| format!("Parquet write error: {}", e))?;
-        println!("Saved {} captures to {:?}", self.captures.len(), path.as_ref());
-        Ok(())
-    }
-
-    /// Load captures from a parquet file
-    #[cfg(feature = "polars")]
-    pub fn load_from_parquet<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
-        let file = std::fs::File::open(path.as_ref())?;
-        let df = ParquetReader::new(file)
-            .finish()
-            .map_err(|e| format!("Parquet read error: {}", e))?;
-
-        let mut captures = Vec::new();
-        for row_idx in 0..df.height() {
-            let session_id = df.column("session_id")?.str()?.get(row_idx).unwrap_or("").to_string();
-            let timestamp = df.column("timestamp")?.f64()?.get(row_idx).unwrap_or(0.0);
-            let direction_str = df.column("direction")?.str()?.get(row_idx).unwrap_or("").to_string();
-            // Handle both Binary and List types for raw_bytes
-            let raw_bytes = match df.column("raw_bytes")?.dtype() {
-                DataType::Binary => df.column("raw_bytes")?.binary()?.get(row_idx).unwrap_or(&[]).to_vec(),
-                DataType::List(_) => {
-                    // For now, return empty vector for list types to avoid compilation issues
-                    // TODO: Implement proper list handling when Polars API is better understood
-                    vec![]
-                }
-                _ => vec![],
-            };
-            let frame_col = df.column("frame_number")?;
-            let frame_number = match frame_col.dtype() {
-                DataType::UInt32 => frame_col.u32()?.get(row_idx).unwrap_or(0),
-                DataType::Int64 => frame_col.i64()?.get(row_idx).unwrap_or(0) as u32,
-                _ => 0,
-            };
-            let added_datetime = df
-                .column("added_datetime")?
-                .str()?
-                .get(row_idx)
-                .unwrap_or("")
-                .to_string();
-            let direction = match direction_str.as_str() {
-                "H->D" | "HostToDevice" => UsbDirection::HostToDevice,
-                "D->H" | "DeviceToHost" => UsbDirection::DeviceToHost,
-                _ => continue,
-            };
-            let capture = RawCapture::new(
-                session_id,
-                timestamp,
-                direction,
-                raw_bytes,
-                frame_number,
-                added_datetime,
-            );
-            captures.push(capture);
-        }
-        println!("Loaded {} captures from {:?}", captures.len(), path.as_ref());
-        Ok(Self { captures })
-    }
-
-    /// Append captures to an existing parquet file (or create new if doesn't exist)
-    #[cfg(feature = "polars")]
-    pub fn append_to_parquet<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
-        if self.captures.is_empty() {
-            return Err("No captures to save".into());
-        }
-
-        // Check if file exists
-        let path_ref = path.as_ref();
-        let existing_captures = if path_ref.exists() {
-            println!("Loading existing captures from {:?}", path_ref);
-            Self::load_from_parquet(path_ref)?
-        } else {
-            println!("Creating new parquet file at {:?}", path_ref);
-            Self::new()
-        };
-
-        // Combine existing and new captures
-        let mut combined = existing_captures;
-        for capture in &self.captures {
-            combined.add(capture.clone());
-        }
-
-        // Save combined collection
-        combined.save_to_parquet(path_ref)
-    }
+    
 
     /// Get the number of captures in this collection
     pub fn len(&self) -> usize {
