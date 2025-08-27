@@ -195,6 +195,8 @@ The device may return error responses or fail to respond within the timeout peri
 - Firmware update protocol not analyzed
 - Advanced measurement modes may isn't reversed yet
 - Some proprietary features may use undocumented packet types
+### Unknown Packet Types
+- Interrupt transfer packets (endpoint 0x81, transfer_type 0x01) with 8-byte payloads like `0800000000000000`. Structure not yet decoded.
 
 ### Unknown Packet Types
 - Control packet type 0x10 with attribute 0x0001 (length 0) followed by Accept
