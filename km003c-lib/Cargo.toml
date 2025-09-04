@@ -7,6 +7,10 @@ authors = ["Danila Gornushko <me@okhsunrog.dev>"]
 license = "MIT"
 repository = "https://github.com/okhsunrog/km003c-rs"
 
+[lib]
+name = "km003c_lib"
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 modular-bitfield = "0.12"
 nusb = { version = "0.2.0", features = ["tokio"] }
@@ -24,5 +28,6 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 hex = "0.4"
 chrono = { version = "0.4", features = ["serde"] }
+pyo3 = { version = "0.23", features = ["extension-module"] }
 
 

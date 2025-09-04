@@ -40,6 +40,9 @@ Command-line tools:
 ### `km003c-egui`
 GUI application with real-time plotting and live status display.
 
+### Python Bindings
+Python bindings for parsing KM003C data structures (no async device communication).
+
 ## Quick Start
 
 ### Prerequisites
@@ -76,6 +79,20 @@ cargo run --bin pd_monitor --frequency 1.0
 #### GUI Application
 ```bash
 cargo run --bin km003c-egui
+```
+
+#### Python Bindings
+```bash
+# Install in development mode
+uv run maturin develop
+
+# Use the bindings
+python -c "
+import km003c
+print(f'KM003C VID: {hex(km003c.VID)}, PID: {hex(km003c.PID)}')
+rates = km003c.get_sample_rates()
+print(f'Available sample rates: {[rate.name for rate in rates]}')
+"
 ```
 
 ## Library Usage

@@ -1,0 +1,48 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "km003c"
+description = "Python bindings for KM003C USB power meter - parsing and data structures"
+version = "0.1.0"
+authors = [
+    {name = "Danila Gornushko", email = "me@okhsunrog.dev"},
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: System :: Hardware :: Universal Serial Bus (USB)",
+    "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10", 
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+keywords = ["usb", "power-meter", "km003c", "parsing", "hardware"]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/okhsunrog/km003c-rs"
+Repository = "https://github.com/okhsunrog/km003c-rs"
+Issues = "https://github.com/okhsunrog/km003c-rs/issues"
+
+[tool.maturin]
+python-source = "python"
+module-name = "km003c.km003c_lib"
+manifest-path = "km003c-lib/Cargo.toml"
+
+[tool.uv]
+dev-dependencies = [
+    "maturin>=1.9.4",
+    "pytest>=7.0.0",
+]
