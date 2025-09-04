@@ -1,5 +1,7 @@
-# POWER-Z KM003C
-SUBSYSTEM=="usb", ATTR{idVendor}=="5fc9", ATTR{idProduct}=="0063", MODE="0666", GROUP="plugdev", TAG+="uaccess"
+# udev rules for POWER-Z KM003C USB-C power analyzer
+# This allows non-root access to the device
+# Install with: sudo cp 99-powerz-km003c.rules /etc/udev/rules.d/
+# Then run: sudo udevadm control --reload-rules && sudo udevadm trigger
 
-
-
+SUBSYSTEM=="usb", ATTRS{idVendor}=="5fc9", ATTRS{idProduct}=="0063", MODE="0666", GROUP="plugdev"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="5fc9", ATTRS{idProduct}=="0063", MODE="0666", GROUP="plugdev"

@@ -1,88 +1,61 @@
-# POWER-Z KM003C Rust Library & Applications
+# km003c-rs
 
-This repository contains initial attempts at reverse-engineering the **ChargerLAB POWER-Z KM003C** USB-C power analyzer protocol and creating open-source cross-platform applications for it.
+Rust library and applications for the **ChargerLAB POWER-Z KM003C** USB-C power analyzer.
 
 ## Overview
 
-The POWER-Z KM003C is a USB-C power analyzer that can measure voltage, current, power, and capture USB Power Delivery (PD) messages. This project provides:
-
-- **Cross-platform Rust library** for communicating with the KM003C device
-- **Command-line tools** for data acquisition and monitoring
-- **GUI application** with real-time plotting capabilities
-- **Protocol analysis tools** for parsing captured data
+`km003c-rs` provides a cross-platform Rust implementation for communicating with the KM003C device, enabling real-time USB-C power analysis and USB Power Delivery message capture.
 
 ## Features
 
 ### 🔌 Device Communication
-- USB HID communication with KM003C device (VID: 0x5FC9, PID: 0x0063)
-- Cross-platform USB access using `nusb` (no libusb dependency)
-- Asynchronous communication using Tokio
+- USB HID communication (VID: 0x5FC9, PID: 0x0063)
+- Cross-platform support using `nusb`
+- Asynchronous communication with Tokio
 - Automatic device discovery and connection management
-- Error handling and retry logic
 
 ### 📊 ADC Data Acquisition
 - Real-time voltage, current, and power measurements
-- Support for multiple sample rates (1, 10, 50, 1000, 10000 SPS)
+- Multiple sample rates (1, 10, 50, 1000, 10000 SPS)
 - Temperature monitoring
 - USB data line voltage measurements (D+, D-)
 - USB CC line voltage measurements (CC1, CC2)
-- Internal voltage monitoring
 
-### ⚡ USB Power Delivery (PD) Support
+### ⚡ USB Power Delivery Support
 - Capture and parse USB PD messages
-- Connection event detection (attach/detach)
-- Periodic status updates
+- Connection event detection
 - Full PD message parsing using the `usbpd` crate
-- Support for source capabilities, data objects, and control messages
+- Support for source capabilities and control messages
 
-### 🛠️ Applications
+## Components
 
-#### Command Line Tools
-- **`adc_simple`**: Simple ADC data reading and display
-- **`pd_monitor`**: Real-time PD message monitoring with various output formats
+### `km003c-lib`
+Core library providing device communication and data parsing.
 
-#### GUI Application
-- **Real-time plotting** of voltage and current over time
-- **Live status display** with connection information
-- **Cross-platform** using egui framework
-- **Configurable data retention** and display options
+### `km003c-cli`
+Command-line tools:
+- `adc_simple` - Basic ADC data reading
+- `pd_monitor` - Real-time PD message monitoring
 
-#### Analysis Tools
-- **PCAP/PCAPNG processing** for offline analysis
-- **SQLite parsing** for reverse-engineering PD message wrappers from proprietary app exports
-- **TShark integration** for packet analysis
-- **Parquet file support** for efficient data storage
-
-
+### `km003c-egui`
+GUI application with real-time plotting and live status display.
 
 ## Quick Start
 
 ### Prerequisites
-
-- Rust 1.89 or newer with Cargo
-- USB access permissions (may require udev rules on Linux)
+- Rust 1.89 or newer
+- USB access permissions (udev rules on Linux)
 - POWER-Z KM003C device
 
 ### Installation
-
 ```bash
-# Clone the repository
 git clone https://github.com/okhsunrog/km003c-rs.git
 cd km003c-rs
-
-# Update Rust to the latest stable version if needed
-rustup update stable
-
-# Build all components
 cargo build --release
 ```
 
 ### Linux USB Permissions
-
-Create a udev rule to allow non-root access to the device:
-
 ```bash
-# Copy the provided udev rule
 sudo cp 99-powerz-km003c.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 sudo udevadm trigger
@@ -90,85 +63,89 @@ sudo udevadm trigger
 
 ### Usage Examples
 
-#### Simple ADC Reading
+#### ADC Reading
 ```bash
-# Read current voltage, current, and power
 cargo run --bin adc_simple
 ```
 
 #### PD Message Monitoring
 ```bash
-# Monitor PD messages at 1Hz
 cargo run --bin pd_monitor --frequency 1.0
-
-# Save output to file with timestamps
-cargo run --bin pd_monitor --frequency 0.5 --output pd_log.txt --timestamp
-
-# Hex-only output for script processing
-cargo run --bin pd_monitor --hex-only
 ```
 
 #### GUI Application
 ```bash
-# Launch the real-time plotting application
 cargo run --bin km003c-egui
 ```
 
-#### SQLite Analysis
-The proprietary Windows application can export PD analysis data to SQLite format. This project includes tools to parse these exports for reverse-engineering PD message wrapper formats:
+## Library Usage
 
-```bash
-# Example SQLite export structure from proprietary app:
-# Tables: pd_chart, pd_table, pd_table_key
-# 
-# pd_chart: Time, VBUS, IBUS, CC1, CC2 (voltage/current readings)
-# pd_table: Time, Vbus, Ibus, Raw (PD messages as hex blobs)
-# pd_table_key: key (metadata)
+```rust
+use km003c_lib::KM003C;
 
-# Parse and analyze exported SQLite files
-cargo run --example sqlite_pd -- path/to/export.sqlite
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut device = KM003C::new().await?;
+    
+    // Read ADC data
+    let adc_data = device.request_adc_data().await?;
+    println!("Voltage: {:.3} V", adc_data.vbus_v);
+    println!("Current: {:.3} A", adc_data.ibus_a);
+    
+    // Read PD data
+    let pd_data = device.request_pd_data().await?;
+    // Process PD messages...
+    
+    Ok(())
+}
 ```
 
-## Protocol Details
+## Protocol Research
 
-This protocol was reverse-engineered using **Wireshark with usbmon** for USB traffic analysis and **Ghidra** to analyze the original proprietary Qt-based Windows application. See [Protocol Description](docs/protocol.md) for detailed technical documentation.
+This implementation is based on reverse engineering research documented at:
+**[km003c-protocol-research](https://github.com/okhsunrog/km003c-protocol-research)**
+
+The research repository contains:
+- Complete protocol documentation
+- PCAPNG captures and analysis
+- Python analysis tools
+- Reverse engineering methodology
 
 ## Development Status
 
-This is an **initial attempt** at reverse-engineering the KM003C protocol. The implementation includes:
+### ✅ Working Features
+- Device communication and data acquisition
+- ADC measurements with all supported sample rates
+- USB PD message capture and parsing
+- Real-time GUI with plotting
+- Command-line monitoring tools
 
-✅ **Working Features:**
-- Basic device communication
-- ADC data acquisition
-- PD message capture
-- Real-time GUI plotting
-- Command-line tools
+### 🔄 In Progress
+- Additional device commands
+- Enhanced error handling
+- Performance optimizations
 
-🔄 **In Progress:**
-- Protocol documentation
-- Additional command support
-- Advanced analysis features
+## Requirements
 
-❓ **Unknown/Unimplemented:**
-- Device configuration commands
-- Advanced measurement modes
-- Firmware update protocol
-- Some proprietary features
-## TODO
-- Handle tshark root warning in examples
-- Investigate packet types 0x10 and 0x11
-
+- **Rust**: 1.89+
+- **Dependencies**: See `Cargo.toml` files
+- **Platforms**: Linux, Windows, macOS
+- **Hardware**: POWER-Z KM003C device
 
 ## Contributing
 
-This is a reverse-engineering project. Contributions are welcome for:
+Contributions are welcome! Please see the research repository for protocol details and reverse engineering findings.
 
-- Protocol analysis and documentation
-- Additional command implementations
-- Bug fixes and improvements
-- New analysis tools
-- Cross-platform compatibility
+## License
 
-## Disclaimer
+MIT License - see LICENSE file for details.
 
-This is an unofficial reverse-engineering effort. Use at your own risk. The author is not affiliated with ChargerLAB. 
+## Related Projects
+
+- **[km003c-protocol-research](https://github.com/okhsunrog/km003c-protocol-research)** - Protocol reverse engineering
+- **[usbpdpy](https://github.com/okhsunrog/usbpdpy)** - Python bindings for USB PD parsing
+- **[usbpd](https://crates.io/crates/usbpd)** - Rust USB PD protocol library
+
+---
+
+**For protocol research and analysis tools, visit: [km003c-protocol-research](https://github.com/okhsunrog/km003c-protocol-research)**

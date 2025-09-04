@@ -1,1 +1,0 @@
-KERNEL=="usbmon*", GROUP="wireshark", MODE="0660"
