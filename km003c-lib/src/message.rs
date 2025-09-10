@@ -7,7 +7,10 @@ use zerocopy::{FromBytes, IntoBytes};
 #[derive(Debug, Clone, PartialEq)]
 pub enum Packet {
     /// Simple ADC data packet containing processed ADC readings
-    SimpleAdcData(AdcDataSimple),
+    SimpleAdcData {
+        adc: AdcDataSimple,
+        ext_payload: Option<Bytes>,
+    },
     /// Command to request simple ADC data
     CmdGetSimpleAdcData,
     /// Raw PD data packet containing unprocessed PD packet bytes
@@ -25,15 +28,30 @@ impl TryFrom<RawPacket> for Packet {
         // Use the new cleaner pattern with tuple matching
         match (raw_packet.packet_type(), raw_packet.get_attribute()) {
             (PacketType::PutData, Some(Attribute::Adc)) => {
-                // Parse ADC data using clean payload data
                 let payload_data = raw_packet.get_payload_data();
-                let adc_data_raw = AdcDataRaw::ref_from_bytes(payload_data.as_ref())
-                    .map_err(|_| KMError::InvalidPacket("Failed to parse ADC data: incorrect size".to_string()))?;
+                let adc_raw_size = std::mem::size_of::<AdcDataRaw>();
 
-                // Convert to user-friendly format
+                if payload_data.len() < adc_raw_size {
+                    return Err(KMError::InvalidPacket(
+                        "ADC payload too small".to_string(),
+                    ));
+                }
+
+                let adc_data_raw = AdcDataRaw::ref_from_bytes(&payload_data[..adc_raw_size])
+                    .unwrap(); // Should not fail due to size check
+
                 let adc_data = AdcDataSimple::from(*adc_data_raw);
 
-                Ok(Packet::SimpleAdcData(adc_data))
+                let ext_payload = if payload_data.len() > adc_raw_size {
+                    Some(payload_data.slice(adc_raw_size..))
+                } else {
+                    None
+                };
+
+                Ok(Packet::SimpleAdcData {
+                    adc: adc_data,
+                    ext_payload,
+                })
             }
             (PacketType::PutData, Some(Attribute::PdPacket)) => {
                 // Parse PD data - just return raw payload bytes
@@ -60,39 +78,36 @@ impl Packet {
     /// Convert a high-level packet to a raw packet with the given transaction ID
     pub fn to_raw_packet(self, id: u8) -> RawPacket {
         match self {
-            Packet::SimpleAdcData(adc_data) => {
-                // Convert AdcDataSimple to AdcDataRaw
-                let adc_data_raw = AdcDataRaw::from(adc_data);
+            Packet::SimpleAdcData { adc, ext_payload } => {
+                let adc_data_raw = AdcDataRaw::from(adc);
+                let adc_bytes = adc_data_raw.as_bytes();
 
-                // Create a buffer to hold the ADC data
-                let buffer = adc_data_raw.as_bytes().to_vec();
+                let mut payload_buffer = adc_bytes.to_vec();
+                if let Some(ext) = &ext_payload {
+                    payload_buffer.extend_from_slice(ext);
+                }
 
-                // Get the attribute value directly
+                let has_extension = ext_payload.is_some();
                 let attribute_value: u16 = Attribute::Adc.into();
 
                 let ext_header = ExtendedHeader::new()
                     .with_attribute(attribute_value)
-                    .with_next(false)
+                    .with_next(has_extension)
                     .with_chunk(0)
-                    .with_size(buffer.len() as u16);
+                    .with_size(adc_bytes.len() as u16); // Per docs, for ADC this is the size of the ADC payload
 
-                // Prepend the extended header to the buffer
-                let mut full_payload = Vec::new();
-                full_payload.extend_from_slice(&ext_header.into_bytes());
-                full_payload.extend_from_slice(&buffer);
-
-                // Use the IntoPrimitive trait to convert the enum to its primitive value
                 let packet_type_value: u8 = PacketType::PutData.into();
 
                 let header = DataHeader::new()
                     .with_packet_type(packet_type_value)
                     .with_extend(true)
                     .with_id(id)
-                    .with_obj_count_words(0); // This might need adjustment
+                    .with_obj_count_words(((4 + payload_buffer.len()) / 4) as u16);
 
-                RawPacket::Data {
+                RawPacket::ExtendedData {
                     header,
-                    payload: Bytes::from(full_payload),
+                    ext: ext_header,
+                    payload: Bytes::from(payload_buffer),
                 }
             }
             Packet::CmdGetSimpleAdcData => RawPacket::Ctrl {
@@ -113,22 +128,18 @@ impl Packet {
                     .with_chunk(0)
                     .with_size(data.len() as u16);
 
-                // Prepend the extended header to the data
-                let mut full_payload = Vec::new();
-                full_payload.extend_from_slice(&ext_header.into_bytes());
-                full_payload.extend_from_slice(&data);
-
                 let packet_type_value: u8 = PacketType::PutData.into();
 
                 let header = DataHeader::new()
                     .with_packet_type(packet_type_value)
                     .with_extend(true)
                     .with_id(id)
-                    .with_obj_count_words(0);
+                    .with_obj_count_words(((4 + data.len()) / 4) as u16);
 
-                RawPacket::Data {
+                RawPacket::ExtendedData {
                     header,
-                    payload: Bytes::from(full_payload),
+                    ext: ext_header,
+                    payload: data,
                 }
             }
             Packet::CmdGetPdData => RawPacket::Ctrl {

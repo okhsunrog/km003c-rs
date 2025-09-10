@@ -132,7 +132,7 @@ impl KM003C {
         self.send(Packet::CmdGetSimpleAdcData).await?;
         let response = self.receive().await?;
         match response {
-            Packet::SimpleAdcData(adc_data) => Ok(adc_data),
+            Packet::SimpleAdcData { adc, .. } => Ok(adc),
             _ => Err(KMError::Protocol("Unexpected response type for ADC data".to_string())),
         }
     }

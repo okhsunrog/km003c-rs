@@ -56,6 +56,9 @@ pub enum PacketType {
     // >= 0x40 is data type
     Head = 64,
     PutData = 65,
+    Unknown68 = 68,
+    Unknown76 = 76,
+    Unknown117 = 117,
 
     #[num_enum(catch_all)]
     Unknown(u8),
@@ -88,68 +91,56 @@ pub enum Attribute {
 #[derive(Debug, Clone, PartialEq)]
 pub enum RawPacket {
     Ctrl { header: CtrlHeader, payload: Bytes },
-    Data { header: DataHeader, payload: Bytes },
+    SimpleData { header: DataHeader, payload: Bytes },
+    ExtendedData { header: DataHeader, ext: ExtendedHeader, payload: Bytes },
 }
 
 impl RawPacket {
     pub fn payload(&self) -> Bytes {
         match self {
             RawPacket::Ctrl { payload, .. } => payload.clone(),
-            RawPacket::Data { payload, .. } => payload.clone(),
+            RawPacket::SimpleData { payload, .. } => payload.clone(),
+            RawPacket::ExtendedData { payload, .. } => payload.clone(),
         }
     }
 
     pub fn is_extended(&self) -> bool {
         match self {
             RawPacket::Ctrl { header, .. } => header.extend(),
-            RawPacket::Data { header, .. } => header.extend(),
+            RawPacket::SimpleData { header, .. } => header.extend(),
+            RawPacket::ExtendedData { header, .. } => header.extend(),
         }
     }
 
     pub fn id(&self) -> u8 {
         match self {
             RawPacket::Ctrl { header, .. } => header.id(),
-            RawPacket::Data { header, .. } => header.id(),
+            RawPacket::SimpleData { header, .. } => header.id(),
+            RawPacket::ExtendedData { header, .. } => header.id(),
         }
     }
 
     pub fn packet_type(&self) -> PacketType {
         match self {
             RawPacket::Ctrl { header, .. } => PacketType::from_primitive(header.packet_type()),
-            RawPacket::Data { header, .. } => PacketType::from_primitive(header.packet_type()),
+            RawPacket::SimpleData { header, .. } => PacketType::from_primitive(header.packet_type()),
+            RawPacket::ExtendedData { header, .. } => PacketType::from_primitive(header.packet_type()),
         }
     }
 
     /// Get the extended header if present, without modifying the packet
     pub fn get_extended_header(&self) -> Option<ExtendedHeader> {
-        // Check if packet has extended header based on packet type
-        // For now, assume only PutData packets have extended headers
-        if self.packet_type() != PacketType::PutData {
-            return None;
+        match self {
+            RawPacket::ExtendedData { ext, .. } => Some(*ext),
+            _ => None,
         }
-
-        let payload = self.payload();
-        if payload.len() < 4 {
-            return None;
-        }
-
-        let ext_header_bytes: [u8; 4] = match payload.as_ref()[..4].try_into() {
-            Ok(bytes) => bytes,
-            Err(_) => return None,
-        };
-
-        Some(ExtendedHeader::from_bytes(ext_header_bytes))
     }
 
     /// Get payload data, skipping extended header if present
     pub fn get_payload_data(&self) -> Bytes {
-        let payload = self.payload();
-
-        if self.get_extended_header().is_some() {
-            // Skip the first 4 bytes (extended header)
-            payload.slice(4..)
-        } else {
-            payload
+        match self {
+            RawPacket::ExtendedData { payload, .. } => payload.clone(),
+            _ => self.payload(),
         }
     }
 
@@ -157,11 +148,8 @@ impl RawPacket {
     pub fn get_attribute(&self) -> Option<Attribute> {
         match self {
             RawPacket::Ctrl { header, .. } => Some(Attribute::from_primitive(header.attribute())),
-            RawPacket::Data { .. } => {
-                // For Data packets, attribute comes from extended header
-                self.get_extended_header()
-                    .map(|ext_header| Attribute::from_primitive(ext_header.attribute()))
-            }
+            RawPacket::SimpleData { .. } => None,
+            RawPacket::ExtendedData { ext, .. } => Some(Attribute::from_primitive(ext.attribute())),
         }
     }
 }
@@ -192,7 +180,20 @@ impl TryFrom<Bytes> for RawPacket {
             Ok(RawPacket::Ctrl { header, payload })
         } else {
             let header = DataHeader::from_bytes(header_bytes);
-            Ok(RawPacket::Data { header, payload })
+            let packet_type = PacketType::from_primitive(header.packet_type());
+            
+            // Only PutData packets have extended headers
+            if packet_type == PacketType::PutData && payload.len() >= 4 {
+                // Parse extended header from first 4 bytes of payload
+                let ext_header_bytes: [u8; 4] = payload.as_ref()[..4].try_into()
+                    .map_err(|_| KMError::InvalidPacket("Failed to extract extended header bytes".to_string()))?;
+                let ext = ExtendedHeader::from_bytes(ext_header_bytes);
+                let actual_payload = payload.slice(4..);
+                
+                Ok(RawPacket::ExtendedData { header, ext, payload: actual_payload })
+            } else {
+                Ok(RawPacket::SimpleData { header, payload })
+            }
         }
     }
 }
@@ -201,7 +202,14 @@ impl From<RawPacket> for Bytes {
     fn from(packet: RawPacket) -> Self {
         let (header_bytes, payload) = match packet {
             RawPacket::Ctrl { header, payload } => (header.into_bytes(), payload),
-            RawPacket::Data { header, payload } => (header.into_bytes(), payload),
+            RawPacket::SimpleData { header, payload } => (header.into_bytes(), payload),
+            RawPacket::ExtendedData { header, ext, payload } => {
+                // For ExtendedData, we need to reconstruct the full payload with extended header
+                let mut full_payload = Vec::with_capacity(4 + payload.len());
+                full_payload.extend_from_slice(&ext.into_bytes());
+                full_payload.extend_from_slice(payload.as_ref());
+                (header.into_bytes(), Bytes::from(full_payload))
+            }
         };
 
         // Create the full message by combining header and payload
