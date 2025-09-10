@@ -60,7 +60,7 @@ impl PyAdcData {
             self.vbus_v, self.ibus_a, self.power_w, self.temp_c
         )
     }
-    
+
     fn __str__(&self) -> String {
         self.__repr__()
     }
@@ -173,7 +173,7 @@ impl PyPacket {
             _ => format!("Packet::{}", self.packet_type),
         }
     }
-    
+
     fn __str__(&self) -> String {
         self.__repr__()
     }
@@ -184,7 +184,7 @@ impl PySampleRate {
     fn __repr__(&self) -> String {
         format!("SampleRate({})", self.name)
     }
-    
+
     fn __str__(&self) -> String {
         self.name.clone()
     }
@@ -200,7 +200,9 @@ pub struct PyRawPacket {
     #[pyo3(get)]
     pub id: u8,
     #[pyo3(get)]
-    pub is_extended: bool,
+    pub has_extended_header: bool,
+    #[pyo3(get)]
+    pub reserved_flag: bool,
     #[pyo3(get)]
     pub attribute: Option<String>,
     #[pyo3(get)]
@@ -215,12 +217,18 @@ impl From<RawPacket> for PyRawPacket {
     fn from(raw_packet: RawPacket) -> Self {
         let raw_bytes: Vec<u8> = Bytes::from(raw_packet.clone()).to_vec();
         let payload = raw_packet.payload().to_vec();
-        
+        let (has_extended_header, reserved_flag) = match &raw_packet {
+            RawPacket::Ctrl { header, .. } => (false, header.reserved_flag()),
+            RawPacket::SimpleData { header, .. } => (false, header.reserved_flag()),
+            RawPacket::ExtendedData { header, .. } => (true, header.reserved_flag()),
+        };
+
         PyRawPacket {
             packet_type: format!("{:?}", raw_packet.packet_type()),
             packet_type_id: raw_packet.packet_type().into(),
             id: raw_packet.id(),
-            is_extended: raw_packet.is_extended(),
+            has_extended_header,
+            reserved_flag,
             attribute: raw_packet.get_attribute().map(|attr| format!("{:?}", attr)),
             attribute_id: raw_packet.get_attribute().map(|attr| attr.into()),
             payload,
@@ -233,11 +241,15 @@ impl From<RawPacket> for PyRawPacket {
 impl PyRawPacket {
     fn __repr__(&self) -> String {
         format!(
-            "RawPacket(type={}, id={}, extended={}, {} bytes)",
-            self.packet_type, self.id, self.is_extended, self.raw_bytes.len()
+            "RawPacket(type={}, id={}, has_ext_hdr={}, reserved_flag={}, {} bytes)",
+            self.packet_type,
+            self.id,
+            self.has_extended_header,
+            self.reserved_flag,
+            self.raw_bytes.len()
         )
     }
-    
+
     fn __str__(&self) -> String {
         self.__repr__()
     }
@@ -246,13 +258,15 @@ impl PyRawPacket {
 #[pyfunction]
 pub fn parse_raw_adc_data(data: &[u8]) -> PyResult<PyAdcData> {
     use zerocopy::FromBytes;
-    
-    let adc_raw = AdcDataRaw::ref_from_bytes(data)
-        .map_err(|_| PyErr::new::<pyo3::exceptions::PyValueError, _>(
-            format!("Invalid ADC data size: expected {}, got {}", 
-                    std::mem::size_of::<AdcDataRaw>(), data.len())
-        ))?;
-    
+
+    let adc_raw = AdcDataRaw::ref_from_bytes(data).map_err(|_| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Invalid ADC data size: expected {}, got {}",
+            std::mem::size_of::<AdcDataRaw>(),
+            data.len()
+        ))
+    })?;
+
     let adc_simple = AdcDataSimple::from(*adc_raw);
     Ok(PyAdcData::from(adc_simple))
 }
@@ -260,21 +274,21 @@ pub fn parse_raw_adc_data(data: &[u8]) -> PyResult<PyAdcData> {
 #[pyfunction]
 pub fn parse_packet(data: &[u8]) -> PyResult<PyPacket> {
     let bytes = Bytes::from(data.to_vec());
-    let raw_packet = RawPacket::try_from(bytes)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))?;
-    
-    let packet = Packet::try_from(raw_packet)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))?;
-    
+    let raw_packet =
+        RawPacket::try_from(bytes).map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))?;
+
+    let packet =
+        Packet::try_from(raw_packet).map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))?;
+
     Ok(PyPacket::from(packet))
 }
 
 #[pyfunction]
 pub fn parse_raw_packet(data: &[u8]) -> PyResult<PyRawPacket> {
     let bytes = Bytes::from(data.to_vec());
-    let raw_packet = RawPacket::try_from(bytes)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))?;
-    
+    let raw_packet =
+        RawPacket::try_from(bytes).map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))?;
+
     Ok(PyRawPacket::from(raw_packet))
 }
 
@@ -299,11 +313,10 @@ fn km003c_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_packet, m)?)?;
     m.add_function(wrap_pyfunction!(parse_raw_packet, m)?)?;
     m.add_function(wrap_pyfunction!(get_sample_rates, m)?)?;
-    
+
     // Add constants
     m.add("VID", crate::device::VID)?;
     m.add("PID", crate::device::PID)?;
-    
-    
+
     Ok(())
 }

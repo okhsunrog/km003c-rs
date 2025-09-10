@@ -22,7 +22,7 @@ fn test_get_extended_header() {
     let ctrl_packet = RawPacket::Ctrl {
         header: CtrlHeader::new()
             .with_packet_type(12)
-            .with_extend(false)
+            .with_reserved_flag(false)
             .with_id(0)
             .with_attribute(1),
         payload: Bytes::new(),
@@ -33,11 +33,11 @@ fn test_get_extended_header() {
         "Ctrl packet should not have extended header"
     );
 
-    // Test with Data packet that's not PutData (should not have extended header)
-    let data_packet = RawPacket::Data {
+    // Test with SimpleData packet that's not PutData (should not have extended header)
+    let data_packet = RawPacket::SimpleData {
         header: DataHeader::new()
             .with_packet_type(64) // Head, not PutData
-            .with_extend(false)
+            .with_reserved_flag(false)
             .with_id(0)
             .with_obj_count_words(0),
         payload: Bytes::new(),
@@ -58,11 +58,12 @@ fn test_get_payload_data() {
     let payload_data = packet.get_payload_data();
     let full_payload = packet.payload();
 
-    // Payload data should be 4 bytes shorter (skipping extended header)
+    // For ExtendedData, payload() already excludes the 4-byte extended header,
+    // so get_payload_data() should equal payload().
     assert_eq!(
         payload_data.len(),
-        full_payload.len() - 4,
-        "Payload data should skip 4-byte extended header"
+        full_payload.len(),
+        "ExtendedData payload should already exclude the 4-byte extended header"
     );
 
     // Extended header tells us the actual data size should be 44 bytes
@@ -77,7 +78,7 @@ fn test_get_payload_data() {
     let ctrl_packet = RawPacket::Ctrl {
         header: CtrlHeader::new()
             .with_packet_type(12)
-            .with_extend(false)
+            .with_reserved_flag(false)
             .with_id(0)
             .with_attribute(1),
         payload: Bytes::from_static(&[0x01, 0x02, 0x03]),
@@ -105,7 +106,7 @@ fn test_get_attribute() {
     let ctrl_packet = RawPacket::Ctrl {
         header: CtrlHeader::new()
             .with_packet_type(12)
-            .with_extend(false)
+            .with_reserved_flag(false)
             .with_id(0)
             .with_attribute(1), // ADC attribute
         payload: Bytes::new(),
@@ -135,10 +136,10 @@ fn test_get_attribute() {
     );
 
     // Test Data packet without extended header
-    let data_no_ext = RawPacket::Data {
+    let data_no_ext = RawPacket::SimpleData {
         header: DataHeader::new()
             .with_packet_type(64) // Head, not PutData
-            .with_extend(false)
+            .with_reserved_flag(false)
             .with_id(0)
             .with_obj_count_words(0),
         payload: Bytes::new(),
@@ -159,7 +160,7 @@ fn test_tuple_matching_pattern() {
     let adc_request = RawPacket::Ctrl {
         header: CtrlHeader::new()
             .with_packet_type(12) // GetData
-            .with_extend(false)
+            .with_reserved_flag(false)
             .with_id(0)
             .with_attribute(1), // ADC
         payload: Bytes::new(),
@@ -184,10 +185,10 @@ fn test_tuple_matching_pattern() {
     }
 
     // Test generic packet
-    let generic_packet = RawPacket::Data {
+    let generic_packet = RawPacket::SimpleData {
         header: DataHeader::new()
             .with_packet_type(64) // Head
-            .with_extend(false)
+            .with_reserved_flag(false)
             .with_id(0)
             .with_obj_count_words(0),
         payload: Bytes::new(),

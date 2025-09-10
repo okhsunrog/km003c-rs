@@ -32,13 +32,10 @@ impl TryFrom<RawPacket> for Packet {
                 let adc_raw_size = std::mem::size_of::<AdcDataRaw>();
 
                 if payload_data.len() < adc_raw_size {
-                    return Err(KMError::InvalidPacket(
-                        "ADC payload too small".to_string(),
-                    ));
+                    return Err(KMError::InvalidPacket("ADC payload too small".to_string()));
                 }
 
-                let adc_data_raw = AdcDataRaw::ref_from_bytes(&payload_data[..adc_raw_size])
-                    .unwrap(); // Should not fail due to size check
+                let adc_data_raw = AdcDataRaw::ref_from_bytes(&payload_data[..adc_raw_size]).unwrap(); // Should not fail due to size check
 
                 let adc_data = AdcDataSimple::from(*adc_data_raw);
 
@@ -100,7 +97,7 @@ impl Packet {
 
                 let header = DataHeader::new()
                     .with_packet_type(packet_type_value)
-                    .with_extend(true)
+                    .with_reserved_flag(true)
                     .with_id(id)
                     .with_obj_count_words(((4 + payload_buffer.len()) / 4) as u16);
 
@@ -113,7 +110,7 @@ impl Packet {
             Packet::CmdGetSimpleAdcData => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::GetData.into())
-                    .with_extend(false)
+                    .with_reserved_flag(false)
                     .with_id(id)
                     .with_attribute(Attribute::Adc.into()),
                 payload: Bytes::new(),
@@ -132,7 +129,7 @@ impl Packet {
 
                 let header = DataHeader::new()
                     .with_packet_type(packet_type_value)
-                    .with_extend(true)
+                    .with_reserved_flag(true)
                     .with_id(id)
                     .with_obj_count_words(((4 + data.len()) / 4) as u16);
 
@@ -145,7 +142,7 @@ impl Packet {
             Packet::CmdGetPdData => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::GetData.into())
-                    .with_extend(false)
+                    .with_reserved_flag(false)
                     .with_id(id)
                     .with_attribute(Attribute::PdPacket.into()),
                 payload: Bytes::new(),

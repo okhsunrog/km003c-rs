@@ -13,6 +13,8 @@ pub use km003c_lib::error::KMError;
 #[allow(unused_imports)]
 pub use km003c_lib::message::Packet;
 #[allow(unused_imports)]
+pub use km003c_lib::packet::ExtendedHeader;
+#[allow(unused_imports)]
 pub use km003c_lib::packet::{Attribute, CtrlHeader, DataHeader, PacketType, RawPacket};
 #[allow(unused_imports)]
 pub use num_enum::FromPrimitive;

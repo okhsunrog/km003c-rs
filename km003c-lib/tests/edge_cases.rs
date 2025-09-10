@@ -46,7 +46,8 @@ fn test_minimum_valid_packet() {
             assert_eq!(header.id(), 1);
             assert_eq!(payload.len(), 0);
         }
-        Ok(RawPacket::Data { .. }) => panic!("Expected Ctrl packet"),
+        Ok(RawPacket::SimpleData { .. }) => panic!("Expected Ctrl packet"),
+        Ok(RawPacket::ExtendedData { .. }) => panic!("Expected Ctrl packet"),
         Err(e) => panic!("Expected success, got error: {:?}", e),
     }
 }
@@ -55,11 +56,11 @@ fn test_minimum_valid_packet() {
 fn test_extended_header_edge_cases() {
     // Test get_extended_header with various edge cases
 
-    // Test with Data packet that's not PutData (should return None)
-    let data_packet = RawPacket::Data {
+    // Test with SimpleData packet that's not PutData (should return None)
+    let data_packet = RawPacket::SimpleData {
         header: DataHeader::new()
             .with_packet_type(64) // Head, not PutData
-            .with_extend(false)
+            .with_reserved_flag(false)
             .with_id(0)
             .with_obj_count_words(0),
         payload: Bytes::from_static(&[0x01, 0x02, 0x03, 0x04]),
@@ -67,10 +68,10 @@ fn test_extended_header_edge_cases() {
     assert!(data_packet.get_extended_header().is_none());
 
     // Test with PutData packet but payload too short
-    let short_payload_packet = RawPacket::Data {
+    let short_payload_packet = RawPacket::SimpleData {
         header: DataHeader::new()
             .with_packet_type(65) // PutData
-            .with_extend(false)
+            .with_reserved_flag(false)
             .with_id(0)
             .with_obj_count_words(0),
         payload: Bytes::from_static(&[0x01, 0x02]), // Only 2 bytes
@@ -78,15 +79,16 @@ fn test_extended_header_edge_cases() {
     assert!(short_payload_packet.get_extended_header().is_none());
 
     // Test with PutData packet and sufficient payload
-    let valid_packet = RawPacket::Data {
+    let valid_packet = RawPacket::SimpleData {
         header: DataHeader::new()
             .with_packet_type(65) // PutData
-            .with_extend(false)
+            .with_reserved_flag(false)
             .with_id(0)
             .with_obj_count_words(0),
         payload: Bytes::from_static(&[0x01, 0x00, 0x00, 0x2C]), // Valid extended header
     };
-    assert!(valid_packet.get_extended_header().is_some());
+    // Extended header is exposed only for ExtendedData variant (produced by parsing)
+    assert!(valid_packet.get_extended_header().is_none());
 }
 
 #[test]
@@ -95,7 +97,7 @@ fn test_get_payload_data_edge_cases() {
     let empty_payload_packet = RawPacket::Ctrl {
         header: CtrlHeader::new()
             .with_packet_type(12)
-            .with_extend(false)
+            .with_reserved_flag(false)
             .with_id(0)
             .with_attribute(1),
         payload: Bytes::new(),
@@ -105,10 +107,10 @@ fn test_get_payload_data_edge_cases() {
     assert_eq!(payload_data.len(), 0);
 
     // Test get_payload_data with PutData packet but short payload
-    let short_putdata_packet = RawPacket::Data {
+    let short_putdata_packet = RawPacket::SimpleData {
         header: DataHeader::new()
             .with_packet_type(65) // PutData
-            .with_extend(false)
+            .with_reserved_flag(false)
             .with_id(0)
             .with_obj_count_words(0),
         payload: Bytes::from_static(&[0x01, 0x02]), // Too short for extended header

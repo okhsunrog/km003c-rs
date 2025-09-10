@@ -14,7 +14,7 @@ fn test_parse_packet_02010000() {
         RawPacket::Ctrl {
             header: CtrlHeader::new()
                 .with_packet_type(2)
-                .with_extend(false)
+                .with_reserved_flag(false)
                 .with_id(1)
                 .with_attribute(0),
             payload: Bytes::new(),
@@ -30,10 +30,10 @@ fn test_parse_packet_40010001() {
 
     assert_eq!(
         RawPacket::try_from(bytes).expect("Failed to parse packet"),
-        RawPacket::Data {
+        RawPacket::SimpleData {
             header: DataHeader::new()
                 .with_packet_type(64)
-                .with_extend(false)
+                .with_reserved_flag(false)
                 .with_id(1)
                 .with_obj_count_words(4),
             payload: Bytes::from_static(&[0xAA, 0xBB, 0xCC, 0xDD]),

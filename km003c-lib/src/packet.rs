@@ -7,7 +7,11 @@ use num_enum::{FromPrimitive, IntoPrimitive};
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CtrlHeader {
     pub packet_type: B7,
-    pub extend: bool,
+    /// Reserved flag bit in the first byte. Vendor specific/unknown.
+    /// IMPORTANT: This is NOT an indicator that an "extended header" is present.
+    /// As per protocol research, PutData (0x41) packets always include a 4-byte
+    /// extended header regardless of this bit.
+    pub reserved_flag: bool,
     pub id: u8,
     #[skip]
     unused: bool,
@@ -18,7 +22,10 @@ pub struct CtrlHeader {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DataHeader {
     pub packet_type: B7,
-    pub extend: bool,
+    /// Reserved flag bit in the first byte. Vendor specific/unknown.
+    /// IMPORTANT: This is NOT an indicator that an "extended header" is present.
+    /// See CtrlHeader::reserved_flag docs.
+    pub reserved_flag: bool,
     pub id: u8,
     #[skip]
     unused: B6,
@@ -90,9 +97,19 @@ pub enum Attribute {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RawPacket {
-    Ctrl { header: CtrlHeader, payload: Bytes },
-    SimpleData { header: DataHeader, payload: Bytes },
-    ExtendedData { header: DataHeader, ext: ExtendedHeader, payload: Bytes },
+    Ctrl {
+        header: CtrlHeader,
+        payload: Bytes,
+    },
+    SimpleData {
+        header: DataHeader,
+        payload: Bytes,
+    },
+    ExtendedData {
+        header: DataHeader,
+        ext: ExtendedHeader,
+        payload: Bytes,
+    },
 }
 
 impl RawPacket {
@@ -101,14 +118,6 @@ impl RawPacket {
             RawPacket::Ctrl { payload, .. } => payload.clone(),
             RawPacket::SimpleData { payload, .. } => payload.clone(),
             RawPacket::ExtendedData { payload, .. } => payload.clone(),
-        }
-    }
-
-    pub fn is_extended(&self) -> bool {
-        match self {
-            RawPacket::Ctrl { header, .. } => header.extend(),
-            RawPacket::SimpleData { header, .. } => header.extend(),
-            RawPacket::ExtendedData { header, .. } => header.extend(),
         }
     }
 
@@ -163,9 +172,9 @@ impl TryFrom<Bytes> for RawPacket {
             return Err(KMError::InvalidPacket("Packet too short for header".to_string()));
         }
 
-        // the first byte contains packet type (7 bits) + extend bit
+        // the first byte contains packet type (7 bits) + header flag bit
         let first_byte = bytes[0]; // Safe now that we know len >= 4
-        // Extract only the packet type (lower 7 bits), ignoring the extend bit
+        // Extract only the packet type (lower 7 bits), ignoring the header flag bit
         let package_type_byte = first_byte & 0x7F;
         let is_ctrl_packet = PacketType::from_primitive(package_type_byte).is_ctrl_type();
 
@@ -181,16 +190,21 @@ impl TryFrom<Bytes> for RawPacket {
         } else {
             let header = DataHeader::from_bytes(header_bytes);
             let packet_type = PacketType::from_primitive(header.packet_type());
-            
+
             // Only PutData packets have extended headers
             if packet_type == PacketType::PutData && payload.len() >= 4 {
                 // Parse extended header from first 4 bytes of payload
-                let ext_header_bytes: [u8; 4] = payload.as_ref()[..4].try_into()
+                let ext_header_bytes: [u8; 4] = payload.as_ref()[..4]
+                    .try_into()
                     .map_err(|_| KMError::InvalidPacket("Failed to extract extended header bytes".to_string()))?;
                 let ext = ExtendedHeader::from_bytes(ext_header_bytes);
                 let actual_payload = payload.slice(4..);
-                
-                Ok(RawPacket::ExtendedData { header, ext, payload: actual_payload })
+
+                Ok(RawPacket::ExtendedData {
+                    header,
+                    ext,
+                    payload: actual_payload,
+                })
             } else {
                 Ok(RawPacket::SimpleData { header, payload })
             }

@@ -71,10 +71,17 @@ impl KM003C {
 
     /// Send a raw packet to the device
     async fn send_raw_packet(&mut self, packet: RawPacket) -> Result<(), KMError> {
+        let (reserved_flag, has_ext_hdr) = match &packet {
+            RawPacket::Ctrl { header, .. } => (header.reserved_flag(), false),
+            RawPacket::SimpleData { header, .. } => (header.reserved_flag(), false),
+            RawPacket::ExtendedData { header, .. } => (header.reserved_flag(), true),
+        };
+
         debug!(
-            "Sending packet: type={:?}, extend={}, id={}, payload_len={}",
+            "Sending packet: type={:?}, reserved_flag={}, has_ext_hdr={}, id={}, payload_len={}",
             packet.packet_type(),
-            packet.is_extended(),
+            reserved_flag,
+            has_ext_hdr,
             packet.id(),
             packet.payload().len()
         );
@@ -116,10 +123,17 @@ impl KM003C {
         let bytes = Bytes::copy_from_slice(raw_bytes);
         let raw_packet = RawPacket::try_from(bytes)?;
 
+        let (reserved_flag, has_ext_hdr) = match &raw_packet {
+            RawPacket::Ctrl { header, .. } => (header.reserved_flag(), false),
+            RawPacket::SimpleData { header, .. } => (header.reserved_flag(), false),
+            RawPacket::ExtendedData { header, .. } => (header.reserved_flag(), true),
+        };
+
         debug!(
-            "Parsed packet: type={:?}, extend={}, id={}, payload_len={}",
+            "Parsed packet: type={:?}, reserved_flag={}, has_ext_hdr={}, id={}, payload_len={}",
             raw_packet.packet_type(),
-            raw_packet.is_extended(),
+            reserved_flag,
+            has_ext_hdr,
             raw_packet.id(),
             raw_packet.payload().len()
         );
