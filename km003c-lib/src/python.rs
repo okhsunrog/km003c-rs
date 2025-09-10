@@ -85,40 +85,47 @@ pub struct PyPacket {
     #[pyo3(get)]
     pub pd_data: Option<Vec<u8>>,
     #[pyo3(get)]
+    pub pd_extension_data: Option<Vec<u8>>,
+    #[pyo3(get)]
     pub raw_payload: Option<Vec<u8>>,
 }
 
 impl From<Packet> for PyPacket {
     fn from(packet: Packet) -> Self {
         match packet {
-            Packet::SimpleAdcData(adc_data) => PyPacket {
+            Packet::SimpleAdcData { adc, ext_payload } => PyPacket {
                 packet_type: "SimpleAdcData".to_string(),
-                adc_data: Some(PyAdcData::from(adc_data)),
+                adc_data: Some(PyAdcData::from(adc)),
                 pd_data: None,
+                pd_extension_data: ext_payload.map(|b| b.to_vec()),
                 raw_payload: None,
             },
             Packet::CmdGetSimpleAdcData => PyPacket {
                 packet_type: "CmdGetSimpleAdcData".to_string(),
                 adc_data: None,
                 pd_data: None,
+                pd_extension_data: None,
                 raw_payload: None,
             },
             Packet::PdRawData(bytes) => PyPacket {
                 packet_type: "PdRawData".to_string(),
                 adc_data: None,
                 pd_data: Some(bytes.to_vec()),
+                pd_extension_data: None,
                 raw_payload: None,
             },
             Packet::CmdGetPdData => PyPacket {
                 packet_type: "CmdGetPdData".to_string(),
                 adc_data: None,
                 pd_data: None,
+                pd_extension_data: None,
                 raw_payload: None,
             },
             Packet::Generic(raw_packet) => PyPacket {
                 packet_type: "Generic".to_string(),
                 adc_data: None,
                 pd_data: None,
+                pd_extension_data: None,
                 raw_payload: Some(raw_packet.payload().to_vec()),
             },
         }
@@ -139,11 +146,15 @@ impl PyPacket {
     fn __repr__(&self) -> String {
         match self.packet_type.as_str() {
             "SimpleAdcData" => {
-                if let Some(ref adc) = self.adc_data {
+                let mut repr = if let Some(ref adc) = self.adc_data {
                     format!("Packet::SimpleAdcData({})", adc.__repr__())
                 } else {
                     "Packet::SimpleAdcData(None)".to_string()
+                };
+                if let Some(ref ext) = self.pd_extension_data {
+                    repr.push_str(&format!(" with {} ext bytes", ext.len()));
                 }
+                repr
             }
             "PdRawData" => {
                 if let Some(ref data) = self.pd_data {
@@ -179,6 +190,59 @@ impl PySampleRate {
     }
 }
 
+#[pyclass(name = "RawPacket")]
+#[derive(Clone)]
+pub struct PyRawPacket {
+    #[pyo3(get)]
+    pub packet_type: String,
+    #[pyo3(get)]
+    pub packet_type_id: u8,
+    #[pyo3(get)]
+    pub id: u8,
+    #[pyo3(get)]
+    pub is_extended: bool,
+    #[pyo3(get)]
+    pub attribute: Option<String>,
+    #[pyo3(get)]
+    pub attribute_id: Option<u16>,
+    #[pyo3(get)]
+    pub payload: Vec<u8>,
+    #[pyo3(get)]
+    pub raw_bytes: Vec<u8>,
+}
+
+impl From<RawPacket> for PyRawPacket {
+    fn from(raw_packet: RawPacket) -> Self {
+        let raw_bytes: Vec<u8> = Bytes::from(raw_packet.clone()).to_vec();
+        let payload = raw_packet.payload().to_vec();
+        
+        PyRawPacket {
+            packet_type: format!("{:?}", raw_packet.packet_type()),
+            packet_type_id: raw_packet.packet_type().into(),
+            id: raw_packet.id(),
+            is_extended: raw_packet.is_extended(),
+            attribute: raw_packet.get_attribute().map(|attr| format!("{:?}", attr)),
+            attribute_id: raw_packet.get_attribute().map(|attr| attr.into()),
+            payload,
+            raw_bytes,
+        }
+    }
+}
+
+#[pymethods]
+impl PyRawPacket {
+    fn __repr__(&self) -> String {
+        format!(
+            "RawPacket(type={}, id={}, extended={}, {} bytes)",
+            self.packet_type, self.id, self.is_extended, self.raw_bytes.len()
+        )
+    }
+    
+    fn __str__(&self) -> String {
+        self.__repr__()
+    }
+}
+
 #[pyfunction]
 pub fn parse_raw_adc_data(data: &[u8]) -> PyResult<PyAdcData> {
     use zerocopy::FromBytes;
@@ -206,6 +270,15 @@ pub fn parse_packet(data: &[u8]) -> PyResult<PyPacket> {
 }
 
 #[pyfunction]
+pub fn parse_raw_packet(data: &[u8]) -> PyResult<PyRawPacket> {
+    let bytes = Bytes::from(data.to_vec());
+    let raw_packet = RawPacket::try_from(bytes)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))?;
+    
+    Ok(PyRawPacket::from(raw_packet))
+}
+
+#[pyfunction]
 pub fn get_sample_rates() -> Vec<PySampleRate> {
     vec![
         PySampleRate::from(SampleRate::Sps1),
@@ -221,8 +294,10 @@ fn km003c_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyAdcData>()?;
     m.add_class::<PySampleRate>()?;
     m.add_class::<PyPacket>()?;
+    m.add_class::<PyRawPacket>()?;
     m.add_function(wrap_pyfunction!(parse_raw_adc_data, m)?)?;
     m.add_function(wrap_pyfunction!(parse_packet, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_raw_packet, m)?)?;
     m.add_function(wrap_pyfunction!(get_sample_rates, m)?)?;
     
     // Add constants
