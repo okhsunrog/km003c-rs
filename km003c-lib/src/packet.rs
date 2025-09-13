@@ -41,6 +41,11 @@ pub struct ExtendedHeader {
     pub size: B10,
 }
 
+/// KM003C protocol packet types.
+///
+/// Values < 0x40 are control packet types, >= 0x40 are data packet types.
+/// Unknown types have been discovered through protocol analysis but their
+/// purpose has not yet been reverse engineered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, FromPrimitive)]
 #[repr(u8)]
 pub enum PacketType {
@@ -60,9 +65,15 @@ pub enum PacketType {
     GetData = 0x0C,
     GetFile = 0x0D,
 
+    // Unknown control types discovered in protocol analysis
+    Unknown26 = 26,
+    Unknown44 = 44,
+    Unknown58 = 58,
+
     // >= 0x40 is data type
     Head = 64,
     PutData = 65,
+    // Unknown data types discovered in protocol analysis
     Unknown68 = 68,
     Unknown76 = 76,
     Unknown117 = 117,
@@ -78,7 +89,11 @@ impl PacketType {
     }
 }
 
-/// Attribute values used in command headers.
+/// Attribute values used in command headers and extended headers.
+///
+/// These values specify the type of data or command being sent.
+/// Unknown attributes have been discovered through protocol analysis
+/// but their purpose has not yet been reverse engineered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, FromPrimitive)]
 #[repr(u16)]
 pub enum Attribute {
@@ -90,6 +105,13 @@ pub enum Attribute {
     PdPacket = 0x10,
     PdStatus = 0x20,
     QcPacket = 0x40,
+
+    // Unknown attributes discovered in protocol analysis
+    // TODO: Reverse engineer the purpose of these attributes
+    Unknown512 = 512,     // 0x200 - found with PutData packets
+    Unknown1609 = 1609,   // 0x649 - found with Unknown26 packets
+    Unknown11046 = 11046, // 0x2B26 - found with Unknown44 packets
+    Unknown26817 = 26817, // 0x68C1 - found with Unknown58 packets
 
     #[num_enum(catch_all)]
     Unknown(u16),
