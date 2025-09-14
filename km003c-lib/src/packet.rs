@@ -228,6 +228,12 @@ impl TryFrom<Bytes> for RawPacket {
                     payload: actual_payload,
                 })
             } else {
+                // TODO(okhsunrog): Spec indicates all PutData (0x41) packets
+                //                   must carry a 4-byte extended header. We currently
+                //                   fall back to SimpleData when payload < 4 for
+                //                   robustness against malformed frames. Consider
+                //                   returning an error in this branch to enforce
+                //                   the spec strictly.
                 Ok(RawPacket::SimpleData { header, payload })
             }
         }

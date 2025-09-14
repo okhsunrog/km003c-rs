@@ -40,17 +40,18 @@ pub struct AdcDataRaw {
     pub ibus_avg_ua: I32,      // Microamps (µA)
     pub vbus_ori_avg_raw: I32, // Uncalibrated
     pub ibus_ori_avg_raw: I32, // Uncalibrated
-    pub temp_raw: I16,         // Celsius * 100
+    // Temperature register, LSB = 1/128 °C (7.8125 m°C)
+    pub temp_raw: I16,
     pub vcc1_tenth_mv: U16,    // 0.1 millivolts
-    pub vcc2_raw: U16,         // 0.1 millivolts
-    pub vdp_mv: U16,           // 0.1 millivolts
-    pub vdm_mv: U16,           // 0.1 millivolts
-    pub internal_vdd_raw: U16, // Internal VDD
+    pub vcc2_raw: U16,         // 0.1 millivolts (instantaneous)
+    pub vdp_mv: U16,           // 0.1 millivolts (instantaneous)
+    pub vdm_mv: U16,           // 0.1 millivolts (instantaneous)
+    pub internal_vdd_raw: U16, // Internal VDD (0.1 millivolts)
     pub rate_raw: u8,          // Sample rate index
-    pub reserved: u8,          // Reserved/padding
-    pub vcc2_avg_raw: U16,     // 0.1 millivolts
-    pub vdp_avg_mv: U16,       // 0.1 millivolts
-    pub vdm_avg_mv: U16,       // 0.1 millivolts
+    pub reserved: u8,          // Vendor flags (observed 128)
+    pub vcc2_avg_raw: U16,     // 1 millivolt (averaged)
+    pub vdp_avg_mv: U16,       // 1 millivolt (averaged)
+    pub vdm_avg_mv: U16,       // 1 millivolt (averaged)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -102,21 +103,21 @@ impl From<AdcDataRaw> for AdcDataSimple {
         let ibus_avg_a = raw.ibus_avg_ua.get() as f64 / 1_000_000.0;
 
         // Convert temperature using INA228/9 formula
-        // LSB = 7.8125 m°C = 1000/128
-        // Formula: ((high_byte*2000 + low_byte*1000/128)/1000)
-        let temp_bytes = raw.temp_raw.get().to_le_bytes();
-        let temp_c = ((temp_bytes[1] as i32 * 2000 + temp_bytes[0] as i32 * 1000 / 128) / 1000) as f64;
+        // LSB = 1/128 °C → temperature in °C = raw / 128.0
+        let temp_c = raw.temp_raw.get() as f64 / 128.0;
 
         // Convert from 0.1mV to V (divide by 10,000)
         let vdp_v = raw.vdp_mv.get() as f64 / 10_000.0;
         let vdm_v = raw.vdm_mv.get() as f64 / 10_000.0;
-        let vdp_avg_v = raw.vdp_avg_mv.get() as f64 / 10_000.0;
-        let vdm_avg_v = raw.vdm_avg_mv.get() as f64 / 10_000.0;
+        // Averaged D+/D- are in 1 mV units
+        let vdp_avg_v = raw.vdp_avg_mv.get() as f64 / 1_000.0;
+        let vdm_avg_v = raw.vdm_avg_mv.get() as f64 / 1_000.0;
 
         // CC lines also use the 0.1mV unit
         let cc1_v = raw.vcc1_tenth_mv.get() as f64 / 10_000.0;
         let cc2_v = raw.vcc2_raw.get() as f64 / 10_000.0;
-        let cc2_avg_v = raw.vcc2_avg_raw.get() as f64 / 10_000.0;
+        // Averaged CC2 is in 1 mV units
+        let cc2_avg_v = raw.vcc2_avg_raw.get() as f64 / 1_000.0;
 
         // Internal VDD also uses 0.1mV
         let internal_vdd_v = raw.internal_vdd_raw.get() as f64 / 10_000.0;
@@ -153,7 +154,8 @@ impl From<AdcDataSimple> for AdcDataRaw {
             ibus_avg_ua: I32::new((data.ibus_avg_a * 1_000_000.0) as i32),
             vbus_ori_avg_raw: I32::new(0), // We don't have this information
             ibus_ori_avg_raw: I32::new(0), // We don't have this information
-            temp_raw: I16::new((data.temp_c * 100.0) as i16),
+            // Encode temperature back to raw register: °C * 128
+            temp_raw: I16::new((data.temp_c * 128.0) as i16),
             vcc1_tenth_mv: U16::new((data.cc1_v * 10_000.0) as u16),
             vcc2_raw: U16::new((data.cc2_v * 10_000.0) as u16),
             vdp_mv: U16::new((data.vdp_v * 10_000.0) as u16),
@@ -161,9 +163,10 @@ impl From<AdcDataSimple> for AdcDataRaw {
             internal_vdd_raw: U16::new((data.internal_vdd_v * 10_000.0) as u16),
             rate_raw: data.sample_rate as u8,
             reserved: 0,
-            vcc2_avg_raw: U16::new((data.cc2_avg_v * 10_000.0) as u16),
-            vdp_avg_mv: U16::new((data.vdp_avg_v * 10_000.0) as u16),
-            vdm_avg_mv: U16::new((data.vdm_avg_v * 10_000.0) as u16),
+            // Store averaged fields in 1 mV units
+            vcc2_avg_raw: U16::new((data.cc2_avg_v * 1_000.0) as u16),
+            vdp_avg_mv: U16::new((data.vdp_avg_v * 1_000.0) as u16),
+            vdm_avg_mv: U16::new((data.vdm_avg_v * 1_000.0) as u16),
         }
     }
 }

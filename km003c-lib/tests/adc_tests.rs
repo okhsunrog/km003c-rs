@@ -136,9 +136,10 @@ fn test_adc_response_parsing_real_data() {
                 "Power should be ~-0.457W, got {}",
                 adc_data.power_w
             );
+            // Temperature LSB is 1/128 °C; expected value from this sample is ~25.57 °C
             assert!(
-                (adc_data.temp_c - 25.0).abs() < 0.1,
-                "Temperature should be ~25.0°C, got {}",
+                (adc_data.temp_c - 25.5703125).abs() < 0.02,
+                "Temperature should be ~25.57°C, got {}",
                 adc_data.temp_c
             );
 
