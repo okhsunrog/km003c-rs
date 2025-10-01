@@ -1,72 +1,146 @@
 use crate::adc::{AdcDataRaw, AdcDataSimple};
 use crate::error::KMError;
-use crate::packet::{Attribute, CtrlHeader, DataHeader, ExtendedHeader, PacketType, RawPacket};
+use crate::packet::{Attribute, AttributeSet, CtrlHeader, DataHeader, LogicalPacket, PacketType, RawPacket};
+use crate::pd::{PdEventStream, PdStatus, PdStatusRaw};
 use bytes::Bytes;
+use num_enum::FromPrimitive;
 use zerocopy::{FromBytes, IntoBytes};
+
+/// Represents parsed payload data from logical packets
+#[derive(Debug, Clone, PartialEq)]
+pub enum PayloadData {
+    Adc(AdcDataSimple),
+    PdStatus(PdStatus),
+    PdEvents(PdEventStream),
+    Unknown { attribute: Attribute, data: Bytes },
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Packet {
-    /// Simple ADC data packet containing processed ADC readings
-    SimpleAdcData {
-        adc: AdcDataSimple,
-        ext_payload: Option<Bytes>,
-    },
-    /// Command to request simple ADC data
-    CmdGetSimpleAdcData,
-    /// Raw PD data packet containing unprocessed PD packet bytes
-    PdRawData(Bytes),
-    /// Command to request PD data
-    CmdGetPdData,
+    /// Data response with parsed payload data
+    DataResponse(Vec<PayloadData>),
+    /// Request data with attribute set
+    GetData(AttributeSet),
+    /// Accept response
+    Accept { id: u8 },
+    /// Connect command
+    Connect,
+    /// Disconnect command
+    Disconnect,
     /// Generic packet for types we haven't specifically implemented yet
     Generic(RawPacket),
+}
+
+impl Packet {
+    /// Get ADC data from the packet, if present
+    pub fn get_adc(&self) -> Option<&AdcDataSimple> {
+        match self {
+            Self::DataResponse(payloads) => payloads.iter().find_map(|p| match p {
+                PayloadData::Adc(adc) => Some(adc),
+                _ => None,
+            }),
+            _ => None,
+        }
+    }
+
+    /// Get PD status from the packet, if present
+    pub fn get_pd_status(&self) -> Option<&PdStatus> {
+        match self {
+            Self::DataResponse(payloads) => payloads.iter().find_map(|p| match p {
+                PayloadData::PdStatus(pd) => Some(pd),
+                _ => None,
+            }),
+            _ => None,
+        }
+    }
+
+    /// Get PD events from the packet, if present
+    pub fn get_pd_events(&self) -> Option<&PdEventStream> {
+        match self {
+            Self::DataResponse(payloads) => payloads.iter().find_map(|p| match p {
+                PayloadData::PdEvents(events) => Some(events),
+                _ => None,
+            }),
+            _ => None,
+        }
+    }
+
+    /// Check if packet has a specific payload type
+    pub fn has_payload(&self, attr: Attribute) -> bool {
+        match self {
+            Self::DataResponse(payloads) => payloads.iter().any(|p| match p {
+                PayloadData::Adc(_) => attr == Attribute::Adc,
+                PayloadData::PdStatus(_) | PayloadData::PdEvents(_) => attr == Attribute::PdPacket,
+                PayloadData::Unknown { attribute, .. } => *attribute == attr,
+            }),
+            _ => false,
+        }
+    }
 }
 
 impl TryFrom<RawPacket> for Packet {
     type Error = KMError;
 
     fn try_from(raw_packet: RawPacket) -> Result<Self, Self::Error> {
-        // Use the new cleaner pattern with tuple matching
-        match (raw_packet.packet_type(), raw_packet.get_attribute()) {
-            (PacketType::PutData, Some(Attribute::Adc)) => {
-                let payload_data = raw_packet.get_payload_data();
-                let adc_raw_size = std::mem::size_of::<AdcDataRaw>();
+        match raw_packet {
+            RawPacket::Ctrl { header, .. } => {
+                let packet_type = PacketType::from_primitive(header.packet_type());
+                let attribute_set = AttributeSet::from_raw(header.attribute());
 
-                if payload_data.len() < adc_raw_size {
-                    return Err(KMError::InvalidPacket("ADC payload too small".to_string()));
+                match packet_type {
+                    PacketType::GetData => Ok(Packet::GetData(attribute_set)),
+                    PacketType::Accept => Ok(Packet::Accept { id: header.id() }),
+                    PacketType::Connect => Ok(Packet::Connect),
+                    PacketType::Disconnect => Ok(Packet::Disconnect),
+                    _ => Ok(Packet::Generic(RawPacket::Ctrl {
+                        header,
+                        payload: Bytes::new(),
+                    })),
+                }
+            }
+            RawPacket::Data { logical_packets, .. } => {
+                // Parse logical packets into PayloadData
+                let mut payloads = Vec::new();
+
+                for lp in logical_packets {
+                    let payload_data = match lp.attribute {
+                        Attribute::Adc => {
+                            // Parse ADC data
+                            let adc_raw_size = std::mem::size_of::<AdcDataRaw>();
+                            if lp.payload.len() < adc_raw_size {
+                                return Err(KMError::InvalidPacket("ADC payload too small".to_string()));
+                            }
+
+                            let adc_data_raw = AdcDataRaw::ref_from_bytes(&lp.payload[..adc_raw_size])
+                                .map_err(|_| KMError::InvalidPacket("Failed to parse ADC data".to_string()))?;
+                            let adc_data = AdcDataSimple::from(*adc_data_raw);
+                            PayloadData::Adc(adc_data)
+                        }
+                        Attribute::PdPacket => {
+                            // Determine if this is PD status or PD events
+                            if lp.payload.len() == 12 {
+                                // PD Status (12 bytes)
+                                let pd_status_raw = PdStatusRaw::ref_from_bytes(lp.payload.as_ref())
+                                    .map_err(|_| KMError::InvalidPacket("Failed to parse PD status".to_string()))?;
+                                PayloadData::PdStatus(PdStatus::from(*pd_status_raw))
+                            } else {
+                                // PD Event Stream
+                                let pd_events = PdEventStream::from_bytes(lp.payload)?;
+                                PayloadData::PdEvents(pd_events)
+                            }
+                        }
+                        _ => PayloadData::Unknown {
+                            attribute: lp.attribute,
+                            data: lp.payload,
+                        },
+                    };
+
+                    payloads.push(payload_data);
                 }
 
-                let adc_data_raw = AdcDataRaw::ref_from_bytes(&payload_data[..adc_raw_size]).unwrap(); // Should not fail due to size check
-
-                let adc_data = AdcDataSimple::from(*adc_data_raw);
-
-                let ext_payload = if payload_data.len() > adc_raw_size {
-                    Some(payload_data.slice(adc_raw_size..))
-                } else {
-                    None
-                };
-
-                Ok(Packet::SimpleAdcData {
-                    adc: adc_data,
-                    ext_payload,
-                })
+                Ok(Packet::DataResponse(payloads))
             }
-            (PacketType::PutData, Some(Attribute::PdPacket)) => {
-                // Parse PD data - just return raw payload bytes
-                let payload_data = raw_packet.get_payload_data();
-                Ok(Packet::PdRawData(payload_data))
-            }
-            (PacketType::GetData, Some(Attribute::Adc)) => {
-                // ADC request command
-                Ok(Packet::CmdGetSimpleAdcData)
-            }
-            (PacketType::GetData, Some(Attribute::PdPacket)) => {
-                // PD request command
-                Ok(Packet::CmdGetPdData)
-            }
-            _ => {
-                // If we don't recognize the packet type or can't parse it, return it as Generic
-                Ok(Packet::Generic(raw_packet))
-            }
+            other => Ok(Packet::Generic(other)),
         }
     }
 }
@@ -75,76 +149,104 @@ impl Packet {
     /// Convert a high-level packet to a raw packet with the given transaction ID
     pub fn to_raw_packet(self, id: u8) -> RawPacket {
         match self {
-            Packet::SimpleAdcData { adc, ext_payload } => {
-                let adc_data_raw = AdcDataRaw::from(adc);
-                let adc_bytes = adc_data_raw.as_bytes();
+            Packet::DataResponse(payloads) => {
+                // Convert PayloadData vec to LogicalPackets
+                let mut logical_packets = Vec::new();
 
-                let mut payload_buffer = adc_bytes.to_vec();
-                if let Some(ext) = &ext_payload {
-                    payload_buffer.extend_from_slice(ext);
+                for (i, payload) in payloads.into_iter().enumerate() {
+                    let is_last = i == logical_packets.len();
+
+                    match payload {
+                        PayloadData::Adc(adc) => {
+                            let adc_raw = AdcDataRaw::from(adc);
+                            logical_packets.push(LogicalPacket {
+                                attribute: Attribute::Adc,
+                                next: !is_last,
+                                chunk: 0,
+                                size: std::mem::size_of::<AdcDataRaw>() as u16,
+                                payload: Bytes::copy_from_slice(adc_raw.as_bytes()),
+                            });
+                        }
+                        PayloadData::PdStatus(pd_status) => {
+                            // Reconstruct PdStatusRaw
+                            let timestamp_bytes = pd_status.timestamp.to_le_bytes();
+                            let mut raw_bytes = Vec::with_capacity(12);
+                            raw_bytes.push(pd_status.type_id);
+                            raw_bytes.extend_from_slice(&timestamp_bytes[..3]); // 24-bit
+                            raw_bytes.extend_from_slice(&((pd_status.vbus_v * 1000.0) as u16).to_le_bytes());
+                            raw_bytes.extend_from_slice(&((pd_status.ibus_a * 1000.0) as u16).to_le_bytes());
+                            raw_bytes.extend_from_slice(&((pd_status.cc1_v * 1000.0) as u16).to_le_bytes());
+                            raw_bytes.extend_from_slice(&((pd_status.cc2_v * 1000.0) as u16).to_le_bytes());
+
+                            logical_packets.push(LogicalPacket {
+                                attribute: Attribute::PdPacket,
+                                next: !is_last,
+                                chunk: 0,
+                                size: 12,
+                                payload: Bytes::from(raw_bytes),
+                            });
+                        }
+                        PayloadData::PdEvents(_pd_events) => {
+                            // TODO: Implement PdEventStream serialization
+                            // For now, skip this
+                            continue;
+                        }
+                        PayloadData::Unknown { attribute, data } => {
+                            logical_packets.push(LogicalPacket {
+                                attribute,
+                                next: !is_last,
+                                chunk: 0,
+                                size: data.len() as u16,
+                                payload: data,
+                            });
+                        }
+                    }
                 }
 
-                let has_extension = ext_payload.is_some();
-                let attribute_value: u16 = Attribute::Adc.into();
-
-                let ext_header = ExtendedHeader::new()
-                    .with_attribute(attribute_value)
-                    .with_next(has_extension)
-                    .with_chunk(0)
-                    .with_size(adc_bytes.len() as u16); // Per docs, for ADC this is the size of the ADC payload
-
-                let packet_type_value: u8 = PacketType::PutData.into();
+                // Calculate total payload size
+                let total_size: usize = logical_packets.iter().map(|lp| 4 + lp.payload.len()).sum();
 
                 let header = DataHeader::new()
-                    .with_packet_type(packet_type_value)
+                    .with_packet_type(PacketType::PutData.into())
                     .with_reserved_flag(true)
                     .with_id(id)
-                    .with_obj_count_words(((4 + payload_buffer.len()) / 4) as u16);
+                    .with_obj_count_words((total_size / 4) as u16);
 
-                RawPacket::ExtendedData {
+                RawPacket::Data {
                     header,
-                    ext: ext_header,
-                    payload: Bytes::from(payload_buffer),
+                    logical_packets,
                 }
             }
-            Packet::CmdGetSimpleAdcData => RawPacket::Ctrl {
+            Packet::GetData(attr_set) => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::GetData.into())
                     .with_reserved_flag(false)
                     .with_id(id)
-                    .with_attribute(Attribute::Adc.into()),
+                    .with_attribute(attr_set.raw()),
                 payload: Bytes::new(),
             },
-            Packet::PdRawData(data) => {
-                // Create PD data packet with extended header
-                let attribute_value: u16 = Attribute::PdPacket.into();
-
-                let ext_header = ExtendedHeader::new()
-                    .with_attribute(attribute_value)
-                    .with_next(false)
-                    .with_chunk(0)
-                    .with_size(data.len() as u16);
-
-                let packet_type_value: u8 = PacketType::PutData.into();
-
-                let header = DataHeader::new()
-                    .with_packet_type(packet_type_value)
-                    .with_reserved_flag(true)
-                    .with_id(id)
-                    .with_obj_count_words(((4 + data.len()) / 4) as u16);
-
-                RawPacket::ExtendedData {
-                    header,
-                    ext: ext_header,
-                    payload: data,
-                }
-            }
-            Packet::CmdGetPdData => RawPacket::Ctrl {
+            Packet::Accept { id: accept_id } => RawPacket::Ctrl {
                 header: CtrlHeader::new()
-                    .with_packet_type(PacketType::GetData.into())
+                    .with_packet_type(PacketType::Accept.into())
+                    .with_reserved_flag(false)
+                    .with_id(accept_id)
+                    .with_attribute(0),
+                payload: Bytes::new(),
+            },
+            Packet::Connect => RawPacket::Ctrl {
+                header: CtrlHeader::new()
+                    .with_packet_type(PacketType::Connect.into())
                     .with_reserved_flag(false)
                     .with_id(id)
-                    .with_attribute(Attribute::PdPacket.into()),
+                    .with_attribute(0),
+                payload: Bytes::new(),
+            },
+            Packet::Disconnect => RawPacket::Ctrl {
+                header: CtrlHeader::new()
+                    .with_packet_type(PacketType::Disconnect.into())
+                    .with_reserved_flag(false)
+                    .with_id(id)
+                    .with_attribute(0),
                 payload: Bytes::new(),
             },
             Packet::Generic(raw_packet) => raw_packet,

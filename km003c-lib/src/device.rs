@@ -1,7 +1,8 @@
 use crate::adc::AdcDataSimple;
 use crate::error::KMError;
 use crate::message::Packet;
-use crate::packet::RawPacket;
+use crate::packet::{Attribute, AttributeSet, RawPacket};
+use crate::pd::PdEventStream;
 use bytes::Bytes;
 use nusb::Interface;
 use nusb::transfer::Bulk;
@@ -71,19 +72,21 @@ impl KM003C {
 
     /// Send a raw packet to the device
     async fn send_raw_packet(&mut self, packet: RawPacket) -> Result<(), KMError> {
-        let (reserved_flag, has_ext_hdr) = match &packet {
+        let (reserved_flag, has_logical_packets) = match &packet {
             RawPacket::Ctrl { header, .. } => (header.reserved_flag(), false),
             RawPacket::SimpleData { header, .. } => (header.reserved_flag(), false),
-            RawPacket::ExtendedData { header, .. } => (header.reserved_flag(), true),
+            RawPacket::Data {
+                header,
+                logical_packets,
+            } => (header.reserved_flag(), !logical_packets.is_empty()),
         };
 
         debug!(
-            "Sending packet: type={:?}, reserved_flag={}, has_ext_hdr={}, id={}, payload_len={}",
+            "Sending packet: type={:?}, reserved_flag={}, has_logical_packets={}, id={}",
             packet.packet_type(),
             reserved_flag,
-            has_ext_hdr,
+            has_logical_packets,
             packet.id(),
-            packet.payload().len()
         );
 
         let message_bytes = Bytes::from(packet);
@@ -123,41 +126,53 @@ impl KM003C {
         let bytes = Bytes::copy_from_slice(raw_bytes);
         let raw_packet = RawPacket::try_from(bytes)?;
 
-        let (reserved_flag, has_ext_hdr) = match &raw_packet {
+        let (reserved_flag, has_logical_packets) = match &raw_packet {
             RawPacket::Ctrl { header, .. } => (header.reserved_flag(), false),
             RawPacket::SimpleData { header, .. } => (header.reserved_flag(), false),
-            RawPacket::ExtendedData { header, .. } => (header.reserved_flag(), true),
+            RawPacket::Data {
+                header,
+                logical_packets,
+            } => (header.reserved_flag(), !logical_packets.is_empty()),
         };
 
         debug!(
-            "Parsed packet: type={:?}, reserved_flag={}, has_ext_hdr={}, id={}, payload_len={}",
+            "Parsed packet: type={:?}, reserved_flag={}, has_logical_packets={}, id={}",
             raw_packet.packet_type(),
             reserved_flag,
-            has_ext_hdr,
+            has_logical_packets,
             raw_packet.id(),
-            raw_packet.payload().len()
         );
 
         Ok(raw_packet)
     }
 
-    /// Request ADC data
+    /// Request data with a specific attribute set
+    pub async fn request_data(&mut self, mask: AttributeSet) -> Result<Packet, KMError> {
+        self.send(Packet::GetData(mask)).await?;
+        self.receive().await
+    }
+
+    /// Request ADC data only
     pub async fn request_adc_data(&mut self) -> Result<AdcDataSimple, KMError> {
-        self.send(Packet::CmdGetSimpleAdcData).await?;
-        let response = self.receive().await?;
-        match response {
-            Packet::SimpleAdcData { adc, .. } => Ok(adc),
-            _ => Err(KMError::Protocol("Unexpected response type for ADC data".to_string())),
-        }
+        let packet = self.request_data(AttributeSet::single(Attribute::Adc)).await?;
+        packet
+            .get_adc()
+            .cloned()
+            .ok_or_else(|| KMError::Protocol("No ADC data in response".to_string()))
     }
 
     /// Request PD data
-    pub async fn request_pd_data(&mut self) -> Result<Bytes, KMError> {
-        self.send(Packet::CmdGetPdData).await?;
-        let response = self.receive().await?;
-        match response {
-            Packet::PdRawData(pd_data) => Ok(pd_data),
-            _ => Err(KMError::Protocol("Unexpected response type for PD data".to_string())),
-        }
+    pub async fn request_pd_data(&mut self) -> Result<PdEventStream, KMError> {
+        let packet = self.request_data(AttributeSet::single(Attribute::PdPacket)).await?;
+        packet
+            .get_pd_events()
+            .cloned()
+            .ok_or_else(|| KMError::Protocol("No PD event data in response".to_string()))
+    }
+
+    /// Request both ADC and PD data in a single request
+    pub async fn request_adc_with_pd(&mut self) -> Result<Packet, KMError> {
+        let mask = AttributeSet::single(Attribute::Adc).with(Attribute::PdPacket);
+        self.request_data(mask).await
     }
 }

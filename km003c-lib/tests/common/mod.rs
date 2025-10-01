@@ -11,11 +11,9 @@ pub use km003c_lib::adc::SampleRate;
 #[allow(unused_imports)]
 pub use km003c_lib::error::KMError;
 #[allow(unused_imports)]
-pub use km003c_lib::message::Packet;
+pub use km003c_lib::message::{Packet, PayloadData};
 #[allow(unused_imports)]
-pub use km003c_lib::packet::ExtendedHeader;
-#[allow(unused_imports)]
-pub use km003c_lib::packet::{Attribute, CtrlHeader, DataHeader, PacketType, RawPacket};
+pub use km003c_lib::packet::{Attribute, AttributeSet, CtrlHeader, DataHeader, LogicalPacket, PacketType, RawPacket};
 #[allow(unused_imports)]
 pub use num_enum::FromPrimitive;
 

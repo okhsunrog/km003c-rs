@@ -117,6 +117,100 @@ pub enum Attribute {
     Unknown(u16),
 }
 
+/// Set of attributes for use in request masks.
+/// Can represent single or multiple attributes combined with bitwise OR.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AttributeSet {
+    mask: u16,
+}
+
+impl AttributeSet {
+    pub const fn empty() -> Self {
+        Self { mask: 0 }
+    }
+
+    pub const fn from_raw(mask: u16) -> Self {
+        Self { mask }
+    }
+
+    pub fn single(attr: Attribute) -> Self {
+        Self { mask: attr.into() }
+    }
+
+    pub fn from_attributes<I>(attrs: I) -> Self
+    where
+        I: IntoIterator<Item = Attribute>,
+    {
+        Self {
+            mask: attrs
+                .into_iter()
+                .map(|a| {
+                    let val: u16 = a.into();
+                    val
+                })
+                .fold(0, |acc, x| acc | x),
+        }
+    }
+
+    pub fn with(mut self, attr: Attribute) -> Self {
+        let val: u16 = attr.into();
+        self.mask |= val;
+        self
+    }
+
+    pub fn contains(&self, attr: Attribute) -> bool {
+        let val: u16 = attr.into();
+        self.mask & val != 0
+    }
+
+    pub fn to_vec(&self) -> Vec<Attribute> {
+        let mut result = Vec::new();
+        for bit in 0..16 {
+            let value = 1u16 << bit;
+            if self.mask & value != 0 {
+                result.push(Attribute::from_primitive(value));
+            }
+        }
+        result
+    }
+
+    pub const fn raw(&self) -> u16 {
+        self.mask
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.mask == 0
+    }
+
+    pub fn len(&self) -> usize {
+        self.mask.count_ones() as usize
+    }
+}
+
+impl From<Attribute> for AttributeSet {
+    fn from(attr: Attribute) -> Self {
+        Self::single(attr)
+    }
+}
+
+impl FromIterator<Attribute> for AttributeSet {
+    fn from_iter<I: IntoIterator<Item = Attribute>>(iter: I) -> Self {
+        Self::from_attributes(iter)
+    }
+}
+
+/// Represents a single logical packet within a PutData response.
+/// PutData packets can contain multiple chained logical packets,
+/// each with its own extended header and payload.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LogicalPacket {
+    pub attribute: Attribute,
+    pub next: bool,
+    pub chunk: u8,
+    pub size: u16,
+    pub payload: Bytes,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum RawPacket {
     Ctrl {
@@ -127,27 +221,18 @@ pub enum RawPacket {
         header: DataHeader,
         payload: Bytes,
     },
-    ExtendedData {
+    Data {
         header: DataHeader,
-        ext: ExtendedHeader,
-        payload: Bytes,
+        logical_packets: Vec<LogicalPacket>,
     },
 }
 
 impl RawPacket {
-    pub fn payload(&self) -> Bytes {
-        match self {
-            RawPacket::Ctrl { payload, .. } => payload.clone(),
-            RawPacket::SimpleData { payload, .. } => payload.clone(),
-            RawPacket::ExtendedData { payload, .. } => payload.clone(),
-        }
-    }
-
     pub fn id(&self) -> u8 {
         match self {
             RawPacket::Ctrl { header, .. } => header.id(),
             RawPacket::SimpleData { header, .. } => header.id(),
-            RawPacket::ExtendedData { header, .. } => header.id(),
+            RawPacket::Data { header, .. } => header.id(),
         }
     }
 
@@ -155,32 +240,31 @@ impl RawPacket {
         match self {
             RawPacket::Ctrl { header, .. } => PacketType::from_primitive(header.packet_type()),
             RawPacket::SimpleData { header, .. } => PacketType::from_primitive(header.packet_type()),
-            RawPacket::ExtendedData { header, .. } => PacketType::from_primitive(header.packet_type()),
+            RawPacket::Data { header, .. } => PacketType::from_primitive(header.packet_type()),
         }
     }
 
-    /// Get the extended header if present, without modifying the packet
-    pub fn get_extended_header(&self) -> Option<ExtendedHeader> {
+    /// Get the attribute for control packets
+    pub fn get_attribute(&self) -> Option<Attribute> {
         match self {
-            RawPacket::ExtendedData { ext, .. } => Some(*ext),
+            RawPacket::Ctrl { header, .. } => Some(Attribute::from_primitive(header.attribute())),
             _ => None,
         }
     }
 
-    /// Get payload data, skipping extended header if present
-    pub fn get_payload_data(&self) -> Bytes {
+    /// Get the attribute set for control packets (for GetData requests)
+    pub fn get_attribute_set(&self) -> Option<AttributeSet> {
         match self {
-            RawPacket::ExtendedData { payload, .. } => payload.clone(),
-            _ => self.payload(),
+            RawPacket::Ctrl { header, .. } => Some(AttributeSet::from_raw(header.attribute())),
+            _ => None,
         }
     }
 
-    /// Get the attribute for this packet
-    pub fn get_attribute(&self) -> Option<Attribute> {
+    /// Get logical packets for Data variant
+    pub fn logical_packets(&self) -> Option<&[LogicalPacket]> {
         match self {
-            RawPacket::Ctrl { header, .. } => Some(Attribute::from_primitive(header.attribute())),
-            RawPacket::SimpleData { .. } => None,
-            RawPacket::ExtendedData { ext, .. } => Some(Attribute::from_primitive(ext.attribute())),
+            RawPacket::Data { logical_packets, .. } => Some(logical_packets),
+            _ => None,
         }
     }
 }
@@ -205,7 +289,8 @@ impl TryFrom<Bytes> for RawPacket {
             .as_ref()
             .try_into()
             .unwrap(); // Safe to unwrap since we know the slice is exactly 4 bytes
-        let payload = bytes;
+        let mut payload = bytes;
+
         if is_ctrl_packet {
             let header = CtrlHeader::from_bytes(header_bytes);
             Ok(RawPacket::Ctrl { header, payload })
@@ -213,27 +298,75 @@ impl TryFrom<Bytes> for RawPacket {
             let header = DataHeader::from_bytes(header_bytes);
             let packet_type = PacketType::from_primitive(header.packet_type());
 
-            // Only PutData packets have extended headers
-            if packet_type == PacketType::PutData && payload.len() >= 4 {
-                // Parse extended header from first 4 bytes of payload
-                let ext_header_bytes: [u8; 4] = payload.as_ref()[..4]
-                    .try_into()
-                    .map_err(|_| KMError::InvalidPacket("Failed to extract extended header bytes".to_string()))?;
-                let ext = ExtendedHeader::from_bytes(ext_header_bytes);
-                let actual_payload = payload.slice(4..);
+            // Only PutData packets have chained logical packets with extended headers
+            if packet_type == PacketType::PutData {
+                if payload.len() < 4 {
+                    // TODO(okhsunrog): Spec indicates all PutData (0x41) packets
+                    //                   must carry a 4-byte extended header. We currently
+                    //                   fall back to SimpleData when payload < 4 for
+                    //                   robustness against malformed frames.
+                    return Ok(RawPacket::SimpleData { header, payload });
+                }
 
-                Ok(RawPacket::ExtendedData {
+                // Parse chained logical packets
+                let mut logical_packets = Vec::new();
+
+                loop {
+                    if payload.len() < 4 {
+                        return Err(KMError::InvalidPacket(
+                            "Insufficient bytes for extended header".to_string(),
+                        ));
+                    }
+
+                    // Parse extended header
+                    let ext_header_bytes: [u8; 4] = payload.as_ref()[..4]
+                        .try_into()
+                        .map_err(|_| KMError::InvalidPacket("Failed to extract extended header bytes".to_string()))?;
+                    let ext = ExtendedHeader::from_bytes(ext_header_bytes);
+
+                    let payload_size = ext.size() as usize;
+                    let has_next = ext.next();
+
+                    // Skip extended header
+                    payload = payload.slice(4..);
+
+                    if payload.len() < payload_size {
+                        return Err(KMError::InvalidPacket(format!(
+                            "Insufficient payload bytes: expected {}, got {}",
+                            payload_size,
+                            payload.len()
+                        )));
+                    }
+
+                    // Extract logical packet payload
+                    let logical_payload = payload.slice(..payload_size);
+                    payload = payload.slice(payload_size..);
+
+                    logical_packets.push(LogicalPacket {
+                        attribute: Attribute::from_primitive(ext.attribute()),
+                        next: has_next,
+                        chunk: ext.chunk(),
+                        size: ext.size(),
+                        payload: logical_payload,
+                    });
+
+                    // Check if there are more logical packets
+                    if !has_next {
+                        break;
+                    }
+                }
+
+                if logical_packets.is_empty() {
+                    return Err(KMError::InvalidPacket(
+                        "PutData packet must have at least one logical packet".to_string(),
+                    ));
+                }
+
+                Ok(RawPacket::Data {
                     header,
-                    ext,
-                    payload: actual_payload,
+                    logical_packets,
                 })
             } else {
-                // TODO(okhsunrog): Spec indicates all PutData (0x41) packets
-                //                   must carry a 4-byte extended header. We currently
-                //                   fall back to SimpleData when payload < 4 for
-                //                   robustness against malformed frames. Consider
-                //                   returning an error in this branch to enforce
-                //                   the spec strictly.
                 Ok(RawPacket::SimpleData { header, payload })
             }
         }
@@ -245,11 +378,25 @@ impl From<RawPacket> for Bytes {
         let (header_bytes, payload) = match packet {
             RawPacket::Ctrl { header, payload } => (header.into_bytes(), payload),
             RawPacket::SimpleData { header, payload } => (header.into_bytes(), payload),
-            RawPacket::ExtendedData { header, ext, payload } => {
-                // For ExtendedData, we need to reconstruct the full payload with extended header
-                let mut full_payload = Vec::with_capacity(4 + payload.len());
-                full_payload.extend_from_slice(&ext.into_bytes());
-                full_payload.extend_from_slice(payload.as_ref());
+            RawPacket::Data {
+                header,
+                logical_packets,
+            } => {
+                // Reconstruct chained logical packets
+                let mut full_payload = Vec::new();
+
+                for logical_packet in logical_packets {
+                    // Build extended header
+                    let ext = ExtendedHeader::new()
+                        .with_attribute(logical_packet.attribute.into())
+                        .with_next(logical_packet.next)
+                        .with_chunk(logical_packet.chunk)
+                        .with_size(logical_packet.size);
+
+                    full_payload.extend_from_slice(&ext.into_bytes());
+                    full_payload.extend_from_slice(logical_packet.payload.as_ref());
+                }
+
                 (header.into_bytes(), Bytes::from(full_payload))
             }
         };

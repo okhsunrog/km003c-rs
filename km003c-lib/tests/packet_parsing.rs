@@ -47,12 +47,16 @@ fn test_ctrl0() {
     let hex_data = "c4050101500401400c000000ffffffff74b2334f";
     let bytes = hex_to_bytes(hex_data);
     let packet = RawPacket::try_from(bytes).expect("Failed to parse packet");
-    println!(
-        "Ctrl0 Auth Packet: {:?}, payload len: {}",
-        packet,
-        packet.payload().len()
-    );
-    if let Some(ext_header) = packet.get_extended_header() {
-        println!("Extended Header: {:?}", ext_header);
+    println!("Ctrl0 Auth Packet: {:?}", packet);
+
+    // Check if it's a Data packet with logical packets
+    if let Some(logical_packets) = packet.logical_packets() {
+        println!("Logical packets count: {}", logical_packets.len());
+        for (i, lp) in logical_packets.iter().enumerate() {
+            println!(
+                "  Logical packet {}: attr={:?}, next={}, size={}",
+                i, lp.attribute, lp.next, lp.size
+            );
+        }
     }
 }
