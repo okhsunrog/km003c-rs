@@ -10,7 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 km003c-lib = { path = "../km003c-lib" }
-eframe = "0.32.1"
+eframe = "0.32.3"
 egui_plot = "0.33.0"
 tokio = { version = "1.0", features = ["full"] }
 tracing = "0.1"
