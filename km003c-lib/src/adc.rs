@@ -1,9 +1,15 @@
 use std::fmt;
 use strum_macros::Display;
+use num_enum::{TryFromPrimitive, IntoPrimitive};
 use zerocopy::byteorder::little_endian::{I16, I32, U16};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Default)]
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Default, TryFromPrimitive, IntoPrimitive)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[repr(u8)]
 pub enum SampleRate {
     #[default]
     #[strum(to_string = "1 SPS")]
@@ -55,6 +61,7 @@ pub struct AdcDataRaw {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct AdcDataSimple {
     // Main measurements
     pub vbus_v: f64, // Voltage in Volts
@@ -122,8 +129,8 @@ impl From<AdcDataRaw> for AdcDataSimple {
         // Internal VDD also uses 0.1mV
         let internal_vdd_v = raw.internal_vdd_raw.get() as f64 / 10_000.0;
 
-        // Convert raw sample rate to enum
-        let sample_rate = unsafe { std::mem::transmute::<u8, SampleRate>(raw.rate_raw) };
+        // Convert raw sample rate to enum (safely, fallback to 1 SPS if invalid)
+        let sample_rate = SampleRate::try_from(raw.rate_raw).unwrap_or(SampleRate::Sps1);
 
         AdcDataSimple {
             vbus_v,

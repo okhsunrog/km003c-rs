@@ -2,7 +2,11 @@ use bytes::Bytes;
 use zerocopy::byteorder::little_endian::{I16, U16, U32};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
+use crate::constants::*;
 use crate::error::KMError;
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// PD Status block (12 bytes) - appears in ADC+PD packets
 #[derive(Debug, Clone, Copy, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
@@ -17,6 +21,7 @@ pub struct PdStatusRaw {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PdStatus {
     pub type_id: u8,
     pub timestamp: u32, // Converted from 24-bit, ~40ms per tick
@@ -54,6 +59,7 @@ pub struct PdPreambleRaw {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PdPreamble {
     pub timestamp: u32, // Milliseconds, frames following events
     pub vbus_v: f64,
@@ -100,23 +106,24 @@ impl PdEventStream {
     /// Parse PD event stream from bytes
     /// Expected format: 12-byte preamble + repeated (6-byte header + wire data) events
     pub fn from_bytes(bytes: Bytes) -> Result<Self, KMError> {
-        if bytes.len() < 12 {
+        if bytes.len() < PD_PREAMBLE_SIZE {
             return Err(KMError::InvalidPacket(
-                "PD event stream too short for preamble".to_string(),
+                format!("PD event stream too short for preamble: need {}, got {}", 
+                        PD_PREAMBLE_SIZE, bytes.len()),
             ));
         }
 
         // Parse preamble
-        let preamble_raw = PdPreambleRaw::ref_from_bytes(&bytes[..12])
+        let preamble_raw = PdPreambleRaw::ref_from_bytes(&bytes[..PD_PREAMBLE_SIZE])
             .map_err(|_| KMError::InvalidPacket("Failed to parse PD preamble".to_string()))?;
         let preamble = PdPreamble::from(*preamble_raw);
 
         let mut events = Vec::new();
-        let mut offset = 12;
+        let mut offset = PD_PREAMBLE_SIZE;
 
         // Parse events
         while offset < bytes.len() {
-            if bytes.len() - offset < 6 {
+            if bytes.len() - offset < PD_EVENT_HEADER_SIZE {
                 // Not enough bytes for event header
                 break;
             }
@@ -130,10 +137,10 @@ impl PdEventStream {
             ]);
             let sop = bytes[offset + 5];
 
-            // Calculate wire data length: wire_len = (size_flag & 0x3F) - 5
-            let wire_len = (size_flag & 0x3F).saturating_sub(5) as usize;
+            // Calculate wire data length: wire_len = (size_flag & mask) - offset
+            let wire_len = (size_flag & PD_EVENT_SIZE_MASK).saturating_sub(PD_EVENT_SIZE_OFFSET) as usize;
 
-            offset += 6;
+            offset += PD_EVENT_HEADER_SIZE;
 
             if bytes.len() - offset < wire_len {
                 return Err(KMError::InvalidPacket(format!(
@@ -151,12 +158,12 @@ impl PdEventStream {
             offset += wire_len;
 
             // Parse event type
-            let data = if size_flag == 0x45 {
+            let data = if size_flag == PD_EVENT_TYPE_CONNECTION {
                 // Connection event
                 if let Some(&event_code) = wire_data.first() {
                     match event_code {
-                        0x11 => PdEventData::Connect,
-                        0x12 => PdEventData::Disconnect,
+                        PD_CONNECTION_CONNECT => PdEventData::Connect,
+                        PD_CONNECTION_DISCONNECT => PdEventData::Disconnect,
                         _ => PdEventData::PdMessage { sop, wire_data },
                     }
                 } else {

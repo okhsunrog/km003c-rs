@@ -2,10 +2,10 @@ use crate::adc::AdcDataSimple;
 use crate::error::KMError;
 use crate::message::Packet;
 use crate::packet::{Attribute, AttributeSet, RawPacket};
-use crate::pd::PdEventStream;
+use crate::pd::{PdEventStream, PdStatus};
 use bytes::Bytes;
 use nusb::Interface;
-use nusb::transfer::Bulk;
+use nusb::transfer::{Bulk, Interrupt};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
@@ -14,20 +14,84 @@ use tracing::{debug, info, trace};
 // Constants for USB device identification
 pub const VID: u16 = 0x5FC9;
 pub const PID: u16 = 0x0063;
-pub const ENDPOINT_OUT: u8 = 0x01;
-pub const ENDPOINT_IN: u8 = 0x81;
+
+// Interface 0 (Vendor Specific - primary protocol, requires detach)
+pub const INTERFACE_VENDOR: u8 = 0;
+pub const ENDPOINT_OUT_VENDOR: u8 = 0x01;
+pub const ENDPOINT_IN_VENDOR: u8 = 0x81;
+
+// Interface 3 (HID - alternative, no detach needed)  
+pub const INTERFACE_HID: u8 = 3;
+pub const ENDPOINT_OUT_HID: u8 = 0x05;
+pub const ENDPOINT_IN_HID: u8 = 0x85;
 
 // Default timeout for USB operations
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(2);
 
+/// Transfer type for USB communication
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransferType {
+    Bulk,
+    Interrupt,
+}
+
+/// Configuration for KM003C device communication
+#[derive(Debug, Clone, Copy)]
+pub struct DeviceConfig {
+    pub interface: u8,
+    pub endpoint_out: u8,
+    pub endpoint_in: u8,
+    pub transfer_type: TransferType,
+    pub auto_detach: bool,
+}
+
+impl Default for DeviceConfig {
+    fn default() -> Self {
+        // Use HID interface by default (Interrupt transfers)
+        Self {
+            interface: INTERFACE_HID,
+            endpoint_out: ENDPOINT_OUT_HID,
+            endpoint_in: ENDPOINT_IN_HID,
+            transfer_type: TransferType::Interrupt,
+            auto_detach: false,
+        }
+    }
+}
+
+impl DeviceConfig {
+    /// Use vendor-specific interface (Interface 0) with Bulk transfers
+    /// Requires detaching kernel driver (powerz)
+    pub fn vendor_interface() -> Self {
+        Self {
+            interface: INTERFACE_VENDOR,
+            endpoint_out: ENDPOINT_OUT_VENDOR,
+            endpoint_in: ENDPOINT_IN_VENDOR,
+            transfer_type: TransferType::Bulk,
+            auto_detach: true,
+        }
+    }
+    
+    /// Use HID interface (Interface 3) with Interrupt transfers
+    /// More compatible, no kernel driver detach needed
+    pub fn hid_interface() -> Self {
+        Self::default()
+    }
+}
+
 pub struct KM003C {
     interface: Interface,
     transaction_id: u8,
+    config: DeviceConfig,
 }
 
 impl KM003C {
-    /// Create a new KM003C instance by finding and connecting to the device
+    /// Create a new KM003C instance using HID interface (Interface 3, no kernel driver detach)
     pub async fn new() -> Result<Self, KMError> {
+        Self::with_config(DeviceConfig::default()).await
+    }
+    
+    /// Create a new KM003C instance with custom configuration
+    pub async fn with_config(config: DeviceConfig) -> Result<Self, KMError> {
         info!("Searching for POWER-Z KM003C...");
         let device_info = nusb::list_devices()
             .await?
@@ -41,30 +105,44 @@ impl KM003C {
         );
 
         let device = device_info.open().await?;
+        
+        // Detach kernel drivers from ALL interfaces (prevents re-binding after operations)
+        // This matches the behavior of Python examples and ensures device is accessible
+        for interface_num in 0..4 {
+            if let Err(e) = device.detach_kernel_driver(interface_num) {
+                // Ignore errors - interface may not have a driver or may not exist
+                trace!("Could not detach interface {}: {}", interface_num, e);
+            } else {
+                debug!("Detached kernel driver from interface {}", interface_num);
+            }
+        }
 
-        // Try to claim interface 0 directly first. On some Linux systems, a kernel
-        // driver (e.g., HID/CDC-ACM on other interfaces) may temporarily keep the
-        // device busy right after enumeration or reset. Avoid resetting first and
-        // only reset if the initial claim fails, then retry with a longer delay.
-        let interface = match device.claim_interface(0).await {
-            Ok(iface) => iface,
+        // Try to claim the configured interface
+        let interface = match device.claim_interface(config.interface).await {
+            Ok(iface) => {
+                info!("Interface {} claimed directly (no kernel driver attached)", config.interface);
+                iface
+            }
+            Err(e) if e.kind() == nusb::ErrorKind::Busy => {
+                // Still busy after detach_all - should not happen
+                return Err(KMError::Protocol(
+                    format!("Interface {} still busy after detach attempt", config.interface)
+                ));
+            }
             Err(e) => {
-                info!(
-                    "Initial interface claim failed: {}. Resetting device and retrying...",
-                    e
-                );
-                device.reset().await?;
-                // Allow more time for the kernel to rebind other interfaces
-                tokio::time::sleep(Duration::from_millis(500)).await;
-                device.claim_interface(0).await?
+                return Err(e.into());
             }
         };
-        info!("Interface claimed successfully.");
 
         let km003c = Self {
             interface,
             transaction_id: 0,
+            config,
         };
+        
+        // Device is ready - no Connect command needed
+        // (kernel driver and other implementations start directly with GetData)
+        info!("Device ready");
 
         Ok(km003c)
     }
@@ -106,12 +184,23 @@ impl KM003C {
         let message = message_bytes.to_vec();
         trace!("Sending {} bytes: {:02x?}", message.len(), message);
 
-        let endpoint = self.interface.endpoint::<Bulk, _>(ENDPOINT_OUT)?;
-        let mut writer = endpoint.writer(1024);
+        // Use writer with proper configuration
+        match self.config.transfer_type {
+            TransferType::Bulk => {
+                let endpoint = self.interface.endpoint::<Bulk, _>(self.config.endpoint_out)?;
+                let mut writer = endpoint.writer(64).with_num_transfers(1);
+                timeout(DEFAULT_TIMEOUT, writer.write_all(&message)).await??;
+                timeout(DEFAULT_TIMEOUT, writer.flush_end_async()).await??;
+            }
+            TransferType::Interrupt => {
+                let endpoint = self.interface.endpoint::<Interrupt, _>(self.config.endpoint_out)?;
+                let mut writer = endpoint.writer(64).with_num_transfers(1);
+                timeout(DEFAULT_TIMEOUT, writer.write_all(&message)).await??;
+                timeout(DEFAULT_TIMEOUT, writer.flush_end_async()).await??;
+            }
+        }
 
-        timeout(DEFAULT_TIMEOUT, writer.write_all(&message)).await??;
-
-        debug!("Sent {} bytes", message.len());
+        debug!("Sent successfully");
         Ok(())
     }
 
@@ -123,11 +212,27 @@ impl KM003C {
 
     /// Receive a raw packet from the device
     async fn receive_raw_packet(&mut self) -> Result<RawPacket, KMError> {
-        let endpoint = self.interface.endpoint::<Bulk, _>(ENDPOINT_IN)?;
-        let mut reader = endpoint.reader(1024);
         let mut buffer = vec![0u8; 1024];
 
-        let bytes_read = timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??;
+        // Use reader with proper configuration
+        let bytes_read = match self.config.transfer_type {
+            TransferType::Bulk => {
+                let endpoint = self.interface.endpoint::<Bulk, _>(self.config.endpoint_in)?;
+                let mut reader = endpoint
+                    .reader(64)
+                    .with_num_transfers(4)
+                    .with_read_timeout(Duration::from_millis(2000));
+                timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??
+            }
+            TransferType::Interrupt => {
+                let endpoint = self.interface.endpoint::<Interrupt, _>(self.config.endpoint_in)?;
+                let mut reader = endpoint
+                    .reader(64)
+                    .with_num_transfers(4)
+                    .with_read_timeout(Duration::from_millis(2000));
+                timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??
+            }
+        };
 
         if bytes_read == 0 {
             return Err(KMError::Protocol("Received 0 bytes".to_string()));
@@ -149,12 +254,18 @@ impl KM003C {
         };
 
         debug!(
-            "Parsed packet: type={:?}, reserved_flag={}, has_logical_packets={}, id={}",
+            "Parsed packet: type={:?}, reserved_flag={}, has_logical_packets={}, id={}, is_empty={}",
             raw_packet.packet_type(),
             reserved_flag,
             has_logical_packets,
             raw_packet.id(),
+            raw_packet.is_empty_response(),
         );
+        
+        // Log if we received an empty response (device has no data)
+        if raw_packet.is_empty_response() {
+            debug!("Received empty PutData response (obj_count_words=0) - device has no data");
+        }
 
         Ok(raw_packet)
     }
@@ -162,7 +273,12 @@ impl KM003C {
     /// Request data with a specific attribute set
     pub async fn request_data(&mut self, mask: AttributeSet) -> Result<Packet, KMError> {
         self.send(Packet::GetData(mask)).await?;
-        self.receive().await
+        let packet = self.receive().await?;
+        
+        // TODO: Could validate correlation here if we stored the request mask
+        // packet.validate_correlation(mask)?;
+        
+        Ok(packet)
     }
 
     /// Request ADC data only
@@ -174,18 +290,39 @@ impl KM003C {
             .ok_or_else(|| KMError::Protocol("No ADC data in response".to_string()))
     }
 
-    /// Request PD data
-    pub async fn request_pd_data(&mut self) -> Result<PdEventStream, KMError> {
-        let packet = self.request_data(AttributeSet::single(Attribute::PdPacket)).await?;
-        packet
-            .get_pd_events()
-            .cloned()
-            .ok_or_else(|| KMError::Protocol("No PD event data in response".to_string()))
+    /// Request PD data (returns full packet as it can contain PdStatus OR PdEventStream)
+    /// 
+    /// The response depends on the device state:
+    /// - If payload is 12 bytes: returns PdStatus (use packet.get_pd_status())
+    /// - If payload > 12 bytes: returns PdEventStream (use packet.get_pd_events())
+    /// 
+    /// Use `request_adc_with_pd()` to get ADC + PdStatus together (68 bytes).
+    pub async fn request_pd_data(&mut self) -> Result<Packet, KMError> {
+        self.request_data(AttributeSet::single(Attribute::PdPacket)).await
     }
 
     /// Request both ADC and PD data in a single request
+    /// 
+    /// This typically returns ADC + PdStatus (68 bytes total).
+    /// Use packet.get_adc() and packet.get_pd_status() to extract data.
     pub async fn request_adc_with_pd(&mut self) -> Result<Packet, KMError> {
         let mask = AttributeSet::single(Attribute::Adc).with(Attribute::PdPacket);
         self.request_data(mask).await
+    }
+    
+    /// Helper: Try to get PD status from a packet
+    /// 
+    /// Returns Some if the packet contains PdStatus (12-byte payload),
+    /// None otherwise. Useful after request_pd_data() or request_adc_with_pd().
+    pub fn extract_pd_status(packet: &Packet) -> Option<&PdStatus> {
+        packet.get_pd_status()
+    }
+    
+    /// Helper: Try to get PD event stream from a packet
+    /// 
+    /// Returns Some if the packet contains PdEventStream (>12 bytes),
+    /// None otherwise. Useful after request_pd_data().
+    pub fn extract_pd_events(packet: &Packet) -> Option<&PdEventStream> {
+        packet.get_pd_events()
     }
 }

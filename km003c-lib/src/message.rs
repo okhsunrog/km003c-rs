@@ -1,4 +1,5 @@
 use crate::adc::{AdcDataRaw, AdcDataSimple};
+use crate::constants::*;
 use crate::error::KMError;
 use crate::packet::{Attribute, AttributeSet, CtrlHeader, DataHeader, LogicalPacket, PacketType, RawPacket};
 use crate::pd::{PdEventStream, PdStatus, PdStatusRaw};
@@ -105,20 +106,22 @@ impl TryFrom<RawPacket> for Packet {
                 for lp in logical_packets {
                     let payload_data = match lp.attribute {
                         Attribute::Adc => {
-                            // Parse ADC data
-                            let adc_raw_size = std::mem::size_of::<AdcDataRaw>();
-                            if lp.payload.len() < adc_raw_size {
-                                return Err(KMError::InvalidPacket("ADC payload too small".to_string()));
+                            // Parse ADC data (44 bytes)
+                            if lp.payload.len() < ADC_DATA_SIZE {
+                                return Err(KMError::InvalidPacket(
+                                    format!("ADC payload too small: expected {}, got {}", 
+                                            ADC_DATA_SIZE, lp.payload.len())
+                                ));
                             }
 
-                            let adc_data_raw = AdcDataRaw::ref_from_bytes(&lp.payload[..adc_raw_size])
+                            let adc_data_raw = AdcDataRaw::ref_from_bytes(&lp.payload[..ADC_DATA_SIZE])
                                 .map_err(|_| KMError::InvalidPacket("Failed to parse ADC data".to_string()))?;
                             let adc_data = AdcDataSimple::from(*adc_data_raw);
                             PayloadData::Adc(adc_data)
                         }
                         Attribute::PdPacket => {
                             // Determine if this is PD status or PD events
-                            if lp.payload.len() == 12 {
+                            if lp.payload.len() == PD_STATUS_SIZE {
                                 // PD Status (12 bytes)
                                 let pd_status_raw = PdStatusRaw::ref_from_bytes(lp.payload.as_ref())
                                     .map_err(|_| KMError::InvalidPacket("Failed to parse PD status".to_string()))?;
@@ -163,7 +166,7 @@ impl Packet {
                                 attribute: Attribute::Adc,
                                 next: !is_last,
                                 chunk: 0,
-                                size: std::mem::size_of::<AdcDataRaw>() as u16,
+                                size: ADC_DATA_SIZE as u16,
                                 payload: Bytes::copy_from_slice(adc_raw.as_bytes()),
                             });
                         }
@@ -182,7 +185,7 @@ impl Packet {
                                 attribute: Attribute::PdPacket,
                                 next: !is_last,
                                 chunk: 0,
-                                size: 12,
+                                size: PD_STATUS_SIZE as u16,
                                 payload: Bytes::from(raw_bytes),
                             });
                         }
