@@ -43,6 +43,7 @@ pub struct DeviceConfig {
     pub endpoint_in: u8,
     pub transfer_type: TransferType,
     pub auto_detach: bool,
+    pub reset_before_claim: bool,  // For compatibility with some systems
 }
 
 impl Default for DeviceConfig {
@@ -54,6 +55,7 @@ impl Default for DeviceConfig {
             endpoint_in: ENDPOINT_IN_HID,
             transfer_type: TransferType::Interrupt,
             auto_detach: false,
+            reset_before_claim: false,
         }
     }
 }
@@ -61,6 +63,7 @@ impl Default for DeviceConfig {
 impl DeviceConfig {
     /// Use vendor-specific interface (Interface 0) with Bulk transfers
     /// Requires detaching kernel driver (powerz)
+    /// This matches the kernel driver and old nusb 0.1.x implementation
     pub fn vendor_interface() -> Self {
         Self {
             interface: INTERFACE_VENDOR,
@@ -68,6 +71,7 @@ impl DeviceConfig {
             endpoint_in: ENDPOINT_IN_VENDOR,
             transfer_type: TransferType::Bulk,
             auto_detach: true,
+            reset_before_claim: true,  // Old implementation did this
         }
     }
     
@@ -105,6 +109,13 @@ impl KM003C {
         );
 
         let device = device_info.open().await?;
+        
+        // Reset before claiming if requested (matches old nusb 0.1.x behavior)
+        if config.reset_before_claim {
+            info!("Performing USB device reset...");
+            device.reset().await?;
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
         
         // Detach kernel drivers from ALL interfaces (prevents re-binding after operations)
         // This matches the behavior of Python examples and ensures device is accessible
