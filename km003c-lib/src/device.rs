@@ -1,3 +1,47 @@
+//! KM003C USB device communication
+//!
+//! # KM003C USB Interfaces
+//!
+//! The KM003C provides multiple USB interfaces for communication.
+//! All interfaces support the same protocol commands (4-byte packets).
+//!
+//! ## Interface 0: Vendor Specific (Primary Protocol)
+//! - **Transfer Type**: Bulk
+//! - **Endpoints**: 0x01 OUT, 0x81 IN
+//! - **Max Packet Size**: 64 bytes
+//! - **Throughput**: ~200 KB/s (official spec)
+//! - **Latency**: ~0.6 ms (measured)
+//! - **Linux Driver**: `powerz` (hwmon)
+//! - **Use Case**: Best performance, same as kernel driver
+//! - **Note**: Requires detaching kernel driver on Linux
+//!
+//! ## Interface 1+2: CDC (Virtual Serial Port)
+//! - **Transfer Type**: Bulk (Interface 2) + Interrupt (Interface 1)
+//! - **Endpoints**: 0x02 OUT, 0x82 IN (data), 0x83 IN (control)
+//! - **Throughput**: ~200 KB/s (official spec)
+//! - **Linux Driver**: `cdc_acm`
+//! - **Use Case**: Serial port compatibility
+//! - **Note**: Not currently implemented in this library
+//!
+//! ## Interface 3: HID (Human Interface Device)
+//! - **Transfer Type**: Interrupt
+//! - **Endpoints**: 0x05 OUT, 0x85 IN
+//! - **Max Packet Size**: 64 bytes
+//! - **Throughput**: ~60 KB/s (official spec)
+//! - **Latency**: ~3.8 ms (measured)
+//! - **Linux Driver**: `usbhid`
+//! - **Use Case**: Most compatible, no driver installation needed
+//! - **Note**: Works on all platforms without custom drivers
+//!
+//! ## Performance Comparison
+//! Based on real device measurements:
+//! - **Interface 0 (Bulk)**: 0.6 ms latency - **6x faster** ⚡
+//! - **Interface 3 (Interrupt)**: 3.8 ms latency - most compatible
+//!
+//! ## Recommendation
+//! - Use **Interface 0** for performance-critical applications (same as kernel driver)
+//! - Use **Interface 3** for maximum compatibility across platforms
+
 use crate::adc::AdcDataSimple;
 use crate::error::KMError;
 use crate::message::Packet;
@@ -15,51 +59,12 @@ use tracing::{debug, info, trace};
 pub const VID: u16 = 0x5FC9;  // ChargerLAB vendor ID
 pub const PID: u16 = 0x0063;  // KM003C product ID
 
-/// # KM003C USB Interfaces
-///
-/// The KM003C provides multiple USB interfaces for communication.
-/// All interfaces support the same protocol commands (4-byte packets).
-///
-/// ## Interface 0: Vendor Specific (Primary Protocol)
-/// - **Transfer Type**: Bulk
-/// - **Endpoints**: 0x01 OUT, 0x81 IN
-/// - **Max Packet Size**: 64 bytes
-/// - **Throughput**: ~200 KB/s (official spec)
-/// - **Latency**: ~0.6 ms (measured)
-/// - **Linux Driver**: `powerz` (hwmon)
-/// - **Use Case**: Best performance, same as kernel driver
-/// - **Note**: Requires detaching kernel driver on Linux
-///
-/// ## Interface 1+2: CDC (Virtual Serial Port)
-/// - **Transfer Type**: Bulk (Interface 2) + Interrupt (Interface 1)
-/// - **Endpoints**: 0x02 OUT, 0x82 IN (data), 0x83 IN (control)
-/// - **Throughput**: ~200 KB/s (official spec)
-/// - **Linux Driver**: `cdc_acm`
-/// - **Use Case**: Serial port compatibility
-/// - **Note**: Not currently implemented in this library
-///
-/// ## Interface 3: HID (Human Interface Device)
-/// - **Transfer Type**: Interrupt
-/// - **Endpoints**: 0x05 OUT, 0x85 IN
-/// - **Max Packet Size**: 64 bytes
-/// - **Throughput**: ~60 KB/s (official spec)
-/// - **Latency**: ~3.8 ms (measured)
-/// - **Linux Driver**: `usbhid`
-/// - **Use Case**: Most compatible, no driver installation needed
-/// - **Note**: Works on all platforms without custom drivers
-///
-/// ## Performance Comparison
-/// Based on real device measurements:
-/// - **Interface 0 (Bulk)**: 0.6 ms latency - **6x faster** ⚡
-/// - **Interface 3 (Interrupt)**: 3.8 ms latency - most compatible
-///
-/// ## Recommendation
-/// - Use **Interface 0** for performance-critical applications (same as kernel driver)
-/// - Use **Interface 3** for maximum compatibility across platforms
+/// Interface 0 (Vendor Specific): Bulk transfers, fastest (~0.6ms)
 pub const INTERFACE_VENDOR: u8 = 0;
 pub const ENDPOINT_OUT_VENDOR: u8 = 0x01;
 pub const ENDPOINT_IN_VENDOR: u8 = 0x81;
 
+/// Interface 3 (HID): Interrupt transfers, most compatible (~3.8ms)
 pub const INTERFACE_HID: u8 = 3;
 pub const ENDPOINT_OUT_HID: u8 = 0x05;
 pub const ENDPOINT_IN_HID: u8 = 0x85;
