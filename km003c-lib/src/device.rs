@@ -56,8 +56,7 @@ impl KM003C {
                 device.reset().await?;
                 // Allow more time for the kernel to rebind other interfaces
                 tokio::time::sleep(Duration::from_millis(500)).await;
-                let iface = device.claim_interface(0).await?;
-                iface
+                device.claim_interface(0).await?
             }
         };
         info!("Interface claimed successfully.");

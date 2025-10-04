@@ -1,3 +1,5 @@
+#![allow(unused_parens)]
+
 use crate::error::KMError;
 use bytes::Bytes;
 use modular_bitfield::prelude::*;

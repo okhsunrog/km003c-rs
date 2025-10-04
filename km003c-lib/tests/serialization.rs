@@ -123,7 +123,7 @@ fn test_rawpacket_to_bytes_ctrl_with_payload() {
             payload: parsed_payload,
         } => {
             assert_eq!(header.packet_type(), 5, "Packet type should be 5");
-            assert_eq!(header.reserved_flag(), true, "Reserved flag should be true");
+            assert!(header.reserved_flag(), "Reserved flag should be true");
             assert_eq!(header.id(), 7, "ID should be 7");
             assert_eq!(header.attribute(), 0x123, "Attribute should be 0x123");
             assert_eq!(parsed_payload.as_ref(), &[0x12, 0x34], "Payload should match");

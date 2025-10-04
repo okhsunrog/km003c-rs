@@ -285,10 +285,7 @@ impl PyPdEvent {
                 self.sop.unwrap_or(0),
                 self.wire_data.as_ref().map(|d| d.len()).unwrap_or(0)
             ),
-            event_type => format!(
-                "PdEvent(timestamp={}, type={})",
-                self.timestamp, event_type
-            ),
+            event_type => format!("PdEvent(timestamp={}, type={})", self.timestamp, event_type),
         }
     }
 
@@ -414,7 +411,7 @@ impl From<Packet> for PyPacket {
                     pd_events,
                     raw_payload,
                 }
-            },
+            }
             Packet::GetData(attr_set) => PyPacket {
                 packet_type: "GetData".to_string(),
                 adc_data: None,
@@ -448,9 +445,13 @@ impl From<Packet> for PyPacket {
                 let raw_payload = match &raw_packet {
                     RawPacket::Ctrl { payload, .. } => Some(payload.to_vec()),
                     RawPacket::SimpleData { payload, .. } => Some(payload.to_vec()),
-                    RawPacket::Data { logical_packets, .. } => {
-                        Some(logical_packets.iter().flat_map(|lp| lp.payload.iter()).copied().collect())
-                    }
+                    RawPacket::Data { logical_packets, .. } => Some(
+                        logical_packets
+                            .iter()
+                            .flat_map(|lp| lp.payload.iter())
+                            .copied()
+                            .collect(),
+                    ),
                 };
 
                 PyPacket {
@@ -460,7 +461,7 @@ impl From<Packet> for PyPacket {
                     pd_events: None,
                     raw_payload,
                 }
-            },
+            }
         }
     }
 }
@@ -608,7 +609,11 @@ impl From<RawPacket> for PyRawPacket {
             RawPacket::SimpleData { payload, .. } => payload.to_vec(),
             RawPacket::Data { logical_packets, .. } => {
                 // Concatenate all logical packet payloads
-                logical_packets.iter().flat_map(|lp| lp.payload.iter()).copied().collect()
+                logical_packets
+                    .iter()
+                    .flat_map(|lp| lp.payload.iter())
+                    .copied()
+                    .collect()
             }
         };
 
@@ -623,12 +628,15 @@ impl From<RawPacket> for PyRawPacket {
                 // Simple data packets: 4-byte DataHeader only
                 (false, header.reserved_flag(), None)
             }
-            RawPacket::Data { header, logical_packets } => {
+            RawPacket::Data {
+                header,
+                logical_packets,
+            } => {
                 // Data packets with logical packets
                 // For the first logical packet, extract extended header info
-                let ext_meta = logical_packets.first().map(|lp| {
-                    (u16::from(lp.attribute), lp.next, lp.chunk, lp.size)
-                });
+                let ext_meta = logical_packets
+                    .first()
+                    .map(|lp| (u16::from(lp.attribute), lp.next, lp.chunk, lp.size));
                 (true, header.reserved_flag(), ext_meta)
             }
         };
