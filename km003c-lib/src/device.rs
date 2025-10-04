@@ -15,12 +15,12 @@ use tracing::{debug, info, trace};
 pub const VID: u16 = 0x5FC9;
 pub const PID: u16 = 0x0063;
 
-// Interface 0 (Vendor Specific - primary protocol, requires detach)
+// Interface 0 (Vendor Specific - primary protocol, fastest: Bulk ~0.5ms)
 pub const INTERFACE_VENDOR: u8 = 0;
 pub const ENDPOINT_OUT_VENDOR: u8 = 0x01;
 pub const ENDPOINT_IN_VENDOR: u8 = 0x81;
 
-// Interface 3 (HID - alternative, no detach needed)  
+// Interface 3 (HID - more compatible: Interrupt ~3.8ms)
 pub const INTERFACE_HID: u8 = 3;
 pub const ENDPOINT_OUT_HID: u8 = 0x05;
 pub const ENDPOINT_IN_HID: u8 = 0x85;
@@ -42,41 +42,35 @@ pub struct DeviceConfig {
     pub endpoint_out: u8,
     pub endpoint_in: u8,
     pub transfer_type: TransferType,
-    pub auto_detach: bool,
-    pub reset_before_claim: bool,  // For compatibility with some systems
 }
 
 impl Default for DeviceConfig {
     fn default() -> Self {
-        // Use HID interface by default (Interrupt transfers)
+        // Use HID interface by default (more compatible, ~3.8ms latency)
         Self {
             interface: INTERFACE_HID,
             endpoint_out: ENDPOINT_OUT_HID,
             endpoint_in: ENDPOINT_IN_HID,
             transfer_type: TransferType::Interrupt,
-            auto_detach: false,
-            reset_before_claim: false,
         }
     }
 }
 
 impl DeviceConfig {
     /// Use vendor-specific interface (Interface 0) with Bulk transfers
-    /// Requires detaching kernel driver (powerz)
-    /// This matches the kernel driver and old nusb 0.1.x implementation
+    /// Fastest option (~0.5ms latency), 7x faster than HID
+    /// Same interface as Linux kernel driver uses
     pub fn vendor_interface() -> Self {
         Self {
             interface: INTERFACE_VENDOR,
             endpoint_out: ENDPOINT_OUT_VENDOR,
             endpoint_in: ENDPOINT_IN_VENDOR,
             transfer_type: TransferType::Bulk,
-            auto_detach: true,
-            reset_before_claim: true,  // Old implementation did this
         }
     }
     
     /// Use HID interface (Interface 3) with Interrupt transfers
-    /// More compatible, no kernel driver detach needed
+    /// Most compatible option (~3.8ms latency)
     pub fn hid_interface() -> Self {
         Self::default()
     }
@@ -110,40 +104,24 @@ impl KM003C {
 
         let device = device_info.open().await?;
         
-        // Reset before claiming if requested (matches old nusb 0.1.x behavior)
-        if config.reset_before_claim {
-            info!("Performing USB device reset...");
-            device.reset().await?;
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-        
-        // Detach kernel drivers from ALL interfaces (prevents re-binding after operations)
-        // This matches the behavior of Python examples and ensures device is accessible
+        // Detach kernel drivers from ALL interfaces
+        // All 4 interfaces have kernel drivers on Linux:
+        //   Interface 0: powerz (hwmon)
+        //   Interface 1+2: cdc_acm (serial)
+        //   Interface 3: usbhid (HID generic)
+        // Detaching all prevents re-binding and ensures clean access
         for interface_num in 0..4 {
             if let Err(e) = device.detach_kernel_driver(interface_num) {
-                // Ignore errors - interface may not have a driver or may not exist
+                // Ignore errors - driver may already be detached
                 trace!("Could not detach interface {}: {}", interface_num, e);
             } else {
                 debug!("Detached kernel driver from interface {}", interface_num);
             }
         }
 
-        // Try to claim the configured interface
-        let interface = match device.claim_interface(config.interface).await {
-            Ok(iface) => {
-                info!("Interface {} claimed directly (no kernel driver attached)", config.interface);
-                iface
-            }
-            Err(e) if e.kind() == nusb::ErrorKind::Busy => {
-                // Still busy after detach_all - should not happen
-                return Err(KMError::Protocol(
-                    format!("Interface {} still busy after detach attempt", config.interface)
-                ));
-            }
-            Err(e) => {
-                return Err(e.into());
-            }
-        };
+        // Claim the configured interface
+        let interface = device.claim_interface(config.interface).await?;
+        info!("Interface {} claimed successfully", config.interface);
 
         let km003c = Self {
             interface,

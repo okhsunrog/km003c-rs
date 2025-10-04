@@ -1,5 +1,4 @@
-use km003c_lib::device::{DeviceConfig, TransferType, INTERFACE_VENDOR, ENDPOINT_OUT_VENDOR, ENDPOINT_IN_VENDOR};
-use km003c_lib::KM003C;
+use km003c_lib::{DeviceConfig, KM003C, TransferType};
 use std::error::Error;
 use std::time::Instant;
 
@@ -18,23 +17,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Test configurations to try
     let configs = vec![
         (
-            "HID Interface (default)",
+            "HID Interface (default, Interrupt ~3.8ms)",
             DeviceConfig::default(),
         ),
         (
-            "Vendor Interface with reset",
+            "Vendor Interface (Bulk ~0.5ms, fastest)",
             DeviceConfig::vendor_interface(),
-        ),
-        (
-            "Vendor Interface without reset",
-            DeviceConfig {
-                interface: INTERFACE_VENDOR,
-                endpoint_out: ENDPOINT_OUT_VENDOR,
-                endpoint_in: ENDPOINT_IN_VENDOR,
-                transfer_type: TransferType::Bulk,
-                auto_detach: true,
-                reset_before_claim: false,
-            },
         ),
     ];
 
@@ -43,7 +31,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("Testing: {}", name);
         println!("  Interface: {}, Type: {:?}", config.interface, config.transfer_type);
         println!("  Endpoints: OUT=0x{:02X}, IN=0x{:02X}", config.endpoint_out, config.endpoint_in);
-        println!("  Reset before claim: {}", config.reset_before_claim);
         println!();
 
         let start = Instant::now();
