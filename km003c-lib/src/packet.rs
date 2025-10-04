@@ -402,24 +402,35 @@ impl TryFrom<Bytes> for RawPacket {
 
                     let payload_size = ext.size() as usize;
                     let has_next = ext.next();
+                    let attribute = Attribute::from_primitive(ext.attribute());
 
                     // Skip extended header
                     payload = payload.slice(4..);
 
-                    if payload.len() < payload_size {
-                        return Err(KMError::InvalidPacket(format!(
-                            "Insufficient payload bytes: expected {}, got {}",
-                            payload_size,
-                            payload.len()
-                        )));
-                    }
-
-                    // Extract logical packet payload
-                    let logical_payload = payload.slice(..payload_size);
-                    payload = payload.slice(payload_size..);
+                    // For AdcQueue, the size field indicates sample size (20 bytes),
+                    // but the actual payload contains multiple samples.
+                    // Take all remaining payload if this is the last logical packet.
+                    let logical_payload = if !has_next && attribute == Attribute::AdcQueue {
+                        // Last packet and AdcQueue: take all remaining bytes
+                        let all = payload.clone();
+                        payload = Bytes::new();
+                        all
+                    } else {
+                        // Normal case: take exactly size bytes
+                        if payload.len() < payload_size {
+                            return Err(KMError::InvalidPacket(format!(
+                                "Insufficient payload bytes: expected {}, got {}",
+                                payload_size,
+                                payload.len()
+                            )));
+                        }
+                        let chunk = payload.slice(..payload_size);
+                        payload = payload.slice(payload_size..);
+                        chunk
+                    };
 
                     logical_packets.push(LogicalPacket {
-                        attribute: Attribute::from_primitive(ext.attribute()),
+                        attribute,
                         next: has_next,
                         chunk: ext.chunk(),
                         size: ext.size(),

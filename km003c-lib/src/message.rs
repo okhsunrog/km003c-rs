@@ -1,4 +1,5 @@
 use crate::adc::{AdcDataRaw, AdcDataSimple};
+use crate::adcqueue::AdcQueueData;
 use crate::constants::*;
 use crate::error::KMError;
 use crate::packet::{Attribute, AttributeSet, CtrlHeader, DataHeader, LogicalPacket, PacketType, RawPacket};
@@ -11,6 +12,7 @@ use zerocopy::{FromBytes, IntoBytes};
 #[derive(Debug, Clone, PartialEq)]
 pub enum PayloadData {
     Adc(AdcDataSimple),
+    AdcQueue(AdcQueueData),
     PdStatus(PdStatus),
     PdEvents(PdEventStream),
     Unknown { attribute: Attribute, data: Bytes },
@@ -71,6 +73,7 @@ impl Packet {
         match self {
             Self::DataResponse(payloads) => payloads.iter().any(|p| match p {
                 PayloadData::Adc(_) => attr == Attribute::Adc,
+                PayloadData::AdcQueue(_) => attr == Attribute::AdcQueue,
                 PayloadData::PdStatus(_) | PayloadData::PdEvents(_) => attr == Attribute::PdPacket,
                 PayloadData::Unknown { attribute, .. } => *attribute == attr,
             }),
@@ -119,6 +122,13 @@ impl TryFrom<RawPacket> for Packet {
                                 .map_err(|_| KMError::InvalidPacket("Failed to parse ADC data".to_string()))?;
                             let adc_data = AdcDataSimple::from(*adc_data_raw);
                             PayloadData::Adc(adc_data)
+                        }
+                        Attribute::AdcQueue => {
+                            // Parse AdcQueue data (multiple 20-byte samples)
+                            // Note: Extended header size field (typically 20) indicates size per sample,
+                            // not total payload size. Actual payload contains N samples.
+                            let adcqueue = AdcQueueData::from_bytes(lp.payload.as_ref())?;
+                            PayloadData::AdcQueue(adcqueue)
                         }
                         Attribute::PdPacket => {
                             // Determine if this is PD status or PD events
@@ -189,6 +199,11 @@ impl Packet {
                                 size: PD_STATUS_SIZE as u16,
                                 payload: Bytes::from(raw_bytes),
                             });
+                        }
+                        PayloadData::AdcQueue(_adcqueue) => {
+                            // TODO: Implement AdcQueue serialization
+                            // For now, skip this
+                            continue;
                         }
                         PayloadData::PdEvents(_pd_events) => {
                             // TODO: Implement PdEventStream serialization
