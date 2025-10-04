@@ -56,8 +56,8 @@ use tokio::time::timeout;
 use tracing::{debug, info, trace};
 
 /// USB device identification constants
-pub const VID: u16 = 0x5FC9;  // ChargerLAB vendor ID
-pub const PID: u16 = 0x0063;  // KM003C product ID
+pub const VID: u16 = 0x5FC9; // ChargerLAB vendor ID
+pub const PID: u16 = 0x0063; // KM003C product ID
 
 /// Interface 0 (Vendor Specific): Bulk transfers, fastest (~0.6ms)
 pub const INTERFACE_VENDOR: u8 = 0;
@@ -146,7 +146,7 @@ impl DeviceConfig {
             transfer_type: TransferType::Bulk,
         }
     }
-    
+
     /// Use HID interface (Interface 3) with Interrupt transfers
     ///
     /// This is the **most compatible option** that works on all platforms
@@ -180,7 +180,7 @@ impl KM003C {
     pub async fn new() -> Result<Self, KMError> {
         Self::with_config(DeviceConfig::default()).await
     }
-    
+
     /// Create a new KM003C instance with custom configuration
     pub async fn with_config(config: DeviceConfig) -> Result<Self, KMError> {
         info!("Searching for POWER-Z KM003C...");
@@ -196,7 +196,7 @@ impl KM003C {
         );
 
         let device = device_info.open().await?;
-        
+
         // Detach kernel drivers from ALL interfaces
         // All 4 interfaces have kernel drivers on Linux:
         //   Interface 0: powerz (hwmon)
@@ -221,7 +221,7 @@ impl KM003C {
             transaction_id: 0,
             config,
         };
-        
+
         // Device is ready - no Connect command needed
         // (kernel driver and other implementations start directly with GetData)
         info!("Device ready");
@@ -343,7 +343,7 @@ impl KM003C {
             raw_packet.id(),
             raw_packet.is_empty_response(),
         );
-        
+
         // Log if we received an empty response (device has no data)
         if raw_packet.is_empty_response() {
             debug!("Received empty PutData response (obj_count_words=0) - device has no data");
@@ -356,10 +356,10 @@ impl KM003C {
     pub async fn request_data(&mut self, mask: AttributeSet) -> Result<Packet, KMError> {
         self.send(Packet::GetData(mask)).await?;
         let packet = self.receive().await?;
-        
+
         // TODO: Could validate correlation here if we stored the request mask
         // packet.validate_correlation(mask)?;
-        
+
         Ok(packet)
     }
 
@@ -373,35 +373,35 @@ impl KM003C {
     }
 
     /// Request PD data (returns full packet as it can contain PdStatus OR PdEventStream)
-    /// 
+    ///
     /// The response depends on the device state:
     /// - If payload is 12 bytes: returns PdStatus (use packet.get_pd_status())
     /// - If payload > 12 bytes: returns PdEventStream (use packet.get_pd_events())
-    /// 
+    ///
     /// Use `request_adc_with_pd()` to get ADC + PdStatus together (68 bytes).
     pub async fn request_pd_data(&mut self) -> Result<Packet, KMError> {
         self.request_data(AttributeSet::single(Attribute::PdPacket)).await
     }
 
     /// Request both ADC and PD data in a single request
-    /// 
+    ///
     /// This typically returns ADC + PdStatus (68 bytes total).
     /// Use packet.get_adc() and packet.get_pd_status() to extract data.
     pub async fn request_adc_with_pd(&mut self) -> Result<Packet, KMError> {
         let mask = AttributeSet::single(Attribute::Adc).with(Attribute::PdPacket);
         self.request_data(mask).await
     }
-    
+
     /// Helper: Try to get PD status from a packet
-    /// 
+    ///
     /// Returns Some if the packet contains PdStatus (12-byte payload),
     /// None otherwise. Useful after request_pd_data() or request_adc_with_pd().
     pub fn extract_pd_status(packet: &Packet) -> Option<&PdStatus> {
         packet.get_pd_status()
     }
-    
+
     /// Helper: Try to get PD event stream from a packet
-    /// 
+    ///
     /// Returns Some if the packet contains PdEventStream (>12 bytes),
     /// None otherwise. Useful after request_pd_data().
     pub fn extract_pd_events(packet: &Packet) -> Option<&PdEventStream> {

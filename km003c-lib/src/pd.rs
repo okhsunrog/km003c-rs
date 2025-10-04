@@ -107,10 +107,11 @@ impl PdEventStream {
     /// Expected format: 12-byte preamble + repeated (6-byte header + wire data) events
     pub fn from_bytes(bytes: Bytes) -> Result<Self, KMError> {
         if bytes.len() < PD_PREAMBLE_SIZE {
-            return Err(KMError::InvalidPacket(
-                format!("PD event stream too short for preamble: need {}, got {}", 
-                        PD_PREAMBLE_SIZE, bytes.len()),
-            ));
+            return Err(KMError::InvalidPacket(format!(
+                "PD event stream too short for preamble: need {}, got {}",
+                PD_PREAMBLE_SIZE,
+                bytes.len()
+            )));
         }
 
         // Parse preamble

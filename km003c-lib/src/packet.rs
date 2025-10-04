@@ -165,7 +165,7 @@ impl AttributeSet {
         let val: u16 = attr.into();
         self.mask & val != 0
     }
-    
+
     /// Check if any of the given attributes are present
     pub fn contains_any<I>(&self, attrs: I) -> bool
     where
@@ -173,7 +173,7 @@ impl AttributeSet {
     {
         attrs.into_iter().any(|a| self.contains(a))
     }
-    
+
     /// Check if all of the given attributes are present
     pub fn contains_all<I>(&self, attrs: I) -> bool
     where
@@ -181,14 +181,14 @@ impl AttributeSet {
     {
         attrs.into_iter().all(|a| self.contains(a))
     }
-    
+
     /// Remove an attribute from the set
     pub fn without(mut self, attr: Attribute) -> Self {
         let val: u16 = attr.into();
         self.mask &= !val;
         self
     }
-    
+
     /// Iterate over all attributes in the set
     pub fn iter(&self) -> impl Iterator<Item = Attribute> + '_ {
         (0..16).filter_map(move |bit| {
@@ -298,32 +298,32 @@ impl RawPacket {
             _ => None,
         }
     }
-    
+
     /// Validate that response attributes match the request mask
-    /// 
+    ///
     /// Returns Ok(()) if all response attributes were requested in the mask,
     /// or Err if there's a mismatch.
     pub fn validate_correlation(&self, request_mask: u16) -> Result<(), KMError> {
         match self {
             RawPacket::Data { logical_packets, .. } => {
                 let request_set = AttributeSet::from_raw(request_mask);
-                
+
                 // Check each logical packet's attribute
                 for lp in logical_packets {
                     if !request_set.contains(lp.attribute) {
                         let expected: Vec<u16> = request_set.iter().map(|a| a.into()).collect();
                         let actual: Vec<u16> = logical_packets.iter().map(|lp| lp.attribute.into()).collect();
-                        
+
                         return Err(KMError::AttributeMismatch { expected, actual });
                     }
                 }
-                
+
                 Ok(())
             }
             _ => Ok(()), // Non-data packets don't need validation
         }
     }
-    
+
     /// Check if this is an empty PutData response (no logical packets)
     pub fn is_empty_response(&self) -> bool {
         matches!(self, RawPacket::Data { logical_packets, .. } if logical_packets.is_empty())
@@ -336,10 +336,11 @@ impl TryFrom<Bytes> for RawPacket {
     fn try_from(mut bytes: Bytes) -> Result<Self, Self::Error> {
         // Check minimum length first to prevent panic in split_to
         if bytes.len() < MAIN_HEADER_SIZE {
-            return Err(KMError::InvalidPacket(
-                format!("Packet too short for header: expected {}, got {}", 
-                        MAIN_HEADER_SIZE, bytes.len())
-            ));
+            return Err(KMError::InvalidPacket(format!(
+                "Packet too short for header: expected {}, got {}",
+                MAIN_HEADER_SIZE,
+                bytes.len()
+            )));
         }
 
         // the first byte contains packet type (7 bits) + header flag bit
@@ -372,7 +373,7 @@ impl TryFrom<Bytes> for RawPacket {
                         logical_packets: vec![],
                     });
                 }
-                
+
                 if payload.len() < EXTENDED_HEADER_SIZE {
                     // TODO(okhsunrog): Spec indicates all PutData (0x41) packets
                     //                   must carry a 4-byte extended header. We currently
@@ -386,10 +387,11 @@ impl TryFrom<Bytes> for RawPacket {
 
                 loop {
                     if payload.len() < EXTENDED_HEADER_SIZE {
-                        return Err(KMError::InvalidPacket(
-                            format!("Insufficient bytes for extended header: need {}, got {}", 
-                                    EXTENDED_HEADER_SIZE, payload.len()),
-                        ));
+                        return Err(KMError::InvalidPacket(format!(
+                            "Insufficient bytes for extended header: need {}, got {}",
+                            EXTENDED_HEADER_SIZE,
+                            payload.len()
+                        )));
                     }
 
                     // Parse extended header

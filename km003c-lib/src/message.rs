@@ -108,10 +108,11 @@ impl TryFrom<RawPacket> for Packet {
                         Attribute::Adc => {
                             // Parse ADC data (44 bytes)
                             if lp.payload.len() < ADC_DATA_SIZE {
-                                return Err(KMError::InvalidPacket(
-                                    format!("ADC payload too small: expected {}, got {}", 
-                                            ADC_DATA_SIZE, lp.payload.len())
-                                ));
+                                return Err(KMError::InvalidPacket(format!(
+                                    "ADC payload too small: expected {}, got {}",
+                                    ADC_DATA_SIZE,
+                                    lp.payload.len()
+                                )));
                             }
 
                             let adc_data_raw = AdcDataRaw::ref_from_bytes(&lp.payload[..ADC_DATA_SIZE])

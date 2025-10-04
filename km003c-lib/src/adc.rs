@@ -1,6 +1,6 @@
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::fmt;
 use strum_macros::Display;
-use num_enum::{TryFromPrimitive, IntoPrimitive};
 use zerocopy::byteorder::little_endian::{I16, I32, U16};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 

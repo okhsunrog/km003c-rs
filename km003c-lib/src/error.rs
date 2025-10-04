@@ -31,19 +31,16 @@ pub enum KMError {
 
     #[error("Index out of bounds")]
     IndexOutOfBounds,
-    
+
     #[error("Parse error at offset {offset}: {message}")]
     ParseError { offset: usize, message: String },
-    
+
     #[error("Attribute mismatch: expected {expected:?}, got {actual:?}")]
-    AttributeMismatch {
-        expected: Vec<u16>,
-        actual: Vec<u16>,
-    },
-    
+    AttributeMismatch { expected: Vec<u16>, actual: Vec<u16> },
+
     #[error("Empty PutData response (obj_count_words=0) - device has no data")]
     EmptyResponse,
-    
+
     #[error("Transaction ID mismatch: request={request}, response={response}")]
     TransactionIdMismatch { request: u8, response: u8 },
 }
