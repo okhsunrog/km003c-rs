@@ -1,13 +1,44 @@
+use clap::Parser;
+use km003c_lib::{DeviceConfig, KM003C};
 use std::error::Error;
+
+/// Simple ADC data reader for POWER-Z KM003C
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// USB interface to use: "vendor" (Interface 0, Bulk) or "hid" (Interface 3, Interrupt)
+    #[arg(short, long, default_value = "hid", value_parser = ["vendor", "hid"])]
+    interface: String,
+
+    /// Verbose logging (show USB traffic)
+    #[arg(short, long)]
+    verbose: bool,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    // Initialize logging with trace level to see USB traffic
-    tracing_subscriber::fmt().with_max_level(tracing::Level::TRACE).init();
+    let args = Args::parse();
 
-    // Connect to the device using HID interface (more compatible, like Python example)
+    // Initialize logging based on verbosity flag
+    let log_level = if args.verbose {
+        tracing::Level::TRACE
+    } else {
+        tracing::Level::INFO
+    };
+
+    tracing_subscriber::fmt().with_max_level(log_level).init();
+
+    // Select configuration based on CLI argument
+    let config = match args.interface.as_str() {
+        "vendor" => DeviceConfig::vendor_interface(),
+        "hid" => DeviceConfig::hid_interface(),
+        _ => unreachable!(), // clap validates this
+    };
+
     println!("🔍 Searching for POWER-Z KM003C...");
-    let mut device = km003c_lib::KM003C::new().await?; // Uses HID by default
+    println!("   Using {} interface", args.interface.to_uppercase());
+
+    let mut device = KM003C::with_config(config).await?;
     println!("✅ Connected to POWER-Z KM003C\n");
 
     // Request ADC data
