@@ -58,11 +58,16 @@ cargo build --release
 ```
 
 ### Linux USB Permissions
+
+On Linux, you need to set up udev rules to allow non-root access to the device:
+
 ```bash
-sudo cp 99-powerz-km003c.rules /etc/udev/rules.d/
+sudo cp 71-powerz-km003c.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
+
+**Note:** The udev rules use the modern `uaccess` tag approach recommended for systemd systems. This provides secure, dynamic access to logged-in users without requiring overly permissive modes or group membership. The file is numbered `71-*` to ensure it's processed before systemd's `73-seat-late.rules`. See the [Arch Wiki on udev](https://wiki.archlinux.org/title/Udev#Allowing_regular_users_to_use_devices) for more details.
 
 ### Usage Examples
 
