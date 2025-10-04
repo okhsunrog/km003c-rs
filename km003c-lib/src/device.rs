@@ -41,11 +41,25 @@ impl KM003C {
         );
 
         let device = device_info.open().await?;
-        info!("Performing USB device reset...");
-        device.reset().await?;
-        tokio::time::sleep(Duration::from_millis(50)).await;
 
-        let interface = device.claim_interface(0).await?;
+        // Try to claim interface 0 directly first. On some Linux systems, a kernel
+        // driver (e.g., HID/CDC-ACM on other interfaces) may temporarily keep the
+        // device busy right after enumeration or reset. Avoid resetting first and
+        // only reset if the initial claim fails, then retry with a longer delay.
+        let interface = match device.claim_interface(0).await {
+            Ok(iface) => iface,
+            Err(e) => {
+                info!(
+                    "Initial interface claim failed: {}. Resetting device and retrying...",
+                    e
+                );
+                device.reset().await?;
+                // Allow more time for the kernel to rebind other interfaces
+                tokio::time::sleep(Duration::from_millis(500)).await;
+                let iface = device.claim_interface(0).await?;
+                iface
+            }
+        };
         info!("Interface claimed successfully.");
 
         let km003c = Self {

@@ -37,6 +37,7 @@
 use crate::adc::{AdcDataRaw, AdcDataSimple, SampleRate};
 use crate::message::Packet;
 use crate::packet::RawPacket;
+use crate::pd::{PdEventData, PdEventStream, PdPreamble, PdStatus};
 use bytes::Bytes;
 use pyo3::prelude::*;
 
@@ -125,6 +126,215 @@ impl PyAdcData {
     }
 }
 
+/// Python wrapper for PD Status data from the KM003C device.
+///
+/// Contains USB-C voltage/current measurements at a specific timestamp.
+/// Appears in combined ADC+PD packets as a 12-byte block.
+#[pyclass(name = "PdStatus")]
+#[derive(Clone)]
+pub struct PyPdStatus {
+    /// Type identifier for the PD status
+    #[pyo3(get)]
+    pub type_id: u8,
+    /// Timestamp (24-bit value converted to u32, ~40ms per tick)
+    #[pyo3(get)]
+    pub timestamp: u32,
+    /// VBUS voltage in volts
+    #[pyo3(get)]
+    pub vbus_v: f64,
+    /// IBUS current in amperes
+    #[pyo3(get)]
+    pub ibus_a: f64,
+    /// USB-C CC1 line voltage in volts
+    #[pyo3(get)]
+    pub cc1_v: f64,
+    /// USB-C CC2 line voltage in volts
+    #[pyo3(get)]
+    pub cc2_v: f64,
+}
+
+impl From<PdStatus> for PyPdStatus {
+    fn from(pd: PdStatus) -> Self {
+        PyPdStatus {
+            type_id: pd.type_id,
+            timestamp: pd.timestamp,
+            vbus_v: pd.vbus_v,
+            ibus_a: pd.ibus_a,
+            cc1_v: pd.cc1_v,
+            cc2_v: pd.cc2_v,
+        }
+    }
+}
+
+#[pymethods]
+impl PyPdStatus {
+    fn __repr__(&self) -> String {
+        format!(
+            "PdStatus(type_id={}, timestamp={}, vbus={:.3}V, ibus={:.3}A)",
+            self.type_id, self.timestamp, self.vbus_v, self.ibus_a
+        )
+    }
+
+    fn __str__(&self) -> String {
+        self.__repr__()
+    }
+}
+
+/// Python wrapper for PD event preamble.
+///
+/// Contains electrical state when PD events occurred.
+/// Appears at the start of PD-only event streams (12-byte header).
+#[pyclass(name = "PdPreamble")]
+#[derive(Clone)]
+pub struct PyPdPreamble {
+    /// Timestamp in milliseconds
+    #[pyo3(get)]
+    pub timestamp: u32,
+    /// VBUS voltage in volts
+    #[pyo3(get)]
+    pub vbus_v: f64,
+    /// IBUS current in amperes (signed)
+    #[pyo3(get)]
+    pub ibus_a: f64,
+    /// USB-C CC1 line voltage in volts
+    #[pyo3(get)]
+    pub cc1_v: f64,
+    /// USB-C CC2 line voltage in volts
+    #[pyo3(get)]
+    pub cc2_v: f64,
+}
+
+impl From<PdPreamble> for PyPdPreamble {
+    fn from(preamble: PdPreamble) -> Self {
+        PyPdPreamble {
+            timestamp: preamble.timestamp,
+            vbus_v: preamble.vbus_v,
+            ibus_a: preamble.ibus_a,
+            cc1_v: preamble.cc1_v,
+            cc2_v: preamble.cc2_v,
+        }
+    }
+}
+
+#[pymethods]
+impl PyPdPreamble {
+    fn __repr__(&self) -> String {
+        format!(
+            "PdPreamble(timestamp={}ms, vbus={:.3}V, ibus={:.3}A)",
+            self.timestamp, self.vbus_v, self.ibus_a
+        )
+    }
+
+    fn __str__(&self) -> String {
+        self.__repr__()
+    }
+}
+
+/// Python wrapper for a single PD event.
+///
+/// Represents a timestamped USB Power Delivery event (connect, disconnect, or PD message).
+#[pyclass(name = "PdEvent")]
+#[derive(Clone)]
+pub struct PyPdEvent {
+    /// Timestamp of the event
+    #[pyo3(get)]
+    pub timestamp: u32,
+    /// Event type: "connect", "disconnect", or "pd_message"
+    #[pyo3(get)]
+    pub event_type: String,
+    /// For PD messages: SOP (Start of Packet) type
+    #[pyo3(get)]
+    pub sop: Option<u8>,
+    /// For PD messages: raw wire data bytes
+    #[pyo3(get)]
+    pub wire_data: Option<Vec<u8>>,
+}
+
+impl From<crate::pd::PdEvent> for PyPdEvent {
+    fn from(event: crate::pd::PdEvent) -> Self {
+        match event.data {
+            PdEventData::Connect => PyPdEvent {
+                timestamp: event.timestamp,
+                event_type: "connect".to_string(),
+                sop: None,
+                wire_data: None,
+            },
+            PdEventData::Disconnect => PyPdEvent {
+                timestamp: event.timestamp,
+                event_type: "disconnect".to_string(),
+                sop: None,
+                wire_data: None,
+            },
+            PdEventData::PdMessage { sop, wire_data } => PyPdEvent {
+                timestamp: event.timestamp,
+                event_type: "pd_message".to_string(),
+                sop: Some(sop),
+                wire_data: Some(wire_data.to_vec()),
+            },
+        }
+    }
+}
+
+#[pymethods]
+impl PyPdEvent {
+    fn __repr__(&self) -> String {
+        match self.event_type.as_str() {
+            "pd_message" => format!(
+                "PdEvent(timestamp={}, type=pd_message, sop={}, {} bytes)",
+                self.timestamp,
+                self.sop.unwrap_or(0),
+                self.wire_data.as_ref().map(|d| d.len()).unwrap_or(0)
+            ),
+            event_type => format!(
+                "PdEvent(timestamp={}, type={})",
+                self.timestamp, event_type
+            ),
+        }
+    }
+
+    fn __str__(&self) -> String {
+        self.__repr__()
+    }
+}
+
+/// Python wrapper for a complete PD event stream.
+///
+/// Contains a preamble with electrical state and a list of timestamped events.
+#[pyclass(name = "PdEventStream")]
+#[derive(Clone)]
+pub struct PyPdEventStream {
+    /// Preamble containing electrical state
+    #[pyo3(get)]
+    pub preamble: PyPdPreamble,
+    /// List of PD events
+    #[pyo3(get)]
+    pub events: Vec<PyPdEvent>,
+}
+
+impl From<PdEventStream> for PyPdEventStream {
+    fn from(stream: PdEventStream) -> Self {
+        PyPdEventStream {
+            preamble: PyPdPreamble::from(stream.preamble),
+            events: stream.events.into_iter().map(PyPdEvent::from).collect(),
+        }
+    }
+}
+
+#[pymethods]
+impl PyPdEventStream {
+    fn __repr__(&self) -> String {
+        format!(
+            "PdEventStream(preamble={}, {} events)",
+            self.preamble.__repr__(),
+            self.events.len()
+        )
+    }
+
+    fn __str__(&self) -> String {
+        self.__repr__()
+    }
+}
+
 /// Represents an ADC sampling rate supported by the KM003C device.
 ///
 /// Available rates: 1, 10, 50, 1000, 10000 samples per second
@@ -145,10 +355,11 @@ pub struct PySampleRate {
 /// as opposed to RawPacket which shows the low-level protocol structure.
 ///
 /// Packet types:
-/// - "SimpleAdcData": ADC measurements with optional extension data
-/// - "CmdGetSimpleAdcData": Command to request ADC data
-/// - "PdRawData": Raw USB Power Delivery packet bytes
-/// - "CmdGetPdData": Command to request PD data
+/// - "DataResponse": Device response with parsed payload data (ADC, PD, etc.)
+/// - "GetData": Request data with attribute set
+/// - "Accept": Acknowledgment response
+/// - "Connect": Connection command
+/// - "Disconnect": Disconnection command
 /// - "Generic": Unrecognized packet types (falls back to raw packet)
 #[pyclass(name = "Packet")]
 #[derive(Clone)]
@@ -156,16 +367,16 @@ pub struct PyPacket {
     /// String name of the packet type (see above for possible values)
     #[pyo3(get)]
     pub packet_type: String,
-    /// ADC measurement data (only present for "SimpleAdcData" packets)
+    /// ADC measurement data (present in DataResponse with ADC payload)
     #[pyo3(get)]
     pub adc_data: Option<PyAdcData>,
-    /// Raw PD packet bytes (only present for "PdRawData" packets)
+    /// PD status data (present in DataResponse with PdStatus payload)
     #[pyo3(get)]
-    pub pd_data: Option<Vec<u8>>,
-    /// Extension data that follows ADC data (for "SimpleAdcData" packets)
+    pub pd_status: Option<PyPdStatus>,
+    /// PD event stream (present in DataResponse with PdEvents payload)
     #[pyo3(get)]
-    pub pd_extension_data: Option<Vec<u8>>,
-    /// Raw payload for "Generic" packets that couldn't be parsed
+    pub pd_events: Option<PyPdEventStream>,
+    /// Raw payload for "Unknown" payloads or "Generic" packets
     #[pyo3(get)]
     pub raw_payload: Option<Vec<u8>>,
 }
@@ -173,40 +384,82 @@ pub struct PyPacket {
 impl From<Packet> for PyPacket {
     fn from(packet: Packet) -> Self {
         match packet {
-            Packet::SimpleAdcData { adc, ext_payload } => PyPacket {
-                packet_type: "SimpleAdcData".to_string(),
-                adc_data: Some(PyAdcData::from(adc)),
-                pd_data: None,
-                pd_extension_data: ext_payload.map(|b| b.to_vec()),
+            Packet::DataResponse(payloads) => {
+                // Extract different payload types
+                let adc_data = payloads.iter().find_map(|p| match p {
+                    crate::message::PayloadData::Adc(adc) => Some(PyAdcData::from(*adc)),
+                    _ => None,
+                });
+
+                let pd_status = payloads.iter().find_map(|p| match p {
+                    crate::message::PayloadData::PdStatus(pd) => Some(PyPdStatus::from(*pd)),
+                    _ => None,
+                });
+
+                let pd_events = payloads.iter().find_map(|p| match p {
+                    crate::message::PayloadData::PdEvents(events) => Some(PyPdEventStream::from(events.clone())),
+                    _ => None,
+                });
+
+                // For unknown payloads, put in raw_payload
+                let raw_payload = payloads.iter().find_map(|p| match p {
+                    crate::message::PayloadData::Unknown { data, .. } => Some(data.to_vec()),
+                    _ => None,
+                });
+
+                PyPacket {
+                    packet_type: "DataResponse".to_string(),
+                    adc_data,
+                    pd_status,
+                    pd_events,
+                    raw_payload,
+                }
+            },
+            Packet::GetData(attr_set) => PyPacket {
+                packet_type: "GetData".to_string(),
+                adc_data: None,
+                pd_status: None,
+                pd_events: None,
+                raw_payload: Some(attr_set.raw().to_le_bytes().to_vec()),
+            },
+            Packet::Accept { id } => PyPacket {
+                packet_type: "Accept".to_string(),
+                adc_data: None,
+                pd_status: None,
+                pd_events: None,
+                raw_payload: Some(vec![id]),
+            },
+            Packet::Connect => PyPacket {
+                packet_type: "Connect".to_string(),
+                adc_data: None,
+                pd_status: None,
+                pd_events: None,
                 raw_payload: None,
             },
-            Packet::CmdGetSimpleAdcData => PyPacket {
-                packet_type: "CmdGetSimpleAdcData".to_string(),
+            Packet::Disconnect => PyPacket {
+                packet_type: "Disconnect".to_string(),
                 adc_data: None,
-                pd_data: None,
-                pd_extension_data: None,
+                pd_status: None,
+                pd_events: None,
                 raw_payload: None,
             },
-            Packet::PdRawData(bytes) => PyPacket {
-                packet_type: "PdRawData".to_string(),
-                adc_data: None,
-                pd_data: Some(bytes.to_vec()),
-                pd_extension_data: None,
-                raw_payload: None,
-            },
-            Packet::CmdGetPdData => PyPacket {
-                packet_type: "CmdGetPdData".to_string(),
-                adc_data: None,
-                pd_data: None,
-                pd_extension_data: None,
-                raw_payload: None,
-            },
-            Packet::Generic(raw_packet) => PyPacket {
-                packet_type: "Generic".to_string(),
-                adc_data: None,
-                pd_data: None,
-                pd_extension_data: None,
-                raw_payload: Some(raw_packet.payload().to_vec()),
+            Packet::Generic(raw_packet) => {
+                // For generic packets, extract the raw payload from RawPacket
+                let raw_payload = match &raw_packet {
+                    RawPacket::Ctrl { payload, .. } => Some(payload.to_vec()),
+                    RawPacket::SimpleData { payload, .. } => Some(payload.to_vec()),
+                    RawPacket::Data { logical_packets, .. } => {
+                        Some(logical_packets.iter().flat_map(|lp| lp.payload.iter()).copied().collect())
+                    }
+                };
+
+                PyPacket {
+                    packet_type: "Generic".to_string(),
+                    adc_data: None,
+                    pd_status: None,
+                    pd_events: None,
+                    raw_payload,
+                }
             },
         }
     }
@@ -226,27 +479,29 @@ impl PyPacket {
     /// Detailed string representation showing packet type and key data.
     ///
     /// Examples:
-    ///   - "Packet::SimpleAdcData(AdcData(vbus=5.000V, ibus=2.100A, ...))"
-    ///   - "Packet::PdRawData(24 bytes)"
-    ///   - "Packet::CmdGetSimpleAdcData"
+    ///   - "Packet::DataResponse(adc=AdcData(...), pd_status=PdStatus(...))"
+    ///   - "Packet::GetData"
+    ///   - "Packet::Connect"
     fn __repr__(&self) -> String {
         match self.packet_type.as_str() {
-            "SimpleAdcData" => {
-                let mut repr = if let Some(ref adc) = self.adc_data {
-                    format!("Packet::SimpleAdcData({})", adc.__repr__())
-                } else {
-                    "Packet::SimpleAdcData(None)".to_string()
-                };
-                if let Some(ref ext) = self.pd_extension_data {
-                    repr.push_str(&format!(" with {} ext bytes", ext.len()));
+            "DataResponse" => {
+                let mut parts = vec![];
+                if let Some(ref adc) = self.adc_data {
+                    parts.push(format!("adc={}", adc.__repr__()));
                 }
-                repr
-            }
-            "PdRawData" => {
-                if let Some(ref data) = self.pd_data {
-                    format!("Packet::PdRawData({} bytes)", data.len())
+                if let Some(ref pd_status) = self.pd_status {
+                    parts.push(format!("pd_status={}", pd_status.__repr__()));
+                }
+                if let Some(ref pd_events) = self.pd_events {
+                    parts.push(format!("pd_events={}", pd_events.__repr__()));
+                }
+                if let Some(ref raw) = self.raw_payload {
+                    parts.push(format!("unknown_payload={} bytes", raw.len()));
+                }
+                if parts.is_empty() {
+                    "Packet::DataResponse(empty)".to_string()
                 } else {
-                    "Packet::PdRawData(None)".to_string()
+                    format!("Packet::DataResponse({})", parts.join(", "))
                 }
             }
             "Generic" => {
@@ -348,10 +603,17 @@ pub struct PyRawPacket {
 impl From<RawPacket> for PyRawPacket {
     fn from(raw_packet: RawPacket) -> Self {
         let raw_bytes: Vec<u8> = Bytes::from(raw_packet.clone()).to_vec();
-        let payload = raw_packet.payload().to_vec();
+        let payload = match &raw_packet {
+            RawPacket::Ctrl { payload, .. } => payload.to_vec(),
+            RawPacket::SimpleData { payload, .. } => payload.to_vec(),
+            RawPacket::Data { logical_packets, .. } => {
+                // Concatenate all logical packet payloads
+                logical_packets.iter().flat_map(|lp| lp.payload.iter()).copied().collect()
+            }
+        };
 
         // Extract header info and extended header metadata based on packet type
-        // Extended headers only exist for PutData packets in the current protocol
+        // Extended headers are represented via logical packets in Data variant
         let (has_extended_header, reserved_flag, ext_meta) = match &raw_packet {
             RawPacket::Ctrl { header, .. } => {
                 // Control packets: 4-byte CtrlHeader only
@@ -361,14 +623,13 @@ impl From<RawPacket> for PyRawPacket {
                 // Simple data packets: 4-byte DataHeader only
                 (false, header.reserved_flag(), None)
             }
-            RawPacket::ExtendedData { header, ext, .. } => {
-                // Extended data packets: DataHeader + 4-byte ExtendedHeader
-                // Tuple order: (attribute, next, chunk, size) - maps to ext_* fields below
-                (
-                    true,
-                    header.reserved_flag(),
-                    Some((ext.attribute(), ext.next(), ext.chunk(), ext.size())),
-                )
+            RawPacket::Data { header, logical_packets } => {
+                // Data packets with logical packets
+                // For the first logical packet, extract extended header info
+                let ext_meta = logical_packets.first().map(|lp| {
+                    (u16::from(lp.attribute), lp.next, lp.chunk, lp.size)
+                });
+                (true, header.reserved_flag(), ext_meta)
             }
         };
 
@@ -579,6 +840,10 @@ pub fn get_sample_rates() -> Vec<PySampleRate> {
 fn km003c_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Core data classes
     m.add_class::<PyAdcData>()?;
+    m.add_class::<PyPdStatus>()?;
+    m.add_class::<PyPdPreamble>()?;
+    m.add_class::<PyPdEvent>()?;
+    m.add_class::<PyPdEventStream>()?;
     m.add_class::<PySampleRate>()?;
     m.add_class::<PyPacket>()?;
     m.add_class::<PyRawPacket>()?;
