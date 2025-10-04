@@ -11,16 +11,55 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
 use tracing::{debug, info, trace};
 
-// Constants for USB device identification
-pub const VID: u16 = 0x5FC9;
-pub const PID: u16 = 0x0063;
+/// USB device identification constants
+pub const VID: u16 = 0x5FC9;  // ChargerLAB vendor ID
+pub const PID: u16 = 0x0063;  // KM003C product ID
 
-// Interface 0 (Vendor Specific - primary protocol, fastest: Bulk ~0.5ms)
+/// # KM003C USB Interfaces
+///
+/// The KM003C provides multiple USB interfaces for communication.
+/// All interfaces support the same protocol commands (4-byte packets).
+///
+/// ## Interface 0: Vendor Specific (Primary Protocol)
+/// - **Transfer Type**: Bulk
+/// - **Endpoints**: 0x01 OUT, 0x81 IN
+/// - **Max Packet Size**: 64 bytes
+/// - **Throughput**: ~200 KB/s (official spec)
+/// - **Latency**: ~0.6 ms (measured)
+/// - **Linux Driver**: `powerz` (hwmon)
+/// - **Use Case**: Best performance, same as kernel driver
+/// - **Note**: Requires detaching kernel driver on Linux
+///
+/// ## Interface 1+2: CDC (Virtual Serial Port)
+/// - **Transfer Type**: Bulk (Interface 2) + Interrupt (Interface 1)
+/// - **Endpoints**: 0x02 OUT, 0x82 IN (data), 0x83 IN (control)
+/// - **Throughput**: ~200 KB/s (official spec)
+/// - **Linux Driver**: `cdc_acm`
+/// - **Use Case**: Serial port compatibility
+/// - **Note**: Not currently implemented in this library
+///
+/// ## Interface 3: HID (Human Interface Device)
+/// - **Transfer Type**: Interrupt
+/// - **Endpoints**: 0x05 OUT, 0x85 IN
+/// - **Max Packet Size**: 64 bytes
+/// - **Throughput**: ~60 KB/s (official spec)
+/// - **Latency**: ~3.8 ms (measured)
+/// - **Linux Driver**: `usbhid`
+/// - **Use Case**: Most compatible, no driver installation needed
+/// - **Note**: Works on all platforms without custom drivers
+///
+/// ## Performance Comparison
+/// Based on real device measurements:
+/// - **Interface 0 (Bulk)**: 0.6 ms latency - **6x faster** ⚡
+/// - **Interface 3 (Interrupt)**: 3.8 ms latency - most compatible
+///
+/// ## Recommendation
+/// - Use **Interface 0** for performance-critical applications (same as kernel driver)
+/// - Use **Interface 3** for maximum compatibility across platforms
 pub const INTERFACE_VENDOR: u8 = 0;
 pub const ENDPOINT_OUT_VENDOR: u8 = 0x01;
 pub const ENDPOINT_IN_VENDOR: u8 = 0x81;
 
-// Interface 3 (HID - more compatible: Interrupt ~3.8ms)
 pub const INTERFACE_HID: u8 = 3;
 pub const ENDPOINT_OUT_HID: u8 = 0x05;
 pub const ENDPOINT_IN_HID: u8 = 0x85;
@@ -36,11 +75,33 @@ pub enum TransferType {
 }
 
 /// Configuration for KM003C device communication
+///
+/// Specifies which USB interface and endpoints to use for communication.
+/// The KM003C has multiple interfaces with different performance characteristics.
+///
+/// # Examples
+///
+/// ```no_run
+/// use km003c_lib::{KM003C, DeviceConfig};
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// // Use HID interface (most compatible, ~3.8ms latency)
+/// let device = KM003C::new().await?;
+///
+/// // Use Vendor interface (fastest, ~0.6ms latency, 6x faster)
+/// let device = KM003C::with_config(DeviceConfig::vendor_interface()).await?;
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone, Copy)]
 pub struct DeviceConfig {
+    /// USB interface number (0-3)
     pub interface: u8,
+    /// OUT endpoint address
     pub endpoint_out: u8,
+    /// IN endpoint address
     pub endpoint_in: u8,
+    /// Transfer type (Bulk or Interrupt)
     pub transfer_type: TransferType,
 }
 
@@ -58,8 +119,20 @@ impl Default for DeviceConfig {
 
 impl DeviceConfig {
     /// Use vendor-specific interface (Interface 0) with Bulk transfers
-    /// Fastest option (~0.5ms latency), 7x faster than HID
-    /// Same interface as Linux kernel driver uses
+    ///
+    /// This is the **fastest option** with ~0.6ms latency (6x faster than HID).
+    /// Uses the same interface as the Linux kernel `powerz` driver.
+    ///
+    /// **Specifications** (official):
+    /// - Throughput: ~200 KB/s
+    /// - Endpoints: 0x01 OUT, 0x81 IN (Bulk)
+    ///
+    /// **Measured performance**:
+    /// - Latency: ~600 µs per request
+    /// - Best for high-frequency polling and performance-critical applications
+    ///
+    /// **Note**: On Linux, requires detaching the `powerz` kernel driver,
+    /// which this library handles automatically.
     pub fn vendor_interface() -> Self {
         Self {
             interface: INTERFACE_VENDOR,
@@ -70,7 +143,22 @@ impl DeviceConfig {
     }
     
     /// Use HID interface (Interface 3) with Interrupt transfers
-    /// Most compatible option (~3.8ms latency)
+    ///
+    /// This is the **most compatible option** that works on all platforms
+    /// without installing custom drivers. Slightly slower than Interface 0.
+    ///
+    /// **Specifications** (official):
+    /// - Throughput: ~60 KB/s
+    /// - Endpoints: 0x05 OUT, 0x85 IN (Interrupt)
+    ///
+    /// **Measured performance**:
+    /// - Latency: ~3.8 ms per request
+    /// - Good for standard monitoring applications
+    ///
+    /// **Advantages**:
+    /// - Works without driver installation on Windows/Mac/Linux
+    /// - Uses standard HID protocol
+    /// - No permission issues
     pub fn hid_interface() -> Self {
         Self::default()
     }
