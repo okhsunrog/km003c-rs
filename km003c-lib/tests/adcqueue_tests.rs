@@ -3,9 +3,11 @@ use km003c_lib::{AdcQueueData, Packet, RawPacket};
 
 #[test]
 fn test_adcqueue_parsing() {
-    // Real AdcQueue packet from dataset (first 48 bytes)
+    // Real AdcQueue packet from pd_adcqueue_new.11 (modern firmware)
     // Main header (4) + Extended header (4) + 2 samples (2×20=40) = 48 bytes
-    let hex = "411d8230020027054e003c00a98b4d00d20000004300a30c000000004f003c00a98b4d00d20000004300a50c00000000";
+    // This uses 0.1mV scale for voltage fields (CC1, CC2, D+, D-)
+    let hex = "413e0202020002050de80800d5c38c00598ce8ffdc401f015b17581701ea0800\
+               0bac8c000255e9ff92401e0158175417";
 
     let bytes = Bytes::from(hex::decode(hex).unwrap());
     let raw_packet = RawPacket::try_from(bytes).unwrap();
@@ -29,30 +31,29 @@ fn test_adcqueue_parsing() {
                     // Should have 2 samples (40 bytes / 20)
                     assert_eq!(queue.samples.len(), 2);
 
-                    // Check first sample
+                    // Check first sample (modern firmware with all fields)
                     let sample0 = &queue.samples[0];
-                    assert_eq!(sample0.sequence, 78);
-                    assert!((sample0.vbus_v - 5.082).abs() < 0.001); // ~5.082V
-                    assert!(sample0.ibus_a < 0.001); // ~0.21mA
-                    assert!((sample0.cc1_v - 0.067).abs() < 0.001); // 67mV
-                    assert!((sample0.cc2_v - 3.235).abs() < 0.01); // 3235mV
+                    assert_eq!(sample0.sequence, 59405);
+                    assert!((sample0.vbus_v - 9.225).abs() < 0.01); // 9225173 µV
+                    assert!((sample0.ibus_a + 1.537).abs() < 0.01); // -1536935 µA
+                    assert!((sample0.cc1_v - 1.660).abs() < 0.01); // 16604×0.1mV = 1.66V
+                    assert!((sample0.cc2_v - 0.029).abs() < 0.01); // 287×0.1mV = 29mV
+                    assert!((sample0.vdp_v - 0.598).abs() < 0.01); // 5979×0.1mV
+                    assert!((sample0.vdm_v - 0.598).abs() < 0.01); // 5976×0.1mV
 
                     // Check second sample
                     let sample1 = &queue.samples[1];
-                    assert_eq!(sample1.sequence, 79);
+                    assert_eq!(sample1.sequence, 59905);
+                    assert!((sample1.vbus_v - 9.220).abs() < 0.01);
 
                     println!("✅ AdcQueue parsing successful!");
                     println!(
-                        "   Sample 0: seq={} vbus={:.3}V ibus={:.3}mA",
-                        sample0.sequence,
-                        sample0.vbus_v,
-                        sample0.ibus_a * 1000.0
+                        "   Sample 0: seq={} vbus={:.3}V ibus={:.3}A cc1={:.3}V d+={:.3}V",
+                        sample0.sequence, sample0.vbus_v, sample0.ibus_a, sample0.cc1_v, sample0.vdp_v
                     );
                     println!(
-                        "   Sample 1: seq={} vbus={:.3}V ibus={:.3}mA",
-                        sample1.sequence,
-                        sample1.vbus_v,
-                        sample1.ibus_a * 1000.0
+                        "   Sample 1: seq={} vbus={:.3}V ibus={:.3}A",
+                        sample1.sequence, sample1.vbus_v, sample1.ibus_a
                     );
                 }
                 other => panic!("Expected AdcQueue, got {:?}", other),

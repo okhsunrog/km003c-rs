@@ -7,33 +7,35 @@ use serde::{Deserialize, Serialize};
 /// AdcQueue sample structure (20 bytes)
 ///
 /// AdcQueue provides high-rate streaming of power measurements.
-/// Each sample contains basic voltage/current measurements without
-/// the detailed statistics (avg, min, max) that ADC packets provide.
+/// Each sample contains voltage/current measurements for all major lines
+/// (VBUS, IBUS, CC1, CC2, D+, D-) but without statistics or temperature.
 ///
-/// Typical usage: Device buffers 38-40 samples (768-808 bytes total)
-/// and sends them in a single USB transfer for efficient high-rate logging.
+/// Typical usage: Device buffers 5-48 samples and sends them in a single
+/// USB transfer for efficient high-rate logging (up to 1000 SPS).
 ///
 /// Fields NOT included (unlike ADC):
 /// - Temperature (always request ADC separately for temp)
-/// - D+ voltage (USB data lines)
-/// - D- voltage (USB data lines)
+/// - Statistics (min/max/avg)
+/// - VDD (internal voltage)
 #[derive(Debug, Clone, Copy, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 pub struct AdcQueueSampleRaw {
     /// Incrementing sequence number for detecting dropped samples
     pub sequence: U16,
-    /// Marker/constant value (typically 0x3C = 60)
+    /// Marker/flags field (varies by firmware version and mode, not temperature)
     pub marker: U16,
     /// VBUS voltage in microvolts (µV)
     pub vbus_uv: I32,
     /// IBUS current in microamperes (µA), signed
     pub ibus_ua: I32,
-    /// CC1 line voltage in millivolts (mV)
-    pub cc1_mv: U16,
-    /// CC2 line voltage in millivolts (mV)  
-    pub cc2_mv: U16,
-    /// Reserved bytes (always 0 in observed traffic)
-    pub reserved: [u8; 4],
+    /// CC1 line voltage in 0.1 millivolt units (divide by 10000 for volts)
+    pub cc1_tenth_mv: U16,
+    /// CC2 line voltage in 0.1 millivolt units (divide by 10000 for volts)
+    pub cc2_tenth_mv: U16,
+    /// D+ line voltage in 0.1 millivolt units (divide by 10000 for volts)
+    pub vdp_tenth_mv: U16,
+    /// D- line voltage in 0.1 millivolt units (divide by 10000 for volts)
+    pub vdm_tenth_mv: U16,
 }
 
 /// Parsed AdcQueue sample with converted units
@@ -44,8 +46,10 @@ pub struct AdcQueueSample {
     pub vbus_v: f64,  // Volts
     pub ibus_a: f64,  // Amperes (signed)
     pub power_w: f64, // Watts (calculated)
-    pub cc1_v: f64,   // Volts
-    pub cc2_v: f64,   // Volts
+    pub cc1_v: f64,   // Volts (CC1 line)
+    pub cc2_v: f64,   // Volts (CC2 line)
+    pub vdp_v: f64,   // Volts (USB D+ line)
+    pub vdm_v: f64,   // Volts (USB D- line)
 }
 
 impl From<AdcQueueSampleRaw> for AdcQueueSample {
@@ -59,8 +63,11 @@ impl From<AdcQueueSampleRaw> for AdcQueueSample {
             vbus_v,
             ibus_a,
             power_w,
-            cc1_v: raw.cc1_mv.get() as f64 / 1_000.0,
-            cc2_v: raw.cc2_mv.get() as f64 / 1_000.0,
+            // All voltage fields use 0.1mV units (same as ADC structure)
+            cc1_v: raw.cc1_tenth_mv.get() as f64 / 10_000.0,
+            cc2_v: raw.cc2_tenth_mv.get() as f64 / 10_000.0,
+            vdp_v: raw.vdp_tenth_mv.get() as f64 / 10_000.0,
+            vdm_v: raw.vdm_tenth_mv.get() as f64 / 10_000.0,
         }
     }
 }
