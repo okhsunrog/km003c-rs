@@ -494,7 +494,7 @@ impl<'py> pyo3::IntoPyObject<'py> for RawPacket {
     type Error = pyo3::PyErr;
 
     fn into_pyobject(self, py: pyo3::Python<'py>) -> Result<Self::Output, Self::Error> {
-        use pyo3::types::{PyDict, PyDictMethods};
+        use pyo3::types::{PyDict, PyDictMethods, PyListMethods};
 
         let dict = PyDict::new(py);
         match self {
@@ -531,7 +531,18 @@ impl<'py> pyo3::IntoPyObject<'py> for RawPacket {
                 header_dict.set_item("id", header.id())?;
                 header_dict.set_item("obj_count_words", header.obj_count_words())?;
                 inner.set_item("header", header_dict)?;
-                inner.set_item("logical_packets", logical_packets)?;
+                // Convert LogicalPacket vec -> list of dicts for Python
+                let lp_list = pyo3::types::PyList::empty(py);
+                for lp in logical_packets {
+                    let lp_dict = PyDict::new(py);
+                    lp_dict.set_item("attribute", u16::from(lp.attribute))?;
+                    lp_dict.set_item("next", lp.next)?;
+                    lp_dict.set_item("chunk", lp.chunk)?;
+                    lp_dict.set_item("size", lp.size)?;
+                    lp_dict.set_item("payload", lp.payload)?;
+                    lp_list.append(lp_dict)?;
+                }
+                inner.set_item("logical_packets", lp_list)?;
                 dict.set_item("Data", inner)?;
             }
         }

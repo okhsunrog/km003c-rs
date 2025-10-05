@@ -23,7 +23,7 @@ fn test_adcqueue_parsing() {
     let packet = Packet::try_from(raw_packet).unwrap();
 
     match packet {
-        Packet::DataResponse(payloads) => {
+        Packet::DataResponse { payloads } => {
             assert_eq!(payloads.len(), 1);
 
             match &payloads[0] {

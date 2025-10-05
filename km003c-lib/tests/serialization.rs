@@ -13,7 +13,7 @@ fn test_rawpacket_to_bytes_ctrl() {
             .with_reserved_flag(false)
             .with_id(1)
             .with_attribute(0),
-        payload: Bytes::new(),
+        payload: Bytes::new().to_vec(),
     };
 
     let bytes = Bytes::from(raw_packet);
@@ -30,7 +30,7 @@ fn test_rawpacket_to_bytes_ctrl() {
 #[test]
 fn test_rawpacket_to_bytes_simple_data() {
     // Test direct conversion of SimpleData packet to bytes
-    let payload = Bytes::from_static(&[0xAA, 0xBB, 0xCC, 0xDD]);
+    let payload = Bytes::from_static(&[0xAA, 0xBB, 0xCC, 0xDD]).to_vec();
     let raw_packet = RawPacket::SimpleData {
         header: DataHeader::new()
             .with_packet_type(64)
@@ -54,7 +54,7 @@ fn test_rawpacket_to_bytes_simple_data() {
 #[test]
 fn test_rawpacket_to_bytes_data_with_logical_packet() {
     // Test direct conversion of Data packet with logical packet to bytes
-    let payload = Bytes::from_static(&[0xAA, 0xBB, 0xCC, 0xDD]);
+    let payload = Bytes::from_static(&[0xAA, 0xBB, 0xCC, 0xDD]).to_vec();
 
     let logical_packet = LogicalPacket {
         attribute: Attribute::Adc,
@@ -91,7 +91,7 @@ fn test_rawpacket_to_bytes_data_with_logical_packet() {
             assert!(!lp.next);
             assert_eq!(lp.attribute, Attribute::Adc);
             assert_eq!(lp.size, 4);
-            assert_eq!(lp.payload.as_ref(), &[0xAA, 0xBB, 0xCC, 0xDD]);
+            assert_eq!(&lp.payload, &[0xAA, 0xBB, 0xCC, 0xDD]);
         }
         _ => panic!("Expected Data after parsing serialized bytes"),
     }
@@ -100,7 +100,7 @@ fn test_rawpacket_to_bytes_data_with_logical_packet() {
 #[test]
 fn test_rawpacket_to_bytes_ctrl_with_payload() {
     // Test Ctrl packet with non-empty payload
-    let payload = Bytes::from_static(&[0x12, 0x34]);
+    let payload = Bytes::from_static(&[0x12, 0x34]).to_vec();
     let raw_packet = RawPacket::Ctrl {
         header: CtrlHeader::new()
             .with_packet_type(5)
@@ -126,7 +126,7 @@ fn test_rawpacket_to_bytes_ctrl_with_payload() {
             assert!(header.reserved_flag(), "Reserved flag should be true");
             assert_eq!(header.id(), 7, "ID should be 7");
             assert_eq!(header.attribute(), 0x123, "Attribute should be 0x123");
-            assert_eq!(parsed_payload.as_ref(), &[0x12, 0x34], "Payload should match");
+            assert_eq!(&parsed_payload, &[0x12, 0x34], "Payload should match");
         }
         _ => panic!("Expected Ctrl packet"),
     }
@@ -147,7 +147,7 @@ fn test_rawpacket_to_bytes_empty_payload() {
             .with_reserved_flag(false)
             .with_id(0)
             .with_attribute(1),
-        payload: Bytes::new(),
+        payload: Bytes::new().to_vec(),
     };
 
     let data_packet = RawPacket::SimpleData {
@@ -156,7 +156,7 @@ fn test_rawpacket_to_bytes_empty_payload() {
             .with_reserved_flag(false)
             .with_id(0)
             .with_obj_count_words(0),
-        payload: Bytes::new(),
+        payload: Bytes::new().to_vec(),
     };
 
     let ctrl_bytes = Bytes::from(ctrl_packet);
@@ -176,7 +176,7 @@ fn test_rawpacket_to_bytes_large_payload() {
             .with_reserved_flag(true)
             .with_id(42)
             .with_obj_count_words(64), // 256 bytes = 64 words (assuming 4 bytes per word)
-        payload: Bytes::from(large_payload.clone()),
+        payload: Bytes::from(large_payload.clone()).to_vec(),
     };
 
     let bytes = Bytes::from(raw_packet);

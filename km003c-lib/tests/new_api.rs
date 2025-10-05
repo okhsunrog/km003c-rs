@@ -36,14 +36,14 @@ fn test_logical_packets_chained() {
             next: true, // Has next packet
             chunk: 0,
             size: 44,
-            payload: Bytes::from(adc_payload),
+            payload: Bytes::from(adc_payload).to_vec(),
         },
         LogicalPacket {
             attribute: Attribute::PdPacket,
             next: false, // Last packet
             chunk: 0,
             size: 12,
-            payload: Bytes::from(pd_payload),
+            payload: Bytes::from(pd_payload).to_vec(),
         },
     ];
 
@@ -81,7 +81,7 @@ fn test_get_attribute_ctrl() {
             .with_reserved_flag(false)
             .with_id(0)
             .with_attribute(1), // ADC attribute
-        payload: Bytes::new(),
+        payload: Bytes::new().to_vec(),
     };
 
     let attribute = ctrl_packet.get_attribute();
@@ -102,7 +102,7 @@ fn test_get_attribute_set() {
             .with_reserved_flag(false)
             .with_id(0)
             .with_attribute(0x0011), // ADC + PD combined
-        payload: Bytes::new(),
+        payload: Bytes::new().to_vec(),
     };
 
     let attr_set = ctrl_packet.get_attribute_set();
@@ -123,7 +123,7 @@ fn test_data_packet_no_logical_packets() {
             .with_reserved_flag(false)
             .with_id(0)
             .with_obj_count_words(0),
-        payload: Bytes::new(),
+        payload: Bytes::new().to_vec(),
     };
 
     assert!(

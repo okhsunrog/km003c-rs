@@ -45,7 +45,7 @@ fn test_adc_data_packet() {
 
     // Check if it's a DataResponse with ADC
     match packet {
-        Packet::DataResponse(payloads) => {
+        Packet::DataResponse { payloads } => {
             assert_eq!(payloads.len(), 1);
             match &payloads[0] {
                 PayloadData::Adc(adc) => {
@@ -69,7 +69,9 @@ fn test_adc_data_packet() {
 #[test]
 fn test_adc_request_generation() {
     // Test that GetData with ADC attribute generates the correct request bytes
-    let packet = Packet::GetData(AttributeSet::single(Attribute::Adc));
+    let packet = Packet::GetData {
+        attribute_mask: AttributeSet::single(Attribute::Adc).raw(),
+    };
     let raw_packet = packet.to_raw_packet(0);
 
     // Convert to bytes manually to verify the exact output
@@ -127,7 +129,7 @@ fn test_adc_response_parsing_real_data() {
 
     // Verify it's parsed as ADC data
     match packet {
-        Packet::DataResponse(payloads) => {
+        Packet::DataResponse { payloads } => {
             assert_eq!(payloads.len(), 1);
             match &payloads[0] {
                 PayloadData::Adc(adc_data) => {
@@ -205,7 +207,9 @@ fn test_adc_response_parsing_real_data() {
 #[test]
 fn test_adc_request_generation_with_new_trait() {
     // Enhanced version of test_adc_request_generation using the new trait
-    let packet = Packet::GetData(AttributeSet::single(Attribute::Adc));
+    let packet = Packet::GetData {
+        attribute_mask: AttributeSet::single(Attribute::Adc).raw(),
+    };
     let raw_packet = packet.to_raw_packet(0);
 
     // Use the new trait to convert to bytes

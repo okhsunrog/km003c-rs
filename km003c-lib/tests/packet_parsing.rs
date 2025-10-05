@@ -17,7 +17,7 @@ fn test_parse_packet_02010000() {
                 .with_reserved_flag(false)
                 .with_id(1)
                 .with_attribute(0),
-            payload: Bytes::new(),
+            payload: Bytes::new().to_vec(),
         },
         "Parsed packet does not match expected packet"
     );
@@ -36,7 +36,7 @@ fn test_parse_packet_40010001() {
                 .with_reserved_flag(false)
                 .with_id(1)
                 .with_obj_count_words(4),
-            payload: Bytes::from_static(&[0xAA, 0xBB, 0xCC, 0xDD]),
+            payload: Bytes::from_static(&[0xAA, 0xBB, 0xCC, 0xDD]).to_vec(),
         },
         "Parsed data packet does not match expected data packet"
     );

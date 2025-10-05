@@ -140,6 +140,15 @@ class Packet:
 
 
 class RawPacket:
+
+    # Data variant shape for PutData responses (Python dict variant)
+    # {
+    #   "Data": {
+    #       "header": {"packet_type": int, "reserved_flag": bool, "id": int, "obj_count_words": int},
+    #       "logical_packets": List[Dict[str, Any]]  # [{"attribute": int, "next": bool, "chunk": int, "size": int, "payload": bytes}]
+    #   }
+    # }
+
     """Low-level packet structure showing raw protocol details."""
     
     packet_type: str

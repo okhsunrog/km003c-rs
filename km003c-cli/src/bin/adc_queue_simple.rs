@@ -75,13 +75,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("📊 Starting AdcQueue streaming at {} SPS", args.rate);
     device.start_graph_mode(rate).await?;
     println!("✅ Streaming started");
-    
+
     // Wait for device to accumulate first samples in buffer
     let warmup_ms = match rate {
-        GraphSampleRate::Sps1 => 2000,    // 2 seconds for 1-2 samples
-        GraphSampleRate::Sps10 => 500,    // 0.5s for 5 samples
-        GraphSampleRate::Sps50 => 200,    // 0.2s for 10 samples
-        GraphSampleRate::Sps1000 => 100,  // 0.1s for 100 samples
+        GraphSampleRate::Sps1 => 2000,   // 2 seconds for 1-2 samples
+        GraphSampleRate::Sps10 => 500,   // 0.5s for 5 samples
+        GraphSampleRate::Sps50 => 200,   // 0.2s for 10 samples
+        GraphSampleRate::Sps1000 => 100, // 0.1s for 100 samples
     };
     println!("⏳ Waiting {}ms for buffer to fill...\n", warmup_ms);
     tokio::time::sleep(Duration::from_millis(warmup_ms)).await;
@@ -111,7 +111,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 // Empty response - buffer not ready yet, skip
                 continue;
             }
-            
+
             for payload in payloads {
                 if let km003c_lib::PayloadData::AdcQueue(queue) = payload {
                     packet_count += 1;

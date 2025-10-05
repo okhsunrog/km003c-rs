@@ -63,7 +63,7 @@ fn test_logical_packets_edge_cases() {
             .with_reserved_flag(false)
             .with_id(0)
             .with_attribute(1),
-        payload: Bytes::new(),
+        payload: Bytes::new().to_vec(),
     };
     assert!(ctrl_packet.logical_packets().is_none());
 
@@ -74,7 +74,7 @@ fn test_logical_packets_edge_cases() {
             .with_reserved_flag(false)
             .with_id(0)
             .with_obj_count_words(0),
-        payload: Bytes::from_static(&[0x01, 0x02, 0x03, 0x04]),
+        payload: Bytes::from_static(&[0x01, 0x02, 0x03, 0x04]).to_vec(),
     };
     assert!(simple_data.logical_packets().is_none());
 
@@ -90,7 +90,7 @@ fn test_logical_packets_edge_cases() {
             next: false,
             chunk: 0,
             size: 4,
-            payload: Bytes::from_static(&[0x01, 0x02, 0x03, 0x04]),
+            payload: Bytes::from_static(&[0x01, 0x02, 0x03, 0x04]).to_vec(),
         }],
     };
     assert!(data_packet.logical_packets().is_some());
@@ -106,7 +106,7 @@ fn test_empty_payload_handling() {
             .with_reserved_flag(false)
             .with_id(0)
             .with_attribute(1),
-        payload: Bytes::new(),
+        payload: Bytes::new().to_vec(),
     };
 
     // Should have no logical packets (it's a Ctrl packet)
@@ -119,7 +119,7 @@ fn test_empty_payload_handling() {
             .with_reserved_flag(false)
             .with_id(0)
             .with_obj_count_words(0),
-        payload: Bytes::from_static(&[0x01, 0x02]),
+        payload: Bytes::from_static(&[0x01, 0x02]).to_vec(),
     };
 
     assert!(short_simple_data.logical_packets().is_none());
