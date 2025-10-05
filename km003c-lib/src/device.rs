@@ -43,6 +43,7 @@
 //! - Use **Interface 3** for maximum compatibility across platforms
 
 use crate::adc::AdcDataSimple;
+use crate::adcqueue::GraphSampleRate;
 use crate::error::KMError;
 use crate::message::Packet;
 use crate::packet::{Attribute, AttributeSet, RawPacket};
@@ -429,7 +430,7 @@ impl KM003C {
     /// let mut device = KM003C::new().await?;
     ///
     /// // Start 1000 SPS streaming
-    /// device.start_graph_mode(GraphSampleRate::Sps1000 as u16).await?;
+    /// device.start_graph_mode(GraphSampleRate::Sps1000).await?;
     ///
     /// // Poll for data...
     ///
@@ -438,12 +439,11 @@ impl KM003C {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn start_graph_mode(&mut self, rate: u16) -> Result<(), KMError> {
-        if rate > 3 {
-            return Err(KMError::Protocol(format!("Invalid rate: {} (valid range: 0-3)", rate)));
-        }
-
-        self.send(Packet::StartGraph { rate_index: rate }).await?;
+    pub async fn start_graph_mode(&mut self, rate: GraphSampleRate) -> Result<(), KMError> {
+        self.send(Packet::StartGraph {
+            rate_index: rate as u16,
+        })
+        .await?;
 
         // Wait for Accept
         match self.receive().await? {

@@ -37,11 +37,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt().with_max_level(log_level).init();
 
     // Parse rate
-    let rate_index = match args.rate.as_str() {
-        "1" => GraphSampleRate::Sps1 as u16,
-        "10" => GraphSampleRate::Sps10 as u16,
-        "50" => GraphSampleRate::Sps50 as u16,
-        "1000" => GraphSampleRate::Sps1000 as u16,
+    let rate = match args.rate.as_str() {
+        "1" => GraphSampleRate::Sps1,
+        "10" => GraphSampleRate::Sps10,
+        "50" => GraphSampleRate::Sps50,
+        "1000" => GraphSampleRate::Sps1000,
         _ => unreachable!(),
     };
 
@@ -57,7 +57,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("✅ Connected\n");
 
     println!("📊 Starting AdcQueue streaming at {} SPS", args.rate);
-    device.start_graph_mode(rate_index).await?;
+    device.start_graph_mode(rate).await?;
     println!("✅ Streaming started\n");
 
     println!("{}", "=".repeat(90));
@@ -89,11 +89,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         total_samples += 1;
 
                         // Print every Nth sample to avoid flooding terminal
-                        let print_interval = match rate_index {
-                            0 | 1 => 1, // 1-10 SPS: print all
-                            2 => 5,     // 50 SPS: every 5th
-                            3 => 50,    // 1000 SPS: every 50th
-                            _ => 10,
+                        let print_interval = match rate {
+                            GraphSampleRate::Sps1 | GraphSampleRate::Sps10 => 1, // Print all
+                            GraphSampleRate::Sps50 => 5,                         // Every 5th
+                            GraphSampleRate::Sps1000 => 50,                      // Every 50th
                         };
 
                         if total_samples % print_interval == 1 {
