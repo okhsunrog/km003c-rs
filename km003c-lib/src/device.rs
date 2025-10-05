@@ -109,6 +109,8 @@ pub struct DeviceConfig {
     pub endpoint_in: u8,
     /// Transfer type (Bulk or Interrupt)
     pub transfer_type: TransferType,
+    /// Skip initial USB reset (for compatibility with some systems/OSes)
+    pub skip_reset: bool,
 }
 
 impl Default for DeviceConfig {
@@ -119,6 +121,7 @@ impl Default for DeviceConfig {
             endpoint_out: ENDPOINT_OUT_HID,
             endpoint_in: ENDPOINT_IN_HID,
             transfer_type: TransferType::Interrupt,
+            skip_reset: false,
         }
     }
 }
@@ -145,6 +148,7 @@ impl DeviceConfig {
             endpoint_out: ENDPOINT_OUT_VENDOR,
             endpoint_in: ENDPOINT_IN_VENDOR,
             transfer_type: TransferType::Bulk,
+            skip_reset: false,
         }
     }
 
@@ -167,6 +171,15 @@ impl DeviceConfig {
     /// - No permission issues
     pub fn hid_interface() -> Self {
         Self::default()
+    }
+
+    /// Skip USB reset during initialization (for MacOS compatibility)
+    ///
+    /// Some systems (particularly MacOS) may have issues with USB reset.
+    /// Use this option if device initialization fails with reset errors.
+    pub fn with_skip_reset(mut self) -> Self {
+        self.skip_reset = true;
+        self
     }
 }
 
@@ -197,6 +210,15 @@ impl KM003C {
         );
 
         let device = device_info.open().await?;
+
+        // Optionally reset device (skip on MacOS if having issues)
+        if !config.skip_reset {
+            info!("Resetting device...");
+            device.reset().await?;
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        } else {
+            debug!("Skipping USB reset (skip_reset=true)");
+        }
 
         // Detach kernel drivers from ALL interfaces
         // All 4 interfaces have kernel drivers on Linux:

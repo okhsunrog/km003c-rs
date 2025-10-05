@@ -22,6 +22,10 @@ struct Args {
     /// Verbose logging
     #[arg(short, long)]
     verbose: bool,
+
+    /// Skip USB reset (for MacOS compatibility)
+    #[arg(long)]
+    no_reset: bool,
 }
 
 #[tokio::main]
@@ -46,11 +50,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     // Select interface
-    let config = match args.interface.as_str() {
+    let mut config = match args.interface.as_str() {
         "vendor" => DeviceConfig::vendor_interface(),
         "hid" => DeviceConfig::hid_interface(),
         _ => unreachable!(),
     };
+
+    if args.no_reset {
+        config = config.with_skip_reset();
+    }
 
     println!("🔍 Connecting to POWER-Z KM003C...");
     let mut device = KM003C::with_config(config).await?;

@@ -13,6 +13,10 @@ struct Args {
     /// Verbose logging (show USB traffic)
     #[arg(short, long)]
     verbose: bool,
+
+    /// Skip USB reset (for MacOS compatibility)
+    #[arg(long)]
+    no_reset: bool,
 }
 
 #[tokio::main]
@@ -33,6 +37,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "vendor" => DeviceConfig::vendor_interface(),
         "hid" => DeviceConfig::hid_interface(),
         _ => unreachable!(), // clap validates this
+    };
+
+    let config = if args.no_reset {
+        config.with_skip_reset()
+    } else {
+        config
     };
 
     println!("🔍 Searching for POWER-Z KM003C...");
