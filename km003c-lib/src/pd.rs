@@ -22,6 +22,7 @@ pub struct PdStatusRaw {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "python", pyo3::pyclass(get_all))]
 pub struct PdStatus {
     pub type_id: u8,
     pub timestamp: u32, // Converted from 24-bit, ~40ms per tick
@@ -47,6 +48,21 @@ impl From<PdStatusRaw> for PdStatus {
     }
 }
 
+#[cfg(feature = "python")]
+#[pyo3::pymethods]
+impl PdStatus {
+    fn __repr__(&self) -> String {
+        format!(
+            "PdStatus(type_id={}, timestamp={}, vbus={:.3}V, ibus={:.3}A)",
+            self.type_id, self.timestamp, self.vbus_v, self.ibus_a
+        )
+    }
+
+    fn __str__(&self) -> String {
+        self.__repr__()
+    }
+}
+
 /// PD Preamble (12 bytes) - appears before event stream in PD-only responses
 #[derive(Debug, Clone, Copy, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
@@ -60,6 +76,7 @@ pub struct PdPreambleRaw {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "python", pyo3::pyclass(get_all))]
 pub struct PdPreamble {
     pub timestamp: u32, // Milliseconds, frames following events
     pub vbus_v: f64,
@@ -80,16 +97,38 @@ impl From<PdPreambleRaw> for PdPreamble {
     }
 }
 
+#[cfg(feature = "python")]
+#[pyo3::pymethods]
+impl PdPreamble {
+    fn __repr__(&self) -> String {
+        format!(
+            "PdPreamble(timestamp={}ms, vbus={:.3}V, ibus={:.3}A)",
+            self.timestamp, self.vbus_v, self.ibus_a
+        )
+    }
+
+    fn __str__(&self) -> String {
+        self.__repr__()
+    }
+}
+
 /// Event data types that can appear in PD stream
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "python", derive(pyo3::IntoPyObject))]
 pub enum PdEventData {
-    Connect,
-    Disconnect,
-    PdMessage { sop: u8, wire_data: Bytes },
+    #[cfg_attr(feature = "python", pyo3(transparent))]
+    Connect(()),
+    #[cfg_attr(feature = "python", pyo3(transparent))]
+    Disconnect(()),
+    PdMessage {
+        sop: u8,
+        wire_data: Vec<u8>,
+    },
 }
 
 /// Timestamped PD event
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "python", pyo3::pyclass(get_all, name = "PdEvent"))]
 pub struct PdEvent {
     pub timestamp: u32,
     pub data: PdEventData,
@@ -97,6 +136,7 @@ pub struct PdEvent {
 
 /// Complete PD event stream with preamble and events
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "python", pyo3::pyclass(name = "PdEventStream"))]
 pub struct PdEventStream {
     pub preamble: PdPreamble,
     pub events: Vec<PdEvent>,
@@ -152,9 +192,9 @@ impl PdEventStream {
             }
 
             let wire_data = if wire_len > 0 {
-                bytes.slice(offset..offset + wire_len)
+                bytes.slice(offset..offset + wire_len).to_vec()
             } else {
-                Bytes::new()
+                Vec::new()
             };
             offset += wire_len;
 
@@ -163,8 +203,8 @@ impl PdEventStream {
                 // Connection event
                 if let Some(&event_code) = wire_data.first() {
                     match event_code {
-                        PD_CONNECTION_CONNECT => PdEventData::Connect,
-                        PD_CONNECTION_DISCONNECT => PdEventData::Disconnect,
+                        PD_CONNECTION_CONNECT => PdEventData::Connect(()),
+                        PD_CONNECTION_DISCONNECT => PdEventData::Disconnect(()),
                         _ => PdEventData::PdMessage { sop, wire_data },
                     }
                 } else {
@@ -181,7 +221,7 @@ impl PdEventStream {
     }
 
     /// Helper: get all PD messages, ignoring connection events
-    pub fn pd_messages(&self) -> impl Iterator<Item = (&u32, u8, &Bytes)> {
+    pub fn pd_messages(&self) -> impl Iterator<Item = (&u32, u8, &Vec<u8>)> {
         self.events.iter().filter_map(|e| match &e.data {
             PdEventData::PdMessage { sop, wire_data } => Some((&e.timestamp, *sop, wire_data)),
             _ => None,
@@ -190,10 +230,57 @@ impl PdEventStream {
 
     /// Helper: get connection state changes
     pub fn connection_events(&self) -> impl Iterator<Item = (&u32, bool)> {
-        self.events.iter().filter_map(|e| match e.data {
-            PdEventData::Connect => Some((&e.timestamp, true)),
-            PdEventData::Disconnect => Some((&e.timestamp, false)),
+        self.events.iter().filter_map(|e| match &e.data {
+            PdEventData::Connect(()) => Some((&e.timestamp, true)),
+            PdEventData::Disconnect(()) => Some((&e.timestamp, false)),
             _ => None,
         })
+    }
+}
+
+#[cfg(feature = "python")]
+#[pyo3::pymethods]
+impl PdEvent {
+    fn __repr__(&self) -> String {
+        match &self.data {
+            PdEventData::Connect(()) => format!("PdEvent(timestamp={}, type=connect)", self.timestamp),
+            PdEventData::Disconnect(()) => format!("PdEvent(timestamp={}, type=disconnect)", self.timestamp),
+            PdEventData::PdMessage { sop, wire_data } => format!(
+                "PdEvent(timestamp={}, type=pd_message, sop={}, {} bytes)",
+                self.timestamp,
+                sop,
+                wire_data.len()
+            ),
+        }
+    }
+
+    fn __str__(&self) -> String {
+        self.__repr__()
+    }
+}
+
+#[cfg(feature = "python")]
+#[pyo3::pymethods]
+impl PdEventStream {
+    #[getter]
+    fn preamble(&self) -> PdPreamble {
+        self.preamble
+    }
+
+    #[getter]
+    fn events(&self) -> Vec<PdEvent> {
+        self.events.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "PdEventStream(preamble={}, {} events)",
+            self.preamble.__repr__(),
+            self.events.len()
+        )
+    }
+
+    fn __str__(&self) -> String {
+        self.__repr__()
     }
 }

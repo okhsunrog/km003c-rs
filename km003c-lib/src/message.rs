@@ -15,35 +15,127 @@ pub enum PayloadData {
     AdcQueue(AdcQueueData),
     PdStatus(PdStatus),
     PdEvents(PdEventStream),
-    Unknown { attribute: Attribute, data: Bytes },
+    Unknown { attribute: Attribute, data: Vec<u8> },
+}
+
+// Manual IntoPyObject for Python support
+#[cfg(feature = "python")]
+impl<'py> pyo3::IntoPyObject<'py> for PayloadData {
+    type Target = pyo3::PyAny;
+    type Output = pyo3::Bound<'py, Self::Target>;
+    type Error = pyo3::PyErr;
+
+    fn into_pyobject(self, py: pyo3::Python<'py>) -> Result<Self::Output, Self::Error> {
+        use pyo3::types::{PyDict, PyDictMethods};
+
+        match self {
+            PayloadData::Adc(adc) => {
+                let dict = PyDict::new(py);
+                dict.set_item("Adc", adc)?;
+                Ok(dict.into_any())
+            }
+            PayloadData::AdcQueue(queue) => {
+                let dict = PyDict::new(py);
+                dict.set_item("AdcQueue", queue)?;
+                Ok(dict.into_any())
+            }
+            PayloadData::PdStatus(status) => {
+                let dict = PyDict::new(py);
+                dict.set_item("PdStatus", status)?;
+                Ok(dict.into_any())
+            }
+            PayloadData::PdEvents(events) => {
+                let dict = PyDict::new(py);
+                dict.set_item("PdEvents", events)?;
+                Ok(dict.into_any())
+            }
+            PayloadData::Unknown { attribute, data } => {
+                let dict = PyDict::new(py);
+                let inner = PyDict::new(py);
+                inner.set_item("attribute", u16::from(attribute))?;
+                inner.set_item("data", data)?;
+                dict.set_item("Unknown", inner)?;
+                Ok(dict.into_any())
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Packet {
     /// Data response with parsed payload data
-    DataResponse(Vec<PayloadData>),
+    DataResponse { payloads: Vec<PayloadData> },
     /// Request data with attribute set
-    GetData(AttributeSet),
+    GetData { attribute_mask: u16 },
     /// Start AdcQueue graph mode with sample rate
     /// Rate index: 0=1SPS, 1=10SPS, 2=50SPS, 3=1000SPS
     StartGraph { rate_index: u16 },
     /// Stop AdcQueue graph mode
-    StopGraph,
+    StopGraph(()),
     /// Accept response
     Accept { id: u8 },
     /// Connect command
-    Connect,
+    Connect(()),
     /// Disconnect command
-    Disconnect,
+    Disconnect(()),
     /// Generic packet for types we haven't specifically implemented yet
     Generic(RawPacket),
+}
+
+// Manual IntoPyObject for Python support
+#[cfg(feature = "python")]
+impl<'py> pyo3::IntoPyObject<'py> for Packet {
+    type Target = pyo3::PyAny;
+    type Output = pyo3::Bound<'py, Self::Target>;
+    type Error = pyo3::PyErr;
+
+    fn into_pyobject(self, py: pyo3::Python<'py>) -> Result<Self::Output, Self::Error> {
+        use pyo3::types::{PyDict, PyDictMethods};
+
+        let dict = PyDict::new(py);
+        match self {
+            Packet::DataResponse { payloads } => {
+                let inner = PyDict::new(py);
+                inner.set_item("payloads", payloads)?;
+                dict.set_item("DataResponse", inner)?;
+            }
+            Packet::GetData { attribute_mask } => {
+                let inner = PyDict::new(py);
+                inner.set_item("attribute_mask", attribute_mask)?;
+                dict.set_item("GetData", inner)?;
+            }
+            Packet::StartGraph { rate_index } => {
+                let inner = PyDict::new(py);
+                inner.set_item("rate_index", rate_index)?;
+                dict.set_item("StartGraph", inner)?;
+            }
+            Packet::StopGraph(()) => {
+                dict.set_item("StopGraph", py.None())?;
+            }
+            Packet::Accept { id } => {
+                let inner = PyDict::new(py);
+                inner.set_item("id", id)?;
+                dict.set_item("Accept", inner)?;
+            }
+            Packet::Connect(()) => {
+                dict.set_item("Connect", py.None())?;
+            }
+            Packet::Disconnect(()) => {
+                dict.set_item("Disconnect", py.None())?;
+            }
+            Packet::Generic(raw) => {
+                dict.set_item("Generic", raw)?;
+            }
+        }
+        Ok(dict.into_any())
+    }
 }
 
 impl Packet {
     /// Get ADC data from the packet, if present
     pub fn get_adc(&self) -> Option<&AdcDataSimple> {
         match self {
-            Self::DataResponse(payloads) => payloads.iter().find_map(|p| match p {
+            Self::DataResponse { payloads } => payloads.iter().find_map(|p| match p {
                 PayloadData::Adc(adc) => Some(adc),
                 _ => None,
             }),
@@ -54,7 +146,7 @@ impl Packet {
     /// Get PD status from the packet, if present
     pub fn get_pd_status(&self) -> Option<&PdStatus> {
         match self {
-            Self::DataResponse(payloads) => payloads.iter().find_map(|p| match p {
+            Self::DataResponse { payloads } => payloads.iter().find_map(|p| match p {
                 PayloadData::PdStatus(pd) => Some(pd),
                 _ => None,
             }),
@@ -65,7 +157,7 @@ impl Packet {
     /// Get PD events from the packet, if present
     pub fn get_pd_events(&self) -> Option<&PdEventStream> {
         match self {
-            Self::DataResponse(payloads) => payloads.iter().find_map(|p| match p {
+            Self::DataResponse { payloads } => payloads.iter().find_map(|p| match p {
                 PayloadData::PdEvents(events) => Some(events),
                 _ => None,
             }),
@@ -76,7 +168,7 @@ impl Packet {
     /// Check if packet has a specific payload type
     pub fn has_payload(&self, attr: Attribute) -> bool {
         match self {
-            Self::DataResponse(payloads) => payloads.iter().any(|p| match p {
+            Self::DataResponse { payloads } => payloads.iter().any(|p| match p {
                 PayloadData::Adc(_) => attr == Attribute::Adc,
                 PayloadData::AdcQueue(_) => attr == Attribute::AdcQueue,
                 PayloadData::PdStatus(_) | PayloadData::PdEvents(_) => attr == Attribute::PdPacket,
@@ -97,17 +189,19 @@ impl TryFrom<RawPacket> for Packet {
                 let attribute_set = AttributeSet::from_raw(header.attribute());
 
                 match packet_type {
-                    PacketType::GetData => Ok(Packet::GetData(attribute_set)),
+                    PacketType::GetData => Ok(Packet::GetData {
+                        attribute_mask: attribute_set.raw(),
+                    }),
                     PacketType::StartGraph => Ok(Packet::StartGraph {
                         rate_index: attribute_set.raw(),
                     }),
-                    PacketType::StopGraph => Ok(Packet::StopGraph),
+                    PacketType::StopGraph => Ok(Packet::StopGraph(())),
                     PacketType::Accept => Ok(Packet::Accept { id: header.id() }),
-                    PacketType::Connect => Ok(Packet::Connect),
-                    PacketType::Disconnect => Ok(Packet::Disconnect),
+                    PacketType::Connect => Ok(Packet::Connect(())),
+                    PacketType::Disconnect => Ok(Packet::Disconnect(())),
                     _ => Ok(Packet::Generic(RawPacket::Ctrl {
                         header,
-                        payload: Bytes::new(),
+                        payload: Vec::new(),
                     })),
                 }
             }
@@ -148,20 +242,20 @@ impl TryFrom<RawPacket> for Packet {
                                 PayloadData::PdStatus(PdStatus::from(*pd_status_raw))
                             } else {
                                 // PD Event Stream
-                                let pd_events = PdEventStream::from_bytes(lp.payload)?;
+                                let pd_events = PdEventStream::from_bytes(Bytes::from(lp.payload))?;
                                 PayloadData::PdEvents(pd_events)
                             }
                         }
                         _ => PayloadData::Unknown {
                             attribute: lp.attribute,
-                            data: lp.payload,
+                            data: lp.payload.to_vec(),
                         },
                     };
 
                     payloads.push(payload_data);
                 }
 
-                Ok(Packet::DataResponse(payloads))
+                Ok(Packet::DataResponse { payloads })
             }
             other => Ok(Packet::Generic(other)),
         }
@@ -172,7 +266,7 @@ impl Packet {
     /// Convert a high-level packet to a raw packet with the given transaction ID
     pub fn to_raw_packet(self, id: u8) -> RawPacket {
         match self {
-            Packet::DataResponse(payloads) => {
+            Packet::DataResponse { payloads } => {
                 // Convert PayloadData vec to LogicalPackets
                 let mut logical_packets = Vec::new();
 
@@ -187,7 +281,7 @@ impl Packet {
                                 next: !is_last,
                                 chunk: 0,
                                 size: ADC_DATA_SIZE as u16,
-                                payload: Bytes::copy_from_slice(adc_raw.as_bytes()),
+                                payload: adc_raw.as_bytes().to_vec(),
                             });
                         }
                         PayloadData::PdStatus(pd_status) => {
@@ -206,7 +300,7 @@ impl Packet {
                                 next: !is_last,
                                 chunk: 0,
                                 size: PD_STATUS_SIZE as u16,
-                                payload: Bytes::from(raw_bytes),
+                                payload: raw_bytes,
                             });
                         }
                         PayloadData::AdcQueue(_adcqueue) => {
@@ -245,13 +339,13 @@ impl Packet {
                     logical_packets,
                 }
             }
-            Packet::GetData(attr_set) => RawPacket::Ctrl {
+            Packet::GetData { attribute_mask } => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::GetData.into())
                     .with_reserved_flag(false)
                     .with_id(id)
-                    .with_attribute(attr_set.raw()),
-                payload: Bytes::new(),
+                    .with_attribute(attribute_mask),
+                payload: Vec::new(),
             },
             Packet::StartGraph { rate_index } => RawPacket::Ctrl {
                 header: CtrlHeader::new()
@@ -259,15 +353,15 @@ impl Packet {
                     .with_reserved_flag(false)
                     .with_id(id)
                     .with_attribute(rate_index),
-                payload: Bytes::new(),
+                payload: Vec::new(),
             },
-            Packet::StopGraph => RawPacket::Ctrl {
+            Packet::StopGraph(()) => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::StopGraph.into())
                     .with_reserved_flag(false)
                     .with_id(id)
                     .with_attribute(0),
-                payload: Bytes::new(),
+                payload: Vec::new(),
             },
             Packet::Accept { id: accept_id } => RawPacket::Ctrl {
                 header: CtrlHeader::new()
@@ -275,23 +369,23 @@ impl Packet {
                     .with_reserved_flag(false)
                     .with_id(accept_id)
                     .with_attribute(0),
-                payload: Bytes::new(),
+                payload: Vec::new(),
             },
-            Packet::Connect => RawPacket::Ctrl {
+            Packet::Connect(()) => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::Connect.into())
                     .with_reserved_flag(false)
                     .with_id(id)
                     .with_attribute(0),
-                payload: Bytes::new(),
+                payload: Vec::new(),
             },
-            Packet::Disconnect => RawPacket::Ctrl {
+            Packet::Disconnect(()) => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::Disconnect.into())
                     .with_reserved_flag(false)
                     .with_id(id)
                     .with_attribute(0),
-                payload: Bytes::new(),
+                payload: Vec::new(),
             },
             Packet::Generic(raw_packet) => raw_packet,
         }

@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Default, TryFromPrimitive, IntoPrimitive)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "python", pyo3::pyclass(eq, name = "SampleRate"))]
 #[repr(u8)]
 pub enum SampleRate {
     #[default]
@@ -37,6 +38,28 @@ impl SampleRate {
     }
 }
 
+#[cfg(feature = "python")]
+#[pyo3::pymethods]
+impl SampleRate {
+    #[getter]
+    fn hz(&self) -> u32 {
+        self.as_hz()
+    }
+
+    #[getter]
+    fn name(&self) -> String {
+        self.to_string()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("SampleRate({})", self)
+    }
+
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+}
+
 #[derive(Debug, Clone, Copy, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 pub struct AdcDataRaw {
@@ -62,16 +85,17 @@ pub struct AdcDataRaw {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "python", pyo3::pyclass(get_all, name = "AdcData"))]
 pub struct AdcDataSimple {
     // Main measurements
     pub vbus_v: f64, // Voltage in Volts
     /// Current in amperes. Sign indicates power flow direction through the tester:
-    /// - Positive: Power flows from USB female (input) to USB male (output)  
+    /// - Positive: Power flows from USB female (input) to USB male (output)
     /// - Negative: Power flows from USB male (input) to USB female (output)
     pub ibus_a: f64, // Current in Amperes
     /// Power in watts. Sign indicates power flow direction through the tester:
     /// - Positive: Power flows from USB female (input) to USB male (output)
-    /// - Negative: Power flows from USB male (input) to USB female (output)  
+    /// - Negative: Power flows from USB male (input) to USB female (output)
     pub power_w: f64, // Power in Watts
 
     // Averaged measurements
@@ -197,5 +221,20 @@ impl fmt::Display for AdcDataSimple {
             "VBUS: {:.3} V, IBUS: {:.3} A, Power: {:.3} W, Temp: {:.1} °C, Rate: {}",
             self.vbus_v, self.ibus_a, self.power_w, self.temp_c, self.sample_rate
         )
+    }
+}
+
+#[cfg(feature = "python")]
+#[pyo3::pymethods]
+impl AdcDataSimple {
+    fn __repr__(&self) -> String {
+        format!(
+            "AdcData(vbus={:.3}V, ibus={:.3}A, power={:.3}W, temp={:.1}°C)",
+            self.vbus_v, self.ibus_a, self.power_w, self.temp_c
+        )
+    }
+
+    fn __str__(&self) -> String {
+        self.__repr__()
     }
 }

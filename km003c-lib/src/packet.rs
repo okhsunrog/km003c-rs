@@ -122,6 +122,20 @@ pub enum Attribute {
     Unknown(u16),
 }
 
+// Python support for Attribute
+#[cfg(feature = "python")]
+impl<'py> pyo3::IntoPyObject<'py> for Attribute {
+    type Target = pyo3::PyAny;
+    type Output = pyo3::Bound<'py, Self::Target>;
+    type Error = pyo3::PyErr;
+
+    fn into_pyobject(self, py: pyo3::Python<'py>) -> Result<Self::Output, Self::Error> {
+        // Convert to u16 value for Python
+        let value: u16 = self.into();
+        Ok(value.into_pyobject(py).unwrap().into_any())
+    }
+}
+
 /// Set of attributes for use in request masks.
 /// Can represent single or multiple attributes combined with bitwise OR.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -236,23 +250,24 @@ impl FromIterator<Attribute> for AttributeSet {
 /// PutData packets can contain multiple chained logical packets,
 /// each with its own extended header and payload.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "python", pyo3::pyclass(get_all, name = "LogicalPacket"))]
 pub struct LogicalPacket {
     pub attribute: Attribute,
     pub next: bool,
     pub chunk: u8,
     pub size: u16,
-    pub payload: Bytes,
+    pub payload: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RawPacket {
     Ctrl {
         header: CtrlHeader,
-        payload: Bytes,
+        payload: Vec<u8>,
     },
     SimpleData {
         header: DataHeader,
-        payload: Bytes,
+        payload: Vec<u8>,
     },
     Data {
         header: DataHeader,
@@ -360,7 +375,10 @@ impl TryFrom<Bytes> for RawPacket {
 
         if is_ctrl_packet {
             let header = CtrlHeader::from_bytes(header_bytes);
-            Ok(RawPacket::Ctrl { header, payload })
+            Ok(RawPacket::Ctrl {
+                header,
+                payload: payload.to_vec(),
+            })
         } else {
             let header = DataHeader::from_bytes(header_bytes);
             let packet_type = PacketType::from_primitive(header.packet_type());
@@ -381,7 +399,10 @@ impl TryFrom<Bytes> for RawPacket {
                     //                   must carry a 4-byte extended header. We currently
                     //                   fall back to SimpleData when payload < 4 for
                     //                   robustness against malformed frames.
-                    return Ok(RawPacket::SimpleData { header, payload });
+                    return Ok(RawPacket::SimpleData {
+                        header,
+                        payload: payload.to_vec(),
+                    });
                 }
 
                 // Parse chained logical packets
@@ -436,7 +457,7 @@ impl TryFrom<Bytes> for RawPacket {
                         next: has_next,
                         chunk: ext.chunk(),
                         size: ext.size(),
-                        payload: logical_payload,
+                        payload: logical_payload.to_vec(),
                     });
 
                     // Check if there are more logical packets
@@ -456,9 +477,65 @@ impl TryFrom<Bytes> for RawPacket {
                     logical_packets,
                 })
             } else {
-                Ok(RawPacket::SimpleData { header, payload })
+                Ok(RawPacket::SimpleData {
+                    header,
+                    payload: payload.to_vec(),
+                })
             }
         }
+    }
+}
+
+// Python support
+#[cfg(feature = "python")]
+impl<'py> pyo3::IntoPyObject<'py> for RawPacket {
+    type Target = pyo3::PyAny;
+    type Output = pyo3::Bound<'py, Self::Target>;
+    type Error = pyo3::PyErr;
+
+    fn into_pyobject(self, py: pyo3::Python<'py>) -> Result<Self::Output, Self::Error> {
+        use pyo3::types::{PyDict, PyDictMethods};
+
+        let dict = PyDict::new(py);
+        match self {
+            RawPacket::Ctrl { header, payload } => {
+                let inner = PyDict::new(py);
+                let header_dict = PyDict::new(py);
+                header_dict.set_item("packet_type", header.packet_type())?;
+                header_dict.set_item("reserved_flag", header.reserved_flag())?;
+                header_dict.set_item("id", header.id())?;
+                header_dict.set_item("attribute", header.attribute())?;
+                inner.set_item("header", header_dict)?;
+                inner.set_item("payload", payload)?;
+                dict.set_item("Ctrl", inner)?;
+            }
+            RawPacket::SimpleData { header, payload } => {
+                let inner = PyDict::new(py);
+                let header_dict = PyDict::new(py);
+                header_dict.set_item("packet_type", header.packet_type())?;
+                header_dict.set_item("reserved_flag", header.reserved_flag())?;
+                header_dict.set_item("id", header.id())?;
+                header_dict.set_item("obj_count_words", header.obj_count_words())?;
+                inner.set_item("header", header_dict)?;
+                inner.set_item("payload", payload)?;
+                dict.set_item("SimpleData", inner)?;
+            }
+            RawPacket::Data {
+                header,
+                logical_packets,
+            } => {
+                let inner = PyDict::new(py);
+                let header_dict = PyDict::new(py);
+                header_dict.set_item("packet_type", header.packet_type())?;
+                header_dict.set_item("reserved_flag", header.reserved_flag())?;
+                header_dict.set_item("id", header.id())?;
+                header_dict.set_item("obj_count_words", header.obj_count_words())?;
+                inner.set_item("header", header_dict)?;
+                inner.set_item("logical_packets", logical_packets)?;
+                dict.set_item("Data", inner)?;
+            }
+        }
+        Ok(dict.into_any())
     }
 }
 
@@ -483,10 +560,10 @@ impl From<RawPacket> for Bytes {
                         .with_size(logical_packet.size);
 
                     full_payload.extend_from_slice(&ext.into_bytes());
-                    full_payload.extend_from_slice(logical_packet.payload.as_ref());
+                    full_payload.extend_from_slice(&logical_packet.payload);
                 }
 
-                (header.into_bytes(), Bytes::from(full_payload))
+                (header.into_bytes(), full_payload)
             }
         };
 

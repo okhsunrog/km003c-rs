@@ -57,6 +57,7 @@ pub struct AdcQueueSampleRaw {
 /// Parsed AdcQueue sample with converted units
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "python", pyo3::pyclass(get_all, name = "AdcQueueSample"))]
 pub struct AdcQueueSample {
     pub sequence: u16,
     pub vbus_v: f64,  // Volts
@@ -91,6 +92,7 @@ impl From<AdcQueueSampleRaw> for AdcQueueSample {
 /// Complete AdcQueue response containing multiple buffered samples
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "python", pyo3::pyclass(get_all, name = "AdcQueueData"))]
 pub struct AdcQueueData {
     pub samples: Vec<AdcQueueSample>,
 }
@@ -100,7 +102,7 @@ impl AdcQueueData {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::error::KMError> {
         const SAMPLE_SIZE: usize = 20;
 
-        if bytes.len() % SAMPLE_SIZE != 0 {
+        if !bytes.len().is_multiple_of(SAMPLE_SIZE) {
             return Err(crate::error::KMError::InvalidPacket(format!(
                 "AdcQueue payload size {} is not multiple of {}",
                 bytes.len(),
@@ -147,5 +149,32 @@ impl AdcQueueData {
             }
         }
         false
+    }
+}
+
+#[cfg(feature = "python")]
+#[pyo3::pymethods]
+impl AdcQueueData {
+    fn __repr__(&self) -> String {
+        format!("AdcQueueData({} samples)", self.samples.len())
+    }
+
+    fn __str__(&self) -> String {
+        self.__repr__()
+    }
+}
+
+#[cfg(feature = "python")]
+#[pyo3::pymethods]
+impl AdcQueueSample {
+    fn __repr__(&self) -> String {
+        format!(
+            "AdcQueueSample(seq={}, vbus={:.3}V, ibus={:.3}A, power={:.3}W)",
+            self.sequence, self.vbus_v, self.ibus_a, self.power_w
+        )
+    }
+
+    fn __str__(&self) -> String {
+        self.__repr__()
     }
 }

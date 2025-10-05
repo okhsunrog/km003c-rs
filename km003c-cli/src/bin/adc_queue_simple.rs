@@ -64,9 +64,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut device = KM003C::with_config(config).await?;
     println!("✅ Connected\n");
 
+    // Device needs warmup with normal ADC requests before StartGraph works
+    println!("⏳ Warming up device...");
+    for _ in 0..3 {
+        let _ = device.request_adc_data().await?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    println!("✅ Device ready\n");
+
     println!("📊 Starting AdcQueue streaming at {} SPS", args.rate);
     device.start_graph_mode(rate).await?;
-    println!("✅ Streaming started\n");
+    println!("✅ Streaming started");
+    
+    // Wait for device to accumulate first samples in buffer
+    let warmup_ms = match rate {
+        GraphSampleRate::Sps1 => 2000,    // 2 seconds for 1-2 samples
+        GraphSampleRate::Sps10 => 500,    // 0.5s for 5 samples
+        GraphSampleRate::Sps50 => 200,    // 0.2s for 10 samples
+        GraphSampleRate::Sps1000 => 100,  // 0.1s for 100 samples
+    };
+    println!("⏳ Waiting {}ms for buffer to fill...\n", warmup_ms);
+    tokio::time::sleep(Duration::from_millis(warmup_ms)).await;
 
     println!("{}", "=".repeat(90));
     println!(
@@ -88,7 +106,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let packet = device.request_data(AttributeSet::single(Attribute::AdcQueue)).await?;
 
         // Extract and display samples
-        if let Packet::DataResponse(payloads) = packet {
+        if let Packet::DataResponse { payloads } = packet {
+            if payloads.is_empty() {
+                // Empty response - buffer not ready yet, skip
+                continue;
+            }
+            
             for payload in payloads {
                 if let km003c_lib::PayloadData::AdcQueue(queue) = payload {
                     packet_count += 1;

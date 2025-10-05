@@ -377,7 +377,10 @@ impl KM003C {
 
     /// Request data with a specific attribute set
     pub async fn request_data(&mut self, mask: AttributeSet) -> Result<Packet, KMError> {
-        self.send(Packet::GetData(mask)).await?;
+        self.send(Packet::GetData {
+            attribute_mask: mask.raw(),
+        })
+        .await?;
         let packet = self.receive().await?;
 
         // TODO: Could validate correlation here if we stored the request mask
@@ -478,7 +481,7 @@ impl KM003C {
     ///
     /// Returns device to normal ADC polling mode.
     pub async fn stop_graph_mode(&mut self) -> Result<(), KMError> {
-        self.send(Packet::StopGraph).await?;
+        self.send(Packet::StopGraph(())).await?;
 
         // Wait for Accept
         match self.receive().await? {
