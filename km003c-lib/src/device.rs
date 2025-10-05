@@ -407,4 +407,61 @@ impl KM003C {
     pub fn extract_pd_events(packet: &Packet) -> Option<&PdEventStream> {
         packet.get_pd_events()
     }
+
+    /// Start AdcQueue graph/streaming mode with specified sample rate
+    ///
+    /// # Arguments
+    /// * `rate` - Sample rate (use GraphSampleRate enum or raw u16)
+    ///
+    /// Rate values:
+    /// - `GraphSampleRate::Sps1` (0) = 1 sample per second
+    /// - `GraphSampleRate::Sps10` (1) = 10 SPS
+    /// - `GraphSampleRate::Sps50` (2) = 50 SPS
+    /// - `GraphSampleRate::Sps1000` (3) = 1000 SPS
+    ///
+    /// After calling this, poll with `request_data(AttributeSet::single(Attribute::AdcQueue))`
+    /// to receive buffered samples.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use km003c_lib::{KM003C, GraphSampleRate};
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut device = KM003C::new().await?;
+    ///
+    /// // Start 1000 SPS streaming
+    /// device.start_graph_mode(GraphSampleRate::Sps1000 as u16).await?;
+    ///
+    /// // Poll for data...
+    ///
+    /// // Stop when done
+    /// device.stop_graph_mode().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn start_graph_mode(&mut self, rate: u16) -> Result<(), KMError> {
+        if rate > 3 {
+            return Err(KMError::Protocol(format!("Invalid rate: {} (valid range: 0-3)", rate)));
+        }
+
+        self.send(Packet::StartGraph { rate_index: rate }).await?;
+
+        // Wait for Accept
+        match self.receive().await? {
+            Packet::Accept { .. } => Ok(()),
+            other => Err(KMError::Protocol(format!("Expected Accept response, got {:?}", other))),
+        }
+    }
+
+    /// Stop AdcQueue graph/streaming mode
+    ///
+    /// Returns device to normal ADC polling mode.
+    pub async fn stop_graph_mode(&mut self) -> Result<(), KMError> {
+        self.send(Packet::StopGraph).await?;
+
+        // Wait for Accept
+        match self.receive().await? {
+            Packet::Accept { .. } => Ok(()),
+            other => Err(KMError::Protocol(format!("Expected Accept response, got {:?}", other))),
+        }
+    }
 }

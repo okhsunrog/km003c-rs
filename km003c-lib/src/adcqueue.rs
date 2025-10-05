@@ -4,6 +4,22 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+/// Sample rate for AdcQueue streaming mode
+///
+/// Used with StartGraph (0x0E) command to configure device sampling rate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u16)]
+pub enum GraphSampleRate {
+    /// 1 sample per second
+    Sps1 = 0,
+    /// 10 samples per second
+    Sps10 = 1,
+    /// 50 samples per second
+    Sps50 = 2,
+    /// 1000 samples per second
+    Sps1000 = 3,
+}
+
 /// AdcQueue sample structure (20 bytes)
 ///
 /// AdcQueue provides high-rate streaming of power measurements.

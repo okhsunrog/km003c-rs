@@ -67,6 +67,8 @@ pub enum PacketType {
     Error = 0x0B,
     GetData = 0x0C,
     GetFile = 0x0D,
+    StartGraph = 0x0E, // Start AdcQueue streaming with rate selector
+    StopGraph = 0x0F,  // Stop AdcQueue streaming
 
     // Unknown control types discovered in protocol analysis
     Unknown26 = 26,

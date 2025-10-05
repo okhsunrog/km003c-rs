@@ -24,6 +24,11 @@ pub enum Packet {
     DataResponse(Vec<PayloadData>),
     /// Request data with attribute set
     GetData(AttributeSet),
+    /// Start AdcQueue graph mode with sample rate
+    /// Rate index: 0=1SPS, 1=10SPS, 2=50SPS, 3=1000SPS
+    StartGraph { rate_index: u16 },
+    /// Stop AdcQueue graph mode
+    StopGraph,
     /// Accept response
     Accept { id: u8 },
     /// Connect command
@@ -93,6 +98,10 @@ impl TryFrom<RawPacket> for Packet {
 
                 match packet_type {
                     PacketType::GetData => Ok(Packet::GetData(attribute_set)),
+                    PacketType::StartGraph => Ok(Packet::StartGraph {
+                        rate_index: attribute_set.raw(),
+                    }),
+                    PacketType::StopGraph => Ok(Packet::StopGraph),
                     PacketType::Accept => Ok(Packet::Accept { id: header.id() }),
                     PacketType::Connect => Ok(Packet::Connect),
                     PacketType::Disconnect => Ok(Packet::Disconnect),
@@ -242,6 +251,22 @@ impl Packet {
                     .with_reserved_flag(false)
                     .with_id(id)
                     .with_attribute(attr_set.raw()),
+                payload: Bytes::new(),
+            },
+            Packet::StartGraph { rate_index } => RawPacket::Ctrl {
+                header: CtrlHeader::new()
+                    .with_packet_type(PacketType::StartGraph.into())
+                    .with_reserved_flag(false)
+                    .with_id(id)
+                    .with_attribute(rate_index),
+                payload: Bytes::new(),
+            },
+            Packet::StopGraph => RawPacket::Ctrl {
+                header: CtrlHeader::new()
+                    .with_packet_type(PacketType::StopGraph.into())
+                    .with_reserved_flag(false)
+                    .with_id(id)
+                    .with_attribute(0),
                 payload: Bytes::new(),
             },
             Packet::Accept { id: accept_id } => RawPacket::Ctrl {
