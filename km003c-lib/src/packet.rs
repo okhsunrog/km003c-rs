@@ -10,10 +10,8 @@ use num_enum::{FromPrimitive, IntoPrimitive};
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CtrlHeader {
     pub packet_type: B7,
-    /// Reserved flag bit in the first byte. Vendor specific/unknown.
+    /// Reserved flag bit in the first byte, purpose unknown.
     /// IMPORTANT: This is NOT an indicator that an "extended header" is present.
-    /// As per protocol research, PutData (0x41) packets always include a 4-byte
-    /// extended header regardless of this bit.
     pub reserved_flag: bool,
     pub id: u8,
     #[skip]
@@ -25,9 +23,10 @@ pub struct CtrlHeader {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DataHeader {
     pub packet_type: B7,
-    /// Reserved flag bit in the first byte. Vendor specific/unknown.
+    /// Reserved flag bit in the first byte, purpose unknown.
     /// IMPORTANT: This is NOT an indicator that an "extended header" is present.
-    /// See CtrlHeader::reserved_flag docs.
+    /// As per protocol research, PutData (0x41) packets always include a 4-byte
+    /// extended header regardless of this bit.
     pub reserved_flag: bool,
     pub id: u8,
     #[skip]
@@ -94,6 +93,20 @@ impl PacketType {
     }
 }
 
+// Python support for PacketType
+#[cfg(feature = "python")]
+impl<'py> pyo3::IntoPyObject<'py> for PacketType {
+    type Target = pyo3::PyAny;
+    type Output = pyo3::Bound<'py, Self::Target>;
+    type Error = pyo3::PyErr;
+
+    fn into_pyobject(self, py: pyo3::Python<'py>) -> Result<Self::Output, <Self as pyo3::IntoPyObject<'py>>::Error> {
+        // Convert to u8 value for Python
+        let value: u8 = self.into();
+        Ok(value.into_pyobject(py).unwrap().into_any())
+    }
+}
+
 /// Attribute values used in command headers and extended headers.
 ///
 /// These values specify the type of data or command being sent.
@@ -139,6 +152,7 @@ impl<'py> pyo3::IntoPyObject<'py> for Attribute {
 /// Set of attributes for use in request masks.
 /// Can represent single or multiple attributes combined with bitwise OR.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "python", derive(pyo3::IntoPyObject))]
 pub struct AttributeSet {
     mask: u16,
 }
@@ -395,10 +409,9 @@ impl TryFrom<Bytes> for RawPacket {
                 }
 
                 if payload.len() < EXTENDED_HEADER_SIZE {
-                    // TODO(okhsunrog): Spec indicates all PutData (0x41) packets
-                    //                   must carry a 4-byte extended header. We currently
-                    //                   fall back to SimpleData when payload < 4 for
-                    //                   robustness against malformed frames.
+                    // Spec indicates all PutData (0x41) packets  must carry a 4-byte extended header.
+                    // We currently fall back to SimpleData when payload < 4 for
+                    // robustness against malformed frames.
                     return Ok(RawPacket::SimpleData {
                         header,
                         payload: payload.to_vec(),
@@ -418,17 +431,15 @@ impl TryFrom<Bytes> for RawPacket {
                     }
 
                     // Parse extended header
-                    let ext_header_bytes: [u8; 4] = payload.as_ref()[..4]
+                    let ext_header_bytes = payload.split_to(4);
+                    let ext_header_array: [u8; 4] = ext_header_bytes.as_ref()
                         .try_into()
                         .map_err(|_| KMError::InvalidPacket("Failed to extract extended header bytes".to_string()))?;
-                    let ext = ExtendedHeader::from_bytes(ext_header_bytes);
+                    let ext = ExtendedHeader::from_bytes(ext_header_array);
 
                     let payload_size = ext.size() as usize;
                     let has_next = ext.next();
                     let attribute = Attribute::from_primitive(ext.attribute());
-
-                    // Skip extended header
-                    payload = payload.slice(4..);
 
                     // For AdcQueue, the size field indicates sample size (20 bytes),
                     // but the actual payload contains multiple samples.

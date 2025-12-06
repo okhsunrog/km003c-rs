@@ -99,17 +99,13 @@ pub struct AdcQueueData {
 
 impl AdcQueueData {
     /// Parse AdcQueue payload containing multiple 20-byte samples
+    ///
+    /// Note: Some firmware versions may return payloads not divisible by 20.
+    /// In this case, we parse as many complete samples as possible.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::error::KMError> {
         const SAMPLE_SIZE: usize = 20;
 
-        if !bytes.len().is_multiple_of(SAMPLE_SIZE) {
-            return Err(crate::error::KMError::InvalidPacket(format!(
-                "AdcQueue payload size {} is not multiple of {}",
-                bytes.len(),
-                SAMPLE_SIZE
-            )));
-        }
-
+        // Take as many complete samples as we can
         let num_samples = bytes.len() / SAMPLE_SIZE;
         let mut samples = Vec::with_capacity(num_samples);
 

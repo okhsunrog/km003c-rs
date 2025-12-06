@@ -50,6 +50,7 @@ use crate::packet::{Attribute, AttributeSet, RawPacket};
 use crate::pd::{PdEventStream, PdStatus};
 use bytes::Bytes;
 use nusb::Interface;
+use nusb::io::{EndpointRead, EndpointWrite};
 use nusb::transfer::{Bulk, Interrupt};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -183,10 +184,25 @@ impl DeviceConfig {
     }
 }
 
+/// Endpoint reader wrapper to handle both Bulk and Interrupt types
+enum EndpointReaderType {
+    Bulk(EndpointRead<Bulk>),
+    Interrupt(EndpointRead<Interrupt>),
+}
+
+/// Endpoint writer wrapper to handle both Bulk and Interrupt types
+enum EndpointWriterType {
+    Bulk(EndpointWrite<Bulk>),
+    Interrupt(EndpointWrite<Interrupt>),
+}
+
 pub struct KM003C {
+    #[allow(dead_code)]
     interface: Interface,
     transaction_id: u8,
     config: DeviceConfig,
+    reader: EndpointReaderType,
+    writer: EndpointWriterType,
 }
 
 impl KM003C {
@@ -215,7 +231,9 @@ impl KM003C {
         if !config.skip_reset {
             info!("Resetting device...");
             device.reset().await?;
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            // CRITICAL: Device needs 1.5 seconds to fully initialize after reset
+            // (validated through protocol research - 100ms is insufficient for AdcQueue)
+            tokio::time::sleep(Duration::from_millis(1500)).await;
         } else {
             debug!("Skipping USB reset (skip_reset=true)");
         }
@@ -239,10 +257,34 @@ impl KM003C {
         let interface = device.claim_interface(config.interface).await?;
         info!("Interface {} claimed successfully", config.interface);
 
+        // Create persistent endpoints based on transfer type
+        // Using 4 concurrent transfers for better throughput
+        // Buffer size of 2048 bytes to handle large AdcQueue responses (up to ~1300 bytes)
+        let (reader, writer) = match config.transfer_type {
+            TransferType::Bulk => {
+                let ep_in = interface.endpoint::<Bulk, _>(config.endpoint_in)?;
+                let ep_out = interface.endpoint::<Bulk, _>(config.endpoint_out)?;
+                (
+                    EndpointReaderType::Bulk(ep_in.reader(2048).with_num_transfers(4)),
+                    EndpointWriterType::Bulk(ep_out.writer(64).with_num_transfers(4)),
+                )
+            }
+            TransferType::Interrupt => {
+                let ep_in = interface.endpoint::<Interrupt, _>(config.endpoint_in)?;
+                let ep_out = interface.endpoint::<Interrupt, _>(config.endpoint_out)?;
+                (
+                    EndpointReaderType::Interrupt(ep_in.reader(64).with_num_transfers(4)),
+                    EndpointWriterType::Interrupt(ep_out.writer(64).with_num_transfers(4)),
+                )
+            }
+        };
+
         let km003c = Self {
             interface,
             transaction_id: 0,
             config,
+            reader,
+            writer,
         };
 
         // Device is ready - no Connect command needed
@@ -257,6 +299,11 @@ impl KM003C {
         let id = self.transaction_id;
         self.transaction_id = self.transaction_id.wrapping_add(1);
         id
+    }
+
+    /// Set the transaction ID counter (for protocol research/sync purposes)
+    pub fn set_transaction_id(&mut self, id: u8) {
+        self.transaction_id = id;
     }
 
     /// Send a high-level packet to the device
@@ -289,17 +336,13 @@ impl KM003C {
         let message = message_bytes.to_vec();
         trace!("Sending {} bytes: {:02x?}", message.len(), message);
 
-        // Use writer with proper configuration
-        match self.config.transfer_type {
-            TransferType::Bulk => {
-                let endpoint = self.interface.endpoint::<Bulk, _>(self.config.endpoint_out)?;
-                let mut writer = endpoint.writer(64).with_num_transfers(1);
+        // Use the persistent writer
+        match &mut self.writer {
+            EndpointWriterType::Bulk(writer) => {
                 timeout(DEFAULT_TIMEOUT, writer.write_all(&message)).await??;
                 timeout(DEFAULT_TIMEOUT, writer.flush_end_async()).await??;
             }
-            TransferType::Interrupt => {
-                let endpoint = self.interface.endpoint::<Interrupt, _>(self.config.endpoint_out)?;
-                let mut writer = endpoint.writer(64).with_num_transfers(1);
+            EndpointWriterType::Interrupt(writer) => {
                 timeout(DEFAULT_TIMEOUT, writer.write_all(&message)).await??;
                 timeout(DEFAULT_TIMEOUT, writer.flush_end_async()).await??;
             }
@@ -307,6 +350,36 @@ impl KM003C {
 
         debug!("Sent successfully");
         Ok(())
+    }
+
+    /// Send raw bytes to the device (for protocol research/testing)
+    pub async fn send_raw(&mut self, data: &[u8]) -> Result<(), KMError> {
+        match &mut self.writer {
+            EndpointWriterType::Bulk(writer) => {
+                timeout(DEFAULT_TIMEOUT, writer.write_all(data)).await??;
+                timeout(DEFAULT_TIMEOUT, writer.flush_end_async()).await??;
+            }
+            EndpointWriterType::Interrupt(writer) => {
+                timeout(DEFAULT_TIMEOUT, writer.write_all(data)).await??;
+                timeout(DEFAULT_TIMEOUT, writer.flush_end_async()).await??;
+            }
+        }
+        Ok(())
+    }
+
+    /// Receive raw bytes from the device (for protocol research/testing)
+    pub async fn receive_raw(&mut self) -> Result<Vec<u8>, KMError> {
+        let mut buffer = vec![0u8; 1024];
+        let bytes_read = match &mut self.reader {
+            EndpointReaderType::Bulk(reader) => {
+                timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??
+            }
+            EndpointReaderType::Interrupt(reader) => {
+                timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??
+            }
+        };
+        buffer.truncate(bytes_read);
+        Ok(buffer)
     }
 
     /// Receive a high-level packet from the device
@@ -319,22 +392,12 @@ impl KM003C {
     async fn receive_raw_packet(&mut self) -> Result<RawPacket, KMError> {
         let mut buffer = vec![0u8; 1024];
 
-        // Use reader with proper configuration
-        let bytes_read = match self.config.transfer_type {
-            TransferType::Bulk => {
-                let endpoint = self.interface.endpoint::<Bulk, _>(self.config.endpoint_in)?;
-                let mut reader = endpoint
-                    .reader(64)
-                    .with_num_transfers(4)
-                    .with_read_timeout(Duration::from_millis(2000));
+        // Use the persistent reader
+        let bytes_read = match &mut self.reader {
+            EndpointReaderType::Bulk(reader) => {
                 timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??
             }
-            TransferType::Interrupt => {
-                let endpoint = self.interface.endpoint::<Interrupt, _>(self.config.endpoint_in)?;
-                let mut reader = endpoint
-                    .reader(64)
-                    .with_num_transfers(4)
-                    .with_read_timeout(Duration::from_millis(2000));
+            EndpointReaderType::Interrupt(reader) => {
                 timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??
             }
         };
@@ -481,7 +544,7 @@ impl KM003C {
     ///
     /// Returns device to normal ADC polling mode.
     pub async fn stop_graph_mode(&mut self) -> Result<(), KMError> {
-        self.send(Packet::StopGraph(())).await?;
+        self.send(Packet::StopGraph).await?;
 
         // Wait for Accept
         match self.receive().await? {

@@ -38,7 +38,7 @@ Issues = "https://github.com/okhsunrog/km003c-rs/issues"
 
 [tool.maturin]
 python-source = "python"
-module-name = "km003c_lib"
+module-name = "km003c.km003c_lib"
 manifest-path = "km003c-lib/Cargo.toml"
 features = ["python"]
 

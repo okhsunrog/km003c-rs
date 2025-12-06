@@ -10,55 +10,13 @@ use zerocopy::{FromBytes, IntoBytes};
 
 /// Represents parsed payload data from logical packets
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "python", derive(pyo3::IntoPyObject))]
 pub enum PayloadData {
     Adc(AdcDataSimple),
     AdcQueue(AdcQueueData),
     PdStatus(PdStatus),
     PdEvents(PdEventStream),
     Unknown { attribute: Attribute, data: Vec<u8> },
-}
-
-// Manual IntoPyObject for Python support
-#[cfg(feature = "python")]
-impl<'py> pyo3::IntoPyObject<'py> for PayloadData {
-    type Target = pyo3::PyAny;
-    type Output = pyo3::Bound<'py, Self::Target>;
-    type Error = pyo3::PyErr;
-
-    fn into_pyobject(self, py: pyo3::Python<'py>) -> Result<Self::Output, Self::Error> {
-        use pyo3::types::{PyDict, PyDictMethods};
-
-        match self {
-            PayloadData::Adc(adc) => {
-                let dict = PyDict::new(py);
-                dict.set_item("Adc", adc)?;
-                Ok(dict.into_any())
-            }
-            PayloadData::AdcQueue(queue) => {
-                let dict = PyDict::new(py);
-                dict.set_item("AdcQueue", queue)?;
-                Ok(dict.into_any())
-            }
-            PayloadData::PdStatus(status) => {
-                let dict = PyDict::new(py);
-                dict.set_item("PdStatus", status)?;
-                Ok(dict.into_any())
-            }
-            PayloadData::PdEvents(events) => {
-                let dict = PyDict::new(py);
-                dict.set_item("PdEvents", events)?;
-                Ok(dict.into_any())
-            }
-            PayloadData::Unknown { attribute, data } => {
-                let dict = PyDict::new(py);
-                let inner = PyDict::new(py);
-                inner.set_item("attribute", u16::from(attribute))?;
-                inner.set_item("data", data)?;
-                dict.set_item("Unknown", inner)?;
-                Ok(dict.into_any())
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -71,64 +29,15 @@ pub enum Packet {
     /// Rate index: 0=1SPS, 1=10SPS, 2=50SPS, 3=1000SPS
     StartGraph { rate_index: u16 },
     /// Stop AdcQueue graph mode
-    StopGraph(()),
+    StopGraph,
     /// Accept response
     Accept { id: u8 },
     /// Connect command
-    Connect(()),
+    Connect,
     /// Disconnect command
-    Disconnect(()),
+    Disconnect,
     /// Generic packet for types we haven't specifically implemented yet
     Generic(RawPacket),
-}
-
-// Manual IntoPyObject for Python support
-#[cfg(feature = "python")]
-impl<'py> pyo3::IntoPyObject<'py> for Packet {
-    type Target = pyo3::PyAny;
-    type Output = pyo3::Bound<'py, Self::Target>;
-    type Error = pyo3::PyErr;
-
-    fn into_pyobject(self, py: pyo3::Python<'py>) -> Result<Self::Output, Self::Error> {
-        use pyo3::types::{PyDict, PyDictMethods};
-
-        let dict = PyDict::new(py);
-        match self {
-            Packet::DataResponse { payloads } => {
-                let inner = PyDict::new(py);
-                inner.set_item("payloads", payloads)?;
-                dict.set_item("DataResponse", inner)?;
-            }
-            Packet::GetData { attribute_mask } => {
-                let inner = PyDict::new(py);
-                inner.set_item("attribute_mask", attribute_mask)?;
-                dict.set_item("GetData", inner)?;
-            }
-            Packet::StartGraph { rate_index } => {
-                let inner = PyDict::new(py);
-                inner.set_item("rate_index", rate_index)?;
-                dict.set_item("StartGraph", inner)?;
-            }
-            Packet::StopGraph(()) => {
-                dict.set_item("StopGraph", py.None())?;
-            }
-            Packet::Accept { id } => {
-                let inner = PyDict::new(py);
-                inner.set_item("id", id)?;
-                dict.set_item("Accept", inner)?;
-            }
-            Packet::Connect(()) => {
-                dict.set_item("Connect", py.None())?;
-            }
-            Packet::Disconnect(()) => {
-                dict.set_item("Disconnect", py.None())?;
-            }
-            Packet::Generic(raw) => {
-                dict.set_item("Generic", raw)?;
-            }
-        }
-        Ok(dict.into_any())
-    }
 }
 
 impl Packet {
@@ -137,6 +46,17 @@ impl Packet {
         match self {
             Self::DataResponse { payloads } => payloads.iter().find_map(|p| match p {
                 PayloadData::Adc(adc) => Some(adc),
+                _ => None,
+            }),
+            _ => None,
+        }
+    }
+
+    /// Get AdcQueue data from the packet, if present
+    pub fn get_adc_queue(&self) -> Option<&AdcQueueData> {
+        match self {
+            Self::DataResponse { payloads } => payloads.iter().find_map(|p| match p {
+                PayloadData::AdcQueue(queue) => Some(queue),
                 _ => None,
             }),
             _ => None,
@@ -195,10 +115,10 @@ impl TryFrom<RawPacket> for Packet {
                     PacketType::StartGraph => Ok(Packet::StartGraph {
                         rate_index: attribute_set.raw(),
                     }),
-                    PacketType::StopGraph => Ok(Packet::StopGraph(())),
+                    PacketType::StopGraph => Ok(Packet::StopGraph),
                     PacketType::Accept => Ok(Packet::Accept { id: header.id() }),
-                    PacketType::Connect => Ok(Packet::Connect(())),
-                    PacketType::Disconnect => Ok(Packet::Disconnect(())),
+                    PacketType::Connect => Ok(Packet::Connect),
+                    PacketType::Disconnect => Ok(Packet::Disconnect),
                     _ => Ok(Packet::Generic(RawPacket::Ctrl {
                         header,
                         payload: Vec::new(),
@@ -355,7 +275,7 @@ impl Packet {
                     .with_attribute(rate_index),
                 payload: Vec::new(),
             },
-            Packet::StopGraph(()) => RawPacket::Ctrl {
+            Packet::StopGraph => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::StopGraph.into())
                     .with_reserved_flag(false)
@@ -371,7 +291,7 @@ impl Packet {
                     .with_attribute(0),
                 payload: Vec::new(),
             },
-            Packet::Connect(()) => RawPacket::Ctrl {
+            Packet::Connect => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::Connect.into())
                     .with_reserved_flag(false)
@@ -379,7 +299,7 @@ impl Packet {
                     .with_attribute(0),
                 payload: Vec::new(),
             },
-            Packet::Disconnect(()) => RawPacket::Ctrl {
+            Packet::Disconnect => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::Disconnect.into())
                     .with_reserved_flag(false)
@@ -389,5 +309,54 @@ impl Packet {
             },
             Packet::Generic(raw_packet) => raw_packet,
         }
+    }
+}
+
+// Python support for Packet
+#[cfg(feature = "python")]
+impl<'py> pyo3::IntoPyObject<'py> for Packet {
+    type Target = pyo3::PyAny;
+    type Output = pyo3::Bound<'py, Self::Target>;
+    type Error = pyo3::PyErr;
+
+    fn into_pyobject(self, py: pyo3::Python<'py>) -> Result<Self::Output, Self::Error> {
+        use pyo3::types::{PyDict, PyDictMethods};
+
+        let dict = PyDict::new(py);
+        match self {
+            Packet::DataResponse { payloads } => {
+                let inner = PyDict::new(py);
+                inner.set_item("payloads", payloads.into_pyobject(py)?)?;
+                dict.set_item("DataResponse", inner)?;
+            }
+            Packet::GetData { attribute_mask } => {
+                let inner = PyDict::new(py);
+                inner.set_item("attribute_mask", attribute_mask)?;
+                dict.set_item("GetData", inner)?;
+            }
+            Packet::StartGraph { rate_index } => {
+                let inner = PyDict::new(py);
+                inner.set_item("rate_index", rate_index)?;
+                dict.set_item("StartGraph", inner)?;
+            }
+            Packet::StopGraph => {
+                dict.set_item("StopGraph", py.None())?;
+            }
+            Packet::Accept { id } => {
+                let inner = PyDict::new(py);
+                inner.set_item("id", id)?;
+                dict.set_item("Accept", inner)?;
+            }
+            Packet::Connect => {
+                dict.set_item("Connect", py.None())?;
+            }
+            Packet::Disconnect => {
+                dict.set_item("Disconnect", py.None())?;
+            }
+            Packet::Generic(raw_packet) => {
+                dict.set_item("Generic", raw_packet.into_pyobject(py)?)?;
+            }
+        }
+        Ok(dict.into_any())
     }
 }
