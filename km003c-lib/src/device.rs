@@ -371,12 +371,8 @@ impl KM003C {
     pub async fn receive_raw(&mut self) -> Result<Vec<u8>, KMError> {
         let mut buffer = vec![0u8; 1024];
         let bytes_read = match &mut self.reader {
-            EndpointReaderType::Bulk(reader) => {
-                timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??
-            }
-            EndpointReaderType::Interrupt(reader) => {
-                timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??
-            }
+            EndpointReaderType::Bulk(reader) => timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??,
+            EndpointReaderType::Interrupt(reader) => timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??,
         };
         buffer.truncate(bytes_read);
         Ok(buffer)
@@ -394,12 +390,8 @@ impl KM003C {
 
         // Use the persistent reader
         let bytes_read = match &mut self.reader {
-            EndpointReaderType::Bulk(reader) => {
-                timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??
-            }
-            EndpointReaderType::Interrupt(reader) => {
-                timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??
-            }
+            EndpointReaderType::Bulk(reader) => timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??,
+            EndpointReaderType::Interrupt(reader) => timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??,
         };
 
         if bytes_read == 0 {

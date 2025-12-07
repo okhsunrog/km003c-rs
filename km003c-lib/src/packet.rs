@@ -432,7 +432,8 @@ impl TryFrom<Bytes> for RawPacket {
 
                     // Parse extended header
                     let ext_header_bytes = payload.split_to(4);
-                    let ext_header_array: [u8; 4] = ext_header_bytes.as_ref()
+                    let ext_header_array: [u8; 4] = ext_header_bytes
+                        .as_ref()
                         .try_into()
                         .map_err(|_| KMError::InvalidPacket("Failed to extract extended header bytes".to_string()))?;
                     let ext = ExtendedHeader::from_bytes(ext_header_array);

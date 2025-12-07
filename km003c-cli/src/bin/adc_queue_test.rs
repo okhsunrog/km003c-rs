@@ -96,8 +96,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                             if total_samples % print_interval == 1 {
                                 let power = sample.vbus_v * sample.ibus_a;
-                                println!("{:>6} {:>10.3} {:>10.3} {:>10.3}",
-                                    sample.sequence, sample.vbus_v, sample.ibus_a, power);
+                                println!(
+                                    "{:>6} {:>10.3} {:>10.3} {:>10.3}",
+                                    sample.sequence, sample.vbus_v, sample.ibus_a, power
+                                );
                             }
                         }
                     }

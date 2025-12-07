@@ -71,28 +71,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("Running initialization sequence for AdcQueue...");
 
     // Helper to send command and optionally read response
-    async fn send_and_recv(
-        device: &mut KM003C,
-        data: &[u8],
-        timeout_ms: u64,
-    ) -> Option<Vec<u8>> {
+    async fn send_and_recv(device: &mut KM003C, data: &[u8], timeout_ms: u64) -> Option<Vec<u8>> {
         if let Err(e) = device.send_raw(data).await {
             eprintln!("Send error: {:?}", e);
             return None;
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
-        match tokio::time::timeout(
-            Duration::from_millis(timeout_ms),
-            device.receive_raw(),
-        )
-        .await
-        {
+        match tokio::time::timeout(Duration::from_millis(timeout_ms), device.receive_raw()).await {
             Ok(Ok(data)) => Some(data),
             _ => None,
         }
     }
 
-    // 1. Connect (tid=1)
+    // 1. Connect (tid=1) - REQUIRED
     print!("  Connect... ");
     let resp = send_and_recv(&mut device, &[0x02, 0x01, 0x00, 0x00], 2000).await;
     if resp.map(|r| r.first().map(|b| b & 0x7F) == Some(0x05)).unwrap_or(false) {
@@ -102,66 +93,66 @@ async fn main() -> Result<(), Box<dyn Error>> {
         return Err("Connect failed".into());
     }
 
-    // 2. Unknown68 commands (tid=2,3,4,5) - some may timeout, that's OK
-    // NOTE: Some commands trigger unsolicited responses that must be drained
-    print!("  Unknown68 init... ");
-    let cmds68 = [
-        hex::decode("4402010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e").unwrap(),
-        hex::decode("44030101636beaf3f0856506eee9a27e89722dcfd18b539a39c407d5c063d91102e36a9e").unwrap(),
-        hex::decode("44040101c51167ae613a6d46ec84a6bde8bd462ad18b539a39c407d5c063d91102e36a9e").unwrap(),
-        hex::decode("440501019c409debc8df53b83b066c315250d05cd18b539a39c407d5c063d91102e36a9e").unwrap(),
-    ];
-    let mut ok_count = 0;
-    for cmd in &cmds68 {
-        if let Err(e) = device.send_raw(cmd).await {
-            eprintln!("Unknown68 send error: {:?}", e);
-            continue;
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
+    // // 2. Unknown68 commands (tid=2,3,4,5)
+    // print!("  Unknown68 init... ");
+    // let cmds68 = [
+    //     hex::decode("4402010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e").unwrap(),
+    //     hex::decode("44030101636beaf3f0856506eee9a27e89722dcfd18b539a39c407d5c063d91102e36a9e").unwrap(),
+    //     hex::decode("44040101c51167ae613a6d46ec84a6bde8bd462ad18b539a39c407d5c063d91102e36a9e").unwrap(),
+    //     hex::decode("440501019c409debc8df53b83b066c315250d05cd18b539a39c407d5c063d91102e36a9e").unwrap(),
+    // ];
+    // let mut ok_count = 0;
+    // for cmd in &cmds68 {
+    //     if let Err(e) = device.send_raw(cmd).await {
+    //         eprintln!("Unknown68 send error: {:?}", e);
+    //         continue;
+    //     }
+    //     tokio::time::sleep(Duration::from_millis(50)).await;
+    //     match tokio::time::timeout(Duration::from_millis(500), device.receive_raw()).await {
+    //         Ok(Ok(_)) => ok_count += 1,
+    //         _ => {}
+    //     }
+    //     loop {
+    //         match tokio::time::timeout(Duration::from_millis(100), device.receive_raw()).await {
+    //             Ok(Ok(_)) => {}
+    //             _ => break,
+    //         }
+    //     }
+    // }
+    // println!("{}/4 OK", ok_count);
 
-        // Read primary response
-        match tokio::time::timeout(Duration::from_millis(500), device.receive_raw()).await {
-            Ok(Ok(_)) => ok_count += 1,
-            _ => {}
-        }
-
-        // Drain any unsolicited responses (Type0x40, Type0x75)
-        loop {
-            match tokio::time::timeout(Duration::from_millis(100), device.receive_raw()).await {
-                Ok(Ok(_)) => {} // drained
-                _ => break,
-            }
-        }
-    }
-    println!("{}/4 OK", ok_count);
-
-    // 3. Unknown76 (tid=6)
+    // 3. Unknown76 (tid=6) - REQUIRED
     print!("  Unknown76... ");
     let resp = send_and_recv(
         &mut device,
         &hex::decode("4c0600025538815b69a452c83e54ef1d70f3bc9ae6aac1b12a6ac07c20fde58c7bf517ca").unwrap(),
         2000,
-    ).await;
+    )
+    .await;
     println!("{}", if resp.is_some() { "OK" } else { "timeout" });
 
-    // Skip GetData PD status - testing if it's required
+    // Skip GetData PD status - NOT REQUIRED
 
-    // 4. GetData Settings (tid=7) - ATT_SETTINGS=0x0008 -> wire=0x0010
-    print!("  GetData Settings... ");
-    let resp = send_and_recv(&mut device, &[0x0C, 0x07, 0x10, 0x00], 2000).await;
-    println!("{}", resp.map(|r| format!("{} bytes", r.len())).unwrap_or("timeout".into()));
+    // // 4. GetData Settings (tid=7) - ATT_SETTINGS=0x0008 -> wire=0x0010
+    // print!("  GetData Settings... ");
+    // let resp = send_and_recv(&mut device, &[0x0C, 0x07, 0x10, 0x00], 2000).await;
+    // println!("{}", resp.map(|r| format!("{} bytes", r.len())).unwrap_or("timeout".into()));
 
-    // 5. StopGraph cleanup (tid=8)
-    print!("  StopGraph cleanup... ");
-    let resp = send_and_recv(&mut device, &[0x0F, 0x08, 0x00, 0x00], 500).await;
-    println!("{}", if resp.is_some() { "OK" } else { "timeout" });
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    // // 5. StopGraph cleanup (tid=8)
+    // print!("  StopGraph cleanup... ");
+    // let resp = send_and_recv(&mut device, &[0x0F, 0x08, 0x00, 0x00], 500).await;
+    // println!("{}", if resp.is_some() { "OK" } else { "timeout" });
+    // tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Drain any remaining responses
     loop {
         match tokio::time::timeout(Duration::from_millis(100), device.receive_raw()).await {
             Ok(Ok(data)) => {
-                println!("    Drained {} bytes (type=0x{:02x})", data.len(), data.first().map(|b| b & 0x7F).unwrap_or(0));
+                println!(
+                    "    Drained {} bytes (type=0x{:02x})",
+                    data.len(),
+                    data.first().map(|b| b & 0x7F).unwrap_or(0)
+                );
             }
             _ => break,
         }
@@ -176,7 +167,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // StartGraph at specified rate (tid=0x09)
     // Rate encoding: rate_index -> wire = rate_index * 2 (shifted by 1)
     let rate_wire = (rate as u16) * 2;
-    println!("Starting AdcQueue streaming at {} SPS (rate_wire=0x{:04x})...", args.rate, rate_wire);
+    println!(
+        "Starting AdcQueue streaming at {} SPS (rate_wire=0x{:04x})...",
+        args.rate, rate_wire
+    );
 
     let start_cmd = [0x0E, 0x09, (rate_wire & 0xFF) as u8, ((rate_wire >> 8) & 0xFF) as u8];
     println!("  Sending: {:02x?}", start_cmd);
@@ -185,7 +179,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match &resp {
         Some(data) => {
             let pkt_type = data.first().map(|b| b & 0x7F).unwrap_or(0);
-            println!("  Response: {} bytes, type=0x{:02x}, data={:02x?}", data.len(), pkt_type, &data[..data.len().min(16)]);
+            println!(
+                "  Response: {} bytes, type=0x{:02x}, data={:02x?}",
+                data.len(),
+                pkt_type,
+                &data[..data.len().min(16)]
+            );
             if pkt_type == 0x05 {
                 println!("Streaming started\n");
             } else if pkt_type == 0x06 {
@@ -221,7 +220,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut total_samples = 0;
     let mut packet_count = 0;
     let mut last_seq: Option<u16> = None;
-    let mut seq_stride: Option<u16> = None;  // Detected stride between samples
+    let mut seq_stride: Option<u16> = None; // Detected stride between samples
     let mut tid: u8 = 0x0B;
 
     while start_time.elapsed() < Duration::from_secs(args.duration) {
@@ -299,7 +298,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
             };
             println!(
                 "DEBUG: Packet {} - {} bytes, {} samples, seq {}..{}",
-                packet_count, data.len(), num_samples, first_seq, last_seq
+                packet_count,
+                data.len(),
+                num_samples,
+                first_seq,
+                last_seq
             );
         }
 
@@ -336,7 +339,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 // Check for dropped samples using detected stride
                 if i == 0 {
-                    let stride = seq_stride.unwrap_or(20);  // Default 20 if not yet detected
+                    let stride = seq_stride.unwrap_or(20); // Default 20 if not yet detected
                     let expected = last.wrapping_add(stride);
                     if seq != expected {
                         let gap = seq.wrapping_sub(last);
