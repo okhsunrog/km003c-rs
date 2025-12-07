@@ -202,11 +202,9 @@ ATT_ADC_QUEUE: int
 ATT_ADC_QUEUE_10K: int
 ATT_SETTINGS: int
 ATT_PD_PACKET: int
-ATT_PD_STATUS: int
-ATT_QC_PACKET: int
 
 # Sample rates (GraphSampleRate enum)
-RATE_1_SPS: int
+RATE_2_SPS: int
 RATE_10_SPS: int
 RATE_50_SPS: int
 RATE_1000_SPS: int

@@ -249,11 +249,9 @@ fn km003c_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ATT_ADC_QUEUE_10K", u16::from(crate::packet::Attribute::AdcQueue10k))?;
     m.add("ATT_SETTINGS", u16::from(crate::packet::Attribute::Settings))?;
     m.add("ATT_PD_PACKET", u16::from(crate::packet::Attribute::PdPacket))?;
-    m.add("ATT_PD_STATUS", u16::from(crate::packet::Attribute::PdStatus))?;
-    m.add("ATT_QC_PACKET", u16::from(crate::packet::Attribute::QcPacket))?;
 
     // GraphSampleRate constants
-    m.add("RATE_1_SPS", crate::adcqueue::GraphSampleRate::Sps1 as u16)?;
+    m.add("RATE_2_SPS", crate::adcqueue::GraphSampleRate::Sps2 as u16)?;
     m.add("RATE_10_SPS", crate::adcqueue::GraphSampleRate::Sps10 as u16)?;
     m.add("RATE_50_SPS", crate::adcqueue::GraphSampleRate::Sps50 as u16)?;
     m.add("RATE_1000_SPS", crate::adcqueue::GraphSampleRate::Sps1000 as u16)?;

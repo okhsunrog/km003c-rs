@@ -120,9 +120,9 @@ pub enum Attribute {
     AdcQueue = 0x2,
     AdcQueue10k = 0x4,
     Settings = 0x8,
+    /// PD protocol data. Response is either 12-byte PdStatus (measurements only)
+    /// or longer PdEventStream (12-byte preamble + PD wire events).
     PdPacket = 0x10,
-    PdStatus = 0x20,
-    QcPacket = 0x40,
 
     // Unknown attributes discovered in protocol analysis
     // TODO: Reverse engineer the purpose of these attributes

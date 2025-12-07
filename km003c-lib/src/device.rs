@@ -492,13 +492,13 @@ impl KM003C {
     /// Start AdcQueue graph/streaming mode with specified sample rate
     ///
     /// # Arguments
-    /// * `rate` - Sample rate (use GraphSampleRate enum or raw u16)
+    /// * `rate` - Sample rate (use GraphSampleRate enum)
     ///
     /// Rate values:
-    /// - `GraphSampleRate::Sps1` (0) = 1 sample per second
-    /// - `GraphSampleRate::Sps10` (1) = 10 SPS
-    /// - `GraphSampleRate::Sps50` (2) = 50 SPS
-    /// - `GraphSampleRate::Sps1000` (3) = 1000 SPS
+    /// - `GraphSampleRate::Sps2` = 2 samples per second
+    /// - `GraphSampleRate::Sps10` = 10 SPS
+    /// - `GraphSampleRate::Sps50` = 50 SPS
+    /// - `GraphSampleRate::Sps1000` = 1000 SPS
     ///
     /// After calling this, poll with `request_data(AttributeSet::single(Attribute::AdcQueue))`
     /// to receive buffered samples.
@@ -520,8 +520,9 @@ impl KM003C {
     /// # }
     /// ```
     pub async fn start_graph_mode(&mut self, rate: GraphSampleRate) -> Result<(), KMError> {
+        // Device uses bits 1-2 of the rate byte as selector, so multiply by 2
         self.send(Packet::StartGraph {
-            rate_index: rate as u16,
+            rate_index: (rate as u16) * 2,
         })
         .await?;
 

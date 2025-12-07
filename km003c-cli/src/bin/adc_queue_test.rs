@@ -7,8 +7,8 @@ use std::time::Duration;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Sample rate: 1, 10, 50, or 1000 SPS
-    #[arg(short, long, default_value = "50", value_parser = ["1", "10", "50", "1000"])]
+    /// Sample rate: 2, 10, 50, or 1000 SPS
+    #[arg(short, long, default_value = "50", value_parser = ["2", "10", "50", "1000"])]
     rate: String,
 
     /// Duration in seconds
@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Parse rate
     let rate = match args.rate.as_str() {
-        "1" => GraphSampleRate::Sps1,
+        "2" => GraphSampleRate::Sps2,
         "10" => GraphSampleRate::Sps10,
         "50" => GraphSampleRate::Sps50,
         "1000" => GraphSampleRate::Sps1000,
@@ -89,7 +89,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                             // Print every Nth sample based on rate
                             let print_interval = match rate {
-                                GraphSampleRate::Sps1 | GraphSampleRate::Sps10 => 1,
+                                GraphSampleRate::Sps2 | GraphSampleRate::Sps10 => 1,
                                 GraphSampleRate::Sps50 => 5,
                                 GraphSampleRate::Sps1000 => 50,
                             };

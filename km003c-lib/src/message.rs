@@ -26,7 +26,7 @@ pub enum Packet {
     /// Request data with attribute set
     GetData { attribute_mask: u16 },
     /// Start AdcQueue graph mode with sample rate
-    /// Rate index: 0=1SPS, 1=10SPS, 2=50SPS, 3=1000SPS
+    /// Rate byte: 0=2SPS, 2=10SPS, 4=50SPS, 6=1000SPS (device uses bits 1-2)
     StartGraph { rate_index: u16 },
     /// Stop AdcQueue graph mode
     StopGraph,
