@@ -144,19 +144,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
     ).await;
     println!("{}", if resp.is_some() { "OK" } else { "timeout" });
 
-    // 4. GetData PD status (tid=7) - ATT_PD_STATUS=0x0020 -> wire=0x0040
-    print!("  GetData PD status... ");
-    let resp = send_and_recv(&mut device, &[0x0C, 0x07, 0x40, 0x00], 2000).await;
-    println!("{}", resp.map(|r| format!("{} bytes", r.len())).unwrap_or("timeout".into()));
+    // Skip GetData PD status - testing if it's required
 
-    // 5. GetData Settings (tid=8) - ATT_SETTINGS=0x0008 -> wire=0x0010
+    // 4. GetData Settings (tid=7) - ATT_SETTINGS=0x0008 -> wire=0x0010
     print!("  GetData Settings... ");
-    let resp = send_and_recv(&mut device, &[0x0C, 0x08, 0x10, 0x00], 2000).await;
+    let resp = send_and_recv(&mut device, &[0x0C, 0x07, 0x10, 0x00], 2000).await;
     println!("{}", resp.map(|r| format!("{} bytes", r.len())).unwrap_or("timeout".into()));
 
-    // 6. StopGraph cleanup (tid=9)
+    // 5. StopGraph cleanup (tid=8)
     print!("  StopGraph cleanup... ");
-    let resp = send_and_recv(&mut device, &[0x0F, 0x09, 0x00, 0x00], 500).await;
+    let resp = send_and_recv(&mut device, &[0x0F, 0x08, 0x00, 0x00], 500).await;
     println!("{}", if resp.is_some() { "OK" } else { "timeout" });
     tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -176,12 +173,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Now start graph mode
     // ================================================================
 
-    // StartGraph at specified rate (tid=0x0A)
+    // StartGraph at specified rate (tid=0x09)
     // Rate encoding: rate_index -> wire = rate_index * 2 (shifted by 1)
     let rate_wire = (rate as u16) * 2;
     println!("Starting AdcQueue streaming at {} SPS (rate_wire=0x{:04x})...", args.rate, rate_wire);
 
-    let start_cmd = [0x0E, 0x0A, (rate_wire & 0xFF) as u8, ((rate_wire >> 8) & 0xFF) as u8];
+    let start_cmd = [0x0E, 0x09, (rate_wire & 0xFF) as u8, ((rate_wire >> 8) & 0xFF) as u8];
     println!("  Sending: {:02x?}", start_cmd);
     let resp = send_and_recv(&mut device, &start_cmd, 2000).await;
 
