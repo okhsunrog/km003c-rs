@@ -15,7 +15,7 @@ pub struct PdStatusRaw {
     pub type_id: u8,
     pub timestamp24: [u8; 3], // 24-bit little-endian
     pub vbus_mv: U16,
-    pub ibus_ma: U16,
+    pub ibus_ma: I16, // Signed! Negative = power flowing from male to female port
     pub cc1_mv: U16,
     pub cc2_mv: U16,
 }
