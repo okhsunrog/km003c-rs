@@ -204,9 +204,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    // Wait for samples to accumulate
-    let warmup_ms: u64 = 2000;
-    println!("Waiting {}ms for buffer to fill...\n", warmup_ms);
+    // Brief warmup - start polling quickly to avoid large initial batch
+    let warmup_ms: u64 = 200;
+    println!("Brief warmup {}ms...\n", warmup_ms);
     tokio::time::sleep(Duration::from_millis(warmup_ms)).await;
 
     println!("{}", "=".repeat(90));
@@ -224,6 +224,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut total_samples = 0;
     let mut packet_count = 0;
     let mut last_seq: Option<u16> = None;
+    let mut seq_stride: Option<u16> = None;  // Detected stride between samples
     let mut tid: u8 = 0x0B;
 
     while start_time.elapsed() < Duration::from_secs(args.duration) {
@@ -255,7 +256,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             if args.verbose {
                 println!("DEBUG: Short response: {} bytes", data.len());
             }
-            tokio::time::sleep(Duration::from_millis(200)).await;
+            // Don't sleep - immediately request again
             continue;
         }
 
@@ -264,7 +265,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             if args.verbose {
                 println!("DEBUG: Unexpected packet type: 0x{:02x}", pkt_type);
             }
-            tokio::time::sleep(Duration::from_millis(200)).await;
+            // Don't sleep - immediately request again
             continue;
         }
 
@@ -274,7 +275,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             if args.verbose {
                 println!("DEBUG: Got attr={} instead of AdcQueue(2)", attr);
             }
-            tokio::time::sleep(Duration::from_millis(200)).await;
+            // Don't sleep - immediately request again
             continue;
         }
 
@@ -283,11 +284,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let num_samples = payload.len() / 20;
 
         if num_samples == 0 {
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            // Empty response - wait a bit for samples to accumulate
+            tokio::time::sleep(Duration::from_millis(20)).await;
             continue;
         }
 
         packet_count += 1;
+
+        // Debug: show packet info
+        if args.verbose {
+            let first_seq = u16::from_le_bytes([payload[0], payload[1]]);
+            let last_seq = if num_samples > 1 {
+                let last_offset = (num_samples - 1) * 20;
+                u16::from_le_bytes([payload[last_offset], payload[last_offset + 1]])
+            } else {
+                first_seq
+            };
+            println!(
+                "DEBUG: Packet {} - {} bytes, {} samples, seq {}..{}",
+                packet_count, data.len(), num_samples, first_seq, last_seq
+            );
+        }
 
         // Print interval based on rate
         let print_interval = match rate {
@@ -309,12 +326,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let vdp_v = u16::from_le_bytes([sample[16], sample[17]]) as f64 / 10_000.0;
             let vdm_v = u16::from_le_bytes([sample[18], sample[19]]) as f64 / 10_000.0;
 
-            // Check for dropped samples
+            // Detect stride from consecutive samples in same packet
             if let Some(last) = last_seq {
-                let expected = last.wrapping_add(1);
-                if i == 0 && seq != expected {
-                    let gap = seq.wrapping_sub(last);
-                    println!("Warning: {} samples dropped", gap.saturating_sub(1));
+                if i > 0 && seq_stride.is_none() {
+                    // Detect stride from consecutive samples within this packet
+                    let detected = seq.wrapping_sub(last);
+                    seq_stride = Some(detected);
+                    if args.verbose {
+                        println!("DEBUG: Detected seq stride = {}", detected);
+                    }
+                }
+
+                // Check for dropped samples using detected stride
+                if i == 0 {
+                    let stride = seq_stride.unwrap_or(20);  // Default 20 if not yet detected
+                    let expected = last.wrapping_add(stride);
+                    if seq != expected {
+                        let gap = seq.wrapping_sub(last);
+                        let dropped = gap.saturating_sub(stride) / stride;
+                        if dropped > 0 {
+                            println!("Warning: {} samples dropped (gap={})", dropped, gap);
+                        }
+                    }
                 }
             }
             last_seq = Some(seq);
@@ -329,8 +362,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
 
-        // Delay between requests - 200ms is standard polling interval
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        // Drain any queued unsolicited responses (PD events etc.) before sleeping
+        loop {
+            match tokio::time::timeout(Duration::from_millis(5), device.receive_raw()).await {
+                Ok(Ok(drain_data)) => {
+                    if args.verbose {
+                        let drain_type = drain_data.first().map(|b| b & 0x7F).unwrap_or(0);
+                        println!("DEBUG: Drained {} bytes type=0x{:02x}", drain_data.len(), drain_type);
+                    }
+                }
+                _ => break, // Timeout or error - queue is empty
+            }
+        }
+
+        // Minimal delay - device needs time to buffer samples
+        // At 50 SPS, 20ms is 1 sample period. 40ms should give ~2 samples per request
+        tokio::time::sleep(Duration::from_millis(40)).await;
     }
 
     println!("{}", "=".repeat(90));
