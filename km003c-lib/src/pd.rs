@@ -170,6 +170,24 @@ impl PdEventStream {
             }
 
             let size_flag = bytes[offset];
+
+            // Connection/status event (0x45): 6-byte header with ts24 + code
+            if size_flag == PD_EVENT_TYPE_CONNECTION {
+                let ts24 = u32::from_le_bytes([bytes[offset + 1], bytes[offset + 2], bytes[offset + 3], 0]);
+                let event_code = bytes[offset + 5];
+                let data = match event_code {
+                    PD_CONNECTION_CONNECT => PdEventData::Connect(()),
+                    PD_CONNECTION_DISCONNECT => PdEventData::Disconnect(()),
+                    _ => PdEventData::PdMessage {
+                        sop: event_code,
+                        wire_data: Vec::new(),
+                    },
+                };
+                events.push(PdEvent { timestamp: ts24, data });
+                offset += PD_EVENT_HEADER_SIZE;
+                continue;
+            }
+
             let timestamp = u32::from_le_bytes([
                 bytes[offset + 1],
                 bytes[offset + 2],
@@ -198,21 +216,7 @@ impl PdEventStream {
             };
             offset += wire_len;
 
-            // Parse event type
-            let data = if size_flag == PD_EVENT_TYPE_CONNECTION {
-                // Connection event
-                if let Some(&event_code) = wire_data.first() {
-                    match event_code {
-                        PD_CONNECTION_CONNECT => PdEventData::Connect(()),
-                        PD_CONNECTION_DISCONNECT => PdEventData::Disconnect(()),
-                        _ => PdEventData::PdMessage { sop, wire_data },
-                    }
-                } else {
-                    PdEventData::PdMessage { sop, wire_data }
-                }
-            } else {
-                PdEventData::PdMessage { sop, wire_data }
-            };
+            let data = PdEventData::PdMessage { sop, wire_data };
 
             events.push(PdEvent { timestamp, data });
         }
