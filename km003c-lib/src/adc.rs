@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 #[repr(u8)]
 pub enum SampleRate {
     #[default]
-    #[strum(to_string = "1 SPS")]
-    Sps1 = 0,
+    #[strum(to_string = "2 SPS")]
+    Sps2 = 0,
     #[strum(to_string = "10 SPS")]
     Sps10 = 1,
     #[strum(to_string = "50 SPS")]
@@ -29,7 +29,7 @@ impl SampleRate {
     /// Get the sample rate in samples per second
     pub fn as_hz(&self) -> u32 {
         match self {
-            SampleRate::Sps1 => 1,
+            SampleRate::Sps2 => 2,
             SampleRate::Sps10 => 10,
             SampleRate::Sps50 => 50,
             SampleRate::Sps1000 => 1000,
@@ -153,8 +153,8 @@ impl From<AdcDataRaw> for AdcDataSimple {
         // Internal VDD also uses 0.1mV
         let internal_vdd_v = raw.internal_vdd_raw.get() as f64 / 10_000.0;
 
-        // Convert raw sample rate to enum (safely, fallback to 1 SPS if invalid)
-        let sample_rate = SampleRate::try_from(raw.rate_raw).unwrap_or(SampleRate::Sps1);
+        // Convert raw sample rate to enum (safely, fallback to 2 SPS if invalid)
+        let sample_rate = SampleRate::try_from(raw.rate_raw).unwrap_or(SampleRate::Sps2);
 
         AdcDataSimple {
             vbus_v,
