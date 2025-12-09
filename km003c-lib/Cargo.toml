@@ -27,7 +27,6 @@ serde_json = "1.0"
 hex = "0.4"
 chrono = { version = "0.4", features = ["serde"] }
 pyo3 = { version = "0.26", features = ["extension-module"], optional = true }
-usbpd = { path = "../../usbpd/usbpd" }
 
 [features]
 default = []

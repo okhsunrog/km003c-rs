@@ -200,6 +200,7 @@ pub struct KM003C {
     #[allow(dead_code)]
     interface: Interface,
     transaction_id: u8,
+    #[allow(dead_code)]
     config: DeviceConfig,
     reader: EndpointReaderType,
     writer: EndpointWriterType,

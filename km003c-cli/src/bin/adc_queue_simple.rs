@@ -145,17 +145,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Drain any remaining responses
-    loop {
-        match tokio::time::timeout(Duration::from_millis(100), device.receive_raw()).await {
-            Ok(Ok(data)) => {
-                println!(
-                    "    Drained {} bytes (type=0x{:02x})",
-                    data.len(),
-                    data.first().map(|b| b & 0x7F).unwrap_or(0)
-                );
-            }
-            _ => break,
-        }
+    while let Ok(Ok(data)) = tokio::time::timeout(Duration::from_millis(100), device.receive_raw()).await {
+        println!(
+            "    Drained {} bytes (type=0x{:02x})",
+            data.len(),
+            data.first().map(|b| b & 0x7F).unwrap_or(0)
+        );
     }
 
     println!("Init complete!\n");
@@ -363,15 +358,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         // Drain any queued unsolicited responses (PD events etc.) before sleeping
-        loop {
-            match tokio::time::timeout(Duration::from_millis(5), device.receive_raw()).await {
-                Ok(Ok(drain_data)) => {
-                    if args.verbose {
-                        let drain_type = drain_data.first().map(|b| b & 0x7F).unwrap_or(0);
-                        println!("DEBUG: Drained {} bytes type=0x{:02x}", drain_data.len(), drain_type);
-                    }
-                }
-                _ => break, // Timeout or error - queue is empty
+        while let Ok(Ok(drain_data)) = tokio::time::timeout(Duration::from_millis(5), device.receive_raw()).await {
+            if args.verbose {
+                let drain_type = drain_data.first().map(|b| b & 0x7F).unwrap_or(0);
+                println!("DEBUG: Drained {} bytes type=0x{:02x}", drain_data.len(), drain_type);
             }
         }
 

@@ -1,11 +1,9 @@
 use km003c_lib::{KM003C, device::DeviceConfig, pd::PdEventData};
 use std::time::{Duration, Instant};
-use usbpd::protocol_layer::message::data::source_capabilities::{
-    SourceCapabilities, PowerDataObject, Augmented,
-};
+use usbpd::protocol_layer::message::data::source_capabilities::{Augmented, PowerDataObject, SourceCapabilities};
 use usbpd::protocol_layer::message::data::{self, Data};
-use usbpd::protocol_layer::message::extended::chunked::{ChunkedMessageAssembler, ChunkResult};
 use usbpd::protocol_layer::message::extended::Extended;
+use usbpd::protocol_layer::message::extended::chunked::{ChunkResult, ChunkedMessageAssembler};
 use usbpd::protocol_layer::message::header::ExtendedMessageType;
 use usbpd::protocol_layer::message::{Message, ParseError, Payload};
 
@@ -22,12 +20,26 @@ fn format_pdo(pdo: &PowerDataObject) -> String {
             let i = f.max_current().get::<ampere>();
             let p = v * i;
             let mut flags = Vec::new();
-            if f.dual_role_power() { flags.push("DRP"); }
-            if f.usb_communications_capable() { flags.push("USB"); }
-            if f.dual_role_data() { flags.push("DRD"); }
-            if f.unconstrained_power() { flags.push("UP"); }
-            if f.epr_mode_capable() { flags.push("EPR"); }
-            let flags_str = if flags.is_empty() { String::new() } else { format!(" [{}]", flags.join(",")) };
+            if f.dual_role_power() {
+                flags.push("DRP");
+            }
+            if f.usb_communications_capable() {
+                flags.push("USB");
+            }
+            if f.dual_role_data() {
+                flags.push("DRD");
+            }
+            if f.unconstrained_power() {
+                flags.push("UP");
+            }
+            if f.epr_mode_capable() {
+                flags.push("EPR");
+            }
+            let flags_str = if flags.is_empty() {
+                String::new()
+            } else {
+                format!(" [{}]", flags.join(","))
+            };
             format!("Fixed {:.0}V @ {:.1}A ({:.0}W){}", v, i, p, flags_str)
         }
         PowerDataObject::Battery(b) => {
@@ -60,7 +72,7 @@ fn format_pdo(pdo: &PowerDataObject) -> String {
             Augmented::Unknown(raw) => {
                 format!("Augmented(0x{:08X})", raw)
             }
-        }
+        },
         PowerDataObject::Unknown(u) => {
             format!("Unknown(0x{:08X})", u.0)
         }
@@ -104,6 +116,16 @@ impl PdDecoder {
             return;
         }
 
+        // Print raw bytes first
+        print!("       RAW[{}]: ", wire_data.len());
+        for (i, byte) in wire_data.iter().enumerate() {
+            if i > 0 && i % 16 == 0 {
+                print!("\n                ");
+            }
+            print!("{:02X} ", byte);
+        }
+        println!();
+
         match Message::from_bytes(wire_data) {
             Ok(msg) => {
                 let msg_type = msg.header.message_type();
@@ -132,20 +154,21 @@ impl PdDecoder {
                             println!("             Data: {:?}", data);
                         }
                     },
-                    Some(Payload::Extended(ext)) => {
-                        match ext {
-                            Extended::EprSourceCapabilities(pdos) => {
-                                print_capabilities(pdos.as_slice(), "EPR Source Capabilities");
-                            }
-                            Extended::ExtendedControl(ctrl) => {
-                                println!("             Extended Control: {:?} (data=0x{:02X})",
-                                    ctrl.message_type(), ctrl.data());
-                            }
-                            _ => {
-                                println!("             Extended: {:?}", ext);
-                            }
+                    Some(Payload::Extended(ext)) => match ext {
+                        Extended::EprSourceCapabilities(pdos) => {
+                            print_capabilities(pdos.as_slice(), "EPR Source Capabilities");
                         }
-                    }
+                        Extended::ExtendedControl(ctrl) => {
+                            println!(
+                                "             Extended Control: {:?} (data=0x{:02X})",
+                                ctrl.message_type(),
+                                ctrl.data()
+                            );
+                        }
+                        _ => {
+                            println!("             Extended: {:?}", ext);
+                        }
+                    },
                     None => {
                         // Control message (GoodCRC, Accept, etc.) - already summarized by type_str
                     }
@@ -189,16 +212,13 @@ impl PdDecoder {
 
                                 if let Extended::EprSourceCapabilities(pdos) = ext {
                                     let msg_id = header.message_id();
-                                    let role = format!(
-                                        "{:?}/{:?}",
-                                        header.port_power_role(),
-                                        header.port_data_role()
-                                    );
+                                    let role = format!("{:?}/{:?}", header.port_power_role(), header.port_data_role());
                                     println!(
                                         "SOP{}: Extended(EprSourceCapabilities) (ID={}, ROLE={})",
                                         sop, msg_id, role
                                     );
-                                    let title = format!("EPR Source Capabilities - {} chunks assembled", chunk_number + 1);
+                                    let title =
+                                        format!("EPR Source Capabilities - {} chunks assembled", chunk_number + 1);
                                     print_capabilities(pdos.as_slice(), &title);
                                 }
                             }
@@ -238,20 +258,16 @@ impl PdDecoder {
                 let pos = p.object_position();
 
                 // Look up Voltage from PDO if available
-                let pdo_info = self.source_caps.as_ref()
+                let pdo_info = self
+                    .source_caps
+                    .as_ref()
                     .and_then(|caps| caps.pdos().get(pos as usize - 1))
-                    .map(|pdo| format_pdo(pdo));
+                    .map(format_pdo);
 
                 if let Some(info) = pdo_info {
-                    println!(
-                        "             RDO: PDO#{} ({}) @ {:.1}A",
-                        pos, info, curr
-                    );
+                    println!("             RDO: PDO#{} ({}) @ {:.1}A", pos, info, curr);
                 } else {
-                    println!(
-                        "             RDO: PDO#{} @ {:.1}A (Max {:.1}A)",
-                        pos, curr, max_curr
-                    );
+                    println!("             RDO: PDO#{} @ {:.1}A (Max {:.1}A)", pos, curr, max_curr);
                 }
             }
             PowerSource::Battery(p) => {
@@ -283,8 +299,10 @@ impl PdDecoder {
                 );
             }
             PowerSource::EprRequest { rdo, pdo } => {
+                use usbpd::protocol_layer::message::data::request::{
+                    Avs as RdoAvs, FixedVariableSupply as RdoFixed, RawDataObject,
+                };
                 use usbpd::protocol_layer::message::data::source_capabilities::PowerDataObject;
-                use usbpd::protocol_layer::message::data::request::{FixedVariableSupply as RdoFixed, Avs as RdoAvs, RawDataObject};
 
                 let pos = RawDataObject(*rdo).object_position();
 
@@ -309,7 +327,11 @@ impl PdDecoder {
                                 let c = rdo_parsed.operating_current().get::<ampere>();
                                 println!(
                                     "             RDO: EPR PPS PDO#{} ({:.1}-{:.1}V) @ {:.2}V / {:.2}A",
-                                    pos, pps.min_voltage().get::<volt>(), pps.max_voltage().get::<volt>(), v, c
+                                    pos,
+                                    pps.min_voltage().get::<volt>(),
+                                    pps.max_voltage().get::<volt>(),
+                                    v,
+                                    c
                                 );
                             }
                             Augmented::Epr(avs) => {
@@ -318,23 +340,21 @@ impl PdDecoder {
                                 let c = rdo_parsed.operating_current().get::<ampere>();
                                 println!(
                                     "             RDO: EPR AVS PDO#{} ({:.1}-{:.1}V @ {:.0}W) @ {:.2}V / {:.2}A",
-                                    pos, avs.min_voltage().get::<volt>(), avs.max_voltage().get::<volt>(),
-                                    avs.pd_power().get::<watt>(), v, c
+                                    pos,
+                                    avs.min_voltage().get::<volt>(),
+                                    avs.max_voltage().get::<volt>(),
+                                    avs.pd_power().get::<watt>(),
+                                    v,
+                                    c
                                 );
                             }
                             _ => {
-                                println!(
-                                    "             RDO: EPR Augmented PDO#{} (Raw=0x{:08X})",
-                                    pos, rdo
-                                );
+                                println!("             RDO: EPR Augmented PDO#{} (Raw=0x{:08X})", pos, rdo);
                             }
                         }
                     }
                     _ => {
-                        println!(
-                            "             RDO: EPR PDO#{} (Raw=0x{:08X}, PDO={:?})",
-                            pos, rdo, pdo
-                        );
+                        println!("             RDO: EPR PDO#{} (Raw=0x{:08X}, PDO={:?})", pos, rdo, pdo);
                     }
                 }
             }
@@ -342,10 +362,10 @@ impl PdDecoder {
                 let pos = raw.object_position();
                 print!("             RDO: Requesting PDO#{} (Raw=0x{:08X})", pos, raw.0);
 
-                if let Some(caps) = &self.source_caps {
-                    if let Some(pdo) = caps.pdos().get(pos as usize - 1) {
-                        print!(" [Matches PDO: {:?}]", pdo);
-                    }
+                if let Some(caps) = &self.source_caps
+                    && let Some(pdo) = caps.pdos().get(pos as usize - 1)
+                {
+                    print!(" [Matches PDO: {:?}]", pdo);
                 }
                 println!();
             }
