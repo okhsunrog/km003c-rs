@@ -53,6 +53,7 @@ use bytes::Bytes;
 use nusb::Interface;
 use nusb::io::{EndpointRead, EndpointWrite};
 use nusb::transfer::{Bulk, Interrupt};
+use std::fmt;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
@@ -90,6 +91,38 @@ impl DeviceState {
     /// Get firmware version
     pub fn firmware_version(&self) -> &str {
         &self.info.fw_version
+    }
+}
+
+impl fmt::Display for DeviceState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        const W: usize = 58; // inner width between │ and │
+
+        // Helper to create a content line with label and value
+        fn line(label: &str, value: &str) -> String {
+            let content = format!(" {}: {}", label, value);
+            format!("│{:<W$}│", content, W = W)
+        }
+
+        let sep = format!("├{:─<W$}┤", "", W = W);
+
+        writeln!(f, "┌{:─<W$}┐", "", W = W)?;
+        writeln!(f, "│{:^W$}│", "POWER-Z KM003C Device Information", W = W)?;
+        writeln!(f, "{}", sep)?;
+        writeln!(f, "{}", line("Model", &self.info.model))?;
+        writeln!(f, "{}", line("Hardware Version", &self.info.hw_version))?;
+        writeln!(f, "{}", line("Mfg Date", &self.info.mfg_date))?;
+        writeln!(f, "{}", sep)?;
+        writeln!(f, "{}", line("Firmware Version", &self.info.fw_version))?;
+        writeln!(f, "{}", line("Firmware Date", &self.info.fw_date))?;
+        writeln!(f, "{}", sep)?;
+        writeln!(f, "{}", line("Serial ID", &self.info.serial_id))?;
+        writeln!(f, "{}", line("UUID", &self.info.uuid))?;
+        writeln!(f, "{}", line("Hardware ID", &format!("{}", self.hardware_id)))?;
+        writeln!(f, "{}", sep)?;
+        writeln!(f, "{}", line("Auth Level", &format!("{}", self.auth_level)))?;
+        writeln!(f, "{}", line("AdcQueue Enabled", &format!("{}", self.adcqueue_enabled)))?;
+        write!(f, "└{:─<W$}┘", "", W = W)
     }
 }
 

@@ -43,8 +43,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         config = config.skip_reset();
     }
 
-    println!("Searching for POWER-Z KM003C...");
-    println!("   Using {} interface", args.interface.to_uppercase());
+    println!(
+        "Searching for POWER-Z KM003C ({} interface)...\n",
+        args.interface.to_uppercase()
+    );
 
     // Connect to device - mode is determined by config:
     // - Vendor: Full mode with device info
@@ -52,8 +54,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut device = KM003C::new(config).await?;
 
     if let Some(state) = device.state() {
-        // Full mode - show device info
-        println!("Connected to {} (FW {})\n", state.model(), state.firmware_version());
+        // Full mode - show device info using Display impl
+        println!("{}\n", state);
     } else {
         // Basic mode - HID interface
         println!("Connected (Basic mode - ADC/PD polling)\n");

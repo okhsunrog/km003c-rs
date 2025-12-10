@@ -64,7 +64,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         config = config.skip_reset();
     }
 
-    println!("Connecting to POWER-Z KM003C...");
+    println!("Connecting to POWER-Z KM003C...\n");
     let mut device = KM003C::new(config).await?;
 
     // Check authentication (state is always available after with_config)
@@ -73,12 +73,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let state = device.state().expect("device initialized");
-    println!("  Device: {} (FW {})", state.info.model, state.info.fw_version);
-    println!("  Hardware ID: {}", state.hardware_id);
-    println!(
-        "  Auth: level={}, adcqueue={}",
-        state.auth_level, state.adcqueue_enabled
-    );
+    println!("{}\n", state);
 
     // Helper to send command and optionally read response (for raw commands)
     async fn send_and_recv(device: &mut KM003C, data: &[u8], timeout_ms: u64) -> Option<Vec<u8>> {

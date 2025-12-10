@@ -413,10 +413,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut device = KM003C::new(config).await?;
     let state = device.state().expect("vendor interface provides state");
 
-    println!("============================================================");
-    println!("USB PD Negotiation Capture (Rust + usbpd crate)");
-    println!("============================================================");
-    println!("Connected to {} (FW {})", state.model(), state.firmware_version());
+    println!("{}\n", state);
 
     // Note: EnablePdMonitor (0x10) and DisablePdMonitor (0x11) commands exist in the protocol
     // and are used by the official app, but PD capture works without them.
@@ -424,12 +421,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Keeping them commented out for reference:
     // device.enable_pd_monitor().await?;
 
+    println!("USB PD Negotiation Capture");
     println!("NOW: Disconnect and reconnect your USB-C load!");
     println!(
-        "Capturing for {} seconds... (Press Ctrl+C to stop early)",
+        "Capturing for {} seconds... (Press Ctrl+C to stop early)\n",
         args.duration
     );
-    println!("============================================================");
 
     // Drain any pending data after init
     while let Ok(Ok(_)) = tokio::time::timeout(Duration::from_millis(50), device.receive_raw()).await {}
