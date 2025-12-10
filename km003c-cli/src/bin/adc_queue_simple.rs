@@ -1,5 +1,5 @@
 use clap::Parser;
-use km003c_lib::{auth, DeviceConfig, GraphSampleRate, HardwareId, KM003C, Packet};
+use km003c_lib::{DeviceConfig, GraphSampleRate, KM003C};
 use std::error::Error;
 use std::time::Duration;
 
@@ -61,16 +61,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     println!("Connecting to POWER-Z KM003C...");
+    // with_config() auto-initializes the device
     let mut device = KM003C::with_config(config).await?;
-    println!("Connected\n");
 
-    // ================================================================
-    // AdcQueue requires full initialization sequence (unlike simple ADC)
-    // This includes Connect + MemoryRead (HardwareID) + StreamingAuth
-    // ================================================================
-    println!("Running initialization sequence for AdcQueue...");
+    // Check authentication (state is always available after with_config)
+    if !device.adcqueue_enabled() {
+        return Err("Authentication failed - AdcQueue not enabled".into());
+    }
 
-    // Helper to send command and optionally read response (for raw fallback)
+    let state = device.state().expect("device initialized");
+    println!("  Device: {} (FW {})", state.info.model, state.info.fw_version);
+    println!("  Hardware ID: {}", state.hardware_id);
+    println!(
+        "  Auth: level={}, adcqueue={}",
+        state.auth_level, state.adcqueue_enabled
+    );
+
+    // Helper to send command and optionally read response (for raw commands)
     async fn send_and_recv(device: &mut KM003C, data: &[u8], timeout_ms: u64) -> Option<Vec<u8>> {
         if let Err(e) = device.send_raw(data).await {
             eprintln!("Send error: {:?}", e);
@@ -82,126 +89,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
             _ => None,
         }
     }
-
-    // === HIGH-LEVEL API ===
-    // 1. Connect
-    print!("  Connect... ");
-    device.send(Packet::Connect).await?;
-    match device.receive().await? {
-        Packet::Accept { .. } => println!("OK"),
-        other => {
-            println!("FAILED: {:?}", other);
-            return Err("Connect failed".into());
-        }
-    }
-
-    // 2. Read HardwareID from device memory
-    print!("  MemoryRead HardwareID... ");
-    let memory_read_packet = Packet::MemoryRead {
-        address: auth::HARDWARE_ID_ADDRESS,
-        size: auth::HARDWARE_ID_SIZE as u32,
-    };
-    device.send(memory_read_packet).await?;
-
-    // First response: confirmation (0xC4)
-    let _confirm = device.receive().await?;
-
-    // Second response: encrypted data block (decrypted by receive_memory_read_data)
-    let hardware_id = match device.receive_memory_read_data().await? {
-        Packet::MemoryReadResponse { data } => {
-            if data.len() >= auth::HARDWARE_ID_SIZE {
-                let hw_bytes: [u8; 12] = data[..12].try_into().unwrap();
-                let hw_id = HardwareId::from_bytes(hw_bytes);
-                println!("OK - {:?} (device_id={})", hw_id.serial_prefix(), hw_id.device_id());
-                hw_id
-            } else {
-                println!("FAILED: short response {} bytes", data.len());
-                return Err("MemoryRead failed".into());
-            }
-        }
-        other => {
-            println!("FAILED: {:?}", other);
-            return Err("MemoryRead failed".into());
-        }
-    };
-
-    // 3. StreamingAuth with HardwareID
-    print!("  StreamingAuth... ");
-    device.send(Packet::StreamingAuth { hardware_id }).await?;
-    match device.receive().await? {
-        Packet::StreamingAuthResponse(result) => {
-            if result.success {
-                println!("OK (auth_level={})", result.auth_level);
-            } else {
-                println!("FAILED: auth rejected");
-                return Err("StreamingAuth failed".into());
-            }
-        }
-        other => {
-            println!("FAILED: {:?}", other);
-            return Err("StreamingAuth failed".into());
-        }
-    }
-
-    // === RAW FALLBACK (commented out) ===
-    // // 1. Connect (tid=1) - REQUIRED
-    // print!("  Connect... ");
-    // let resp = send_and_recv(&mut device, &[0x02, 0x01, 0x00, 0x00], 2000).await;
-    // if resp.map(|r| r.first().map(|b| b & 0x7F) == Some(0x05)).unwrap_or(false) {
-    //     println!("OK");
-    // } else {
-    //     println!("FAILED");
-    //     return Err("Connect failed".into());
-    // }
-
-    // // 2. Unknown68 commands (tid=2,3,4,5) - MemoryRead for device info
-    // // print!("  Unknown68 init... ");
-    // // let cmds68 = [
-    // //     hex::decode("4402010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e").unwrap(),
-    // //     hex::decode("44030101636beaf3f0856506eee9a27e89722dcfd18b539a39c407d5c063d91102e36a9e").unwrap(),
-    // //     hex::decode("44040101c51167ae613a6d46ec84a6bde8bd462ad18b539a39c407d5c063d91102e36a9e").unwrap(),
-    // //     hex::decode("440501019c409debc8df53b83b066c315250d05cd18b539a39c407d5c063d91102e36a9e").unwrap(),
-    // // ];
-    // // let mut ok_count = 0;
-    // // for cmd in &cmds68 {
-    // //     if let Err(e) = device.send_raw(cmd).await {
-    // //         eprintln!("Unknown68 send error: {:?}", e);
-    // //         continue;
-    // //     }
-    // //     tokio::time::sleep(Duration::from_millis(50)).await;
-    // //     match tokio::time::timeout(Duration::from_millis(500), device.receive_raw()).await {
-    // //         Ok(Ok(_)) => ok_count += 1,
-    // //         _ => {}
-    // //     }
-    // //     loop {
-    // //         match tokio::time::timeout(Duration::from_millis(100), device.receive_raw()).await {
-    // //             Ok(Ok(_)) => {}
-    // //             _ => break,
-    // //         }
-    // //     }
-    // // }
-    // // println!("{}/4 OK", ok_count);
-
-    // // 3. Unknown76/StreamingAuth (tid=6) - REQUIRED - hardcoded with specific HardwareID
-    // print!("  Unknown76... ");
-    // let resp = send_and_recv(
-    //     &mut device,
-    //     &hex::decode("4c0600025538815b69a452c83e54ef1d70f3bc9ae6aac1b12a6ac07c20fde58c7bf517ca").unwrap(),
-    //     2000,
-    // )
-    // .await;
-    // println!("{}", if resp.is_some() { "OK" } else { "timeout" });
-
-    // // 4. GetData Settings (tid=7) - ATT_SETTINGS=0x0008 -> wire=0x0010
-    // // print!("  GetData Settings... ");
-    // // let resp = send_and_recv(&mut device, &[0x0C, 0x07, 0x10, 0x00], 2000).await;
-    // // println!("{}", resp.map(|r| format!("{} bytes", r.len())).unwrap_or("timeout".into()));
-
-    // // 5. StopGraph cleanup (tid=8)
-    // // print!("  StopGraph cleanup... ");
-    // // let resp = send_and_recv(&mut device, &[0x0F, 0x08, 0x00, 0x00], 500).await;
-    // // println!("{}", if resp.is_some() { "OK" } else { "timeout" });
-    // // tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Drain any remaining responses
     while let Ok(Ok(data)) = tokio::time::timeout(Duration::from_millis(100), device.receive_raw()).await {
@@ -219,14 +106,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // ================================================================
 
     // StartGraph at specified rate (tid=0x09)
-    // Rate encoding: rate_index -> wire = rate_index * 2 (shifted by 1)
-    let rate_wire = (rate as u16) * 2;
+    // Rate encoding: rate_index sent directly (0=2SPS, 1=10SPS, 2=50SPS, 3=1000SPS)
+    let rate_index = rate as u16;
     println!(
-        "Starting AdcQueue streaming at {} SPS (rate_wire=0x{:04x})...",
-        args.rate, rate_wire
+        "Starting AdcQueue streaming at {} SPS (rate_index={})...",
+        args.rate, rate_index
     );
 
-    let start_cmd = [0x0E, 0x09, (rate_wire & 0xFF) as u8, ((rate_wire >> 8) & 0xFF) as u8];
+    let start_cmd = [0x0E, 0x09, (rate_index & 0xFF) as u8, ((rate_index >> 8) & 0xFF) as u8];
     println!("  Sending: {:02x?}", start_cmd);
     let resp = send_and_recv(&mut device, &start_cmd, 2000).await;
 

@@ -1,28 +1,37 @@
-use km003c_lib::{DeviceConfig, KM003C};
+use km003c_lib::KM003C;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to POWER-Z KM003C...");
-    // MemoryRead requires vendor interface (interface 0), not HID
-    let mut device = KM003C::with_config(DeviceConfig::vendor_interface()).await?;
-    println!("Connected!\n");
 
-    let info = device.get_device_info().await?;
+    // new() auto-initializes with vendor interface (default)
+    let device = KM003C::new().await?;
+
+    // State is always available after new()
+    let state = device.state().expect("device initialized");
 
     println!("============================================================");
     println!("DEVICE INFORMATION");
     println!("============================================================");
-    println!("Model:              {}", info.model);
-    println!("Hardware Version:   {}", info.hw_version);
-    println!("Manufacturing Date: {}", info.mfg_date);
+    println!("Model:              {}", state.info.model);
+    println!("Hardware Version:   {}", state.info.hw_version);
+    println!("Manufacturing Date: {}", state.info.mfg_date);
     println!();
-    println!("Firmware Version:   {}", info.fw_version);
-    println!("Firmware Date:      {}", info.fw_date);
+    println!("Firmware Version:   {}", state.info.fw_version);
+    println!("Firmware Date:      {}", state.info.fw_date);
     println!();
-    println!("Serial ID:          {}", info.serial_id);
-    println!("UUID:               {}", info.uuid);
+    println!("Serial ID:          {}", state.info.serial_id);
+    println!("UUID:               {}", state.info.uuid);
     println!();
-    println!("Device Serial:      {}", info.device_serial);
+    println!("Hardware ID:        {}", state.hardware_id);
+
+    println!();
+    println!("============================================================");
+    println!("AUTHENTICATION");
+    println!("============================================================");
+    println!("Auth Level:         {}", state.auth_level);
+    println!("Authenticated:      {}", state.is_authenticated());
+    println!("AdcQueue Enabled:   {}", state.adcqueue_enabled);
 
     Ok(())
 }

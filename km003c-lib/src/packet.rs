@@ -70,8 +70,8 @@ pub enum PacketType {
     StopGraph = 0x0F,  // Stop AdcQueue streaming
 
     // Authentication commands
-    MemoryRead = 0x44,      // 68 - Read device memory (encrypted)
-    StreamingAuth = 0x4C,   // 76 - Authenticate for AdcQueue streaming
+    MemoryRead = 0x44,    // 68 - Read device memory (encrypted)
+    StreamingAuth = 0x4C, // 76 - Authenticate for AdcQueue streaming
 
     // Unknown control types discovered in protocol analysis
     Unknown26 = 26,

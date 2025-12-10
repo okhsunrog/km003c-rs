@@ -44,6 +44,7 @@
 
 use crate::adc::AdcDataSimple;
 use crate::adcqueue::GraphSampleRate;
+use crate::auth::{DeviceInfo, HardwareId};
 use crate::error::KMError;
 use crate::message::Packet;
 use crate::packet::{Attribute, AttributeSet, RawPacket};
@@ -56,6 +57,41 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
 use tracing::{debug, info, trace};
+
+/// Device state populated by initialization
+///
+/// Contains all information gathered during device init:
+/// - Device info (model, versions, serials)
+/// - Hardware ID (used for authentication)
+/// - Authentication state
+#[derive(Debug, Clone)]
+pub struct DeviceState {
+    /// Device information (model, firmware, serials, etc.)
+    pub info: DeviceInfo,
+    /// Hardware ID used for authentication
+    pub hardware_id: HardwareId,
+    /// Authentication level (0 = not authenticated, 1+ = authenticated)
+    pub auth_level: u8,
+    /// Whether AdcQueue streaming is enabled
+    pub adcqueue_enabled: bool,
+}
+
+impl DeviceState {
+    /// Check if device is authenticated
+    pub fn is_authenticated(&self) -> bool {
+        self.auth_level > 0
+    }
+
+    /// Get device model name
+    pub fn model(&self) -> &str {
+        &self.info.model
+    }
+
+    /// Get firmware version
+    pub fn firmware_version(&self) -> &str {
+        &self.info.fw_version
+    }
+}
 
 /// USB device identification constants
 pub const VID: u16 = 0x5FC9; // ChargerLAB vendor ID
@@ -116,12 +152,12 @@ pub struct DeviceConfig {
 
 impl Default for DeviceConfig {
     fn default() -> Self {
-        // Use HID interface by default (more compatible, ~3.8ms latency)
+        // Use Vendor interface by default (fastest, ~0.6ms latency)
         Self {
-            interface: INTERFACE_HID,
-            endpoint_out: ENDPOINT_OUT_HID,
-            endpoint_in: ENDPOINT_IN_HID,
-            transfer_type: TransferType::Interrupt,
+            interface: INTERFACE_VENDOR,
+            endpoint_out: ENDPOINT_OUT_VENDOR,
+            endpoint_in: ENDPOINT_IN_VENDOR,
+            transfer_type: TransferType::Bulk,
             skip_reset: false,
         }
     }
@@ -204,16 +240,83 @@ pub struct KM003C {
     config: DeviceConfig,
     reader: EndpointReaderType,
     writer: EndpointWriterType,
+    /// Device state (populated by init, always Some after new/with_config)
+    state: Option<DeviceState>,
 }
 
 impl KM003C {
-    /// Create a new KM003C instance using HID interface (Interface 3, no kernel driver detach)
+    /// Connect to device and initialize (recommended)
+    ///
+    /// This is the main entry point. It:
+    /// 1. Connects to the USB device (vendor interface by default)
+    /// 2. Runs full initialization (Connect, MemoryReads, StreamingAuth)
+    ///
+    /// After this call, device state is available via `state()`.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use km003c_lib::KM003C;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let device = KM003C::new().await?;
+    /// println!("Model: {}", device.state().unwrap().model());
+    /// println!("AdcQueue enabled: {}", device.adcqueue_enabled());
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn new() -> Result<Self, KMError> {
         Self::with_config(DeviceConfig::default()).await
     }
 
-    /// Create a new KM003C instance with custom configuration
+    /// Connect to device with custom config and initialize
+    ///
+    /// Same as `new()` but with custom USB configuration.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use km003c_lib::{KM003C, DeviceConfig};
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// // Use HID interface instead of default vendor
+    /// let device = KM003C::with_config(DeviceConfig::hid_interface()).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn with_config(config: DeviceConfig) -> Result<Self, KMError> {
+        let mut device = Self::connect(config).await?;
+        device.init().await?;
+        Ok(device)
+    }
+
+    /// Connect to device without initialization
+    ///
+    /// Use this for protocol research, testing, or when you need
+    /// manual control over the initialization sequence.
+    ///
+    /// **Note:** Device state will be None until `init()` is called.
+    /// Some features (like AdcQueue) won't work without init.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use km003c_lib::{KM003C, DeviceConfig};
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut device = KM003C::connect_without_init(DeviceConfig::default()).await?;
+    /// // Device connected but not initialized - state() returns None
+    /// assert!(device.state().is_none());
+    ///
+    /// // Can still do simple ADC requests
+    /// let adc = device.request_adc_data().await?;
+    ///
+    /// // Or manually initialize later
+    /// device.init().await?;
+    /// assert!(device.state().is_some());
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn connect_without_init(config: DeviceConfig) -> Result<Self, KMError> {
+        Self::connect(config).await
+    }
+
+    /// Internal: Connect to USB device without initialization
+    async fn connect(config: DeviceConfig) -> Result<Self, KMError> {
         info!("Searching for POWER-Z KM003C...");
         let device_info = nusb::list_devices()
             .await?
@@ -286,12 +389,10 @@ impl KM003C {
             config,
             reader,
             writer,
+            state: None,
         };
 
-        // Device is ready - no Connect command needed
-        // (kernel driver and other implementations start directly with GetData)
-        info!("Device ready");
-
+        info!("USB connection established");
         Ok(km003c)
     }
 
@@ -416,10 +517,11 @@ impl KM003C {
 
         // Special handling for StreamingAuth response (0x4C with high bit = 0xCC)
         // Format: [type:1][id:1][attr:2][encrypted_payload:32]
-        if packet_type == 0x4C && raw_bytes.len() >= 36 {
-            if let Some(result) = crate::auth::parse_streaming_auth_response(&raw_bytes) {
-                return Ok(Packet::StreamingAuthResponse(result));
-            }
+        if packet_type == 0x4C
+            && raw_bytes.len() >= 36
+            && let Some(result) = crate::auth::parse_streaming_auth_response(&raw_bytes)
+        {
+            return Ok(Packet::StreamingAuthResponse(result));
         }
 
         // Standard packet parsing
@@ -449,10 +551,7 @@ impl KM003C {
         }
 
         // Decrypt all blocks with MEMORY_READ_KEY
-        let decrypted = crate::auth::aes_ecb_decrypt_blocks(
-            &raw_bytes,
-            crate::auth::MEMORY_READ_KEY,
-        );
+        let decrypted = crate::auth::aes_ecb_decrypt_blocks(&raw_bytes, crate::auth::MEMORY_READ_KEY);
 
         Ok(Packet::MemoryReadResponse { data: decrypted })
     }
@@ -563,46 +662,185 @@ impl KM003C {
         packet.get_pd_events()
     }
 
+    /// Initialize device connection and authenticate for streaming
+    ///
+    /// Performs the full initialization sequence:
+    /// 1. Connect to device
+    /// 2. Read DeviceInfo (0x420)
+    /// 3. Read FirmwareInfo (0x4420)
+    /// 4. Read Calibration (0x3000C00)
+    /// 5. Read HardwareID (0x40010450)
+    /// 6. StreamingAuth (authenticate for AdcQueue)
+    ///
+    /// After successful init, device state is available via `state()`.
+    ///
+    /// **Note:** This is called automatically by `new()` and `with_config()`.
+    /// Only call manually if you used `connect_without_init()`.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use km003c_lib::{KM003C, DeviceConfig};
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut device = KM003C::connect_without_init(DeviceConfig::default()).await?;
+    /// device.init().await?;
+    /// println!("Model: {}", device.state().unwrap().model());
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn init(&mut self) -> Result<(), KMError> {
+        use crate::auth::{
+            CALIBRATION_ADDRESS, DEVICE_INFO_ADDRESS, FIRMWARE_INFO_ADDRESS, HARDWARE_ID_ADDRESS, HARDWARE_ID_SIZE,
+            INFO_BLOCK_SIZE,
+        };
+
+        // 1. Connect
+        self.send(Packet::Connect).await?;
+        match self.receive().await? {
+            Packet::Accept { .. } => {}
+            other => {
+                return Err(KMError::Protocol(format!(
+                    "Expected Accept for Connect, got {:?}",
+                    other
+                )));
+            }
+        }
+
+        let mut info = DeviceInfo::default();
+        let mut hardware_id_bytes = [0u8; HARDWARE_ID_SIZE];
+
+        // Helper to read memory block
+        async fn read_block(device: &mut KM003C, address: u32, size: u32) -> Result<Vec<u8>, KMError> {
+            device.send(Packet::MemoryRead { address, size }).await?;
+            device.receive().await?; // confirmation
+            match device.receive_memory_read_data().await? {
+                Packet::MemoryReadResponse { data } => Ok(data),
+                other => Err(KMError::Protocol(format!(
+                    "Expected MemoryReadResponse, got {:?}",
+                    other
+                ))),
+            }
+        }
+
+        // 2. Read DeviceInfo
+        if let Ok(data) = read_block(self, DEVICE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+            info.parse_device_info(&data);
+        }
+
+        // 3. Read FirmwareInfo
+        if let Ok(data) = read_block(self, FIRMWARE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+            info.parse_firmware_info(&data);
+        }
+
+        // 4. Read Calibration
+        if let Ok(data) = read_block(self, CALIBRATION_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+            info.parse_calibration(&data);
+        }
+
+        // 5. Read HardwareID
+        let hardware_id = if let Ok(data) = read_block(self, HARDWARE_ID_ADDRESS, HARDWARE_ID_SIZE as u32).await {
+            if data.len() >= HARDWARE_ID_SIZE {
+                hardware_id_bytes.copy_from_slice(&data[..HARDWARE_ID_SIZE]);
+            }
+            HardwareId::from_bytes(hardware_id_bytes)
+        } else {
+            return Err(KMError::Protocol(
+                "Failed to read HardwareID - required for authentication".to_string(),
+            ));
+        };
+
+        // 6. StreamingAuth
+        self.send(Packet::StreamingAuth {
+            hardware_id: hardware_id.clone(),
+        })
+        .await?;
+
+        let auth = match self.receive().await? {
+            Packet::StreamingAuthResponse(result) => result,
+            other => {
+                return Err(KMError::Protocol(format!(
+                    "Expected StreamingAuthResponse, got {:?}",
+                    other
+                )));
+            }
+        };
+
+        // Store device state
+        self.state = Some(DeviceState {
+            info,
+            hardware_id,
+            auth_level: auth.auth_level,
+            adcqueue_enabled: auth.adcqueue_enabled(),
+        });
+
+        info!(
+            "Device initialized: {} (auth_level={})",
+            self.state.as_ref().unwrap().model(),
+            auth.auth_level
+        );
+
+        Ok(())
+    }
+
+    /// Get device state (available after initialization)
+    ///
+    /// Returns `Some` after `new()`, `with_config()`, or `init()` completes.
+    /// Returns `None` if device was created with `connect_without_init()` and
+    /// `init()` hasn't been called yet.
+    pub fn state(&self) -> Option<&DeviceState> {
+        self.state.as_ref()
+    }
+
+    /// Check if device has been initialized
+    pub fn is_initialized(&self) -> bool {
+        self.state.is_some()
+    }
+
+    /// Check if device is authenticated (convenience method)
+    ///
+    /// Returns `false` if not initialized or authentication failed.
+    pub fn is_authenticated(&self) -> bool {
+        self.state.as_ref().map(|s| s.is_authenticated()).unwrap_or(false)
+    }
+
+    /// Check if AdcQueue streaming is enabled (convenience method)
+    ///
+    /// Returns `false` if not initialized or not authenticated for streaming.
+    pub fn adcqueue_enabled(&self) -> bool {
+        self.state.as_ref().map(|s| s.adcqueue_enabled).unwrap_or(false)
+    }
+
     /// Read device information from memory
     ///
     /// Reads and parses:
     /// - DeviceInfo1 (0x420): model, hw_version, mfg_date
     /// - FirmwareInfo (0x4420): fw_version, fw_date
     /// - CalibrationData (0x3000C00): serial_id, uuid
-    /// - HardwareID (0x40010450): device_serial
+    ///
+    /// **Note:** Requires Connect to be sent first. Use `init()` for full initialization.
     ///
     /// # Example
     /// ```no_run
     /// # use km003c_lib::KM003C;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut device = KM003C::new().await?;
+    /// // Must connect first
+    /// device.send(km003c_lib::Packet::Connect).await?;
+    /// device.receive().await?;
     /// let info = device.get_device_info().await?;
     /// println!("Model: {}", info.model);
-    /// println!("FW: {}", info.fw_version);
     /// # Ok(())
     /// # }
     /// ```
     pub async fn get_device_info(&mut self) -> Result<crate::auth::DeviceInfo, KMError> {
         use crate::auth::{
-            DeviceInfo, CALIBRATION_ADDRESS, DEVICE_INFO_ADDRESS, FIRMWARE_INFO_ADDRESS,
-            HARDWARE_ID_ADDRESS, HARDWARE_ID_SIZE, INFO_BLOCK_SIZE,
+            CALIBRATION_ADDRESS, DEVICE_INFO_ADDRESS, DeviceInfo, FIRMWARE_INFO_ADDRESS, INFO_BLOCK_SIZE,
         };
-
-        // Ensure device is connected (MemoryRead requires Connect first)
-        self.send(Packet::Connect).await?;
-        self.receive().await?;
 
         let mut info = DeviceInfo::default();
 
         // Helper to read memory block
-        async fn read_block(
-            device: &mut KM003C,
-            address: u32,
-            size: u32,
-        ) -> Result<Vec<u8>, KMError> {
-            device
-                .send(Packet::MemoryRead { address, size })
-                .await?;
+        async fn read_block(device: &mut KM003C, address: u32, size: u32) -> Result<Vec<u8>, KMError> {
+            device.send(Packet::MemoryRead { address, size }).await?;
             device.receive().await?; // confirmation
             match device.receive_memory_read_data().await? {
                 Packet::MemoryReadResponse { data } => Ok(data),
@@ -626,11 +864,6 @@ impl KM003C {
         // Read CalibrationData
         if let Ok(data) = read_block(self, CALIBRATION_ADDRESS, INFO_BLOCK_SIZE as u32).await {
             info.parse_calibration(&data);
-        }
-
-        // Read HardwareID
-        if let Ok(data) = read_block(self, HARDWARE_ID_ADDRESS, HARDWARE_ID_SIZE as u32).await {
-            info.parse_hardware_id(&data);
         }
 
         Ok(info)
@@ -667,9 +900,9 @@ impl KM003C {
     /// # }
     /// ```
     pub async fn start_graph_mode(&mut self, rate: GraphSampleRate) -> Result<(), KMError> {
-        // Device uses bits 1-2 of the rate byte as selector, so multiply by 2
+        // Device expects rate index directly: 0=2SPS, 1=10SPS, 2=50SPS, 3=1000SPS
         self.send(Packet::StartGraph {
-            rate_index: (rate as u16) * 2,
+            rate_index: rate as u16,
         })
         .await?;
 

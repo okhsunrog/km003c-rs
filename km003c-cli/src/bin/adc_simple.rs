@@ -7,7 +7,7 @@ use std::error::Error;
 #[command(version, about, long_about = None)]
 struct Args {
     /// USB interface to use: "vendor" (Interface 0, Bulk) or "hid" (Interface 3, Interrupt)
-    #[arg(short, long, default_value = "hid", value_parser = ["vendor", "hid"])]
+    #[arg(short, long, default_value = "vendor", value_parser = ["vendor", "hid"])]
     interface: String,
 
     /// Verbose logging (show USB traffic)
@@ -33,23 +33,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt().with_max_level(log_level).init();
 
     // Select configuration based on CLI argument
-    let config = match args.interface.as_str() {
+    let mut config = match args.interface.as_str() {
         "vendor" => DeviceConfig::vendor_interface(),
         "hid" => DeviceConfig::hid_interface(),
         _ => unreachable!(), // clap validates this
     };
 
-    let config = if args.no_reset {
-        config.with_skip_reset()
-    } else {
-        config
-    };
+    if args.no_reset {
+        config = config.with_skip_reset();
+    }
 
-    println!("🔍 Searching for POWER-Z KM003C...");
+    println!("Searching for POWER-Z KM003C...");
     println!("   Using {} interface", args.interface.to_uppercase());
 
+    // new()/with_config() auto-initializes the device
     let mut device = KM003C::with_config(config).await?;
-    println!("✅ Connected to POWER-Z KM003C\n");
+    let state = device.state().expect("device initialized");
+    println!("Connected to {} (FW {})\n", state.model(), state.firmware_version());
 
     // Request ADC data
     println!("📊 Requesting ADC data...");

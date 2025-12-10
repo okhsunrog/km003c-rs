@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// Sample rate for AdcQueue streaming mode
 ///
 /// Used with StartGraph (0x0E) command to configure device sampling rate.
-/// The device uses bits 1-2 of the rate byte, so we multiply by 2 when encoding.
+/// The device expects the rate index directly (0-3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum GraphSampleRate {

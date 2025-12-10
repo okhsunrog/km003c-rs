@@ -153,9 +153,7 @@ impl TryFrom<RawPacket> for Packet {
                     // Format: [type:1][data:N] - NOT a 4-byte header
                     PacketType::MemoryReadResponse => {
                         // Data starts at byte 1 (after the type byte which is in header)
-                        Ok(Packet::MemoryReadResponse {
-                            data: payload.to_vec(),
-                        })
+                        Ok(Packet::MemoryReadResponse { data: payload.to_vec() })
                     }
                     // MemoryRead response (0xC4 = 0x44 | 0x80) - confirmation
                     PacketType::MemoryRead => {

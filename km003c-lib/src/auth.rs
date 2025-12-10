@@ -21,8 +21,8 @@
 //! message module to send authentication commands. This module provides the
 //! underlying encryption and data structures.
 
-use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
 use aes::Aes128;
+use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
 
 /// AES-128 key for StreamingAuth encryption (host → device)
 pub const STREAMING_AUTH_KEY_ENC: &[u8; 16] = b"Fa0b4tA25f4R038a";
@@ -92,7 +92,7 @@ impl HardwareId {
 
 impl std::fmt::Display for HardwareId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(&self.bytes))
+        write!(f, "{}", hex::encode(self.bytes))
     }
 }
 
@@ -113,8 +113,6 @@ pub struct DeviceInfo {
     pub serial_id: String,
     /// UUID/hash from calibration
     pub uuid: String,
-    /// Device serial prefix (e.g., "071KBP")
-    pub device_serial: String,
 }
 
 impl DeviceInfo {
@@ -163,12 +161,6 @@ impl DeviceInfo {
         }
     }
 
-    /// Parse HardwareID (12-16 bytes from 0x40010450)
-    pub fn parse_hardware_id(&mut self, data: &[u8]) {
-        if data.len() >= 6 {
-            self.device_serial = extract_string(data, 0x00, 0x06);
-        }
-    }
 }
 
 /// Extract null-terminated string from byte slice
@@ -200,6 +192,24 @@ impl StreamingAuthResult {
     pub fn adcqueue_enabled(&self) -> bool {
         // Bit 1 of attribute indicates AdcQueue access
         (self.attribute & 0x02) != 0
+    }
+}
+
+/// Result of device initialization
+#[derive(Debug, Clone)]
+pub struct InitResult {
+    /// Device information (model, versions, serial, etc.)
+    pub device_info: DeviceInfo,
+    /// Hardware ID used for authentication
+    pub hardware_id: HardwareId,
+    /// Authentication result
+    pub auth: StreamingAuthResult,
+}
+
+impl InitResult {
+    /// Check if device is ready for AdcQueue streaming
+    pub fn is_authenticated(&self) -> bool {
+        self.auth.success && self.auth.adcqueue_enabled()
     }
 }
 
@@ -448,7 +458,7 @@ pub fn aes_ecb_decrypt_block(ciphertext: &[u8; 16], key: &[u8; 16]) -> [u8; 16] 
 /// # Returns
 /// Decrypted data as Vec<u8>
 pub fn aes_ecb_decrypt_blocks(ciphertext: &[u8], key: &[u8; 16]) -> Vec<u8> {
-    assert!(ciphertext.len() % 16 == 0, "ciphertext must be multiple of 16 bytes");
+    assert!(ciphertext.len().is_multiple_of(16), "ciphertext must be multiple of 16 bytes");
 
     let cipher = Aes128::new(key.into());
     let mut output = ciphertext.to_vec();
@@ -610,9 +620,9 @@ mod tests {
         // HardwareID: 071KBP, device ID 2577
         let hw_id = HardwareId::from_bytes([
             0x30, 0x37, 0x31, 0x4b, 0x42, 0x50, // "071KBP"
-            0x0d, 0xff,                         // separator
-            0x11, 0x0a,                         // device ID 2577 (LE)
-            0xff, 0xff,                         // padding
+            0x0d, 0xff, // separator
+            0x11, 0x0a, // device ID 2577 (LE)
+            0xff, 0xff, // padding
         ]);
 
         // Generate StreamingAuth packet

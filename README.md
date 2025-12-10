@@ -8,45 +8,63 @@ Rust library and applications for the **ChargerLAB POWER-Z KM003C** USB-C power 
 
 ## Features
 
-### 🔌 Device Communication
-- USB HID communication (VID: 0x5FC9, PID: 0x0063)
+### Device Communication
+- Dual interface support: Vendor (bulk, ~0.6ms latency) or HID (interrupt)
 - Cross-platform support using `nusb`
 - Asynchronous communication with Tokio
-- Automatic device discovery and connection management
+- Automatic device discovery, initialization, and authentication
 
-### 📊 ADC Data Acquisition
+### ADC Data Acquisition
 - Real-time voltage, current, and power measurements
-- Multiple sample rates (1, 10, 50, 1000, 10000 SPS)
-- Temperature monitoring
+- Two modes:
+  - **Simple ADC**: Single-shot readings with temperature and statistics
+  - **AdcQueue streaming**: High-speed continuous streaming (2, 10, 50, 1000 SPS)
 - USB data line voltage measurements (D+, D-)
-- USB CC line voltage measurements (CC1, CC2)
+- USB-C CC line voltage measurements (CC1, CC2)
 
-### ⚡ USB Power Delivery Support
+### USB Power Delivery Support
 - Capture and parse USB PD messages
-- Connection event detection
+- Connection/disconnection event detection
 - Full PD message parsing using the `usbpd` crate
-- Support for source capabilities and control messages
+- Support for SPR and EPR source capabilities
+- Chunked message reassembly for EPR
+
+### Device Information
+- Model, firmware version, hardware version
+- Serial number and UUID
+- Hardware ID and authentication level
 
 ## Components
 
 ### `km003c-lib`
-Core library providing device communication and data parsing.
+Core library providing:
+- Device communication and automatic initialization
+- Streaming authentication (required for AdcQueue)
+- ADC and AdcQueue data parsing
+- USB PD event parsing
 
 ### `km003c-cli`
 Command-line tools:
-- `adc_simple` - Basic ADC data reading
-- `pd_monitor` - Real-time PD message monitoring
+- `device_info` - Display device information and auth status
+- `adc_simple` - Single-shot ADC readings
+- `adc_queue_simple` - AdcQueue streaming demo
+- `test_usbpd` - USB PD negotiation capture
 
 ### `km003c-egui`
-GUI application with real-time plotting and live status display.
+GUI application featuring:
+- Real-time voltage/current/power plots
+- AdcQueue streaming with configurable sample rates
+- Adjustable time window (2s to 5min or all data)
+- Device info panel with auth status
+- Connect/disconnect control
 
 ### Python Bindings
-Python bindings for parsing KM003C data structures (no async device communication).
+Python bindings for parsing KM003C data structures.
 
 ## Quick Start
 
 ### Prerequisites
-- Rust 1.89 or newer
+- Rust 1.75+ (uses let-else and let-chains)
 - USB access permissions (udev rules on Linux)
 - POWER-Z KM003C device
 
@@ -59,7 +77,7 @@ cargo build --release
 
 ### Linux USB Permissions
 
-On Linux, you need to set up udev rules to allow non-root access to the device:
+Create udev rules for non-root access:
 
 ```bash
 sudo cp 71-powerz-km003c.rules /etc/udev/rules.d/
@@ -67,18 +85,28 @@ sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
 
-**Note:** The udev rules use the modern `uaccess` tag approach recommended for systemd systems. This provides secure, dynamic access to logged-in users without requiring overly permissive modes or group membership. The file is numbered `71-*` to ensure it's processed before systemd's `73-seat-late.rules`. See the [Arch Wiki on udev](https://wiki.archlinux.org/title/Udev#Allowing_regular_users_to_use_devices) for more details.
+The rules use the `uaccess` tag for secure, dynamic access to logged-in users.
 
 ### Usage Examples
+
+#### Device Info
+```bash
+cargo run --bin device_info
+```
 
 #### ADC Reading
 ```bash
 cargo run --bin adc_simple
 ```
 
-#### PD Message Monitoring
+#### AdcQueue Streaming
 ```bash
-cargo run --bin pd_monitor --frequency 1.0
+cargo run --bin adc_queue_simple -- --rate 50 --duration 10
+```
+
+#### USB PD Capture
+```bash
+cargo run --bin test_usbpd
 ```
 
 #### GUI Application
@@ -86,88 +114,79 @@ cargo run --bin pd_monitor --frequency 1.0
 cargo run --bin km003c-egui
 ```
 
-#### Python Bindings
-```bash
-# Install in development mode
-uv run maturin develop
-
-# Use the bindings
-python -c "
-import km003c
-print(f'KM003C VID: {hex(km003c.VID)}, PID: {hex(km003c.PID)}')
-rates = km003c.get_sample_rates()
-print(f'Available sample rates: {[rate.name for rate in rates]}')
-"
-```
-
 ## Library Usage
 
 ```rust
-use km003c_lib::KM003C;
+use km003c_lib::{KM003C, GraphSampleRate};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Connect and auto-initialize (includes authentication)
     let mut device = KM003C::new().await?;
-    
-    // Read ADC data
-    let adc_data = device.request_adc_data().await?;
-    println!("Voltage: {:.3} V", adc_data.vbus_v);
-    println!("Current: {:.3} A", adc_data.ibus_a);
-    
-    // Read PD data
-    let pd_data = device.request_pd_data().await?;
-    // Process PD messages...
-    
+
+    // Access device info
+    let state = device.state().unwrap();
+    println!("Model: {}", state.model());
+    println!("Firmware: {}", state.firmware_version());
+    println!("AdcQueue enabled: {}", state.adcqueue_enabled);
+
+    // Simple ADC reading
+    let adc = device.request_adc_data().await?;
+    println!("Voltage: {:.3} V", adc.vbus_v);
+    println!("Current: {:.3} A", adc.ibus_a);
+
+    // AdcQueue streaming (if authenticated)
+    if device.adcqueue_enabled() {
+        device.start_graph_mode(GraphSampleRate::Sps50).await?;
+        // ... poll for samples ...
+        device.stop_graph_mode().await?;
+    }
+
     Ok(())
 }
 ```
 
 ## Protocol Research
 
-This implementation is based on reverse engineering research documented at:
+This implementation is based on reverse engineering documented at:
 **[km003c-protocol-research](https://github.com/okhsunrog/km003c-protocol-research)**
 
 The research repository contains:
-- Complete protocol documentation
-- PCAPNG captures and analysis
-- Python analysis tools
-- Reverse engineering methodology
+- Complete protocol specification
+- USB transport documentation
+- PCAPNG captures and analysis tools
+- Firmware analysis notes
 
 ## Development Status
 
-### ✅ Working Features
-- Device communication and data acquisition
-- ADC measurements with all supported sample rates
+### Working Features
+- Device discovery and dual-interface communication
+- Automatic initialization and streaming authentication
+- Simple ADC measurements
+- AdcQueue high-speed streaming (2-1000 SPS)
 - USB PD message capture and parsing
+- Memory read for device info/calibration
 - Real-time GUI with plotting
-- Command-line monitoring tools
 
-### 🔄 In Progress
-- Additional device commands
-- Enhanced error handling
-- Performance optimizations
+### Tested Platforms
+- Linux (primary development platform)
+- Should work on Windows/macOS (uses cross-platform `nusb`)
 
 ## Requirements
 
-- **Rust**: 1.89+
-- **Dependencies**: See `Cargo.toml` files
+- **Rust**: 1.75+ (stable)
 - **Platforms**: Linux, Windows, macOS
-- **Hardware**: POWER-Z KM003C device
+- **Hardware**: POWER-Z KM003C
 
 ## Contributing
 
-Contributions are welcome! Please see the research repository for protocol details and reverse engineering findings.
+Contributions welcome! See the research repository for protocol details.
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License - see LICENSE file.
 
 ## Related Projects
 
 - **[km003c-protocol-research](https://github.com/okhsunrog/km003c-protocol-research)** - Protocol reverse engineering
-- **[usbpdpy](https://github.com/okhsunrog/usbpdpy)** - Python bindings for USB PD parsing
 - **[usbpd](https://crates.io/crates/usbpd)** - Rust USB PD protocol library
-
----
-
-**For protocol research and analysis tools, visit: [km003c-protocol-research](https://github.com/okhsunrog/km003c-protocol-research)**

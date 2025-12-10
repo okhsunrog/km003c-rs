@@ -1,4 +1,4 @@
-use km003c_lib::{KM003C, device::DeviceConfig, pd::PdEventData};
+use km003c_lib::{KM003C, Packet, pd::PdEventData};
 use std::time::{Duration, Instant};
 use usbpd::protocol_layer::message::data::source_capabilities::{Augmented, PowerDataObject, SourceCapabilities};
 use usbpd::protocol_layer::message::data::{self, Data};
@@ -377,24 +377,20 @@ impl PdDecoder {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
-    // We use Vendor interface for speed
-    let config = DeviceConfig::vendor_interface();
-    let mut device = KM003C::with_config(config).await?;
+    // new() uses vendor interface by default and auto-initializes
+    let mut device = KM003C::new().await?;
+    let state = device.state().expect("device initialized");
 
     println!("============================================================");
     println!("USB PD Negotiation Capture (Rust + usbpd crate)");
     println!("============================================================");
-    println!("Connected to KM003C");
+    println!("Connected to {} (FW {})", state.model(), state.firmware_version());
     println!("NOW: Disconnect and reconnect your USB-C load!");
     println!("Capturing for 20 seconds... (Press Ctrl+C to stop early)");
     println!("============================================================");
 
-    // Initial drain
-    let _ = device.receive_raw().await;
-
-    // Send Connect to ensure we are receiving events
-    use km003c_lib::message::Packet;
-    device.send(Packet::Connect).await?;
+    // Drain any pending data after init
+    while let Ok(Ok(_)) = tokio::time::timeout(Duration::from_millis(50), device.receive_raw()).await {}
 
     let start_time = Instant::now();
     let duration = Duration::from_secs(20);
