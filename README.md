@@ -45,8 +45,7 @@ Core library providing:
 
 ### `km003c-cli`
 Command-line tools:
-- `device_info` - Display device information and auth status
-- `adc_simple` - Single-shot ADC readings
+- `adc_simple` - Single-shot ADC readings with device info
 - `adc_queue_simple` - AdcQueue streaming demo
 - `test_usbpd` - USB PD negotiation capture
 
@@ -89,11 +88,6 @@ The rules use the `uaccess` tag for secure, dynamic access to logged-in users.
 
 ### Usage Examples
 
-#### Device Info
-```bash
-cargo run --bin device_info
-```
-
 #### ADC Reading
 ```bash
 cargo run --bin adc_simple
@@ -117,17 +111,16 @@ cargo run --bin km003c-egui
 ## Library Usage
 
 ```rust
-use km003c_lib::{KM003C, GraphSampleRate};
+use km003c_lib::{DeviceConfig, KM003C, GraphSampleRate};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Connect and auto-initialize (includes authentication)
-    let mut device = KM003C::new().await?;
+    // Connect with vendor interface (Full mode - includes init and auth)
+    let mut device = KM003C::new(DeviceConfig::vendor()).await?;
 
-    // Access device info
+    // Access device info (always available in Full mode)
     let state = device.state().unwrap();
-    println!("Model: {}", state.model());
-    println!("Firmware: {}", state.firmware_version());
+    println!("{}", state);  // Pretty-printed device info
     println!("AdcQueue enabled: {}", state.adcqueue_enabled);
 
     // Simple ADC reading
@@ -144,6 +137,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+```
+
+### Device Configuration
+
+```rust
+// Vendor interface (Full mode) - recommended, fastest
+let config = DeviceConfig::vendor();
+
+// HID interface (Basic mode) - most compatible, ADC/PD polling only
+let config = DeviceConfig::hid();
+
+// Skip USB reset (default on macOS for compatibility)
+let config = DeviceConfig::vendor().skip_reset();
 ```
 
 ## Protocol Research
@@ -170,7 +176,8 @@ The research repository contains:
 
 ### Tested Platforms
 - Linux (primary development platform)
-- Should work on Windows/macOS (uses cross-platform `nusb`)
+- macOS (uses `--no-reset` by default for compatibility)
+- Windows (uses cross-platform `nusb`)
 
 ## Requirements
 
