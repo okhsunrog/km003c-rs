@@ -283,8 +283,12 @@ impl eframe::App for PowerMonitorApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.process_messages();
 
-        // Request frequent repaints for smooth updates
-        ctx.request_repaint_after(Duration::from_millis(16)); // ~60fps
+        // Request repaints - fast when streaming, slower when idle
+        if self.streaming {
+            ctx.request_repaint_after(Duration::from_millis(16)); // ~60fps when streaming
+        } else {
+            ctx.request_repaint_after(Duration::from_millis(100)); // 10fps when idle
+        }
 
         // Top panel with device info
         egui::TopBottomPanel::top("header").show(ctx, |ui| {
@@ -481,7 +485,13 @@ impl eframe::App for PowerMonitorApp {
             let plot_height = (available_height - 30.0) / 3.0;
 
             // Calculate time cutoff for filtering
-            let current_time = self.time_base.map(|tb| tb.elapsed().as_secs_f64()).unwrap_or(0.0);
+            // When streaming, use real elapsed time; when stopped, use last data point time
+            let current_time = if self.streaming {
+                self.time_base.map(|tb| tb.elapsed().as_secs_f64()).unwrap_or(0.0)
+            } else {
+                // Use the last data point's timestamp when not streaming
+                self.data_points.back().map(|(t, _, _, _)| *t).unwrap_or(0.0)
+            };
             let min_time = self
                 .time_window
                 .seconds()
