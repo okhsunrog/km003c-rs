@@ -23,8 +23,8 @@ struct Args {
     #[arg(short, long)]
     verbose: bool,
 
-    /// Skip USB reset (for MacOS compatibility)
-    #[arg(long)]
+    /// Skip USB reset (defaults to true on macOS for compatibility)
+    #[arg(long, default_value_t = cfg!(target_os = "macos"))]
     no_reset: bool,
 }
 

@@ -608,7 +608,13 @@ async fn run_streaming_session(
     initial_rate: GraphSampleRate,
 ) {
     // Connect to device with vendor interface (Full mode for AdcQueue)
-    let mut device = match KM003C::new(DeviceConfig::vendor()).await {
+    // Skip reset on macOS for compatibility
+    let config = if cfg!(target_os = "macos") {
+        DeviceConfig::vendor().skip_reset()
+    } else {
+        DeviceConfig::vendor()
+    };
+    let mut device = match KM003C::new(config).await {
         Ok(dev) => dev,
         Err(e) => {
             error!("Failed to connect: {}", e);

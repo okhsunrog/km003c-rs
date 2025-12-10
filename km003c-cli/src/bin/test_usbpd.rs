@@ -15,8 +15,8 @@ use usbpd::protocol_layer::message::{Message, ParseError, Payload};
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Skip USB reset (for MacOS compatibility)
-    #[arg(long)]
+    /// Skip USB reset (defaults to true on macOS for compatibility)
+    #[arg(long, default_value_t = cfg!(target_os = "macos"))]
     no_reset: bool,
 
     /// Capture duration in seconds
