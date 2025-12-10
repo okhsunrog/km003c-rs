@@ -22,6 +22,10 @@ struct Args {
     /// Capture duration in seconds
     #[arg(short, long, default_value = "20")]
     duration: u64,
+
+    /// Show raw bytes for each message
+    #[arg(long)]
+    raw: bool,
 }
 
 // Use uom for nice formatting
@@ -113,13 +117,16 @@ struct PdDecoder {
     source_caps: Option<SourceCapabilities>,
     /// Assembler for chunked EPR Source Capabilities
     epr_assembler: ChunkedMessageAssembler,
+    /// Whether to show raw bytes
+    show_raw: bool,
 }
 
 impl PdDecoder {
-    fn new() -> Self {
+    fn new(show_raw: bool) -> Self {
         Self {
             source_caps: None,
             epr_assembler: ChunkedMessageAssembler::new(),
+            show_raw,
         }
     }
 
@@ -135,15 +142,17 @@ impl PdDecoder {
 
         let ts = timestamp_ms as f64 / 1000.0;
 
-        // Print raw bytes first
-        print!("[{:>8.3}s] RAW[{}]: ", ts, wire_data.len());
-        for (i, byte) in wire_data.iter().enumerate() {
-            if i > 0 && i % 16 == 0 {
-                print!("\n                     ");
+        // Print raw bytes if enabled
+        if self.show_raw {
+            print!("[{:>8.3}s] RAW[{}]: ", ts, wire_data.len());
+            for (i, byte) in wire_data.iter().enumerate() {
+                if i > 0 && i % 16 == 0 {
+                    print!("\n                     ");
+                }
+                print!("{:02X} ", byte);
             }
-            print!("{:02X} ", byte);
+            println!();
         }
-        println!();
 
         match Message::from_bytes(wire_data) {
             Ok(msg) => {
@@ -385,14 +394,22 @@ impl PdDecoder {
             }
             PowerSource::Unknown(raw) => {
                 let pos = raw.object_position();
-                print!("             RDO: Requesting PDO#{} (Raw=0x{:08X})", pos, raw.0);
 
                 if let Some(caps) = &self.source_caps
                     && let Some(pdo) = caps.pdos().get(pos as usize - 1)
                 {
-                    print!(" [Matches PDO: {:?}]", pdo);
+                    // Try to parse as FixedVariableSupply RDO and show nice format
+                    let rdo_parsed = data::request::FixedVariableSupply(raw.0);
+                    let curr = rdo_parsed.operating_current().get::<ampere>();
+                    println!(
+                        "             RDO: Requesting PDO#{} ({}) @ {:.1}A",
+                        pos,
+                        format_pdo(pdo),
+                        curr
+                    );
+                } else {
+                    println!("             RDO: Requesting PDO#{} (Raw=0x{:08X})", pos, raw.0);
                 }
-                println!();
             }
         }
     }
@@ -433,7 +450,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let start_time = Instant::now();
     let duration = Duration::from_secs(args.duration);
-    let mut decoder = PdDecoder::new();
+    let mut decoder = PdDecoder::new(args.raw);
 
     loop {
         if start_time.elapsed() >= duration {
