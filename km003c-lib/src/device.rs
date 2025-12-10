@@ -696,16 +696,27 @@ impl KM003C {
             INFO_BLOCK_SIZE,
         };
 
-        // 1. Connect
-        self.send(Packet::Connect).await?;
-        match self.receive().await? {
-            Packet::Accept { .. } => {}
-            other => {
-                return Err(KMError::Protocol(format!(
-                    "Expected Accept for Connect, got {:?}",
-                    other
-                )));
+        // 1. Connect (with retries - sometimes device responds with Disconnect on first try)
+        const MAX_CONNECT_RETRIES: u8 = 3;
+        let mut last_error = None;
+        for attempt in 1..=MAX_CONNECT_RETRIES {
+            self.send(Packet::Connect).await?;
+            match self.receive().await? {
+                Packet::Accept { .. } => {
+                    last_error = None;
+                    break;
+                }
+                other => {
+                    last_error = Some(format!("Expected Accept for Connect, got {:?}", other));
+                    if attempt < MAX_CONNECT_RETRIES {
+                        debug!("Connect attempt {} failed, retrying...", attempt);
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                    }
+                }
             }
+        }
+        if let Some(err) = last_error {
+            return Err(KMError::Protocol(err));
         }
 
         let mut info = DeviceInfo::default();

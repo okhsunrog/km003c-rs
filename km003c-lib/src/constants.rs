@@ -24,11 +24,11 @@ pub const MIN_PACKET_SIZE: usize = MAIN_HEADER_SIZE;
 /// PD event type: connection status
 pub const PD_EVENT_TYPE_CONNECTION: u8 = 0x45;
 
-/// PD connection event code: connect
-pub const PD_CONNECTION_CONNECT: u8 = 0x11;
+/// PD connection event code: connect (0x21 = 33, appears as SOP33 if not recognized)
+pub const PD_CONNECTION_CONNECT: u8 = 0x21;
 
-/// PD connection event code: disconnect
-pub const PD_CONNECTION_DISCONNECT: u8 = 0x12;
+/// PD connection event code: disconnect (0x22 = 34, appears as SOP34 if not recognized)
+pub const PD_CONNECTION_DISCONNECT: u8 = 0x22;
 
 /// Mask for extracting wire length from PD event size_flag
 pub const PD_EVENT_SIZE_MASK: u8 = 0x3F;
