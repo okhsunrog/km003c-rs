@@ -117,10 +117,23 @@ pub enum TransferType {
     Interrupt,
 }
 
+/// Connection mode determined by interface type
+///
+/// - **Basic**: HID interface - ADC/PD polling only, no initialization needed
+/// - **Full**: Vendor interface - all features including AdcQueue streaming
+#[derive(Debug, Clone)]
+pub enum ConnectionMode {
+    /// Basic mode (HID interface) - ADC/PD polling only
+    Basic,
+    /// Full mode (Vendor interface) - all features, includes device state
+    Full(DeviceState),
+}
+
 /// Configuration for KM003C device communication
 ///
-/// Specifies which USB interface and endpoints to use for communication.
-/// The KM003C has multiple interfaces with different performance characteristics.
+/// Specifies which USB interface to use. The interface determines the connection mode:
+/// - **Vendor** (Interface 0): Full mode - all features including AdcQueue
+/// - **HID** (Interface 3): Basic mode - ADC/PD polling only
 ///
 /// # Examples
 ///
@@ -128,58 +141,46 @@ pub enum TransferType {
 /// use km003c_lib::{KM003C, DeviceConfig};
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// // Use HID interface (most compatible, ~3.8ms latency)
-/// let device = KM003C::new().await?;
+/// // Full mode with vendor interface (fastest, all features)
+/// let device = KM003C::new(DeviceConfig::vendor()).await?;
 ///
-/// // Use Vendor interface (fastest, ~0.6ms latency, 6x faster)
-/// let device = KM003C::with_config(DeviceConfig::vendor_interface()).await?;
+/// // Basic mode with HID interface (most compatible, ADC/PD only)
+/// let device = KM003C::new(DeviceConfig::hid()).await?;
+///
+/// // With options
+/// let device = KM003C::new(DeviceConfig::vendor().skip_reset()).await?;
 /// # Ok(())
 /// # }
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct DeviceConfig {
-    /// USB interface number (0-3)
-    pub interface: u8,
+    /// USB interface number (0 or 3)
+    interface: u8,
     /// OUT endpoint address
-    pub endpoint_out: u8,
+    endpoint_out: u8,
     /// IN endpoint address
-    pub endpoint_in: u8,
+    endpoint_in: u8,
     /// Transfer type (Bulk or Interrupt)
-    pub transfer_type: TransferType,
-    /// Skip initial USB reset (for compatibility with some systems/OSes)
-    pub skip_reset: bool,
-}
-
-impl Default for DeviceConfig {
-    fn default() -> Self {
-        // Use Vendor interface by default (fastest, ~0.6ms latency)
-        Self {
-            interface: INTERFACE_VENDOR,
-            endpoint_out: ENDPOINT_OUT_VENDOR,
-            endpoint_in: ENDPOINT_IN_VENDOR,
-            transfer_type: TransferType::Bulk,
-            skip_reset: false,
-        }
-    }
+    transfer_type: TransferType,
+    /// Skip initial USB reset
+    skip_reset: bool,
 }
 
 impl DeviceConfig {
-    /// Use vendor-specific interface (Interface 0) with Bulk transfers
+    /// Vendor interface (Interface 0) - Full mode with all features
     ///
     /// This is the **fastest option** with ~0.6ms latency (6x faster than HID).
-    /// Uses the same interface as the Linux kernel `powerz` driver.
+    /// Enables all features including AdcQueue streaming.
     ///
-    /// **Specifications** (official):
-    /// - Throughput: ~200 KB/s
-    /// - Endpoints: 0x01 OUT, 0x81 IN (Bulk)
-    ///
-    /// **Measured performance**:
+    /// **Performance**:
     /// - Latency: ~600 µs per request
-    /// - Best for high-frequency polling and performance-critical applications
+    /// - Throughput: ~200 KB/s
+    ///
+    /// **Features**: Full mode - ADC, PD, AdcQueue, device info, authentication
     ///
     /// **Note**: On Linux, requires detaching the `powerz` kernel driver,
     /// which this library handles automatically.
-    pub fn vendor_interface() -> Self {
+    pub fn vendor() -> Self {
         Self {
             interface: INTERFACE_VENDOR,
             endpoint_out: ENDPOINT_OUT_VENDOR,
@@ -189,34 +190,48 @@ impl DeviceConfig {
         }
     }
 
-    /// Use HID interface (Interface 3) with Interrupt transfers
+    /// HID interface (Interface 3) - Basic mode for ADC/PD polling
     ///
     /// This is the **most compatible option** that works on all platforms
-    /// without installing custom drivers. Slightly slower than Interface 0.
+    /// without custom drivers. Only supports basic ADC and PD polling.
     ///
-    /// **Specifications** (official):
-    /// - Throughput: ~60 KB/s
-    /// - Endpoints: 0x05 OUT, 0x85 IN (Interrupt)
-    ///
-    /// **Measured performance**:
+    /// **Performance**:
     /// - Latency: ~3.8 ms per request
-    /// - Good for standard monitoring applications
+    /// - Throughput: ~60 KB/s
+    ///
+    /// **Features**: Basic mode - ADC and PD polling only (no AdcQueue, no device info)
     ///
     /// **Advantages**:
     /// - Works without driver installation on Windows/Mac/Linux
     /// - Uses standard HID protocol
     /// - No permission issues
-    pub fn hid_interface() -> Self {
-        Self::default()
+    pub fn hid() -> Self {
+        Self {
+            interface: INTERFACE_HID,
+            endpoint_out: ENDPOINT_OUT_HID,
+            endpoint_in: ENDPOINT_IN_HID,
+            transfer_type: TransferType::Interrupt,
+            skip_reset: false,
+        }
     }
 
-    /// Skip USB reset during initialization (for MacOS compatibility)
+    /// Skip USB reset during connection
     ///
     /// Some systems (particularly MacOS) may have issues with USB reset.
-    /// Use this option if device initialization fails with reset errors.
-    pub fn with_skip_reset(mut self) -> Self {
+    /// Use this if device connection fails with reset errors.
+    pub fn skip_reset(mut self) -> Self {
         self.skip_reset = true;
         self
+    }
+
+    /// Check if this config uses vendor interface (full mode)
+    pub fn is_vendor(&self) -> bool {
+        self.interface == INTERFACE_VENDOR
+    }
+
+    /// Check if this config uses HID interface (basic mode)
+    pub fn is_hid(&self) -> bool {
+        self.interface == INTERFACE_HID
     }
 }
 
@@ -240,79 +255,47 @@ pub struct KM003C {
     config: DeviceConfig,
     reader: EndpointReaderType,
     writer: EndpointWriterType,
-    /// Device state (populated by init, always Some after new/with_config)
-    state: Option<DeviceState>,
+    /// Connection mode: Basic (HID) or Full (Vendor with device state)
+    mode: ConnectionMode,
 }
 
 impl KM003C {
-    /// Connect to device and initialize (recommended)
+    /// Connect to device with the given configuration
     ///
-    /// This is the main entry point. It:
-    /// 1. Connects to the USB device (vendor interface by default)
-    /// 2. Runs full initialization (Connect, MemoryReads, StreamingAuth)
+    /// The config determines the connection mode:
+    /// - **`DeviceConfig::vendor()`**: Full mode - runs init sequence, all features enabled
+    /// - **`DeviceConfig::hid()`**: Basic mode - no init, ADC/PD polling only
     ///
-    /// After this call, device state is available via `state()`.
+    /// # Examples
     ///
-    /// # Example
     /// ```no_run
-    /// # use km003c_lib::KM003C;
+    /// use km003c_lib::{KM003C, DeviceConfig};
+    ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let device = KM003C::new().await?;
+    /// // Full mode (vendor interface) - all features
+    /// let device = KM003C::new(DeviceConfig::vendor()).await?;
     /// println!("Model: {}", device.state().unwrap().model());
     /// println!("AdcQueue enabled: {}", device.adcqueue_enabled());
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn new() -> Result<Self, KMError> {
-        Self::with_config(DeviceConfig::default()).await
-    }
-
-    /// Connect to device with custom config and initialize
     ///
-    /// Same as `new()` but with custom USB configuration.
-    ///
-    /// # Example
-    /// ```no_run
-    /// # use km003c_lib::{KM003C, DeviceConfig};
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// // Use HID interface instead of default vendor
-    /// let device = KM003C::with_config(DeviceConfig::hid_interface()).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn with_config(config: DeviceConfig) -> Result<Self, KMError> {
-        let mut device = Self::connect(config).await?;
-        device.init().await?;
-        Ok(device)
-    }
-
-    /// Connect to device without initialization
-    ///
-    /// Use this for protocol research, testing, or when you need
-    /// manual control over the initialization sequence.
-    ///
-    /// **Note:** Device state will be None until `init()` is called.
-    /// Some features (like AdcQueue) won't work without init.
-    ///
-    /// # Example
-    /// ```no_run
-    /// # use km003c_lib::{KM003C, DeviceConfig};
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut device = KM003C::connect_without_init(DeviceConfig::default()).await?;
-    /// // Device connected but not initialized - state() returns None
-    /// assert!(device.state().is_none());
-    ///
-    /// // Can still do simple ADC requests
+    /// // Basic mode (HID interface) - ADC/PD polling only
+    /// let device = KM003C::new(DeviceConfig::hid()).await?;
     /// let adc = device.request_adc_data().await?;
     ///
-    /// // Or manually initialize later
-    /// device.init().await?;
-    /// assert!(device.state().is_some());
+    /// // With options
+    /// let device = KM003C::new(DeviceConfig::vendor().skip_reset()).await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn connect_without_init(config: DeviceConfig) -> Result<Self, KMError> {
-        Self::connect(config).await
+    pub async fn new(config: DeviceConfig) -> Result<Self, KMError> {
+        let mut device = Self::connect(config).await?;
+
+        if config.is_vendor() {
+            // Full mode: run init sequence
+            device.run_init().await?;
+        }
+        // HID mode: stays in Basic mode, no init needed
+
+        Ok(device)
     }
 
     /// Internal: Connect to USB device without initialization
@@ -389,7 +372,7 @@ impl KM003C {
             config,
             reader,
             writer,
-            state: None,
+            mode: ConnectionMode::Basic,
         };
 
         info!("USB connection established");
@@ -662,7 +645,41 @@ impl KM003C {
         packet.get_pd_events()
     }
 
-    /// Initialize device connection and authenticate for streaming
+    /// Enable PD monitor/sniffer
+    ///
+    /// Sends the EnablePdMonitor command (0x10) to start capturing PD events.
+    /// This may be required before `request_pd_data()` returns PD events,
+    /// especially in Basic mode (HID interface).
+    ///
+    /// Returns Ok(()) on Accept, error otherwise.
+    pub async fn enable_pd_monitor(&mut self) -> Result<(), KMError> {
+        self.send(Packet::EnablePdMonitor).await?;
+        match self.receive().await? {
+            Packet::Accept { .. } => Ok(()),
+            other => Err(KMError::Protocol(format!(
+                "Expected Accept for EnablePdMonitor, got {:?}",
+                other
+            ))),
+        }
+    }
+
+    /// Disable PD monitor/sniffer
+    ///
+    /// Sends the DisablePdMonitor command (0x11) to stop capturing PD events.
+    ///
+    /// Returns Ok(()) on Accept, error otherwise.
+    pub async fn disable_pd_monitor(&mut self) -> Result<(), KMError> {
+        self.send(Packet::DisablePdMonitor).await?;
+        match self.receive().await? {
+            Packet::Accept { .. } => Ok(()),
+            other => Err(KMError::Protocol(format!(
+                "Expected Accept for DisablePdMonitor, got {:?}",
+                other
+            ))),
+        }
+    }
+
+    /// Internal: Run initialization sequence for vendor interface (Full mode)
     ///
     /// Performs the full initialization sequence:
     /// 1. Connect to device
@@ -672,22 +689,8 @@ impl KM003C {
     /// 5. Read HardwareID (0x40010450)
     /// 6. StreamingAuth (authenticate for AdcQueue)
     ///
-    /// After successful init, device state is available via `state()`.
-    ///
-    /// **Note:** This is called automatically by `new()` and `with_config()`.
-    /// Only call manually if you used `connect_without_init()`.
-    ///
-    /// # Example
-    /// ```no_run
-    /// # use km003c_lib::{KM003C, DeviceConfig};
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut device = KM003C::connect_without_init(DeviceConfig::default()).await?;
-    /// device.init().await?;
-    /// println!("Model: {}", device.state().unwrap().model());
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn init(&mut self) -> Result<(), KMError> {
+    /// After successful init, mode is set to Full(DeviceState).
+    async fn run_init(&mut self) -> Result<(), KMError> {
         use crate::auth::{
             CALIBRATION_ADDRESS, DEVICE_INFO_ADDRESS, FIRMWARE_INFO_ADDRESS, HARDWARE_ID_ADDRESS, HARDWARE_ID_SIZE,
             INFO_BLOCK_SIZE,
@@ -764,49 +767,62 @@ impl KM003C {
             }
         };
 
-        // Store device state
-        self.state = Some(DeviceState {
+        // Store device state in Full mode
+        let state = DeviceState {
             info,
             hardware_id,
             auth_level: auth.auth_level,
             adcqueue_enabled: auth.adcqueue_enabled(),
-        });
+        };
 
-        info!(
-            "Device initialized: {} (auth_level={})",
-            self.state.as_ref().unwrap().model(),
-            auth.auth_level
-        );
+        info!("Device initialized: {} (auth_level={})", state.model(), auth.auth_level);
+
+        self.mode = ConnectionMode::Full(state);
 
         Ok(())
     }
 
-    /// Get device state (available after initialization)
+    /// Get the current connection mode
     ///
-    /// Returns `Some` after `new()`, `with_config()`, or `init()` completes.
-    /// Returns `None` if device was created with `connect_without_init()` and
-    /// `init()` hasn't been called yet.
+    /// - `ConnectionMode::Basic` - HID interface, ADC/PD polling only
+    /// - `ConnectionMode::Full(state)` - Vendor interface, all features
+    pub fn mode(&self) -> &ConnectionMode {
+        &self.mode
+    }
+
+    /// Check if device is in full mode (vendor interface)
+    pub fn is_full_mode(&self) -> bool {
+        matches!(self.mode, ConnectionMode::Full(_))
+    }
+
+    /// Check if device is in basic mode (HID interface)
+    pub fn is_basic_mode(&self) -> bool {
+        matches!(self.mode, ConnectionMode::Basic)
+    }
+
+    /// Get device state (only available in Full mode)
+    ///
+    /// Returns `Some` when connected via vendor interface (Full mode).
+    /// Returns `None` when connected via HID interface (Basic mode).
     pub fn state(&self) -> Option<&DeviceState> {
-        self.state.as_ref()
+        match &self.mode {
+            ConnectionMode::Full(state) => Some(state),
+            ConnectionMode::Basic => None,
+        }
     }
 
-    /// Check if device has been initialized
-    pub fn is_initialized(&self) -> bool {
-        self.state.is_some()
-    }
-
-    /// Check if device is authenticated (convenience method)
+    /// Check if device is authenticated (Full mode only)
     ///
-    /// Returns `false` if not initialized or authentication failed.
+    /// Returns `false` in Basic mode or if authentication failed.
     pub fn is_authenticated(&self) -> bool {
-        self.state.as_ref().map(|s| s.is_authenticated()).unwrap_or(false)
+        self.state().map(|s| s.is_authenticated()).unwrap_or(false)
     }
 
-    /// Check if AdcQueue streaming is enabled (convenience method)
+    /// Check if AdcQueue streaming is enabled (Full mode only)
     ///
-    /// Returns `false` if not initialized or not authenticated for streaming.
+    /// Returns `false` in Basic mode or if not authenticated for streaming.
     pub fn adcqueue_enabled(&self) -> bool {
-        self.state.as_ref().map(|s| s.adcqueue_enabled).unwrap_or(false)
+        self.state().map(|s| s.adcqueue_enabled).unwrap_or(false)
     }
 
     /// Read device information from memory
@@ -816,18 +832,16 @@ impl KM003C {
     /// - FirmwareInfo (0x4420): fw_version, fw_date
     /// - CalibrationData (0x3000C00): serial_id, uuid
     ///
-    /// **Note:** Requires Connect to be sent first. Use `init()` for full initialization.
+    /// **Note:** Requires Connect to be sent first. Only works in Full mode.
+    /// When using `DeviceConfig::vendor()`, this info is already available via `state()`.
     ///
     /// # Example
     /// ```no_run
-    /// # use km003c_lib::KM003C;
+    /// # use km003c_lib::{KM003C, DeviceConfig};
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut device = KM003C::new().await?;
-    /// // Must connect first
-    /// device.send(km003c_lib::Packet::Connect).await?;
-    /// device.receive().await?;
-    /// let info = device.get_device_info().await?;
-    /// println!("Model: {}", info.model);
+    /// // In Full mode, device info is already available
+    /// let device = KM003C::new(DeviceConfig::vendor()).await?;
+    /// println!("Model: {}", device.state().unwrap().model());
     /// # Ok(())
     /// # }
     /// ```
@@ -874,6 +888,8 @@ impl KM003C {
     /// # Arguments
     /// * `rate` - Sample rate (use GraphSampleRate enum)
     ///
+    /// **Requires Full mode** (vendor interface). Will return error in Basic mode.
+    ///
     /// Rate values:
     /// - `GraphSampleRate::Sps2` = 2 samples per second
     /// - `GraphSampleRate::Sps10` = 10 SPS
@@ -885,9 +901,9 @@ impl KM003C {
     ///
     /// # Example
     /// ```no_run
-    /// # use km003c_lib::{KM003C, GraphSampleRate};
+    /// # use km003c_lib::{KM003C, DeviceConfig, GraphSampleRate};
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut device = KM003C::new().await?;
+    /// let mut device = KM003C::new(DeviceConfig::vendor()).await?;
     ///
     /// // Start 1000 SPS streaming
     /// device.start_graph_mode(GraphSampleRate::Sps1000).await?;
@@ -900,6 +916,12 @@ impl KM003C {
     /// # }
     /// ```
     pub async fn start_graph_mode(&mut self, rate: GraphSampleRate) -> Result<(), KMError> {
+        if self.is_basic_mode() {
+            return Err(KMError::Protocol(
+                "AdcQueue streaming requires Full mode (vendor interface)".to_string(),
+            ));
+        }
+
         // Device expects rate index directly: 0=2SPS, 1=10SPS, 2=50SPS, 3=1000SPS
         self.send(Packet::StartGraph {
             rate_index: rate as u16,
@@ -915,8 +937,16 @@ impl KM003C {
 
     /// Stop AdcQueue graph/streaming mode
     ///
+    /// **Requires Full mode** (vendor interface). Will return error in Basic mode.
+    ///
     /// Returns device to normal ADC polling mode.
     pub async fn stop_graph_mode(&mut self) -> Result<(), KMError> {
+        if self.is_basic_mode() {
+            return Err(KMError::Protocol(
+                "AdcQueue streaming requires Full mode (vendor interface)".to_string(),
+            ));
+        }
+
         self.send(Packet::StopGraph).await?;
 
         // Wait for Accept

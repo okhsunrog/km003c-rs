@@ -1,11 +1,11 @@
-use km003c_lib::KM003C;
+use km003c_lib::{DeviceConfig, KM003C};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to POWER-Z KM003C...");
 
-    // new() auto-initializes with vendor interface (default)
-    let device = KM003C::new().await?;
+    // Connect with vendor interface for Full mode (device info requires init)
+    let device = KM003C::new(DeviceConfig::vendor()).await?;
 
     // State is always available after new()
     let state = device.state().expect("device initialized");

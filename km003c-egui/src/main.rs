@@ -1,7 +1,7 @@
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
 use km003c_lib::{
-    AdcQueueData, AdcQueueSample, DeviceState, GraphSampleRate, KM003C, Packet,
+    AdcQueueData, AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C, Packet,
     packet::{Attribute, AttributeSet},
 };
 use std::collections::VecDeque;
@@ -607,8 +607,8 @@ async fn run_streaming_session(
     cmd_rx: &mut mpsc::UnboundedReceiver<UsbCommand>,
     initial_rate: GraphSampleRate,
 ) {
-    // Connect to device (auto-initializes)
-    let mut device = match KM003C::new().await {
+    // Connect to device with vendor interface (Full mode for AdcQueue)
+    let mut device = match KM003C::new(DeviceConfig::vendor()).await {
         Ok(dev) => dev,
         Err(e) => {
             error!("Failed to connect: {}", e);
@@ -617,8 +617,8 @@ async fn run_streaming_session(
         }
     };
 
-    // Send device state to UI
-    let state = device.state().expect("device initialized after new()");
+    // Send device state to UI (always available in Full mode)
+    let state = device.state().expect("device in Full mode");
     info!("Connected to {} (FW {})", state.model(), state.firmware_version());
 
     if !state.adcqueue_enabled {

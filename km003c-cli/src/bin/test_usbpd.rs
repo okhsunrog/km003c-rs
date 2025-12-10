@@ -1,4 +1,5 @@
-use km003c_lib::{KM003C, Packet, pd::PdEventData};
+use clap::Parser;
+use km003c_lib::{DeviceConfig, KM003C, Packet, pd::PdEventData};
 use std::time::{Duration, Instant};
 use usbpd::protocol_layer::message::data::source_capabilities::{Augmented, PowerDataObject, SourceCapabilities};
 use usbpd::protocol_layer::message::data::{self, Data};
@@ -6,6 +7,22 @@ use usbpd::protocol_layer::message::extended::Extended;
 use usbpd::protocol_layer::message::extended::chunked::{ChunkResult, ChunkedMessageAssembler};
 use usbpd::protocol_layer::message::header::ExtendedMessageType;
 use usbpd::protocol_layer::message::{Message, ParseError, Payload};
+
+/// USB PD negotiation capture for POWER-Z KM003C
+///
+/// Note: PD capture only works reliably with the vendor interface.
+/// HID interface causes device crashes when attempting PD operations.
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Skip USB reset (for MacOS compatibility)
+    #[arg(long)]
+    no_reset: bool,
+
+    /// Capture duration in seconds
+    #[arg(short, long, default_value = "20")]
+    duration: u64,
+}
 
 // Use uom for nice formatting
 use uom::si::electric_current::ampere;
@@ -383,25 +400,42 @@ impl PdDecoder {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = Args::parse();
     tracing_subscriber::fmt::init();
 
-    // new() uses vendor interface by default and auto-initializes
-    let mut device = KM003C::new().await?;
-    let state = device.state().expect("device initialized");
+    // PD capture requires vendor interface (HID causes device crashes)
+    let config = if args.no_reset {
+        DeviceConfig::vendor().skip_reset()
+    } else {
+        DeviceConfig::vendor()
+    };
+
+    let mut device = KM003C::new(config).await?;
+    let state = device.state().expect("vendor interface provides state");
 
     println!("============================================================");
     println!("USB PD Negotiation Capture (Rust + usbpd crate)");
     println!("============================================================");
     println!("Connected to {} (FW {})", state.model(), state.firmware_version());
+
+    // Note: EnablePdMonitor (0x10) and DisablePdMonitor (0x11) commands exist in the protocol
+    // and are used by the official app, but PD capture works without them.
+    // Their exact purpose is unclear. Sending EnablePdMonitor over HID crashes the device.
+    // Keeping them commented out for reference:
+    // device.enable_pd_monitor().await?;
+
     println!("NOW: Disconnect and reconnect your USB-C load!");
-    println!("Capturing for 20 seconds... (Press Ctrl+C to stop early)");
+    println!(
+        "Capturing for {} seconds... (Press Ctrl+C to stop early)",
+        args.duration
+    );
     println!("============================================================");
 
     // Drain any pending data after init
     while let Ok(Ok(_)) = tokio::time::timeout(Duration::from_millis(50), device.receive_raw()).await {}
 
     let start_time = Instant::now();
-    let duration = Duration::from_secs(20);
+    let duration = Duration::from_secs(args.duration);
     let mut decoder = PdDecoder::new();
 
     loop {
@@ -439,6 +473,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
+
+    // See note above about EnablePdMonitor/DisablePdMonitor - purpose unclear, works without them
+    // device.disable_pd_monitor().await?;
 
     device.send(Packet::Disconnect).await?;
     println!("\nCapture complete.");

@@ -34,22 +34,30 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Select configuration based on CLI argument
     let mut config = match args.interface.as_str() {
-        "vendor" => DeviceConfig::vendor_interface(),
-        "hid" => DeviceConfig::hid_interface(),
+        "vendor" => DeviceConfig::vendor(),
+        "hid" => DeviceConfig::hid(),
         _ => unreachable!(), // clap validates this
     };
 
     if args.no_reset {
-        config = config.with_skip_reset();
+        config = config.skip_reset();
     }
 
     println!("Searching for POWER-Z KM003C...");
     println!("   Using {} interface", args.interface.to_uppercase());
 
-    // new()/with_config() auto-initializes the device
-    let mut device = KM003C::with_config(config).await?;
-    let state = device.state().expect("device initialized");
-    println!("Connected to {} (FW {})\n", state.model(), state.firmware_version());
+    // Connect to device - mode is determined by config:
+    // - Vendor: Full mode with device info
+    // - HID: Basic mode (ADC/PD only)
+    let mut device = KM003C::new(config).await?;
+
+    if let Some(state) = device.state() {
+        // Full mode - show device info
+        println!("Connected to {} (FW {})\n", state.model(), state.firmware_version());
+    } else {
+        // Basic mode - HID interface
+        println!("Connected (Basic mode - ADC/PD polling)\n");
+    }
 
     // Request ADC data
     println!("📊 Requesting ADC data...");

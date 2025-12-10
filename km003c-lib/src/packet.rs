@@ -66,8 +66,10 @@ pub enum PacketType {
     Error = 0x0B,
     GetData = 0x0C,
     GetFile = 0x0D,
-    StartGraph = 0x0E, // Start AdcQueue streaming with rate selector
-    StopGraph = 0x0F,  // Stop AdcQueue streaming
+    StartGraph = 0x0E,       // Start AdcQueue streaming with rate selector
+    StopGraph = 0x0F,        // Stop AdcQueue streaming
+    EnablePdMonitor = 0x10,  // Enable PD sniffer/capture
+    DisablePdMonitor = 0x11, // Disable PD sniffer/capture
 
     // Authentication commands
     MemoryRead = 0x44,    // 68 - Read device memory (encrypted)

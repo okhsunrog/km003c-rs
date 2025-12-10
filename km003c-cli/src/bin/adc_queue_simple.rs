@@ -49,20 +49,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
         _ => unreachable!(),
     };
 
-    // Select interface
+    // Select interface - AdcQueue requires vendor interface (Full mode)
     let mut config = match args.interface.as_str() {
-        "vendor" => DeviceConfig::vendor_interface(),
-        "hid" => DeviceConfig::hid_interface(),
+        "vendor" => DeviceConfig::vendor(),
+        "hid" => {
+            eprintln!("Warning: HID interface doesn't support AdcQueue streaming.");
+            eprintln!("         Use --interface vendor for AdcQueue.");
+            return Err("AdcQueue requires vendor interface".into());
+        }
         _ => unreachable!(),
     };
 
     if args.no_reset {
-        config = config.with_skip_reset();
+        config = config.skip_reset();
     }
 
     println!("Connecting to POWER-Z KM003C...");
-    // with_config() auto-initializes the device
-    let mut device = KM003C::with_config(config).await?;
+    let mut device = KM003C::new(config).await?;
 
     // Check authentication (state is always available after with_config)
     if !device.adcqueue_enabled() {

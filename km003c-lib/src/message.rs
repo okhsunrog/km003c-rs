@@ -37,6 +37,10 @@ pub enum Packet {
     Connect,
     /// Disconnect command
     Disconnect,
+    /// Enable PD monitor/sniffer
+    EnablePdMonitor,
+    /// Disable PD monitor/sniffer
+    DisablePdMonitor,
     /// MemoryRead command (0x44) - read device memory with encrypted payload
     MemoryRead {
         /// Memory address to read from
@@ -354,6 +358,26 @@ impl Packet {
                     .with_reserved_flag(false)
                     .with_id(id)
                     .with_attribute(0),
+                payload: Vec::new(),
+            },
+            // EnablePdMonitor: attribute 0x0002 is the fixed protocol value for enabling PD capture.
+            // Future: could make this configurable via EnablePdMonitor { attribute: u16 } if needed.
+            Packet::EnablePdMonitor => RawPacket::Ctrl {
+                header: CtrlHeader::new()
+                    .with_packet_type(PacketType::EnablePdMonitor.into())
+                    .with_reserved_flag(false)
+                    .with_id(id)
+                    .with_attribute(0x0002),
+                payload: Vec::new(),
+            },
+            // DisablePdMonitor: attribute 0x0000 is the fixed protocol value for disabling PD capture.
+            // Future: could make this configurable via DisablePdMonitor { attribute: u16 } if needed.
+            Packet::DisablePdMonitor => RawPacket::Ctrl {
+                header: CtrlHeader::new()
+                    .with_packet_type(PacketType::DisablePdMonitor.into())
+                    .with_reserved_flag(false)
+                    .with_id(id)
+                    .with_attribute(0x0000),
                 payload: Vec::new(),
             },
             Packet::MemoryRead { address, size } => {
