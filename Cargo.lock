@@ -3585,7 +3585,7 @@ dependencies = [
 [[package]]
 name = "usbpd"
 version = "2.0.0"
-source = "git+https://github.com/okhsunrog/usbpd?branch=finished_epr_support#45dcc21074cb0836ebd39d6712cf74018cf3c343"
+source = "git+https://github.com/okhsunrog/usbpd?rev=b5dd12e#b5dd12efce584b77df5c78ea9fdfba0d0a2fff5a"
 dependencies = [
  "byteorder",
  "embassy-futures",
@@ -3599,7 +3599,7 @@ dependencies = [
 [[package]]
 name = "usbpd-traits"
 version = "1.1.0"
-source = "git+https://github.com/okhsunrog/usbpd?branch=finished_epr_support#45dcc21074cb0836ebd39d6712cf74018cf3c343"
+source = "git+https://github.com/okhsunrog/usbpd?rev=b5dd12e#b5dd12efce584b77df5c78ea9fdfba0d0a2fff5a"
 
 [[package]]
 name = "utf8_iter"
