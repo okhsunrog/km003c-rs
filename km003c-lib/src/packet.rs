@@ -69,18 +69,19 @@ pub enum PacketType {
     StartGraph = 0x0E, // Start AdcQueue streaming with rate selector
     StopGraph = 0x0F,  // Stop AdcQueue streaming
 
+    // Authentication commands
+    MemoryRead = 0x44,      // 68 - Read device memory (encrypted)
+    StreamingAuth = 0x4C,   // 76 - Authenticate for AdcQueue streaming
+
     // Unknown control types discovered in protocol analysis
     Unknown26 = 26,
-    Unknown44 = 44,
     Unknown58 = 58,
 
     // >= 0x40 is data type
     Head = 64,
     PutData = 65,
-    // Unknown data types discovered in protocol analysis
-    Unknown68 = 68,
-    Unknown76 = 76,
-    Unknown117 = 117,
+    // MemoryRead response (0x75) - contains raw data from device memory
+    MemoryReadResponse = 0x75,
 
     #[num_enum(catch_all)]
     Unknown(u8),

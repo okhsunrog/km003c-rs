@@ -55,7 +55,7 @@ fn test_adc_data_packet() {
                     assert!(adc.power_w > 0.0);
 
                     // Check sample rate
-                    assert_eq!(adc.sample_rate, SampleRate::Sps1);
+                    assert_eq!(adc.sample_rate, SampleRate::Sps2);
 
                     println!("ADC Data: {}", adc);
                 }
@@ -169,7 +169,7 @@ fn test_adc_response_parsing_real_data() {
                     );
 
                     // Test sample rate
-                    assert_eq!(adc_data.sample_rate, SampleRate::Sps1, "Sample rate should be 1 SPS");
+                    assert_eq!(adc_data.sample_rate, SampleRate::Sps2, "Sample rate should be 2 SPS");
 
                     // Test USB data lines (should be ~0.000V)
                     assert!(

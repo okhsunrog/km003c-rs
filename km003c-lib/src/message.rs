@@ -1,5 +1,6 @@
 use crate::adc::{AdcDataRaw, AdcDataSimple};
 use crate::adcqueue::AdcQueueData;
+use crate::auth::{self, HardwareId, StreamingAuthResult};
 use crate::constants::*;
 use crate::error::KMError;
 use crate::packet::{Attribute, AttributeSet, CtrlHeader, DataHeader, LogicalPacket, PacketType, RawPacket};
@@ -36,6 +37,25 @@ pub enum Packet {
     Connect,
     /// Disconnect command
     Disconnect,
+    /// MemoryRead command (0x44) - read device memory with encrypted payload
+    MemoryRead {
+        /// Memory address to read from
+        address: u32,
+        /// Number of bytes to read
+        size: u32,
+    },
+    /// MemoryRead response (0x75) - raw data from device memory
+    MemoryReadResponse {
+        /// Raw data read from memory (e.g., 12-byte HardwareID)
+        data: Vec<u8>,
+    },
+    /// StreamingAuth command (0x4C) - authenticate for AdcQueue streaming
+    StreamingAuth {
+        /// HardwareID to authenticate with
+        hardware_id: HardwareId,
+    },
+    /// StreamingAuth response (0xCC) - authentication result
+    StreamingAuthResponse(StreamingAuthResult),
     /// Generic packet for types we haven't specifically implemented yet
     Generic(RawPacket),
 }
@@ -125,6 +145,38 @@ impl TryFrom<RawPacket> for Packet {
                     })),
                 }
             }
+            RawPacket::SimpleData { header, payload } => {
+                let packet_type = PacketType::from_primitive(header.packet_type());
+
+                match packet_type {
+                    // MemoryReadResponse (0x75) - contains raw data from device memory
+                    // Format: [type:1][data:N] - NOT a 4-byte header
+                    PacketType::MemoryReadResponse => {
+                        // Data starts at byte 1 (after the type byte which is in header)
+                        Ok(Packet::MemoryReadResponse {
+                            data: payload.to_vec(),
+                        })
+                    }
+                    // MemoryRead response (0xC4 = 0x44 | 0x80) - confirmation
+                    PacketType::MemoryRead => {
+                        // This is just a confirmation, return as Accept-like
+                        Ok(Packet::Accept { id: header.id() })
+                    }
+                    // StreamingAuth response (0xCC = 0x4C | 0x80) - encrypted result
+                    PacketType::StreamingAuth => {
+                        if payload.len() >= 32 {
+                            if let Some(result) = auth::parse_streaming_auth_response_payload(&payload) {
+                                Ok(Packet::StreamingAuthResponse(result))
+                            } else {
+                                Ok(Packet::Generic(RawPacket::SimpleData { header, payload }))
+                            }
+                        } else {
+                            Ok(Packet::Generic(RawPacket::SimpleData { header, payload }))
+                        }
+                    }
+                    _ => Ok(Packet::Generic(RawPacket::SimpleData { header, payload })),
+                }
+            }
             RawPacket::Data { logical_packets, .. } => {
                 // Parse logical packets into PayloadData
                 let mut payloads = Vec::new();
@@ -177,7 +229,6 @@ impl TryFrom<RawPacket> for Packet {
 
                 Ok(Packet::DataResponse { payloads })
             }
-            other => Ok(Packet::Generic(other)),
         }
     }
 }
@@ -307,6 +358,53 @@ impl Packet {
                     .with_attribute(0),
                 payload: Vec::new(),
             },
+            Packet::MemoryRead { address, size } => {
+                // Build encrypted MemoryRead payload
+                let encrypted_payload = auth::build_memory_read_payload(address, size);
+                RawPacket::SimpleData {
+                    header: DataHeader::new()
+                        .with_packet_type(PacketType::MemoryRead.into())
+                        .with_reserved_flag(false)
+                        .with_id(id)
+                        .with_obj_count_words(0x0101), // Attribute for MemoryRead
+                    payload: encrypted_payload.to_vec(),
+                }
+            }
+            Packet::MemoryReadResponse { data } => {
+                // Response packets are typically not sent by client, but support for completeness
+                RawPacket::SimpleData {
+                    header: DataHeader::new()
+                        .with_packet_type(PacketType::MemoryReadResponse.into())
+                        .with_reserved_flag(false)
+                        .with_id(id)
+                        .with_obj_count_words(0),
+                    payload: data,
+                }
+            }
+            Packet::StreamingAuth { hardware_id } => {
+                // Build encrypted StreamingAuth payload
+                let encrypted_payload = auth::build_streaming_auth_payload(&hardware_id);
+                RawPacket::SimpleData {
+                    header: DataHeader::new()
+                        .with_packet_type(PacketType::StreamingAuth.into())
+                        .with_reserved_flag(false)
+                        .with_id(id)
+                        .with_obj_count_words(0x0200), // Attribute for StreamingAuth
+                    payload: encrypted_payload.to_vec(),
+                }
+            }
+            Packet::StreamingAuthResponse(result) => {
+                // Response packets are typically not sent by client, but support for completeness
+                let encrypted_payload = auth::encrypt_streaming_auth_payload(&result.decrypted_payload);
+                RawPacket::SimpleData {
+                    header: DataHeader::new()
+                        .with_packet_type(PacketType::StreamingAuth.into())
+                        .with_reserved_flag(true) // Response has high bit set
+                        .with_id(id)
+                        .with_obj_count_words(result.attribute),
+                    payload: encrypted_payload.to_vec(),
+                }
+            }
             Packet::Generic(raw_packet) => raw_packet,
         }
     }

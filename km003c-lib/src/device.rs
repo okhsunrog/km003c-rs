@@ -295,11 +295,16 @@ impl KM003C {
         Ok(km003c)
     }
 
-    /// Get the next transaction ID
+    /// Get the next transaction ID (internal use)
     fn next_transaction_id(&mut self) -> u8 {
         let id = self.transaction_id;
         self.transaction_id = self.transaction_id.wrapping_add(1);
         id
+    }
+
+    /// Get the next transaction ID (for auth module and external use)
+    pub fn next_tid(&mut self) -> u8 {
+        self.next_transaction_id()
     }
 
     /// Set the transaction ID counter (for protocol research/sync purposes)
@@ -309,7 +314,24 @@ impl KM003C {
 
     /// Send a high-level packet to the device
     pub async fn send(&mut self, packet: Packet) -> Result<(), KMError> {
+        use crate::auth;
+
         let id = self.next_transaction_id();
+
+        // Special handling for auth packets that need custom wire format
+        // (MemoryRead and StreamingAuth use a different header layout than standard packets)
+        match &packet {
+            Packet::MemoryRead { address, size } => {
+                let raw = auth::build_memory_read_packet(*address, *size, id);
+                return self.send_raw(&raw).await;
+            }
+            Packet::StreamingAuth { hardware_id } => {
+                let raw = auth::build_streaming_auth_packet(hardware_id, id);
+                return self.send_raw(&raw).await;
+            }
+            _ => {}
+        }
+
         let raw_packet = packet.to_raw_packet(id);
         self.send_raw_packet(raw_packet).await
     }
@@ -335,7 +357,7 @@ impl KM003C {
 
         let message_bytes = Bytes::from(packet);
         let message = message_bytes.to_vec();
-        trace!("Sending {} bytes: {:02x?}", message.len(), message);
+        trace!("TX [{} bytes]: {:02x?}", message.len(), message);
 
         // Use the persistent writer
         match &mut self.writer {
@@ -355,6 +377,7 @@ impl KM003C {
 
     /// Send raw bytes to the device (for protocol research/testing)
     pub async fn send_raw(&mut self, data: &[u8]) -> Result<(), KMError> {
+        trace!("TX [{} bytes]: {:02x?}", data.len(), data);
         match &mut self.writer {
             EndpointWriterType::Bulk(writer) => {
                 timeout(DEFAULT_TIMEOUT, writer.write_all(data)).await??;
@@ -376,16 +399,66 @@ impl KM003C {
             EndpointReaderType::Interrupt(reader) => timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??,
         };
         buffer.truncate(bytes_read);
+        trace!("RX [{} bytes]: {:02x?}", bytes_read, buffer);
         Ok(buffer)
     }
 
     /// Receive a high-level packet from the device
     pub async fn receive(&mut self) -> Result<Packet, KMError> {
-        let raw_packet = self.receive_raw_packet().await?;
+        // First get raw bytes to check for special packet formats
+        let raw_bytes = self.receive_raw().await?;
+
+        if raw_bytes.is_empty() {
+            return Err(KMError::Protocol("Received 0 bytes".to_string()));
+        }
+
+        let packet_type = raw_bytes[0] & 0x7F;
+
+        // Special handling for StreamingAuth response (0x4C with high bit = 0xCC)
+        // Format: [type:1][id:1][attr:2][encrypted_payload:32]
+        if packet_type == 0x4C && raw_bytes.len() >= 36 {
+            if let Some(result) = crate::auth::parse_streaming_auth_response(&raw_bytes) {
+                return Ok(Packet::StreamingAuthResponse(result));
+            }
+        }
+
+        // Standard packet parsing
+        let bytes = Bytes::copy_from_slice(&raw_bytes);
+        let raw_packet = RawPacket::try_from(bytes)?;
         Packet::try_from(raw_packet)
     }
 
+    /// Receive encrypted MemoryRead response data
+    ///
+    /// After sending a MemoryRead request and receiving the confirmation (0xC4),
+    /// the actual data comes as raw encrypted AES blocks. This method
+    /// receives and decrypts that data.
+    ///
+    /// Response size is rounded up to 16-byte boundary (AES block size):
+    /// - 12-byte request → 16-byte response
+    /// - 64-byte request → 64-byte response (4 blocks)
+    pub async fn receive_memory_read_data(&mut self) -> Result<Packet, KMError> {
+        let raw_bytes = self.receive_raw().await?;
+
+        // Response must be multiple of 16 bytes (AES block size)
+        if raw_bytes.is_empty() || raw_bytes.len() % 16 != 0 {
+            return Err(KMError::Protocol(format!(
+                "Expected encrypted data (multiple of 16 bytes), got {} bytes",
+                raw_bytes.len()
+            )));
+        }
+
+        // Decrypt all blocks with MEMORY_READ_KEY
+        let decrypted = crate::auth::aes_ecb_decrypt_blocks(
+            &raw_bytes,
+            crate::auth::MEMORY_READ_KEY,
+        );
+
+        Ok(Packet::MemoryReadResponse { data: decrypted })
+    }
+
     /// Receive a raw packet from the device
+    #[allow(dead_code)]
     async fn receive_raw_packet(&mut self) -> Result<RawPacket, KMError> {
         let mut buffer = vec![0u8; 1024];
 
@@ -488,6 +561,79 @@ impl KM003C {
     /// None otherwise. Useful after request_pd_data().
     pub fn extract_pd_events(packet: &Packet) -> Option<&PdEventStream> {
         packet.get_pd_events()
+    }
+
+    /// Read device information from memory
+    ///
+    /// Reads and parses:
+    /// - DeviceInfo1 (0x420): model, hw_version, mfg_date
+    /// - FirmwareInfo (0x4420): fw_version, fw_date
+    /// - CalibrationData (0x3000C00): serial_id, uuid
+    /// - HardwareID (0x40010450): device_serial
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use km003c_lib::KM003C;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut device = KM003C::new().await?;
+    /// let info = device.get_device_info().await?;
+    /// println!("Model: {}", info.model);
+    /// println!("FW: {}", info.fw_version);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn get_device_info(&mut self) -> Result<crate::auth::DeviceInfo, KMError> {
+        use crate::auth::{
+            DeviceInfo, CALIBRATION_ADDRESS, DEVICE_INFO_ADDRESS, FIRMWARE_INFO_ADDRESS,
+            HARDWARE_ID_ADDRESS, HARDWARE_ID_SIZE, INFO_BLOCK_SIZE,
+        };
+
+        // Ensure device is connected (MemoryRead requires Connect first)
+        self.send(Packet::Connect).await?;
+        self.receive().await?;
+
+        let mut info = DeviceInfo::default();
+
+        // Helper to read memory block
+        async fn read_block(
+            device: &mut KM003C,
+            address: u32,
+            size: u32,
+        ) -> Result<Vec<u8>, KMError> {
+            device
+                .send(Packet::MemoryRead { address, size })
+                .await?;
+            device.receive().await?; // confirmation
+            match device.receive_memory_read_data().await? {
+                Packet::MemoryReadResponse { data } => Ok(data),
+                other => Err(KMError::Protocol(format!(
+                    "Expected MemoryReadResponse, got {:?}",
+                    other
+                ))),
+            }
+        }
+
+        // Read DeviceInfo1
+        if let Ok(data) = read_block(self, DEVICE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+            info.parse_device_info(&data);
+        }
+
+        // Read FirmwareInfo
+        if let Ok(data) = read_block(self, FIRMWARE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+            info.parse_firmware_info(&data);
+        }
+
+        // Read CalibrationData
+        if let Ok(data) = read_block(self, CALIBRATION_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+            info.parse_calibration(&data);
+        }
+
+        // Read HardwareID
+        if let Ok(data) = read_block(self, HARDWARE_ID_ADDRESS, HARDWARE_ID_SIZE as u32).await {
+            info.parse_hardware_id(&data);
+        }
+
+        Ok(info)
     }
 
     /// Start AdcQueue graph/streaming mode with specified sample rate
