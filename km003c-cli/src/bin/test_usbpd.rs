@@ -111,16 +111,18 @@ impl PdDecoder {
         self.epr_assembler.reset();
     }
 
-    fn decode(&mut self, sop: u8, wire_data: &[u8]) {
+    fn decode(&mut self, timestamp_ms: u32, sop: u8, wire_data: &[u8]) {
         if wire_data.is_empty() {
             return;
         }
 
+        let ts = timestamp_ms as f64 / 1000.0;
+
         // Print raw bytes first
-        print!("       RAW[{}]: ", wire_data.len());
+        print!("[{:>8.3}s] RAW[{}]: ", ts, wire_data.len());
         for (i, byte) in wire_data.iter().enumerate() {
             if i > 0 && i % 16 == 0 {
-                print!("\n                ");
+                print!("\n                     ");
             }
             print!("{:02X} ", byte);
         }
@@ -133,7 +135,10 @@ impl PdDecoder {
                 let role = format!("{:?}/{:?}", msg.header.port_power_role(), msg.header.port_data_role());
 
                 let type_str = format!("{:?}", msg_type);
-                println!("SOP{}: {:<20} (ID={}, ROLE={})", sop, type_str, msg_id, role);
+                println!(
+                    "[{:>8.3}s] SOP{}: {:<20} (ID={}, ROLE={})",
+                    ts, sop, type_str, msg_id, role
+                );
 
                 match &msg.payload {
                     Some(Payload::Data(data)) => match data {
@@ -184,8 +189,8 @@ impl PdDecoder {
                 if request_chunk {
                     // This is a chunk request - just log it
                     println!(
-                        "SOP{}: Chunk Request (chunk={}, type={:?})",
-                        sop, chunk_number, message_type
+                        "[{:>8.3}s] SOP{}: Chunk Request (chunk={}, type={:?})",
+                        ts, sop, chunk_number, message_type
                     );
                     return;
                 }
@@ -193,8 +198,8 @@ impl PdDecoder {
                 // Only handle EPR Source Capabilities for now
                 if message_type != ExtendedMessageType::EprSourceCapabilities {
                     println!(
-                        "SOP{}: Chunked {:?} (chunk {}/{} bytes) - not assembled",
-                        sop, message_type, chunk_number, data_size
+                        "[{:>8.3}s] SOP{}: Chunked {:?} (chunk {}/{} bytes) - not assembled",
+                        ts, sop, message_type, chunk_number, data_size
                     );
                     return;
                 }
@@ -214,8 +219,8 @@ impl PdDecoder {
                                     let msg_id = header.message_id();
                                     let role = format!("{:?}/{:?}", header.port_power_role(), header.port_data_role());
                                     println!(
-                                        "SOP{}: Extended(EprSourceCapabilities) (ID={}, ROLE={})",
-                                        sop, msg_id, role
+                                        "[{:>8.3}s] SOP{}: Extended(EprSourceCapabilities) (ID={}, ROLE={})",
+                                        ts, sop, msg_id, role
                                     );
                                     let title =
                                         format!("EPR Source Capabilities - {} chunks assembled", chunk_number + 1);
@@ -224,26 +229,29 @@ impl PdDecoder {
                             }
                             Ok(ChunkResult::NeedMoreChunks(next)) => {
                                 println!(
-                                    "SOP{}: EPR Source Caps chunk {} received, waiting for chunk {}...",
-                                    sop, chunk_number, next
+                                    "[{:>8.3}s] SOP{}: EPR Source Caps chunk {} received, waiting for chunk {}...",
+                                    ts, sop, chunk_number, next
                                 );
                             }
                             Ok(ChunkResult::ChunkRequested(num)) => {
-                                println!("SOP{}: Chunk {} requested", sop, num);
+                                println!("[{:>8.3}s] SOP{}: Chunk {} requested", ts, sop, num);
                             }
                             Err(e) => {
-                                println!("SOP{}: Chunk assembly error: {:?}", sop, e);
+                                println!("[{:>8.3}s] SOP{}: Chunk assembly error: {:?}", ts, sop, e);
                                 self.epr_assembler.reset();
                             }
                         }
                     }
                     Err(e) => {
-                        println!("SOP{}: Failed to parse chunk: {:?}", sop, e);
+                        println!("[{:>8.3}s] SOP{}: Failed to parse chunk: {:?}", ts, sop, e);
                     }
                 }
             }
             Err(e) => {
-                println!("SOP{}: Failed to parse: {:?} (Hex: {:02X?})", sop, e, wire_data);
+                println!(
+                    "[{:>8.3}s] SOP{}: Failed to parse: {:?} (Hex: {:02X?})",
+                    ts, sop, e, wire_data
+                );
             }
         }
     }
@@ -407,14 +415,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     for event in &stream.events {
                         match &event.data {
                             PdEventData::Connect(_) => {
-                                println!("[{}ms] ** CONNECT **", event.timestamp);
+                                println!("[{:>8.3}s] ** CONNECT **", event.timestamp as f64 / 1000.0);
                                 decoder.handle_connect();
                             }
                             PdEventData::Disconnect(_) => {
-                                println!("[{}ms] ** DISCONNECT **", event.timestamp);
+                                println!("[{:>8.3}s] ** DISCONNECT **", event.timestamp as f64 / 1000.0);
                             }
                             PdEventData::PdMessage { sop, wire_data } => {
-                                decoder.decode(*sop, wire_data);
+                                decoder.decode(event.timestamp, *sop, wire_data);
                             }
                         }
                     }

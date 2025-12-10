@@ -160,7 +160,6 @@ impl DeviceInfo {
             self.uuid = extract_string(data, 0x07, 0x27);
         }
     }
-
 }
 
 /// Extract null-terminated string from byte slice
@@ -458,7 +457,10 @@ pub fn aes_ecb_decrypt_block(ciphertext: &[u8; 16], key: &[u8; 16]) -> [u8; 16] 
 /// # Returns
 /// Decrypted data as Vec<u8>
 pub fn aes_ecb_decrypt_blocks(ciphertext: &[u8], key: &[u8; 16]) -> Vec<u8> {
-    assert!(ciphertext.len().is_multiple_of(16), "ciphertext must be multiple of 16 bytes");
+    assert!(
+        ciphertext.len().is_multiple_of(16),
+        "ciphertext must be multiple of 16 bytes"
+    );
 
     let cipher = Aes128::new(key.into());
     let mut output = ciphertext.to_vec();
