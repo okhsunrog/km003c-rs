@@ -25,6 +25,10 @@ struct Args {
     /// Skip USB reset (defaults to true on macOS for compatibility)
     #[arg(long, default_value_t = cfg!(target_os = "macos"))]
     no_reset: bool,
+
+    /// Force USB reset even on macOS (overrides --no-reset)
+    #[arg(long)]
+    reset: bool,
 }
 
 #[tokio::main]
@@ -50,7 +54,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // AdcQueue requires vendor interface (Full mode)
     let mut config = DeviceConfig::vendor();
-    if args.no_reset {
+    if args.no_reset && !args.reset {
         config = config.skip_reset();
     }
 

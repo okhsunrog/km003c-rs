@@ -19,6 +19,10 @@ struct Args {
     #[arg(long, default_value_t = cfg!(target_os = "macos"))]
     no_reset: bool,
 
+    /// Force USB reset even on macOS (overrides --no-reset)
+    #[arg(long)]
+    reset: bool,
+
     /// Capture duration in seconds
     #[arg(short, long, default_value = "20")]
     duration: u64,
@@ -421,7 +425,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
     // PD capture requires vendor interface (HID causes device crashes)
-    let config = if args.no_reset {
+    let config = if args.no_reset && !args.reset {
         DeviceConfig::vendor().skip_reset()
     } else {
         DeviceConfig::vendor()
