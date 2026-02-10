@@ -137,7 +137,7 @@ pub fn parse_raw_packet(data: &[u8]) -> PyResult<RawPacket> {
 /// Get all supported ADC sample rates for the KM003C device.
 ///
 /// Returns:
-///     List[SampleRate]: Available sample rates from 1 to 10000 samples per second
+///     List[SampleRate]: Available sample rates from 2 to 10000 samples per second
 ///                       Each has .hz (int) and .name (str) properties
 ///
 /// Example:
@@ -146,7 +146,7 @@ pub fn parse_raw_packet(data: &[u8]) -> PyResult<RawPacket> {
 ///     for rate in rates:
 ///         print(f"{rate.name}: {rate.hz} Hz")
 ///     # Output:
-///     # 1 SPS: 1 Hz
+///     # 2 SPS: 2 Hz
 ///     # 10 SPS: 10 Hz
 ///     # 50 SPS: 50 Hz
 ///     # 1 kSPS: 1000 Hz
@@ -155,7 +155,7 @@ pub fn parse_raw_packet(data: &[u8]) -> PyResult<RawPacket> {
 #[pyfunction]
 pub fn get_sample_rates() -> Vec<SampleRate> {
     vec![
-        SampleRate::Sps1,
+        SampleRate::Sps2,
         SampleRate::Sps10,
         SampleRate::Sps50,
         SampleRate::Sps1000,

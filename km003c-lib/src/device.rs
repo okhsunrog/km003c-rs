@@ -281,11 +281,10 @@ enum EndpointWriterType {
 }
 
 pub struct KM003C {
+    /// Kept alive for RAII - dropping this releases the USB interface claim
     #[allow(dead_code)]
     interface: Interface,
     transaction_id: u8,
-    #[allow(dead_code)]
-    config: DeviceConfig,
     reader: EndpointReaderType,
     writer: EndpointWriterType,
     /// Connection mode: Basic (HID) or Full (Vendor with device state)
@@ -311,7 +310,7 @@ impl KM003C {
     /// println!("AdcQueue enabled: {}", device.adcqueue_enabled());
     ///
     /// // Basic mode (HID interface) - ADC/PD polling only
-    /// let device = KM003C::new(DeviceConfig::hid()).await?;
+    /// let mut device = KM003C::new(DeviceConfig::hid()).await?;
     /// let adc = device.request_adc_data().await?;
     ///
     /// // With options
@@ -402,7 +401,6 @@ impl KM003C {
         let km003c = Self {
             interface,
             transaction_id: 0,
-            config,
             reader,
             writer,
             mode: ConnectionMode::Basic,
@@ -755,36 +753,23 @@ impl KM003C {
         let mut info = DeviceInfo::default();
         let mut hardware_id_bytes = [0u8; HARDWARE_ID_SIZE];
 
-        // Helper to read memory block
-        async fn read_block(device: &mut KM003C, address: u32, size: u32) -> Result<Vec<u8>, KMError> {
-            device.send(Packet::MemoryRead { address, size }).await?;
-            device.receive().await?; // confirmation
-            match device.receive_memory_read_data().await? {
-                Packet::MemoryReadResponse { data } => Ok(data),
-                other => Err(KMError::Protocol(format!(
-                    "Expected MemoryReadResponse, got {:?}",
-                    other
-                ))),
-            }
-        }
-
         // 2. Read DeviceInfo
-        if let Ok(data) = read_block(self, DEVICE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+        if let Ok(data) = self.read_memory_block(DEVICE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
             info.parse_device_info(&data);
         }
 
         // 3. Read FirmwareInfo
-        if let Ok(data) = read_block(self, FIRMWARE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+        if let Ok(data) = self.read_memory_block(FIRMWARE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
             info.parse_firmware_info(&data);
         }
 
         // 4. Read Calibration
-        if let Ok(data) = read_block(self, CALIBRATION_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+        if let Ok(data) = self.read_memory_block(CALIBRATION_ADDRESS, INFO_BLOCK_SIZE as u32).await {
             info.parse_calibration(&data);
         }
 
         // 5. Read HardwareID
-        let hardware_id = if let Ok(data) = read_block(self, HARDWARE_ID_ADDRESS, HARDWARE_ID_SIZE as u32).await {
+        let hardware_id = if let Ok(data) = self.read_memory_block(HARDWARE_ID_ADDRESS, HARDWARE_ID_SIZE as u32).await {
             if data.len() >= HARDWARE_ID_SIZE {
                 hardware_id_bytes.copy_from_slice(&data[..HARDWARE_ID_SIZE]);
             }
@@ -869,6 +854,24 @@ impl KM003C {
         self.state().map(|s| s.adcqueue_enabled).unwrap_or(false)
     }
 
+    /// Read an encrypted memory block from the device
+    ///
+    /// Sends a MemoryRead request, receives the confirmation, then receives
+    /// and decrypts the actual data. Returns the decrypted bytes.
+    ///
+    /// Response size is rounded up to 16-byte boundary (AES block size).
+    pub async fn read_memory_block(&mut self, address: u32, size: u32) -> Result<Vec<u8>, KMError> {
+        self.send(Packet::MemoryRead { address, size }).await?;
+        self.receive().await?; // confirmation
+        match self.receive_memory_read_data().await? {
+            Packet::MemoryReadResponse { data } => Ok(data),
+            other => Err(KMError::Protocol(format!(
+                "Expected MemoryReadResponse, got {:?}",
+                other
+            ))),
+        }
+    }
+
     /// Read device information from memory
     ///
     /// Reads and parses:
@@ -896,31 +899,18 @@ impl KM003C {
 
         let mut info = DeviceInfo::default();
 
-        // Helper to read memory block
-        async fn read_block(device: &mut KM003C, address: u32, size: u32) -> Result<Vec<u8>, KMError> {
-            device.send(Packet::MemoryRead { address, size }).await?;
-            device.receive().await?; // confirmation
-            match device.receive_memory_read_data().await? {
-                Packet::MemoryReadResponse { data } => Ok(data),
-                other => Err(KMError::Protocol(format!(
-                    "Expected MemoryReadResponse, got {:?}",
-                    other
-                ))),
-            }
-        }
-
         // Read DeviceInfo1
-        if let Ok(data) = read_block(self, DEVICE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+        if let Ok(data) = self.read_memory_block(DEVICE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
             info.parse_device_info(&data);
         }
 
         // Read FirmwareInfo
-        if let Ok(data) = read_block(self, FIRMWARE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+        if let Ok(data) = self.read_memory_block(FIRMWARE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
             info.parse_firmware_info(&data);
         }
 
         // Read CalibrationData
-        if let Ok(data) = read_block(self, CALIBRATION_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+        if let Ok(data) = self.read_memory_block(CALIBRATION_ADDRESS, INFO_BLOCK_SIZE as u32).await {
             info.parse_calibration(&data);
         }
 

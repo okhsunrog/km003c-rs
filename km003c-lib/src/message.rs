@@ -33,6 +33,10 @@ pub enum Packet {
     StopGraph,
     /// Accept response
     Accept { id: u8 },
+    /// Reject response
+    Reject { id: u8 },
+    /// NotReadable response - memory address not accessible
+    NotReadable { id: u8 },
     /// Connect command
     Connect,
     /// Disconnect command
@@ -141,6 +145,8 @@ impl TryFrom<RawPacket> for Packet {
                     }),
                     PacketType::StopGraph => Ok(Packet::StopGraph),
                     PacketType::Accept => Ok(Packet::Accept { id: header.id() }),
+                    PacketType::Rejected => Ok(Packet::Reject { id: header.id() }),
+                    PacketType::NotReadable => Ok(Packet::NotReadable { id: header.id() }),
                     PacketType::Connect => Ok(Packet::Connect),
                     PacketType::Disconnect => Ok(Packet::Disconnect),
                     _ => Ok(Packet::Generic(RawPacket::Ctrl {
@@ -242,9 +248,10 @@ impl Packet {
             Packet::DataResponse { payloads } => {
                 // Convert PayloadData vec to LogicalPackets
                 let mut logical_packets = Vec::new();
+                let total_payloads = payloads.len();
 
                 for (i, payload) in payloads.into_iter().enumerate() {
-                    let is_last = i == logical_packets.len();
+                    let is_last = i == total_payloads - 1;
 
                     match payload {
                         PayloadData::Adc(adc) => {
@@ -341,6 +348,22 @@ impl Packet {
                     .with_packet_type(PacketType::Accept.into())
                     .with_reserved_flag(false)
                     .with_id(accept_id)
+                    .with_attribute(0),
+                payload: Vec::new(),
+            },
+            Packet::Reject { id: reject_id } => RawPacket::Ctrl {
+                header: CtrlHeader::new()
+                    .with_packet_type(PacketType::Rejected.into())
+                    .with_reserved_flag(false)
+                    .with_id(reject_id)
+                    .with_attribute(0),
+                payload: Vec::new(),
+            },
+            Packet::NotReadable { id: nr_id } => RawPacket::Ctrl {
+                header: CtrlHeader::new()
+                    .with_packet_type(PacketType::NotReadable.into())
+                    .with_reserved_flag(false)
+                    .with_id(nr_id)
                     .with_attribute(0),
                 payload: Vec::new(),
             },

@@ -1,7 +1,7 @@
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
 use km003c_lib::{
-    AdcQueueData, AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C, Packet,
+    AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C, Packet,
     packet::{Attribute, AttributeSet},
 };
 use std::collections::VecDeque;
@@ -694,13 +694,9 @@ async fn run_streaming_session(
             }
         }
 
-        // Request AdcQueue data
-        if let Err(e) = device
-            .send(Packet::GetData {
-                attribute_mask: AttributeSet::single(Attribute::AdcQueue).raw(),
-            })
-            .await
-        {
+        // Request AdcQueue data using library API
+        let mask = AttributeSet::single(Attribute::AdcQueue);
+        if let Err(e) = device.send(Packet::GetData { attribute_mask: mask.raw() }).await {
             error!("Send error: {}", e);
             error_count += 1;
             if error_count >= MAX_ERRORS {
@@ -711,37 +707,17 @@ async fn run_streaming_session(
             continue;
         }
 
-        // Receive response
-        match device.receive_raw().await {
-            Ok(data) => {
+        // Receive and parse response using library API
+        match device.receive().await {
+            Ok(packet) => {
                 error_count = 0;
 
-                // Parse AdcQueue response
-                if data.len() >= 8 {
-                    let pkt_type = data[0] & 0x7F;
-                    if pkt_type == 0x41 {
-                        // PutData
-                        // Check attribute in extended header
-                        let attr = (data[4] as u16) | (((data[5] & 0x7F) as u16) << 8);
-                        if attr == 2 {
-                            // AdcQueue
-                            let payload = &data[8..];
-                            if !payload.is_empty() {
-                                match AdcQueueData::from_bytes(payload) {
-                                    Ok(queue_data) => {
-                                        if !queue_data.samples.is_empty() {
-                                            debug!("Received {} samples", queue_data.samples.len());
-                                            if tx.send(UsbMessage::Samples(queue_data.samples)).is_err() {
-                                                warn!("UI closed, stopping");
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    Err(e) => {
-                                        debug!("Parse error: {}", e);
-                                    }
-                                }
-                            }
+                if let Some(queue_data) = packet.get_adc_queue() {
+                    if !queue_data.samples.is_empty() {
+                        debug!("Received {} samples", queue_data.samples.len());
+                        if tx.send(UsbMessage::Samples(queue_data.samples.clone())).is_err() {
+                            warn!("UI closed, stopping");
+                            break;
                         }
                     }
                 }

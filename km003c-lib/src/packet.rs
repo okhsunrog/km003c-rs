@@ -75,6 +75,9 @@ pub enum PacketType {
     MemoryRead = 0x44,    // 68 - Read device memory (encrypted)
     StreamingAuth = 0x4C, // 76 - Authenticate for AdcQueue streaming
 
+    // Error responses
+    NotReadable = 0x27, // Memory address not accessible
+
     // Unknown control types discovered in protocol analysis
     Unknown26 = 26,
     Unknown58 = 58,

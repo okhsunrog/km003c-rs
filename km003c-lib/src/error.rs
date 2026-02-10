@@ -23,26 +23,14 @@ pub enum KMError {
     #[error("Invalid packet: {0}")]
     InvalidPacket(String),
 
-    #[error("Invalid length")]
-    InvalidLength,
-
     #[error("Insufficient data: expected at least {expected} bytes, got {actual}")]
     InsufficientData { expected: usize, actual: usize },
-
-    #[error("Index out of bounds")]
-    IndexOutOfBounds,
 
     #[error("Parse error at offset {offset}: {message}")]
     ParseError { offset: usize, message: String },
 
     #[error("Attribute mismatch: expected {expected:?}, got {actual:?}")]
     AttributeMismatch { expected: Vec<u16>, actual: Vec<u16> },
-
-    #[error("Empty PutData response (obj_count_words=0) - device has no data")]
-    EmptyResponse,
-
-    #[error("Transaction ID mismatch: request={request}, response={response}")]
-    TransactionIdMismatch { request: u8, response: u8 },
 }
 
 impl From<TryFromSliceError> for KMError {
