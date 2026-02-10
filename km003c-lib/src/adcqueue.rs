@@ -1,3 +1,5 @@
+use num_enum::TryFromPrimitive;
+use std::fmt;
 use zerocopy::byteorder::little_endian::{I32, U16};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
@@ -8,7 +10,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Used with StartGraph (0x0E) command to configure device sampling rate.
 /// The device expects the rate index directly (0-3).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
 #[repr(u16)]
 pub enum GraphSampleRate {
     /// 2 samples per second
@@ -19,6 +21,17 @@ pub enum GraphSampleRate {
     Sps50 = 2,
     /// 1000 samples per second
     Sps1000 = 3,
+}
+
+impl fmt::Display for GraphSampleRate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Sps2 => write!(f, "2 SPS"),
+            Self::Sps10 => write!(f, "10 SPS"),
+            Self::Sps50 => write!(f, "50 SPS"),
+            Self::Sps1000 => write!(f, "1000 SPS"),
+        }
+    }
 }
 
 /// AdcQueue sample structure (20 bytes)

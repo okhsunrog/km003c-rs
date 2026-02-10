@@ -10,6 +10,5 @@ tokio = { version = "1.45", features = ["full"] }
 clap = { version = "4.0", features = ["derive"] }
 tracing-subscriber = "0.3"
 tracing = "0.1"
-hex = "0.4"
 usbpd = { git = "https://github.com/okhsunrog/usbpd", rev = "b5dd12e" }
 uom = "0.36"

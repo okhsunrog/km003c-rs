@@ -246,19 +246,18 @@ impl Packet {
     pub fn to_raw_packet(self, id: u8) -> RawPacket {
         match self {
             Packet::DataResponse { payloads } => {
-                // Convert PayloadData vec to LogicalPackets
+                // Convert PayloadData vec to LogicalPackets.
+                // Some payload types (AdcQueue, PdEvents) are skipped, so we build
+                // all packets first with next=false, then fix up the chain flags.
                 let mut logical_packets = Vec::new();
-                let total_payloads = payloads.len();
 
-                for (i, payload) in payloads.into_iter().enumerate() {
-                    let is_last = i == total_payloads - 1;
-
+                for payload in payloads {
                     match payload {
                         PayloadData::Adc(adc) => {
                             let adc_raw = AdcDataRaw::from(adc);
                             logical_packets.push(LogicalPacket {
                                 attribute: Attribute::Adc,
-                                next: !is_last,
+                                next: false, // Will be fixed below
                                 chunk: 0,
                                 size: ADC_DATA_SIZE as u16,
                                 payload: adc_raw.as_bytes().to_vec(),
@@ -271,38 +270,40 @@ impl Packet {
                             raw_bytes.push(pd_status.type_id);
                             raw_bytes.extend_from_slice(&timestamp_bytes[..3]); // 24-bit
                             raw_bytes.extend_from_slice(&((pd_status.vbus_v * 1000.0) as u16).to_le_bytes());
-                            raw_bytes.extend_from_slice(&((pd_status.ibus_a * 1000.0) as u16).to_le_bytes());
+                            raw_bytes.extend_from_slice(&((pd_status.ibus_a * 1000.0) as i16).to_le_bytes());
                             raw_bytes.extend_from_slice(&((pd_status.cc1_v * 1000.0) as u16).to_le_bytes());
                             raw_bytes.extend_from_slice(&((pd_status.cc2_v * 1000.0) as u16).to_le_bytes());
 
                             logical_packets.push(LogicalPacket {
                                 attribute: Attribute::PdPacket,
-                                next: !is_last,
+                                next: false, // Will be fixed below
                                 chunk: 0,
                                 size: PD_STATUS_SIZE as u16,
                                 payload: raw_bytes,
                             });
                         }
-                        PayloadData::AdcQueue(_adcqueue) => {
-                            // TODO: Implement AdcQueue serialization
-                            // For now, skip this
-                            continue;
-                        }
-                        PayloadData::PdEvents(_pd_events) => {
-                            // TODO: Implement PdEventStream serialization
-                            // For now, skip this
+                        PayloadData::AdcQueue(_) | PayloadData::PdEvents(_) => {
+                            // TODO: Implement AdcQueue/PdEventStream serialization
                             continue;
                         }
                         PayloadData::Unknown { attribute, data } => {
                             logical_packets.push(LogicalPacket {
                                 attribute,
-                                next: !is_last,
+                                next: false, // Will be fixed below
                                 chunk: 0,
                                 size: data.len() as u16,
                                 payload: data,
                             });
                         }
                     }
+                }
+
+                // Set `next` flag on all packets except the last
+                if let Some((last, rest)) = logical_packets.split_last_mut() {
+                    for lp in rest {
+                        lp.next = true;
+                    }
+                    last.next = false;
                 }
 
                 // Calculate total payload size
@@ -490,11 +491,50 @@ impl<'py> pyo3::IntoPyObject<'py> for Packet {
                 inner.set_item("id", id)?;
                 dict.set_item("Accept", inner)?;
             }
+            Packet::Reject { id } => {
+                let inner = PyDict::new(py);
+                inner.set_item("id", id)?;
+                dict.set_item("Reject", inner)?;
+            }
+            Packet::NotReadable { id } => {
+                let inner = PyDict::new(py);
+                inner.set_item("id", id)?;
+                dict.set_item("NotReadable", inner)?;
+            }
             Packet::Connect => {
                 dict.set_item("Connect", py.None())?;
             }
             Packet::Disconnect => {
                 dict.set_item("Disconnect", py.None())?;
+            }
+            Packet::EnablePdMonitor => {
+                dict.set_item("EnablePdMonitor", py.None())?;
+            }
+            Packet::DisablePdMonitor => {
+                dict.set_item("DisablePdMonitor", py.None())?;
+            }
+            Packet::MemoryRead { address, size } => {
+                let inner = PyDict::new(py);
+                inner.set_item("address", address)?;
+                inner.set_item("size", size)?;
+                dict.set_item("MemoryRead", inner)?;
+            }
+            Packet::MemoryReadResponse { data } => {
+                let inner = PyDict::new(py);
+                inner.set_item("data", data)?;
+                dict.set_item("MemoryReadResponse", inner)?;
+            }
+            Packet::StreamingAuth { hardware_id } => {
+                let inner = PyDict::new(py);
+                inner.set_item("hardware_id", hex::encode(hardware_id.bytes))?;
+                dict.set_item("StreamingAuth", inner)?;
+            }
+            Packet::StreamingAuthResponse(result) => {
+                let inner = PyDict::new(py);
+                inner.set_item("success", result.success)?;
+                inner.set_item("auth_level", result.auth_level)?;
+                inner.set_item("attribute", result.attribute)?;
+                dict.set_item("StreamingAuthResponse", inner)?;
             }
             Packet::Generic(raw_packet) => {
                 dict.set_item("Generic", raw_packet.into_pyobject(py)?)?;

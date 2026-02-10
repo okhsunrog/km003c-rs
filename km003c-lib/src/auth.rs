@@ -21,8 +21,8 @@
 //! message module to send authentication commands. This module provides the
 //! underlying encryption and data structures.
 
-use aes::Aes128;
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
+use aes::Aes128;
 
 /// AES-128 key for StreamingAuth encryption (host → device)
 pub const STREAMING_AUTH_KEY_ENC: &[u8; 16] = b"Fa0b4tA25f4R038a";
@@ -195,6 +195,9 @@ impl StreamingAuthResult {
 }
 
 /// Result of device initialization
+///
+/// Convenience struct for protocol research scripts that manage
+/// the init sequence manually rather than using `KM003C::new()`.
 #[derive(Debug, Clone)]
 pub struct InitResult {
     /// Device information (model, versions, serial, etc.)
@@ -407,7 +410,8 @@ fn aes_ecb_encrypt(plaintext: &[u8; 32], key: &[u8; 16]) -> [u8; 32] {
 
 /// Decrypt MemoryRead response payload (e.g., HardwareID at 0x75)
 ///
-/// The response payload is AES-encrypted with MEMORY_READ_KEY
+/// The response payload is AES-encrypted with MEMORY_READ_KEY.
+/// Useful for protocol research and manual memory reads.
 pub fn decrypt_memory_read_response(ciphertext: &[u8]) -> Option<Vec<u8>> {
     if ciphertext.len() < 16 {
         return None;
@@ -441,6 +445,8 @@ fn aes_ecb_decrypt(ciphertext: &[u8; 32], key: &[u8; 16]) -> [u8; 32] {
 }
 
 /// AES-128-ECB decrypt a single 16-byte block
+///
+/// Useful for protocol research and manual decryption of individual blocks.
 pub fn aes_ecb_decrypt_block(ciphertext: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
     let cipher = Aes128::new(key.into());
     let mut output = *ciphertext;
@@ -455,12 +461,14 @@ pub fn aes_ecb_decrypt_block(ciphertext: &[u8; 16], key: &[u8; 16]) -> [u8; 16] 
 /// * `key` - 16-byte AES key
 ///
 /// # Returns
-/// Decrypted data as Vec<u8>
-pub fn aes_ecb_decrypt_blocks(ciphertext: &[u8], key: &[u8; 16]) -> Vec<u8> {
-    assert!(
-        ciphertext.len().is_multiple_of(16),
-        "ciphertext must be multiple of 16 bytes"
-    );
+/// Decrypted data, or error if ciphertext length is not a multiple of 16
+pub fn aes_ecb_decrypt_blocks(ciphertext: &[u8], key: &[u8; 16]) -> Result<Vec<u8>, crate::error::KMError> {
+    if !ciphertext.len().is_multiple_of(16) {
+        return Err(crate::error::KMError::InvalidPacket(format!(
+            "AES ciphertext must be multiple of 16 bytes, got {}",
+            ciphertext.len()
+        )));
+    }
 
     let cipher = Aes128::new(key.into());
     let mut output = ciphertext.to_vec();
@@ -469,7 +477,7 @@ pub fn aes_ecb_decrypt_blocks(ciphertext: &[u8], key: &[u8; 16]) -> Vec<u8> {
         cipher.decrypt_block(chunk.into());
     }
 
-    output
+    Ok(output)
 }
 
 #[cfg(test)]

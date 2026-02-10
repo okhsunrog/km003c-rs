@@ -565,56 +565,9 @@ impl KM003C {
         }
 
         // Decrypt all blocks with MEMORY_READ_KEY
-        let decrypted = crate::auth::aes_ecb_decrypt_blocks(&raw_bytes, crate::auth::MEMORY_READ_KEY);
+        let decrypted = crate::auth::aes_ecb_decrypt_blocks(&raw_bytes, crate::auth::MEMORY_READ_KEY)?;
 
         Ok(Packet::MemoryReadResponse { data: decrypted })
-    }
-
-    /// Receive a raw packet from the device
-    #[allow(dead_code)]
-    async fn receive_raw_packet(&mut self) -> Result<RawPacket, KMError> {
-        let mut buffer = vec![0u8; 1024];
-
-        // Use the persistent reader
-        let bytes_read = match &mut self.reader {
-            EndpointReaderType::Bulk(reader) => timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??,
-            EndpointReaderType::Interrupt(reader) => timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??,
-        };
-
-        if bytes_read == 0 {
-            return Err(KMError::Protocol("Received 0 bytes".to_string()));
-        }
-
-        let raw_bytes = &buffer[..bytes_read];
-        trace!("Received {} bytes: {:02x?}", bytes_read, raw_bytes);
-
-        let bytes = Bytes::copy_from_slice(raw_bytes);
-        let raw_packet = RawPacket::try_from(bytes)?;
-
-        let (reserved_flag, has_logical_packets) = match &raw_packet {
-            RawPacket::Ctrl { header, .. } => (header.reserved_flag(), false),
-            RawPacket::SimpleData { header, .. } => (header.reserved_flag(), false),
-            RawPacket::Data {
-                header,
-                logical_packets,
-            } => (header.reserved_flag(), !logical_packets.is_empty()),
-        };
-
-        debug!(
-            "Parsed packet: type={:?}, reserved_flag={}, has_logical_packets={}, id={}, is_empty={}",
-            raw_packet.packet_type(),
-            reserved_flag,
-            has_logical_packets,
-            raw_packet.id(),
-            raw_packet.is_empty_response(),
-        );
-
-        // Log if we received an empty response (device has no data)
-        if raw_packet.is_empty_response() {
-            debug!("Received empty PutData response (obj_count_words=0) - device has no data");
-        }
-
-        Ok(raw_packet)
     }
 
     /// Request data with a specific attribute set
@@ -722,10 +675,7 @@ impl KM003C {
     ///
     /// After successful init, mode is set to Full(DeviceState).
     async fn run_init(&mut self) -> Result<(), KMError> {
-        use crate::auth::{
-            CALIBRATION_ADDRESS, DEVICE_INFO_ADDRESS, FIRMWARE_INFO_ADDRESS, HARDWARE_ID_ADDRESS, HARDWARE_ID_SIZE,
-            INFO_BLOCK_SIZE,
-        };
+        use crate::auth::{HARDWARE_ID_ADDRESS, HARDWARE_ID_SIZE};
 
         // 1. Connect (with retries - sometimes device responds with Disconnect on first try)
         const MAX_CONNECT_RETRIES: u8 = 3;
@@ -750,23 +700,8 @@ impl KM003C {
             return Err(KMError::Protocol(err));
         }
 
-        let mut info = DeviceInfo::default();
+        let info = self.read_device_info_blocks().await;
         let mut hardware_id_bytes = [0u8; HARDWARE_ID_SIZE];
-
-        // 2. Read DeviceInfo
-        if let Ok(data) = self.read_memory_block(DEVICE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
-            info.parse_device_info(&data);
-        }
-
-        // 3. Read FirmwareInfo
-        if let Ok(data) = self.read_memory_block(FIRMWARE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
-            info.parse_firmware_info(&data);
-        }
-
-        // 4. Read Calibration
-        if let Ok(data) = self.read_memory_block(CALIBRATION_ADDRESS, INFO_BLOCK_SIZE as u32).await {
-            info.parse_calibration(&data);
-        }
 
         // 5. Read HardwareID
         let hardware_id = if let Ok(data) = self.read_memory_block(HARDWARE_ID_ADDRESS, HARDWARE_ID_SIZE as u32).await {
@@ -893,28 +828,37 @@ impl KM003C {
     /// # }
     /// ```
     pub async fn get_device_info(&mut self) -> Result<crate::auth::DeviceInfo, KMError> {
+        Ok(self.read_device_info_blocks().await)
+    }
+
+    /// Internal: Read DeviceInfo, FirmwareInfo, and CalibrationData blocks
+    ///
+    /// Used by both `run_init()` and `get_device_info()`. Non-critical reads
+    /// are logged as warnings on failure but don't prevent initialization.
+    async fn read_device_info_blocks(&mut self) -> crate::auth::DeviceInfo {
         use crate::auth::{
             CALIBRATION_ADDRESS, DEVICE_INFO_ADDRESS, DeviceInfo, FIRMWARE_INFO_ADDRESS, INFO_BLOCK_SIZE,
         };
+        use tracing::warn;
 
         let mut info = DeviceInfo::default();
 
-        // Read DeviceInfo1
-        if let Ok(data) = self.read_memory_block(DEVICE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
-            info.parse_device_info(&data);
+        match self.read_memory_block(DEVICE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+            Ok(data) => info.parse_device_info(&data),
+            Err(e) => warn!("Failed to read DeviceInfo at 0x{:08X}: {}", DEVICE_INFO_ADDRESS, e),
         }
 
-        // Read FirmwareInfo
-        if let Ok(data) = self.read_memory_block(FIRMWARE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
-            info.parse_firmware_info(&data);
+        match self.read_memory_block(FIRMWARE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+            Ok(data) => info.parse_firmware_info(&data),
+            Err(e) => warn!("Failed to read FirmwareInfo at 0x{:08X}: {}", FIRMWARE_INFO_ADDRESS, e),
         }
 
-        // Read CalibrationData
-        if let Ok(data) = self.read_memory_block(CALIBRATION_ADDRESS, INFO_BLOCK_SIZE as u32).await {
-            info.parse_calibration(&data);
+        match self.read_memory_block(CALIBRATION_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+            Ok(data) => info.parse_calibration(&data),
+            Err(e) => warn!("Failed to read CalibrationData at 0x{:08X}: {}", CALIBRATION_ADDRESS, e),
         }
 
-        Ok(info)
+        info
     }
 
     /// Start AdcQueue graph/streaming mode with specified sample rate

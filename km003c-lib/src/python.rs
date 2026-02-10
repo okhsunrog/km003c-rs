@@ -20,10 +20,9 @@
 use crate::adc::{AdcDataRaw, AdcDataSimple, SampleRate};
 use crate::adcqueue::{AdcQueueData, AdcQueueSample};
 use crate::message::Packet;
-use crate::packet::{CtrlHeader, LogicalPacket, PacketType, RawPacket};
+use crate::packet::{CtrlHeader, LogicalPacket, RawPacket};
 use crate::pd::{PdEvent, PdEventStream, PdPreamble, PdStatus};
 use bytes::Bytes;
-use num_enum::FromPrimitive;
 use pyo3::prelude::*;
 
 /// Parse raw ADC data bytes directly into processed measurements.
@@ -188,8 +187,6 @@ pub fn get_sample_rates() -> Vec<SampleRate> {
 ///     ```
 #[pyfunction]
 pub fn create_packet(packet_type: u8, transaction_id: u8, data: u16) -> Vec<u8> {
-    let _ptype = PacketType::from_primitive(packet_type);
-
     let header = CtrlHeader::new()
         .with_packet_type(packet_type)
         .with_reserved_flag(false)
