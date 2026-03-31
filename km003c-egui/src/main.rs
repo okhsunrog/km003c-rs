@@ -41,7 +41,7 @@ enum UsbMessage {
 #[derive(Debug, Clone)]
 enum UsbCommand {
     /// Connect to device and start streaming
-    Connect(GraphSampleRate),
+    Connect(GraphSampleRate, bool),
     /// Change sample rate (stops current streaming, starts with new rate)
     SetSampleRate(GraphSampleRate),
     /// Stop streaming and disconnect
@@ -176,6 +176,8 @@ struct PowerMonitorApp {
     pd_auto_scroll: bool,
     /// PD panel visible
     pd_panel_visible: bool,
+    /// Whether to perform USB reset on connect
+    usb_reset: bool,
 }
 
 impl PowerMonitorApp {
@@ -205,6 +207,7 @@ impl PowerMonitorApp {
             pd_status: None,
             pd_auto_scroll: true,
             pd_panel_visible: true,
+            usb_reset: !cfg!(target_os = "macos"),
         }
     }
 
@@ -560,11 +563,14 @@ impl eframe::App for PowerMonitorApp {
                     info!("Disconnect requested");
                     let _ = self.cmd_sender.send(UsbCommand::Disconnect);
                 }
-            } else if self.device_state.is_none() && ui.button("Connect").clicked() {
-                info!("Connect requested");
-                let _ = self
-                    .cmd_sender
-                    .send(UsbCommand::Connect(self.selected_rate.to_graph_rate()));
+            } else if self.device_state.is_none() {
+                ui.checkbox(&mut self.usb_reset, "USB reset on connect");
+                if ui.button("Connect").clicked() {
+                    info!("Connect requested");
+                    let _ = self
+                        .cmd_sender
+                        .send(UsbCommand::Connect(self.selected_rate.to_graph_rate(), self.usb_reset));
+                }
             }
 
             ui.add_space(20.0);
@@ -743,9 +749,9 @@ async fn usb_streaming_task(tx: mpsc::UnboundedSender<UsbMessage>, mut cmd_rx: m
         };
 
         match cmd {
-            UsbCommand::Connect(initial_rate) => {
-                info!("Connect command received, rate={:?}", initial_rate);
-                run_streaming_session(&tx, &mut cmd_rx, initial_rate).await;
+            UsbCommand::Connect(initial_rate, usb_reset) => {
+                info!("Connect command received, rate={:?}, reset={}", initial_rate, usb_reset);
+                run_streaming_session(&tx, &mut cmd_rx, initial_rate, usb_reset).await;
             }
             UsbCommand::SetSampleRate(_) | UsbCommand::Disconnect => {
                 // Ignore these when not connected
@@ -759,13 +765,13 @@ async fn run_streaming_session(
     tx: &mpsc::UnboundedSender<UsbMessage>,
     cmd_rx: &mut mpsc::UnboundedReceiver<UsbCommand>,
     initial_rate: GraphSampleRate,
+    usb_reset: bool,
 ) {
     // Connect to device with vendor interface (Full mode for AdcQueue)
-    // Skip reset on macOS for compatibility
-    let config = if cfg!(target_os = "macos") {
-        DeviceConfig::vendor().skip_reset()
-    } else {
+    let config = if usb_reset {
         DeviceConfig::vendor()
+    } else {
+        DeviceConfig::vendor().skip_reset()
     };
     let mut device = match KM003C::new(config).await {
         Ok(dev) => dev,
@@ -834,7 +840,7 @@ async fn run_streaming_session(
                 info!("Disconnect command received");
                 break;
             }
-            Ok(UsbCommand::Connect(_)) => {
+            Ok(UsbCommand::Connect(..)) => {
                 // Ignore connect while already connected
                 debug!("Ignoring Connect while already streaming");
             }
@@ -937,7 +943,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(usb_streaming_task(usb_tx, cmd_rx));
 
     // Auto-connect on startup
-    let _ = cmd_tx.send(UsbCommand::Connect(GraphSampleRate::Sps50));
+    let _ = cmd_tx.send(UsbCommand::Connect(GraphSampleRate::Sps50, !cfg!(target_os = "macos")));
 
     // Run egui application
     let options = eframe::NativeOptions {
