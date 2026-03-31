@@ -1,9 +1,13 @@
+mod pd_decoder;
+
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
 use km003c_lib::{
     AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C, Packet,
     packet::{Attribute, AttributeSet},
+    pd::{PdEvent, PdStatus},
 };
+use pd_decoder::{DecodedPdEntry, PdCategory, PdDecoder};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
@@ -19,6 +23,10 @@ enum UsbMessage {
     ConnectionFailed(String),
     /// New AdcQueue samples received
     Samples(Vec<AdcQueueSample>),
+    /// PD events received from device
+    PdEvents(Vec<PdEvent>),
+    /// PD status (CC line voltages)
+    PdStatusUpdate(PdStatus),
     /// Streaming started at given rate
     StreamingStarted(GraphSampleRate),
     /// Streaming stopped
@@ -156,6 +164,18 @@ struct PowerMonitorApp {
     current_power: f64,
     /// Time offset for plotting (first sample time)
     time_base: Option<std::time::Instant>,
+    /// PD protocol decoder
+    pd_decoder: PdDecoder,
+    /// Decoded PD log entries
+    pd_log: VecDeque<DecodedPdEntry>,
+    /// Max PD log entries
+    max_pd_entries: usize,
+    /// Current PD status
+    pd_status: Option<PdStatus>,
+    /// Auto-scroll PD log
+    pd_auto_scroll: bool,
+    /// PD panel visible
+    pd_panel_visible: bool,
 }
 
 impl PowerMonitorApp {
@@ -179,6 +199,12 @@ impl PowerMonitorApp {
             current_current: 0.0,
             current_power: 0.0,
             time_base: None,
+            pd_decoder: PdDecoder::new(),
+            pd_log: VecDeque::new(),
+            max_pd_entries: 1000,
+            pd_status: None,
+            pd_auto_scroll: true,
+            pd_panel_visible: true,
         }
     }
 
@@ -252,6 +278,20 @@ impl PowerMonitorApp {
                     self.last_sequence = None;
                     self.sequence_stride = None;
                 }
+                UsbMessage::PdEvents(events) => {
+                    for event in &events {
+                        let entries = self.pd_decoder.decode_event(event);
+                        for entry in entries {
+                            self.pd_log.push_back(entry);
+                            while self.pd_log.len() > self.max_pd_entries {
+                                self.pd_log.pop_front();
+                            }
+                        }
+                    }
+                }
+                UsbMessage::PdStatusUpdate(status) => {
+                    self.pd_status = Some(status);
+                }
                 UsbMessage::StreamingStopped => {
                     self.streaming = false;
                     self.status = "Stopped".to_string();
@@ -276,6 +316,11 @@ impl PowerMonitorApp {
         self.sequence_stride = None;
         self.time_base = None;
         info!("Data cleared");
+    }
+
+    fn clear_pd_log(&mut self) {
+        self.pd_log.clear();
+        info!("PD log cleared");
     }
 }
 
@@ -389,6 +434,50 @@ impl eframe::App for PowerMonitorApp {
 
             ui.add_space(20.0);
             ui.separator();
+            ui.heading("PD Status");
+            ui.separator();
+
+            if let Some(pd) = &self.pd_status {
+                egui::Grid::new("pd_status_grid")
+                    .num_columns(2)
+                    .spacing([10.0, 4.0])
+                    .show(ui, |ui| {
+                        ui.label("CC1:");
+                        let cc1_color = if pd.cc1_v > 0.2 {
+                            egui::Color32::GREEN
+                        } else {
+                            egui::Color32::GRAY
+                        };
+                        ui.colored_label(cc1_color, format!("{:.3} V", pd.cc1_v));
+                        ui.end_row();
+
+                        ui.label("CC2:");
+                        let cc2_color = if pd.cc2_v > 0.2 {
+                            egui::Color32::GREEN
+                        } else {
+                            egui::Color32::GRAY
+                        };
+                        ui.colored_label(cc2_color, format!("{:.3} V", pd.cc2_v));
+                        ui.end_row();
+
+                        ui.label("Connection:");
+                        let connected = pd.cc1_v > 0.2 || pd.cc2_v > 0.2;
+                        ui.colored_label(
+                            if connected {
+                                egui::Color32::GREEN
+                            } else {
+                                egui::Color32::RED
+                            },
+                            if connected { "Connected" } else { "No device" },
+                        );
+                        ui.end_row();
+                    });
+            } else {
+                ui.label("No PD data");
+            }
+
+            ui.add_space(20.0);
+            ui.separator();
             ui.heading("Statistics");
             ui.separator();
 
@@ -477,7 +566,71 @@ impl eframe::App for PowerMonitorApp {
                     .cmd_sender
                     .send(UsbCommand::Connect(self.selected_rate.to_graph_rate()));
             }
+
+            ui.add_space(20.0);
+            ui.separator();
+            ui.heading("PD Log");
+            ui.separator();
+
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut self.pd_panel_visible, "Show PD Panel");
+            });
+
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut self.pd_auto_scroll, "Auto-scroll");
+                if ui.button("Clear PD Log").clicked() {
+                    self.clear_pd_log();
+                }
+            });
+
+            ui.label(format!("PD entries: {}", self.pd_log.len()));
         });
+
+        // Bottom panel with PD log
+        if self.pd_panel_visible {
+            egui::TopBottomPanel::bottom("pd_panel")
+                .resizable(true)
+                .min_height(100.0)
+                .default_height(200.0)
+                .show(ctx, |ui| {
+                    ui.heading("USB PD Protocol Log");
+                    ui.separator();
+
+                    let text_style = egui::TextStyle::Monospace;
+                    let row_height = ui.text_style_height(&text_style);
+
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false; 2])
+                        .stick_to_bottom(self.pd_auto_scroll)
+                        .show(ui, |ui| {
+                            for entry in &self.pd_log {
+                                let color = match entry.category {
+                                    PdCategory::Connect => egui::Color32::GREEN,
+                                    PdCategory::Disconnect => egui::Color32::RED,
+                                    PdCategory::SourceCaps => egui::Color32::from_rgb(100, 149, 237), // Cornflower blue
+                                    PdCategory::Request => egui::Color32::YELLOW,
+                                    PdCategory::Control => egui::Color32::GRAY,
+                                    PdCategory::Extended => egui::Color32::from_rgb(255, 165, 0), // Orange
+                                    PdCategory::Error => egui::Color32::from_rgb(255, 80, 80),    // Light red
+                                };
+
+                                ui.colored_label(
+                                    color,
+                                    egui::RichText::new(&entry.summary).monospace().size(row_height),
+                                );
+
+                                for detail in &entry.details {
+                                    ui.colored_label(
+                                        color.gamma_multiply(0.8),
+                                        egui::RichText::new(format!("  {}", detail))
+                                            .monospace()
+                                            .size(row_height),
+                                    );
+                                }
+                            }
+                        });
+                });
+        }
 
         // Main panel with plots
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -694,9 +847,14 @@ async fn run_streaming_session(
             }
         }
 
-        // Request AdcQueue data using library API
-        let mask = AttributeSet::single(Attribute::AdcQueue);
-        if let Err(e) = device.send(Packet::GetData { attribute_mask: mask.raw() }).await {
+        // Request AdcQueue + PD data using library API
+        let mask = AttributeSet::single(Attribute::AdcQueue).with(Attribute::PdPacket);
+        if let Err(e) = device
+            .send(Packet::GetData {
+                attribute_mask: mask.raw(),
+            })
+            .await
+        {
             error!("Send error: {}", e);
             error_count += 1;
             if error_count >= MAX_ERRORS {
@@ -712,14 +870,21 @@ async fn run_streaming_session(
             Ok(packet) => {
                 error_count = 0;
 
-                if let Some(queue_data) = packet.get_adc_queue() {
-                    if !queue_data.samples.is_empty() {
-                        debug!("Received {} samples", queue_data.samples.len());
-                        if tx.send(UsbMessage::Samples(queue_data.samples.clone())).is_err() {
-                            warn!("UI closed, stopping");
-                            break;
-                        }
+                if let Some(queue_data) = packet.get_adc_queue()
+                    && !queue_data.samples.is_empty()
+                {
+                    debug!("Received {} samples", queue_data.samples.len());
+                    if tx.send(UsbMessage::Samples(queue_data.samples.clone())).is_err() {
+                        warn!("UI closed, stopping");
+                        break;
                     }
+                }
+
+                if let Some(stream) = packet.get_pd_events() {
+                    let _ = tx.send(UsbMessage::PdEvents(stream.events.clone()));
+                }
+                if let Some(status) = packet.get_pd_status() {
+                    let _ = tx.send(UsbMessage::PdStatusUpdate(*status));
                 }
             }
             Err(e) => {

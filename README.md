@@ -6,6 +6,8 @@ Rust library and applications for the **ChargerLAB POWER-Z KM003C** USB-C power 
 
 `km003c-rs` provides a cross-platform Rust implementation for communicating with the KM003C device, enabling real-time USB-C power analysis and USB Power Delivery message capture.
 
+![km003c-egui screenshot](assets/screenshot.png)
+
 ## Features
 
 ### Device Communication

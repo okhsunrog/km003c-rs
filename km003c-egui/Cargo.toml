@@ -15,3 +15,5 @@ egui_plot = "0.33.0"
 tokio = { version = "1.0", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
+usbpd = { git = "https://github.com/okhsunrog/usbpd", rev = "b5dd12e" }
+uom = "0.36"
