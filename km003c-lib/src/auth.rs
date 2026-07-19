@@ -398,7 +398,7 @@ fn aes_ecb_encrypt(plaintext: &[u8; 32], key: &[u8; 16]) -> [u8; 32] {
     output
 }
 
-/// Decrypt MemoryRead response payload (e.g., HardwareID at 0x75)
+/// Decrypt an unframed MemoryRead response payload
 ///
 /// The response payload is AES-encrypted with MEMORY_READ_KEY.
 /// Useful for protocol research and manual memory reads.

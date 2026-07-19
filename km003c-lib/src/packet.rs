@@ -95,9 +95,6 @@ pub enum PacketType {
     // >= 0x40 is data type
     Head = 64,
     PutData = 65,
-    // MemoryRead response (0x75) - contains raw data from device memory
-    MemoryReadResponse = 0x75,
-
     #[num_enum(catch_all)]
     Unknown(u8),
 }

@@ -57,7 +57,7 @@ pub enum Packet {
         /// Number of bytes to read
         size: u32,
     },
-    /// MemoryRead response (0x75) - raw data from device memory
+    /// Decrypted data returned by the unframed MemoryRead data transfer
     MemoryReadResponse {
         /// Raw data read from memory (e.g., 12-byte HardwareID)
         data: Vec<u8>,
@@ -161,12 +161,6 @@ impl TryFrom<RawPacket> for Packet {
                 let packet_type = PacketType::from_primitive(header.packet_type());
 
                 match packet_type {
-                    // MemoryReadResponse (0x75) - contains raw data from device memory
-                    // Format: [type:1][data:N] - NOT a 4-byte header
-                    PacketType::MemoryReadResponse => {
-                        // Data starts at byte 1 (after the type byte which is in header)
-                        Ok(Packet::MemoryReadResponse { data: payload.to_vec() })
-                    }
                     // MemoryRead response (0xC4 = 0x44 | 0x80) - confirmation
                     PacketType::MemoryRead => {
                         // This is just a confirmation, return as Accept-like
@@ -412,16 +406,10 @@ impl Packet {
                     payload: encrypted_payload.to_vec(),
                 }
             }
-            Packet::MemoryReadResponse { data } => {
-                // Response packets are typically not sent by client, but support for completeness
-                RawPacket::SimpleData {
-                    header: DataHeader::new()
-                        .with_packet_type(PacketType::MemoryReadResponse.into())
-                        .with_reserved_flag(false)
-                        .with_id(id)
-                        .with_obj_count_words(0),
-                    payload: data,
-                }
+            Packet::MemoryReadResponse { .. } => {
+                return Err(KMError::UnsupportedSerialization {
+                    packet: "MemoryReadResponse",
+                });
             }
             Packet::StreamingAuth { hardware_id } => {
                 // Build encrypted StreamingAuth payload
