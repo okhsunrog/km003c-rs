@@ -5,6 +5,21 @@ mod common;
 use common::*;
 
 #[test]
+fn test_unknown_control_packet_preserves_payload() {
+    let original = RawPacket::Ctrl {
+        header: CtrlHeader::new()
+            .with_packet_type(PacketType::GetStatus.into())
+            .with_reserved_flag(false)
+            .with_id(7)
+            .with_attribute(0),
+        payload: vec![0xaa, 0xbb, 0xcc],
+    };
+
+    let parsed = Packet::try_from(original.clone()).unwrap();
+    assert_eq!(parsed, Packet::Generic(original));
+}
+
+#[test]
 fn test_roundtrip_bytes_to_rawpacket_to_bytes_ctrl() {
     // Test round-trip conversion: Bytes → RawPacket → Bytes
     let original_bytes = Bytes::from_static(&[0x02, 0x01, 0x00, 0x00]);

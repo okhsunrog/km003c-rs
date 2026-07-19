@@ -132,7 +132,7 @@ impl TryFrom<RawPacket> for Packet {
 
     fn try_from(raw_packet: RawPacket) -> Result<Self, Self::Error> {
         match raw_packet {
-            RawPacket::Ctrl { header, .. } => {
+            RawPacket::Ctrl { header, payload } => {
                 let packet_type = PacketType::from_primitive(header.packet_type());
                 let attribute_set = AttributeSet::from_raw(header.attribute());
 
@@ -149,10 +149,7 @@ impl TryFrom<RawPacket> for Packet {
                     PacketType::NotReadable => Ok(Packet::NotReadable { id: header.id() }),
                     PacketType::Connect => Ok(Packet::Connect),
                     PacketType::Disconnect => Ok(Packet::Disconnect),
-                    _ => Ok(Packet::Generic(RawPacket::Ctrl {
-                        header,
-                        payload: Vec::new(),
-                    })),
+                    _ => Ok(Packet::Generic(RawPacket::Ctrl { header, payload })),
                 }
             }
             RawPacket::SimpleData { header, payload } => {
