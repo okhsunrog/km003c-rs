@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use km003c_lib::{AdcQueueData, GraphSampleRate, Packet, RawPacket};
+use km003c_lib::{AdcQueueData, GraphSampleRate, Packet, RawPacket, sequence_elapsed};
 
 #[test]
 fn test_adcqueue_parsing() {
@@ -104,4 +104,5 @@ fn test_adcqueue_sequence_steps_follow_sample_rate() {
 
     assert_eq!(GraphSampleRate::Sps2.missing_samples(65_300, 264), 0);
     assert_eq!(GraphSampleRate::Sps50.missing_samples(100, 140), 1);
+    assert_eq!(sequence_elapsed(65_300, 264).as_millis(), 500);
 }

@@ -6,6 +6,7 @@ use km003c_lib::{
     AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C,
     packet::{Attribute, AttributeSet},
     pd::{PdEvent, PdStatus},
+    sequence_elapsed,
 };
 use pd_decoder::{DecodedPdEntry, PdCategory, PdDecoder};
 use std::collections::VecDeque;
@@ -154,6 +155,8 @@ struct PowerMonitorApp {
     total_samples: u64,
     /// Last sequence number (for gap detection)
     last_sequence: Option<u16>,
+    /// Plot timestamp assigned to the last received sample
+    last_sample_timestamp: Option<f64>,
     /// Dropped sample count
     dropped_samples: u64,
     /// Current readings for display
@@ -193,6 +196,7 @@ impl PowerMonitorApp {
             max_points: 100000, // Safety cap for memory
             total_samples: 0,
             last_sequence: None,
+            last_sample_timestamp: None,
             dropped_samples: 0,
             current_voltage: 0.0,
             current_current: 0.0,
@@ -219,20 +223,32 @@ impl PowerMonitorApp {
                     self.status = format!("Connection failed: {}", err);
                 }
                 UsbMessage::Samples(samples) => {
+                    let Some((first_sample, last_sample)) = samples.first().zip(samples.last()) else {
+                        continue;
+                    };
+                    let batch_duration = sequence_elapsed(first_sample.sequence, last_sample.sequence);
+                    let now = std::time::Instant::now();
                     if self.time_base.is_none() {
-                        self.time_base = Some(std::time::Instant::now());
+                        self.time_base = Some(now.checked_sub(batch_duration).unwrap_or(now));
                     }
                     let time_base = self.time_base.unwrap();
+                    let arrival_timestamp = time_base.elapsed().as_secs_f64();
+                    let first_timestamp = arrival_timestamp - batch_duration.as_secs_f64();
 
                     let rate = self.current_rate.to_graph_rate();
                     for sample in &samples {
+                        let timestamp = match (self.last_sequence, self.last_sample_timestamp) {
+                            (Some(last_sequence), Some(last_timestamp)) => {
+                                last_timestamp + sequence_elapsed(last_sequence, sample.sequence).as_secs_f64()
+                            }
+                            _ => first_timestamp,
+                        };
+
                         if let Some(last_seq) = self.last_sequence {
                             self.dropped_samples += rate.missing_samples(last_seq, sample.sequence) as u64;
                         }
                         self.last_sequence = Some(sample.sequence);
-
-                        // Calculate timestamp based on sample rate
-                        let timestamp = time_base.elapsed().as_secs_f64();
+                        self.last_sample_timestamp = Some(timestamp);
 
                         self.data_points.push_back((
                             timestamp,
@@ -297,6 +313,7 @@ impl PowerMonitorApp {
         self.total_samples = 0;
         self.dropped_samples = 0;
         self.last_sequence = None;
+        self.last_sample_timestamp = None;
         self.time_base = None;
         info!("Data cleared");
     }

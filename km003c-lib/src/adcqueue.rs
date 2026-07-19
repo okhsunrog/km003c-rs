@@ -1,5 +1,6 @@
 use num_enum::TryFromPrimitive;
 use std::fmt;
+use std::time::Duration;
 use zerocopy::byteorder::little_endian::{I32, U16};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
@@ -24,7 +25,7 @@ pub enum GraphSampleRate {
 }
 
 impl GraphSampleRate {
-    const SEQUENCE_TICKS_PER_SECOND: u16 = 1000;
+    pub const SEQUENCE_TICKS_PER_SECOND: u16 = 1000;
 
     /// Number of samples produced by the device each second.
     pub const fn samples_per_second(self) -> u16 {
@@ -46,6 +47,12 @@ impl GraphSampleRate {
         let elapsed_ticks = current.wrapping_sub(previous);
         elapsed_ticks.saturating_sub(self.sequence_step()) / self.sequence_step()
     }
+}
+
+/// Elapsed device time between two values of the wrapping AdcQueue sequence counter.
+pub fn sequence_elapsed(previous: u16, current: u16) -> Duration {
+    let elapsed_ticks = current.wrapping_sub(previous);
+    Duration::from_secs_f64(f64::from(elapsed_ticks) / f64::from(GraphSampleRate::SEQUENCE_TICKS_PER_SECOND))
 }
 
 impl fmt::Display for GraphSampleRate {
