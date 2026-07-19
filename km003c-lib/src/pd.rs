@@ -165,8 +165,12 @@ impl PdEventStream {
         // Parse events
         while offset < bytes.len() {
             if bytes.len() - offset < PD_EVENT_HEADER_SIZE {
-                // Not enough bytes for event header
-                break;
+                return Err(KMError::InvalidPacket(format!(
+                    "Incomplete PD event header at offset {}: need {}, got {}",
+                    offset,
+                    PD_EVENT_HEADER_SIZE,
+                    bytes.len() - offset
+                )));
             }
 
             let size_flag = bytes[offset];
@@ -197,7 +201,13 @@ impl PdEventStream {
             let sop = bytes[offset + 5];
 
             // Calculate wire data length: wire_len = (size_flag & mask) - offset
-            let wire_len = (size_flag & PD_EVENT_SIZE_MASK).saturating_sub(PD_EVENT_SIZE_OFFSET) as usize;
+            let encoded_size = size_flag & PD_EVENT_SIZE_MASK;
+            let wire_len = encoded_size.checked_sub(PD_EVENT_SIZE_OFFSET).ok_or_else(|| {
+                KMError::InvalidPacket(format!(
+                    "Invalid PD event size at offset {}: encoded size {} is below {}",
+                    offset, encoded_size, PD_EVENT_SIZE_OFFSET
+                ))
+            })? as usize;
 
             offset += PD_EVENT_HEADER_SIZE;
 

@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use km003c_lib::{Packet, PdEventData, RawPacket};
+use km003c_lib::{Packet, PdEventData, PdEventStream, RawPacket};
 
 fn parse_pd_events(frame: &str) -> km003c_lib::PdEventStream {
     let raw = RawPacket::try_from(Bytes::from(hex::decode(frame).unwrap())).unwrap();
@@ -56,4 +56,22 @@ fn recognizes_current_recorded_connection_event() {
 
     assert_eq!(connect.events[0].timestamp, 109_039);
     assert_eq!(connect.events[0].data, PdEventData::Connect(()));
+}
+
+#[test]
+fn rejects_incomplete_event_header() {
+    let mut payload = vec![0; km003c_lib::constants::PD_PREAMBLE_SIZE];
+    payload.push(0x87);
+
+    let error = PdEventStream::from_bytes(Bytes::from(payload)).unwrap_err();
+    assert!(error.to_string().contains("Incomplete PD event header"));
+}
+
+#[test]
+fn rejects_event_size_smaller_than_protocol_offset() {
+    let mut payload = vec![0; km003c_lib::constants::PD_PREAMBLE_SIZE];
+    payload.extend_from_slice(&[0x04, 0, 0, 0, 0, 0]);
+
+    let error = PdEventStream::from_bytes(Bytes::from(payload)).unwrap_err();
+    assert!(error.to_string().contains("Invalid PD event size"));
 }
