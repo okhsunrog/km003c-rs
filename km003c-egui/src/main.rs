@@ -2,10 +2,15 @@ mod pd_decoder;
 
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
+use km003c_lib::uom::si::electric_current::ampere;
+use km003c_lib::uom::si::electric_potential::volt;
+use km003c_lib::uom::si::power::watt;
+use km003c_lib::uom::si::time::second;
 use km003c_lib::{
-    AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C, Packet,
+    AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C,
     packet::{Attribute, AttributeSet},
     pd::{PdEvent, PdStatus},
+    sequence_elapsed,
 };
 use pd_decoder::{DecodedPdEntry, PdCategory, PdDecoder};
 use std::collections::VecDeque;
@@ -154,8 +159,8 @@ struct PowerMonitorApp {
     total_samples: u64,
     /// Last sequence number (for gap detection)
     last_sequence: Option<u16>,
-    /// Detected sequence stride (varies by sample rate)
-    sequence_stride: Option<u16>,
+    /// Plot timestamp assigned to the last received sample
+    last_sample_timestamp: Option<f64>,
     /// Dropped sample count
     dropped_samples: u64,
     /// Current readings for display
@@ -195,7 +200,7 @@ impl PowerMonitorApp {
             max_points: 100000, // Safety cap for memory
             total_samples: 0,
             last_sequence: None,
-            sequence_stride: None,
+            last_sample_timestamp: None,
             dropped_samples: 0,
             current_voltage: 0.0,
             current_current: 0.0,
@@ -222,47 +227,45 @@ impl PowerMonitorApp {
                     self.status = format!("Connection failed: {}", err);
                 }
                 UsbMessage::Samples(samples) => {
+                    let Some((first_sample, last_sample)) = samples.first().zip(samples.last()) else {
+                        continue;
+                    };
+                    let batch_duration = sequence_elapsed(first_sample.sequence, last_sample.sequence);
+                    let now = std::time::Instant::now();
                     if self.time_base.is_none() {
-                        self.time_base = Some(std::time::Instant::now());
+                        let batch_duration_std = Duration::from_secs_f64(batch_duration.get::<second>());
+                        self.time_base = Some(now.checked_sub(batch_duration_std).unwrap_or(now));
                     }
                     let time_base = self.time_base.unwrap();
+                    let arrival_timestamp = time_base.elapsed().as_secs_f64();
+                    let first_timestamp = arrival_timestamp - batch_duration.get::<second>();
 
-                    for (i, sample) in samples.iter().enumerate() {
+                    let rate = self.current_rate.to_graph_rate();
+                    for sample in &samples {
+                        let timestamp = match (self.last_sequence, self.last_sample_timestamp) {
+                            (Some(last_sequence), Some(last_timestamp)) => {
+                                last_timestamp + sequence_elapsed(last_sequence, sample.sequence).get::<second>()
+                            }
+                            _ => first_timestamp,
+                        };
+
                         if let Some(last_seq) = self.last_sequence {
-                            let gap = sample.sequence.wrapping_sub(last_seq);
-
-                            // Detect stride from consecutive samples within same batch
-                            if i > 0 && self.sequence_stride.is_none() && gap > 0 {
-                                self.sequence_stride = Some(gap);
-                                debug!("Detected sequence stride: {}", gap);
-                            }
-
-                            // Check for dropped samples using detected stride
-                            if let Some(stride) = self.sequence_stride
-                                && gap > stride
-                            {
-                                let dropped = (gap / stride).saturating_sub(1);
-                                if dropped > 0 {
-                                    self.dropped_samples += dropped as u64;
-                                }
-                            }
+                            self.dropped_samples += rate.missing_samples(last_seq, sample.sequence) as u64;
                         }
                         self.last_sequence = Some(sample.sequence);
-
-                        // Calculate timestamp based on sample rate
-                        let timestamp = time_base.elapsed().as_secs_f64();
+                        self.last_sample_timestamp = Some(timestamp);
 
                         self.data_points.push_back((
                             timestamp,
-                            sample.vbus_v,
-                            sample.ibus_a.abs(),
-                            sample.power_w.abs(),
+                            sample.vbus.get::<volt>(),
+                            sample.ibus.abs().get::<ampere>(),
+                            sample.power.abs().get::<watt>(),
                         ));
 
                         // Update current readings
-                        self.current_voltage = sample.vbus_v;
-                        self.current_current = sample.ibus_a;
-                        self.current_power = sample.power_w;
+                        self.current_voltage = sample.vbus.get::<volt>();
+                        self.current_current = sample.ibus.get::<ampere>();
+                        self.current_power = sample.power.get::<watt>();
 
                         self.total_samples += 1;
 
@@ -277,9 +280,8 @@ impl PowerMonitorApp {
                     self.current_rate = SampleRateOption::from_graph_rate(rate);
                     self.selected_rate = self.current_rate;
                     self.status = format!("Streaming at {}", self.current_rate.label());
-                    // Reset sequence tracking for new rate (stride may differ)
+                    // Reset sequence tracking because the expected step changed.
                     self.last_sequence = None;
-                    self.sequence_stride = None;
                 }
                 UsbMessage::PdEvents(events) => {
                     for event in &events {
@@ -316,7 +318,7 @@ impl PowerMonitorApp {
         self.total_samples = 0;
         self.dropped_samples = 0;
         self.last_sequence = None;
-        self.sequence_stride = None;
+        self.last_sample_timestamp = None;
         self.time_base = None;
         info!("Data cleared");
     }
@@ -328,18 +330,18 @@ impl PowerMonitorApp {
 }
 
 impl eframe::App for PowerMonitorApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.process_messages();
 
         // Request repaints - fast when streaming, slower when idle
         if self.streaming {
-            ctx.request_repaint_after(Duration::from_millis(16)); // ~60fps when streaming
+            ui.ctx().request_repaint_after(Duration::from_millis(16)); // ~60fps when streaming
         } else {
-            ctx.request_repaint_after(Duration::from_millis(100)); // 10fps when idle
+            ui.ctx().request_repaint_after(Duration::from_millis(100)); // 10fps when idle
         }
 
         // Top panel with device info
-        egui::TopBottomPanel::top("header").show(ctx, |ui| {
+        egui::Panel::top("header").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("POWER-Z KM003C Monitor");
                 ui.separator();
@@ -357,7 +359,7 @@ impl eframe::App for PowerMonitorApp {
         });
 
         // Left panel with device info and controls
-        egui::SidePanel::left("info_panel").min_width(220.0).show(ctx, |ui| {
+        egui::Panel::left("info_panel").min_size(220.0).show(ui, |ui| {
             ui.heading("Device Info");
             ui.separator();
 
@@ -446,25 +448,27 @@ impl eframe::App for PowerMonitorApp {
                     .spacing([10.0, 4.0])
                     .show(ui, |ui| {
                         ui.label("CC1:");
-                        let cc1_color = if pd.cc1_v > 0.2 {
+                        let cc1_v = pd.cc1.get::<volt>();
+                        let cc1_color = if cc1_v > 0.2 {
                             egui::Color32::GREEN
                         } else {
                             egui::Color32::GRAY
                         };
-                        ui.colored_label(cc1_color, format!("{:.3} V", pd.cc1_v));
+                        ui.colored_label(cc1_color, format!("{cc1_v:.3} V"));
                         ui.end_row();
 
                         ui.label("CC2:");
-                        let cc2_color = if pd.cc2_v > 0.2 {
+                        let cc2_v = pd.cc2.get::<volt>();
+                        let cc2_color = if cc2_v > 0.2 {
                             egui::Color32::GREEN
                         } else {
                             egui::Color32::GRAY
                         };
-                        ui.colored_label(cc2_color, format!("{:.3} V", pd.cc2_v));
+                        ui.colored_label(cc2_color, format!("{cc2_v:.3} V"));
                         ui.end_row();
 
                         ui.label("Connection:");
-                        let connected = pd.cc1_v > 0.2 || pd.cc2_v > 0.2;
+                        let connected = cc1_v > 0.2 || cc2_v > 0.2;
                         ui.colored_label(
                             if connected {
                                 egui::Color32::GREEN
@@ -594,11 +598,11 @@ impl eframe::App for PowerMonitorApp {
 
         // Bottom panel with PD log
         if self.pd_panel_visible {
-            egui::TopBottomPanel::bottom("pd_panel")
+            egui::Panel::bottom("pd_panel")
                 .resizable(true)
-                .min_height(100.0)
-                .default_height(200.0)
-                .show(ctx, |ui| {
+                .min_size(100.0)
+                .default_size(200.0)
+                .show(ui, |ui| {
                     ui.heading("USB PD Protocol Log");
                     ui.separator();
 
@@ -639,7 +643,7 @@ impl eframe::App for PowerMonitorApp {
         }
 
         // Main panel with plots
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             let available_height = ui.available_height();
             let plot_height = (available_height - 30.0) / 3.0;
 
@@ -681,7 +685,7 @@ impl eframe::App for PowerMonitorApp {
                             .filter(|(t, _, _, _)| in_window(t))
                             .map(|(t, v, _, _)| [*t, *v])
                             .collect();
-                        plot_ui.line(Line::new("Voltage", points).color(egui::Color32::GREEN).width(1.5));
+                        plot_ui.line(Line::new("Voltage", points).color(egui::Color32::GREEN).width(1.5_f32));
                     }
                 });
 
@@ -702,7 +706,7 @@ impl eframe::App for PowerMonitorApp {
                             .filter(|(t, _, _, _)| in_window(t))
                             .map(|(t, _, i, _)| [*t, *i])
                             .collect();
-                        plot_ui.line(Line::new("Current", points).color(egui::Color32::BLUE).width(1.5));
+                        plot_ui.line(Line::new("Current", points).color(egui::Color32::BLUE).width(1.5_f32));
                     }
                 });
 
@@ -726,7 +730,7 @@ impl eframe::App for PowerMonitorApp {
                         plot_ui.line(
                             Line::new("Power", points)
                                 .color(egui::Color32::from_rgb(255, 165, 0)) // Orange
-                                .width(1.5),
+                                .width(1.5_f32),
                         );
                     }
                 });
@@ -797,8 +801,6 @@ async fn run_streaming_session(
     // Initial StopGraph to ensure clean state
     info!("Sending initial StopGraph to ensure clean state");
     let _ = device.stop_graph_mode().await;
-    // Drain any pending data
-    while let Ok(Ok(_)) = tokio::time::timeout(Duration::from_millis(50), device.receive_raw()).await {}
 
     // Start streaming
     let mut current_rate = initial_rate;
@@ -823,9 +825,6 @@ async fn run_streaming_session(
                     // Stop current streaming
                     let _ = device.stop_graph_mode().await;
                     let _ = tx.send(UsbMessage::StreamingStopped);
-
-                    // Drain pending data
-                    while let Ok(Ok(_)) = tokio::time::timeout(Duration::from_millis(50), device.receive_raw()).await {}
 
                     // Start with new rate
                     if let Err(e) = start_streaming(&mut device, new_rate, tx).await {
@@ -855,24 +854,7 @@ async fn run_streaming_session(
 
         // Request AdcQueue + PD data using library API
         let mask = AttributeSet::single(Attribute::AdcQueue).with(Attribute::PdPacket);
-        if let Err(e) = device
-            .send(Packet::GetData {
-                attribute_mask: mask.raw(),
-            })
-            .await
-        {
-            error!("Send error: {}", e);
-            error_count += 1;
-            if error_count >= MAX_ERRORS {
-                let _ = tx.send(UsbMessage::Error("Too many errors".to_string()));
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            continue;
-        }
-
-        // Receive and parse response using library API
-        match device.receive().await {
+        match device.request_data(mask).await {
             Ok(packet) => {
                 error_count = 0;
 
@@ -895,7 +877,7 @@ async fn run_streaming_session(
             }
             Err(e) => {
                 error_count += 1;
-                debug!("Receive error: {}", e);
+                debug!("Request error: {}", e);
                 if error_count >= MAX_ERRORS {
                     let _ = tx.send(UsbMessage::Error("Too many errors".to_string()));
                     break;

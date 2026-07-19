@@ -1,6 +1,11 @@
 use clap::Parser;
+use km003c_lib::uom::si::electric_current::ampere;
+use km003c_lib::uom::si::electric_potential::volt;
+use km003c_lib::uom::si::f64::Frequency;
+use km003c_lib::uom::si::frequency::hertz;
+use km003c_lib::uom::si::power::watt;
 use km003c_lib::{
-    DeviceConfig, GraphSampleRate, KM003C, Packet,
+    DeviceConfig, GraphSampleRate, KM003C,
     packet::{Attribute, AttributeSet},
 };
 use std::error::Error;
@@ -29,6 +34,38 @@ struct Args {
     /// Force USB reset even on macOS (overrides --no-reset)
     #[arg(long)]
     reset: bool,
+}
+
+#[derive(Debug, Default)]
+struct SequenceStatistics {
+    previous: Option<u16>,
+    intervals: u64,
+    elapsed_ticks: u64,
+    missing_samples: u64,
+}
+
+impl SequenceStatistics {
+    fn observe(&mut self, rate: GraphSampleRate, sequence: u16) -> u16 {
+        let Some(previous) = self.previous.replace(sequence) else {
+            return 0;
+        };
+
+        let elapsed_ticks = sequence.wrapping_sub(previous);
+        let missing = rate.missing_samples(previous, sequence);
+        self.intervals += 1;
+        self.elapsed_ticks += u64::from(elapsed_ticks);
+        self.missing_samples += u64::from(missing);
+        missing
+    }
+
+    fn delivered_sample_rate(&self) -> Option<Frequency> {
+        (self.elapsed_ticks > 0).then(|| {
+            Frequency::new::<hertz>(
+                self.intervals as f64 * GraphSampleRate::sequence_counter_frequency().get::<hertz>()
+                    / self.elapsed_ticks as f64,
+            )
+        })
+    }
 }
 
 #[tokio::main]
@@ -69,16 +106,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let state = device.state().expect("device initialized");
     println!("{}\n", state);
 
-    // Drain any remaining responses
-    while let Ok(Ok(_)) = tokio::time::timeout(Duration::from_millis(100), device.receive_raw()).await {}
-
     println!("Init complete!\n");
 
     // Start graph mode using library API
     println!(
         "Starting AdcQueue streaming at {} SPS (rate_index={})...",
-        args.rate,
-        rate as u16
+        args.rate, rate as u16
     );
     device.start_graph_mode(rate).await?;
     println!("Streaming started\n");
@@ -102,25 +135,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let start_time = std::time::Instant::now();
     let mut total_samples = 0;
     let mut packet_count = 0;
-    let mut last_seq: Option<u16> = None;
-    let mut seq_stride: Option<u16> = None;
+    let mut sequence_statistics = SequenceStatistics::default();
 
     while start_time.elapsed() < Duration::from_secs(args.duration) {
         // Request AdcQueue data using library API
         let mask = AttributeSet::single(Attribute::AdcQueue);
-        if let Err(e) = device.send(Packet::GetData { attribute_mask: mask.raw() }).await {
-            if args.verbose {
-                println!("DEBUG: Send error: {:?}", e);
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            continue;
-        }
-
-        let packet = match device.receive().await {
+        let packet = match device.request_data(mask).await {
             Ok(p) => p,
             Err(e) => {
                 if args.verbose {
-                    println!("DEBUG: Receive error: {:?}", e);
+                    println!("DEBUG: Request error: {:?}", e);
                 }
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 continue;
@@ -146,16 +170,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         packet_count += 1;
 
-        if args.verbose {
-            if let Some((first, last)) = queue_data.sequence_range() {
-                println!(
-                    "DEBUG: Packet {} - {} samples, seq {}..{}",
-                    packet_count,
-                    queue_data.samples.len(),
-                    first,
-                    last
-                );
-            }
+        if args.verbose
+            && let Some((first, last)) = queue_data.sequence_range()
+        {
+            println!(
+                "DEBUG: Packet {} - {} samples, seq {}..{}",
+                packet_count,
+                queue_data.samples.len(),
+                first,
+                last
+            );
         }
 
         // Print interval based on rate
@@ -165,47 +189,30 @@ async fn main() -> Result<(), Box<dyn Error>> {
             GraphSampleRate::Sps1000 => 50,
         };
 
-        for (i, sample) in queue_data.samples.iter().enumerate() {
-            // Detect stride from consecutive samples in same packet
-            if let Some(last) = last_seq {
-                if i > 0 && seq_stride.is_none() {
-                    let detected = sample.sequence.wrapping_sub(last);
-                    seq_stride = Some(detected);
-                    if args.verbose {
-                        println!("DEBUG: Detected seq stride = {}", detected);
-                    }
-                }
-
-                // Check for dropped samples using detected stride
-                if i == 0 {
-                    let stride = seq_stride.unwrap_or(20);
-                    let expected = last.wrapping_add(stride);
-                    if sample.sequence != expected {
-                        let gap = sample.sequence.wrapping_sub(last);
-                        let dropped = gap.saturating_sub(stride) / stride;
-                        if dropped > 0 {
-                            println!("Warning: {} samples dropped (gap={})", dropped, gap);
-                        }
-                    }
-                }
+        for sample in &queue_data.samples {
+            let previous = sequence_statistics.previous;
+            let dropped = sequence_statistics.observe(rate, sample.sequence);
+            if dropped > 0 {
+                let gap = sample
+                    .sequence
+                    .wrapping_sub(previous.expect("a gap requires a previous sample"));
+                println!("Warning: {} samples dropped (gap={})", dropped, gap);
             }
-            last_seq = Some(sample.sequence);
 
             total_samples += 1;
 
-            if total_samples % print_interval == 1 {
+            if (total_samples - 1) % print_interval == 0 {
                 println!(
                     "{:>6} {:>10.3} {:>10.3} {:>10.3} {:>8.3} {:>8.3} {:>8.3} {:>8.3}",
-                    sample.sequence, sample.vbus_v, sample.ibus_a, sample.power_w, sample.cc1_v, sample.cc2_v,
-                    sample.vdp_v, sample.vdm_v
+                    sample.sequence,
+                    sample.vbus.get::<volt>(),
+                    sample.ibus.get::<ampere>(),
+                    sample.power.get::<watt>(),
+                    sample.cc1.get::<volt>(),
+                    sample.cc2.get::<volt>(),
+                    sample.vdp.get::<volt>(),
+                    sample.vdm.get::<volt>()
                 );
-            }
-        }
-
-        // Drain any queued unsolicited responses (PD events etc.) before sleeping
-        while let Ok(Ok(_)) = tokio::time::timeout(Duration::from_millis(5), device.receive_raw()).await {
-            if args.verbose {
-                println!("DEBUG: Drained unsolicited response");
             }
         }
 
@@ -222,8 +229,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Statistics
     let elapsed = start_time.elapsed().as_secs_f64();
-    let effective_rate = total_samples as f64 / elapsed;
-
     println!("Statistics:");
     println!("  Duration: {:.1}s", elapsed);
     println!("  Packets received: {}", packet_count);
@@ -234,8 +239,43 @@ async fn main() -> Result<(), Box<dyn Error>> {
             total_samples as f64 / packet_count as f64
         );
     }
-    println!("  Effective sample rate: {:.1} SPS", effective_rate);
+    if let Some(rate) = sequence_statistics.delivered_sample_rate() {
+        println!("  Delivered sample rate (device clock): {:.1} SPS", rate.get::<hertz>());
+    } else {
+        println!("  Delivered sample rate (device clock): insufficient samples");
+    }
+    println!("  Missing samples: {}", sequence_statistics.missing_samples);
     println!("  Expected rate: {} SPS", args.rate);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sequence_rate_uses_device_ticks() {
+        let mut statistics = SequenceStatistics::default();
+        for sequence in [100, 120, 140] {
+            statistics.observe(GraphSampleRate::Sps50, sequence);
+        }
+
+        assert_eq!(statistics.delivered_sample_rate().unwrap().get::<hertz>(), 50.0);
+        assert_eq!(statistics.missing_samples, 0);
+    }
+
+    #[test]
+    fn sequence_rate_handles_rollover_and_dropped_samples() {
+        let mut rollover = SequenceStatistics::default();
+        rollover.observe(GraphSampleRate::Sps2, 65_300);
+        rollover.observe(GraphSampleRate::Sps2, 264);
+        assert_eq!(rollover.delivered_sample_rate().unwrap().get::<hertz>(), 2.0);
+
+        let mut dropped = SequenceStatistics::default();
+        dropped.observe(GraphSampleRate::Sps50, 100);
+        dropped.observe(GraphSampleRate::Sps50, 140);
+        assert_eq!(dropped.delivered_sample_rate().unwrap().get::<hertz>(), 25.0);
+        assert_eq!(dropped.missing_samples, 1);
+    }
 }

@@ -24,11 +24,12 @@ use crate::packet::{CtrlHeader, LogicalPacket, RawPacket};
 use crate::pd::{PdEvent, PdEventStream, PdPreamble, PdStatus};
 use bytes::Bytes;
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 
 /// Parse raw ADC data bytes directly into processed measurements.
 ///
 /// Args:
-///     data: Raw ADC data bytes (must be exactly 64 bytes for AdcDataRaw)
+///     data: Raw ADC data bytes (must be exactly 44 bytes for AdcDataRaw)
 ///
 /// Returns:
 ///     AdcData: Processed ADC measurements with voltage/current/power values
@@ -37,8 +38,8 @@ use pyo3::prelude::*;
 ///     ValueError: If data is not the correct size for AdcDataRaw structure
 ///
 /// Example:
-///     ```python
-///     # Parse 64-byte ADC payload from a packet
+///     ```text
+///     # Parse 44-byte ADC payload from a packet
 ///     adc_data = parse_raw_adc_data(packet_payload)
 ///     print(f"VBUS: {adc_data.vbus_v}V, IBUS: {adc_data.ibus_a}A")
 ///     ```
@@ -79,7 +80,7 @@ pub fn parse_raw_adc_data(data: &[u8]) -> PyResult<AdcDataSimple> {
 ///     ValueError: If packet bytes are malformed or too short
 ///
 /// Example:
-///     ```python
+///     ```text
 ///     packet = parse_packet(usb_packet_bytes)
 ///     if "DataResponse" in packet:
 ///         for payload in packet["DataResponse"]["payloads"]:
@@ -117,7 +118,7 @@ pub fn parse_packet(data: &[u8]) -> PyResult<Packet> {
 ///     ValueError: If packet bytes are malformed or too short (< 4 bytes)
 ///
 /// Example:
-///     ```python
+///     ```text
 ///     raw = parse_raw_packet(usb_packet_bytes)
 ///     if "Ctrl" in raw:
 ///         print(f"Control packet, ID: {raw['Ctrl']['header']['id']}")
@@ -140,7 +141,7 @@ pub fn parse_raw_packet(data: &[u8]) -> PyResult<RawPacket> {
 ///                       Each has .hz (int) and .name (str) properties
 ///
 /// Example:
-///     ```python
+///     ```text
 ///     rates = get_sample_rates()
 ///     for rate in rates:
 ///         print(f"{rate.name}: {rate.hz} Hz")
@@ -173,27 +174,15 @@ pub fn get_sample_rates() -> Vec<SampleRate> {
 ///
 /// Returns:
 ///     4-byte packet ready to send over USB
-///
-/// Examples:
-///     ```python
-///     # Connect command
-///     packet = create_packet(CMD_CONNECT, tid, 0)
-///
-///     # GetData for ADC
-///     packet = create_packet(CMD_GET_DATA, tid, ATT_ADC)
-///
-///     # Start Graph at 50 SPS
-///     packet = create_packet(CMD_START_GRAPH, tid, RATE_50_SPS)
-///     ```
 #[pyfunction]
-pub fn create_packet(packet_type: u8, transaction_id: u8, data: u16) -> Vec<u8> {
+pub fn create_packet<'py>(py: Python<'py>, packet_type: u8, transaction_id: u8, data: u16) -> Bound<'py, PyBytes> {
     let header = CtrlHeader::new()
         .with_packet_type(packet_type)
         .with_reserved_flag(false)
         .with_id(transaction_id)
         .with_attribute(data);
 
-    header.into_bytes().to_vec()
+    PyBytes::new(py, &header.into_bytes())
 }
 
 /// Python module for KM003C USB-C power analyzer protocol parsing.

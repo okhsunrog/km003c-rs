@@ -6,6 +6,7 @@ use usbpd::protocol_layer::message::extended::chunked::{ChunkResult, ChunkedMess
 use usbpd::protocol_layer::message::header::ExtendedMessageType;
 use usbpd::protocol_layer::message::{Message, ParseError, Payload};
 
+use km003c_lib::uom::si::time::millisecond as km003c_millisecond;
 use uom::si::electric_current::ampere;
 use uom::si::electric_potential::volt;
 use uom::si::power::watt;
@@ -57,18 +58,26 @@ impl PdDecoder {
                 self.handle_connect();
                 vec![DecodedPdEntry {
                     category: PdCategory::Connect,
-                    summary: format!("[{:.3}s] ** CONNECT **", event.timestamp as f64 / 1000.0),
+                    summary: format!(
+                        "[{:.3}s] ** CONNECT **",
+                        event.timestamp.get::<km003c_millisecond>() / 1000.0
+                    ),
                     details: vec![],
                 }]
             }
             PdEventData::Disconnect(()) => {
                 vec![DecodedPdEntry {
                     category: PdCategory::Disconnect,
-                    summary: format!("[{:.3}s] ** DISCONNECT **", event.timestamp as f64 / 1000.0),
+                    summary: format!(
+                        "[{:.3}s] ** DISCONNECT **",
+                        event.timestamp.get::<km003c_millisecond>() / 1000.0
+                    ),
                     details: vec![],
                 }]
             }
-            PdEventData::PdMessage { sop, wire_data } => self.decode_message(event.timestamp, *sop, wire_data),
+            PdEventData::PdMessage { sop, wire_data } => {
+                self.decode_message(event.timestamp.get::<km003c_millisecond>() as u32, *sop, wire_data)
+            }
         }
     }
 

@@ -33,6 +33,7 @@ struct Args {
 }
 
 // Use uom for nice formatting
+use km003c_lib::uom::si::time::millisecond as km003c_millisecond;
 use uom::si::electric_current::ampere;
 use uom::si::electric_potential::volt;
 use uom::si::power::watt;
@@ -449,9 +450,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.duration
     );
 
-    // Drain any pending data after init
-    while let Ok(Ok(_)) = tokio::time::timeout(Duration::from_millis(50), device.receive_raw()).await {}
-
     let start_time = Instant::now();
     let duration = Duration::from_secs(args.duration);
     let mut decoder = PdDecoder::new(args.raw);
@@ -467,14 +465,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     for event in &stream.events {
                         match &event.data {
                             PdEventData::Connect(_) => {
-                                println!("[{:>8.3}s] ** CONNECT **", event.timestamp as f64 / 1000.0);
+                                println!(
+                                    "[{:>8.3}s] ** CONNECT **",
+                                    event.timestamp.get::<km003c_millisecond>() / 1000.0
+                                );
                                 decoder.handle_connect();
                             }
                             PdEventData::Disconnect(_) => {
-                                println!("[{:>8.3}s] ** DISCONNECT **", event.timestamp as f64 / 1000.0);
+                                println!(
+                                    "[{:>8.3}s] ** DISCONNECT **",
+                                    event.timestamp.get::<km003c_millisecond>() / 1000.0
+                                );
                             }
                             PdEventData::PdMessage { sop, wire_data } => {
-                                decoder.decode(event.timestamp, *sop, wire_data);
+                                decoder.decode(event.timestamp.get::<km003c_millisecond>() as u32, *sop, wire_data);
                             }
                         }
                     }

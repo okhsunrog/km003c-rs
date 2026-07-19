@@ -21,8 +21,17 @@
 //! message module to send authentication commands. This module provides the
 //! underlying encryption and data structures.
 
-use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
 use aes::Aes128;
+use aes::cipher::{BlockCipherDecrypt, BlockCipherEncrypt, KeyInit};
+
+use crate::packet::{PacketType, StreamingAuthHeader};
+
+const STREAMING_AUTH_HEADER_SIZE: usize = 4;
+const STREAMING_AUTH_PAYLOAD_SIZE: usize = 32;
+const STREAMING_AUTH_RESULT_FLAG: u16 = 1;
+const STREAMING_AUTH_GRANTED_FLAG: u16 = 1 << 1;
+const AES_BLOCK_SIZE: usize = 16;
+pub(crate) const STREAMING_AUTH_RESPONSE_ID: u8 = 0;
 
 /// AES-128 key for StreamingAuth encryption (host → device)
 pub const STREAMING_AUTH_KEY_ENC: &[u8; 16] = b"Fa0b4tA25f4R038a";
@@ -189,8 +198,7 @@ pub struct StreamingAuthResult {
 impl StreamingAuthResult {
     /// Check if AdcQueue streaming is enabled
     pub fn adcqueue_enabled(&self) -> bool {
-        // Bit 1 of attribute indicates AdcQueue access
-        (self.attribute & 0x02) != 0
+        (self.attribute & STREAMING_AUTH_GRANTED_FLAG) != 0
     }
 }
 
@@ -305,8 +313,8 @@ pub fn build_streaming_auth_payload(hardware_id: &HardwareId) -> [u8; 32] {
 ///
 /// # Returns
 /// 32-byte AES-encrypted payload
-pub fn encrypt_streaming_auth_payload(plaintext: &[u8; 32]) -> [u8; 32] {
-    aes_ecb_encrypt(plaintext, STREAMING_AUTH_KEY_ENC)
+pub fn encrypt_streaming_auth_response_payload(plaintext: &[u8; 32]) -> [u8; 32] {
+    aes_ecb_encrypt(plaintext, STREAMING_AUTH_KEY_DEC)
 }
 
 /// Build a StreamingAuth (0x4C) request packet
@@ -339,57 +347,40 @@ pub fn build_streaming_auth_packet(hardware_id: &HardwareId, tid: u8) -> Vec<u8>
 /// # Returns
 /// Parsed authentication result
 pub fn parse_streaming_auth_response(response: &[u8]) -> Option<StreamingAuthResult> {
-    if response.len() < 36 {
+    if response.len() < STREAMING_AUTH_HEADER_SIZE + STREAMING_AUTH_PAYLOAD_SIZE {
         return None;
     }
 
-    // Check packet type (lower 7 bits)
-    let packet_type = response[0] & 0x7F;
-    if packet_type != 0x4C {
+    let (header_bytes, payload) = response.split_at(STREAMING_AUTH_HEADER_SIZE);
+    let header = StreamingAuthHeader::from_bytes(header_bytes.try_into().ok()?);
+    parse_streaming_auth_response_parts(header, payload)
+}
+
+pub(crate) fn parse_streaming_auth_response_parts(
+    header: StreamingAuthHeader,
+    payload: &[u8],
+) -> Option<StreamingAuthResult> {
+    if header.packet_type() != u8::from(PacketType::StreamingAuth)
+        || header.reserved_flag()
+        || header.id() != STREAMING_AUTH_RESPONSE_ID
+        || header.attribute() & STREAMING_AUTH_RESULT_FLAG == 0
+    {
         return None;
     }
 
-    // Get attribute (bytes 2-3, little-endian)
-    let attribute = u16::from_le_bytes([response[2], response[3]]);
+    parse_streaming_auth_response_payload(payload, header.attribute())
+}
 
-    // Decrypt payload (bytes 4-35)
-    let encrypted = &response[4..36];
-    let decrypted = aes_ecb_decrypt(encrypted.try_into().ok()?, STREAMING_AUTH_KEY_DEC);
-
-    // Determine auth level from attribute
-    // 0x0201 = auth failed, 0x0203 = auth success (level 1)
-    let success = (attribute & 0x02) != 0;
-    let auth_level = if success { 1 } else { 0 };
+/// Parse and decrypt a StreamingAuth response payload with its raw response attribute.
+pub fn parse_streaming_auth_response_payload(payload: &[u8], attribute: u16) -> Option<StreamingAuthResult> {
+    let encrypted: [u8; STREAMING_AUTH_PAYLOAD_SIZE] = payload.get(..STREAMING_AUTH_PAYLOAD_SIZE)?.try_into().ok()?;
+    let decrypted = aes_ecb_decrypt(&encrypted, STREAMING_AUTH_KEY_DEC);
+    let success = (attribute & STREAMING_AUTH_GRANTED_FLAG) != 0;
 
     Some(StreamingAuthResult {
         success,
         attribute,
-        auth_level,
-        decrypted_payload: decrypted,
-    })
-}
-
-/// Parse StreamingAuth response from payload only (for use by message.rs)
-///
-/// # Arguments
-/// * `payload` - Encrypted payload bytes (32 bytes)
-///
-/// # Returns
-/// Parsed authentication result (attribute defaults to 0x0203 for success detection)
-pub fn parse_streaming_auth_response_payload(payload: &[u8]) -> Option<StreamingAuthResult> {
-    if payload.len() < 32 {
-        return None;
-    }
-
-    let encrypted: [u8; 32] = payload[..32].try_into().ok()?;
-    let decrypted = aes_ecb_decrypt(&encrypted, STREAMING_AUTH_KEY_DEC);
-
-    // Without header, we can't determine attribute - assume success based on decryption
-    // The caller should check the header's attribute field separately
-    Some(StreamingAuthResult {
-        success: true, // Caller should verify from header attribute
-        attribute: 0x0203,
-        auth_level: 1,
+        auth_level: u8::from(success),
         decrypted_payload: decrypted,
     })
 }
@@ -397,23 +388,21 @@ pub fn parse_streaming_auth_response_payload(payload: &[u8]) -> Option<Streaming
 /// AES-128-ECB encrypt 32 bytes
 fn aes_ecb_encrypt(plaintext: &[u8; 32], key: &[u8; 16]) -> [u8; 32] {
     let cipher = Aes128::new(key.into());
-
     let mut output = *plaintext;
 
-    // Process two 16-byte blocks
-    let (block1, block2) = output.split_at_mut(16);
-    cipher.encrypt_block(block1.into());
-    cipher.encrypt_block(block2.into());
+    for block in output.chunks_exact_mut(AES_BLOCK_SIZE) {
+        encrypt_aes_block(&cipher, block);
+    }
 
     output
 }
 
-/// Decrypt MemoryRead response payload (e.g., HardwareID at 0x75)
+/// Decrypt an unframed MemoryRead response payload
 ///
 /// The response payload is AES-encrypted with MEMORY_READ_KEY.
 /// Useful for protocol research and manual memory reads.
 pub fn decrypt_memory_read_response(ciphertext: &[u8]) -> Option<Vec<u8>> {
-    if ciphertext.len() < 16 {
+    if ciphertext.len() < AES_BLOCK_SIZE {
         return None;
     }
 
@@ -421,9 +410,9 @@ pub fn decrypt_memory_read_response(ciphertext: &[u8]) -> Option<Vec<u8>> {
     let cipher = Aes128::new(MEMORY_READ_KEY.into());
     let mut output = ciphertext.to_vec();
 
-    for chunk in output.chunks_mut(16) {
-        if chunk.len() == 16 {
-            cipher.decrypt_block(chunk.into());
+    for block in output.chunks_mut(AES_BLOCK_SIZE) {
+        if block.len() == AES_BLOCK_SIZE {
+            decrypt_aes_block(&cipher, block);
         }
     }
 
@@ -433,15 +422,23 @@ pub fn decrypt_memory_read_response(ciphertext: &[u8]) -> Option<Vec<u8>> {
 /// AES-128-ECB decrypt 32 bytes
 fn aes_ecb_decrypt(ciphertext: &[u8; 32], key: &[u8; 16]) -> [u8; 32] {
     let cipher = Aes128::new(key.into());
-
     let mut output = *ciphertext;
 
-    // Process two 16-byte blocks
-    let (block1, block2) = output.split_at_mut(16);
-    cipher.decrypt_block(block1.into());
-    cipher.decrypt_block(block2.into());
+    for block in output.chunks_exact_mut(AES_BLOCK_SIZE) {
+        decrypt_aes_block(&cipher, block);
+    }
 
     output
+}
+
+fn encrypt_aes_block(cipher: &Aes128, bytes: &mut [u8]) {
+    let block: &mut [u8; AES_BLOCK_SIZE] = bytes.try_into().expect("AES chunk has the block size");
+    cipher.encrypt_block(block.into());
+}
+
+fn decrypt_aes_block(cipher: &Aes128, bytes: &mut [u8]) {
+    let block: &mut [u8; AES_BLOCK_SIZE] = bytes.try_into().expect("AES chunk has the block size");
+    cipher.decrypt_block(block.into());
 }
 
 /// AES-128-ECB decrypt a single 16-byte block
@@ -450,7 +447,7 @@ fn aes_ecb_decrypt(ciphertext: &[u8; 32], key: &[u8; 16]) -> [u8; 32] {
 pub fn aes_ecb_decrypt_block(ciphertext: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
     let cipher = Aes128::new(key.into());
     let mut output = *ciphertext;
-    cipher.decrypt_block((&mut output).into());
+    decrypt_aes_block(&cipher, &mut output);
     output
 }
 
@@ -463,9 +460,9 @@ pub fn aes_ecb_decrypt_block(ciphertext: &[u8; 16], key: &[u8; 16]) -> [u8; 16] 
 /// # Returns
 /// Decrypted data, or error if ciphertext length is not a multiple of 16
 pub fn aes_ecb_decrypt_blocks(ciphertext: &[u8], key: &[u8; 16]) -> Result<Vec<u8>, crate::error::KMError> {
-    if !ciphertext.len().is_multiple_of(16) {
+    if !ciphertext.len().is_multiple_of(AES_BLOCK_SIZE) {
         return Err(crate::error::KMError::InvalidPacket(format!(
-            "AES ciphertext must be multiple of 16 bytes, got {}",
+            "AES ciphertext must be a multiple of {AES_BLOCK_SIZE} bytes, got {}",
             ciphertext.len()
         )));
     }
@@ -473,8 +470,8 @@ pub fn aes_ecb_decrypt_blocks(ciphertext: &[u8], key: &[u8; 16]) -> Result<Vec<u
     let cipher = Aes128::new(key.into());
     let mut output = ciphertext.to_vec();
 
-    for chunk in output.chunks_mut(16) {
-        cipher.decrypt_block(chunk.into());
+    for block in output.chunks_exact_mut(AES_BLOCK_SIZE) {
+        decrypt_aes_block(&cipher, block);
     }
 
     Ok(output)
@@ -533,6 +530,52 @@ mod tests {
         assert_eq!(packet[1], 0x06); // TID
         assert_eq!(packet[2], 0x00); // Attribute low
         assert_eq!(packet[3], 0x02); // Attribute high (0x0002)
+    }
+
+    #[test]
+    fn test_streaming_auth_response_uses_header_result() {
+        use crate::{Packet, RawPacket};
+        use bytes::Bytes;
+
+        let plaintext = [0x5a; STREAMING_AUTH_PAYLOAD_SIZE];
+        let encrypted = aes_ecb_encrypt(&plaintext, STREAMING_AUTH_KEY_DEC);
+
+        let response = |attribute| {
+            let header = StreamingAuthHeader::new()
+                .with_packet_type(PacketType::StreamingAuth.into())
+                .with_reserved_flag(false)
+                .with_id(0)
+                .with_attribute(attribute);
+            let mut bytes = Vec::from(header.into_bytes());
+            bytes.extend_from_slice(&encrypted);
+            bytes
+        };
+
+        let success = parse_streaming_auth_response(&response(0x0203)).unwrap();
+        assert!(success.success);
+        assert_eq!(success.auth_level, 1);
+        assert_eq!(success.attribute, 0x0203);
+        assert_eq!(success.decrypted_payload, plaintext);
+
+        let serialized = Bytes::from(
+            Packet::StreamingAuthResponse(success.clone())
+                .to_raw_packet(99)
+                .unwrap(),
+        );
+        let reparsed = RawPacket::try_from(serialized).unwrap();
+        assert_eq!(
+            Packet::try_from(reparsed).unwrap(),
+            Packet::StreamingAuthResponse(success)
+        );
+
+        let raw_failure = RawPacket::try_from(Bytes::from(response(0x0201))).unwrap();
+        let Packet::StreamingAuthResponse(failure) = Packet::try_from(raw_failure).unwrap() else {
+            panic!("expected StreamingAuthResponse");
+        };
+        assert!(!failure.success);
+        assert_eq!(failure.auth_level, 0);
+        assert_eq!(failure.attribute, 0x0201);
+        assert_eq!(failure.decrypted_payload, plaintext);
     }
 
     #[test]

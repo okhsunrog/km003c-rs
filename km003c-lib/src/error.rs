@@ -31,6 +31,9 @@ pub enum KMError {
 
     #[error("Attribute mismatch: expected {expected:?}, got {actual:?}")]
     AttributeMismatch { expected: Vec<u16>, actual: Vec<u16> },
+
+    #[error("Serialization is not supported for {packet}")]
+    UnsupportedSerialization { packet: &'static str },
 }
 
 impl From<TryFromSliceError> for KMError {

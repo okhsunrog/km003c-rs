@@ -1,13 +1,20 @@
 use crate::adc::{AdcDataRaw, AdcDataSimple};
-use crate::adcqueue::AdcQueueData;
+use crate::adcqueue::{AdcQueueData, GraphSampleRate};
 use crate::auth::{self, HardwareId, StreamingAuthResult};
 use crate::constants::*;
 use crate::error::KMError;
-use crate::packet::{Attribute, AttributeSet, CtrlHeader, DataHeader, LogicalPacket, PacketType, RawPacket};
+use crate::packet::{
+    Attribute, AttributeSet, CtrlHeader, DataHeader, LogicalPacket, PacketType, RawPacket, StreamingAuthHeader,
+};
 use crate::pd::{PdEventStream, PdStatus, PdStatusRaw};
 use bytes::Bytes;
 use num_enum::FromPrimitive;
+use uom::si::electric_current::milliampere;
+use uom::si::electric_potential::millivolt;
 use zerocopy::{FromBytes, IntoBytes};
+
+const PD_MONITOR_ENABLED_PARAMETER: u16 = 1;
+const PD_MONITOR_DISABLED_PARAMETER: u16 = 0;
 
 /// Represents parsed payload data from logical packets
 #[derive(Debug, Clone, PartialEq)]
@@ -27,7 +34,9 @@ pub enum Packet {
     /// Request data with attribute set
     GetData { attribute_mask: u16 },
     /// Start AdcQueue graph mode with sample rate
-    /// Rate byte: 0=2SPS, 2=10SPS, 4=50SPS, 6=1000SPS (device uses bits 1-2)
+    /// Logical rate index: 0=2SPS, 1=10SPS, 2=50SPS, 3=1000SPS.
+    /// `CtrlHeader` places this attribute in the wire header, producing byte 2
+    /// values 0, 2, 4, and 6 respectively.
     StartGraph { rate_index: u16 },
     /// Stop AdcQueue graph mode
     StopGraph,
@@ -52,7 +61,7 @@ pub enum Packet {
         /// Number of bytes to read
         size: u32,
     },
-    /// MemoryRead response (0x75) - raw data from device memory
+    /// Decrypted data returned by the unframed MemoryRead data transfer
     MemoryReadResponse {
         /// Raw data read from memory (e.g., 12-byte HardwareID)
         data: Vec<u8>,
@@ -62,7 +71,7 @@ pub enum Packet {
         /// HardwareID to authenticate with
         hardware_id: HardwareId,
     },
-    /// StreamingAuth response (0xCC) - authentication result
+    /// StreamingAuth response (0x4C) - authentication result
     StreamingAuthResponse(StreamingAuthResult),
     /// Generic packet for types we haven't specifically implemented yet
     Generic(RawPacket),
@@ -131,8 +140,22 @@ impl TryFrom<RawPacket> for Packet {
     type Error = KMError;
 
     fn try_from(raw_packet: RawPacket) -> Result<Self, Self::Error> {
+        Self::from_raw(raw_packet, None)
+    }
+}
+
+impl Packet {
+    /// Parse a raw packet using the configured AdcQueue graph rate.
+    ///
+    /// Live device users should supply the rate used with `StartGraph` because
+    /// auxiliary AdcQueue voltage fields use rate-dependent units.
+    pub fn from_raw_with_graph_rate(raw_packet: RawPacket, rate: GraphSampleRate) -> Result<Self, KMError> {
+        Self::from_raw(raw_packet, Some(rate))
+    }
+
+    fn from_raw(raw_packet: RawPacket, graph_rate: Option<GraphSampleRate>) -> Result<Self, KMError> {
         match raw_packet {
-            RawPacket::Ctrl { header, .. } => {
+            RawPacket::Ctrl { header, payload } => {
                 let packet_type = PacketType::from_primitive(header.packet_type());
                 let attribute_set = AttributeSet::from_raw(header.attribute());
 
@@ -149,35 +172,23 @@ impl TryFrom<RawPacket> for Packet {
                     PacketType::NotReadable => Ok(Packet::NotReadable { id: header.id() }),
                     PacketType::Connect => Ok(Packet::Connect),
                     PacketType::Disconnect => Ok(Packet::Disconnect),
-                    _ => Ok(Packet::Generic(RawPacket::Ctrl {
-                        header,
-                        payload: Vec::new(),
-                    })),
+                    _ => Ok(Packet::Generic(RawPacket::Ctrl { header, payload })),
                 }
             }
             RawPacket::SimpleData { header, payload } => {
                 let packet_type = PacketType::from_primitive(header.packet_type());
 
                 match packet_type {
-                    // MemoryReadResponse (0x75) - contains raw data from device memory
-                    // Format: [type:1][data:N] - NOT a 4-byte header
-                    PacketType::MemoryReadResponse => {
-                        // Data starts at byte 1 (after the type byte which is in header)
-                        Ok(Packet::MemoryReadResponse { data: payload.to_vec() })
-                    }
                     // MemoryRead response (0xC4 = 0x44 | 0x80) - confirmation
                     PacketType::MemoryRead => {
                         // This is just a confirmation, return as Accept-like
                         Ok(Packet::Accept { id: header.id() })
                     }
-                    // StreamingAuth response (0xCC = 0x4C | 0x80) - encrypted result
+                    // StreamingAuth response (0x4C) - encrypted result
                     PacketType::StreamingAuth => {
-                        if payload.len() >= 32 {
-                            if let Some(result) = auth::parse_streaming_auth_response_payload(&payload) {
-                                Ok(Packet::StreamingAuthResponse(result))
-                            } else {
-                                Ok(Packet::Generic(RawPacket::SimpleData { header, payload }))
-                            }
+                        let auth_header = StreamingAuthHeader::from_bytes(header.into_bytes());
+                        if let Some(result) = auth::parse_streaming_auth_response_parts(auth_header, &payload) {
+                            Ok(Packet::StreamingAuthResponse(result))
                         } else {
                             Ok(Packet::Generic(RawPacket::SimpleData { header, payload }))
                         }
@@ -210,7 +221,11 @@ impl TryFrom<RawPacket> for Packet {
                             // Parse AdcQueue data (multiple 20-byte samples)
                             // Note: Extended header size field (typically 20) indicates size per sample,
                             // not total payload size. Actual payload contains N samples.
-                            let adcqueue = AdcQueueData::from_bytes(lp.payload.as_ref())?;
+                            let adcqueue = if let Some(rate) = graph_rate {
+                                AdcQueueData::from_bytes_with_rate(lp.payload.as_ref(), rate)?
+                            } else {
+                                AdcQueueData::from_bytes(lp.payload.as_ref())?
+                            };
                             PayloadData::AdcQueue(adcqueue)
                         }
                         Attribute::PdPacket => {
@@ -243,12 +258,9 @@ impl TryFrom<RawPacket> for Packet {
 
 impl Packet {
     /// Convert a high-level packet to a raw packet with the given transaction ID
-    pub fn to_raw_packet(self, id: u8) -> RawPacket {
-        match self {
+    pub fn to_raw_packet(self, id: u8) -> Result<RawPacket, KMError> {
+        let raw_packet = match self {
             Packet::DataResponse { payloads } => {
-                // Convert PayloadData vec to LogicalPackets.
-                // Some payload types (AdcQueue, PdEvents) are skipped, so we build
-                // all packets first with next=false, then fix up the chain flags.
                 let mut logical_packets = Vec::new();
 
                 for payload in payloads {
@@ -265,14 +277,14 @@ impl Packet {
                         }
                         PayloadData::PdStatus(pd_status) => {
                             // Reconstruct PdStatusRaw
-                            let timestamp_bytes = pd_status.timestamp.to_le_bytes();
+                            let timestamp_bytes = pd_status.timestamp_ticks.to_le_bytes();
                             let mut raw_bytes = Vec::with_capacity(12);
                             raw_bytes.push(pd_status.type_id);
                             raw_bytes.extend_from_slice(&timestamp_bytes[..3]); // 24-bit
-                            raw_bytes.extend_from_slice(&((pd_status.vbus_v * 1000.0) as u16).to_le_bytes());
-                            raw_bytes.extend_from_slice(&((pd_status.ibus_a * 1000.0) as i16).to_le_bytes());
-                            raw_bytes.extend_from_slice(&((pd_status.cc1_v * 1000.0) as u16).to_le_bytes());
-                            raw_bytes.extend_from_slice(&((pd_status.cc2_v * 1000.0) as u16).to_le_bytes());
+                            raw_bytes.extend_from_slice(&(pd_status.vbus.get::<millivolt>() as u16).to_le_bytes());
+                            raw_bytes.extend_from_slice(&(pd_status.ibus.get::<milliampere>() as i16).to_le_bytes());
+                            raw_bytes.extend_from_slice(&(pd_status.cc1.get::<millivolt>() as u16).to_le_bytes());
+                            raw_bytes.extend_from_slice(&(pd_status.cc2.get::<millivolt>() as u16).to_le_bytes());
 
                             logical_packets.push(LogicalPacket {
                                 attribute: Attribute::PdPacket,
@@ -282,9 +294,13 @@ impl Packet {
                                 payload: raw_bytes,
                             });
                         }
-                        PayloadData::AdcQueue(_) | PayloadData::PdEvents(_) => {
-                            // TODO: Implement AdcQueue/PdEventStream serialization
-                            continue;
+                        PayloadData::AdcQueue(_) => {
+                            return Err(KMError::UnsupportedSerialization { packet: "AdcQueue" });
+                        }
+                        PayloadData::PdEvents(_) => {
+                            return Err(KMError::UnsupportedSerialization {
+                                packet: "PdEventStream",
+                            });
                         }
                         PayloadData::Unknown { attribute, data } => {
                             logical_packets.push(LogicalPacket {
@@ -384,24 +400,20 @@ impl Packet {
                     .with_attribute(0),
                 payload: Vec::new(),
             },
-            // EnablePdMonitor: attribute 0x0002 is the fixed protocol value for enabling PD capture.
-            // Future: could make this configurable via EnablePdMonitor { attribute: u16 } if needed.
             Packet::EnablePdMonitor => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::EnablePdMonitor.into())
                     .with_reserved_flag(false)
                     .with_id(id)
-                    .with_attribute(0x0002),
+                    .with_attribute(PD_MONITOR_ENABLED_PARAMETER),
                 payload: Vec::new(),
             },
-            // DisablePdMonitor: attribute 0x0000 is the fixed protocol value for disabling PD capture.
-            // Future: could make this configurable via DisablePdMonitor { attribute: u16 } if needed.
             Packet::DisablePdMonitor => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::DisablePdMonitor.into())
                     .with_reserved_flag(false)
                     .with_id(id)
-                    .with_attribute(0x0000),
+                    .with_attribute(PD_MONITOR_DISABLED_PARAMETER),
                 payload: Vec::new(),
             },
             Packet::MemoryRead { address, size } => {
@@ -416,16 +428,10 @@ impl Packet {
                     payload: encrypted_payload.to_vec(),
                 }
             }
-            Packet::MemoryReadResponse { data } => {
-                // Response packets are typically not sent by client, but support for completeness
-                RawPacket::SimpleData {
-                    header: DataHeader::new()
-                        .with_packet_type(PacketType::MemoryReadResponse.into())
-                        .with_reserved_flag(false)
-                        .with_id(id)
-                        .with_obj_count_words(0),
-                    payload: data,
-                }
+            Packet::MemoryReadResponse { .. } => {
+                return Err(KMError::UnsupportedSerialization {
+                    packet: "MemoryReadResponse",
+                });
             }
             Packet::StreamingAuth { hardware_id } => {
                 // Build encrypted StreamingAuth payload
@@ -441,18 +447,21 @@ impl Packet {
             }
             Packet::StreamingAuthResponse(result) => {
                 // Response packets are typically not sent by client, but support for completeness
-                let encrypted_payload = auth::encrypt_streaming_auth_payload(&result.decrypted_payload);
-                RawPacket::SimpleData {
-                    header: DataHeader::new()
-                        .with_packet_type(PacketType::StreamingAuth.into())
-                        .with_reserved_flag(true) // Response has high bit set
-                        .with_id(id)
-                        .with_obj_count_words(result.attribute),
+                let encrypted_payload = auth::encrypt_streaming_auth_response_payload(&result.decrypted_payload);
+                let auth_header = StreamingAuthHeader::new()
+                    .with_packet_type(PacketType::StreamingAuth.into())
+                    .with_reserved_flag(false)
+                    .with_id(auth::STREAMING_AUTH_RESPONSE_ID)
+                    .with_attribute(result.attribute);
+                RawPacket::Ctrl {
+                    header: CtrlHeader::from_bytes(auth_header.into_bytes()),
                     payload: encrypted_payload.to_vec(),
                 }
             }
             Packet::Generic(raw_packet) => raw_packet,
-        }
+        };
+
+        Ok(raw_packet)
     }
 }
 

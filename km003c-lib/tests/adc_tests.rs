@@ -3,6 +3,10 @@
 mod common;
 
 use common::*;
+use uom::si::electric_current::ampere;
+use uom::si::electric_potential::volt;
+use uom::si::power::watt;
+use uom::si::thermodynamic_temperature::degree_celsius;
 
 #[test]
 fn test_adc() {
@@ -50,9 +54,9 @@ fn test_adc_data_packet() {
             match &payloads[0] {
                 PayloadData::Adc(adc) => {
                     // Check some values
-                    assert!(adc.vbus_v > 0.0);
-                    assert!(adc.ibus_a > 0.0);
-                    assert!(adc.power_w > 0.0);
+                    assert!(adc.vbus.get::<volt>() > 0.0);
+                    assert!(adc.ibus.get::<ampere>() > 0.0);
+                    assert!(adc.power.get::<watt>() > 0.0);
 
                     // Check sample rate
                     assert_eq!(adc.sample_rate, SampleRate::Sps2);
@@ -72,7 +76,7 @@ fn test_adc_request_generation() {
     let packet = Packet::GetData {
         attribute_mask: AttributeSet::single(Attribute::Adc).raw(),
     };
-    let raw_packet = packet.to_raw_packet(0);
+    let raw_packet = packet.to_raw_packet(0).unwrap();
 
     // Convert to bytes manually to verify the exact output
     let header_bytes = match &raw_packet {
@@ -135,37 +139,37 @@ fn test_adc_response_parsing_real_data() {
                 PayloadData::Adc(adc_data) => {
                     // Test main measurements (with floating point tolerance)
                     assert!(
-                        (adc_data.vbus_v - 5.054).abs() < 0.001,
+                        (adc_data.vbus.get::<volt>() - 5.054).abs() < 0.001,
                         "Voltage should be ~5.054V, got {}",
-                        adc_data.vbus_v
+                        adc_data.vbus.get::<volt>()
                     );
                     assert!(
-                        (adc_data.ibus_a - (-0.090)).abs() < 0.001,
+                        (adc_data.ibus.get::<ampere>() - (-0.090)).abs() < 0.001,
                         "Current should be ~-0.090A, got {}",
-                        adc_data.ibus_a
+                        adc_data.ibus.get::<ampere>()
                     );
                     assert!(
-                        (adc_data.power_w - (-0.457)).abs() < 0.001,
+                        (adc_data.power.get::<watt>() - (-0.457)).abs() < 0.001,
                         "Power should be ~-0.457W, got {}",
-                        adc_data.power_w
+                        adc_data.power.get::<watt>()
                     );
                     // Temperature LSB is 1/128 °C; expected value from this sample is ~25.57 °C
                     assert!(
-                        (adc_data.temp_c - 25.5703125).abs() < 0.02,
+                        (adc_data.temperature.get::<degree_celsius>() - 25.5703125).abs() < 0.02,
                         "Temperature should be ~25.57°C, got {}",
-                        adc_data.temp_c
+                        adc_data.temperature.get::<degree_celsius>()
                     );
 
                     // Test absolute value methods
                     assert!(
-                        (adc_data.current_abs_a() - 0.090).abs() < 0.001,
+                        (adc_data.current_abs().get::<ampere>() - 0.090).abs() < 0.001,
                         "Absolute current should be ~0.090A, got {}",
-                        adc_data.current_abs_a()
+                        adc_data.current_abs().get::<ampere>()
                     );
                     assert!(
-                        (adc_data.power_abs_w() - 0.457).abs() < 0.001,
+                        (adc_data.power_abs().get::<watt>() - 0.457).abs() < 0.001,
                         "Absolute power should be ~0.457W, got {}",
-                        adc_data.power_abs_w()
+                        adc_data.power_abs().get::<watt>()
                     );
 
                     // Test sample rate
@@ -173,26 +177,26 @@ fn test_adc_response_parsing_real_data() {
 
                     // Test USB data lines (should be ~0.000V)
                     assert!(
-                        adc_data.vdp_v.abs() < 0.001,
+                        adc_data.vdp.get::<volt>().abs() < 0.001,
                         "D+ should be ~0.000V, got {}",
-                        adc_data.vdp_v
+                        adc_data.vdp.get::<volt>()
                     );
                     assert!(
-                        adc_data.vdm_v.abs() < 0.001,
+                        adc_data.vdm.get::<volt>().abs() < 0.001,
                         "D- should be ~0.000V, got {}",
-                        adc_data.vdm_v
+                        adc_data.vdm.get::<volt>()
                     );
 
                     // Test USB CC lines
                     assert!(
-                        (adc_data.cc1_v - 0.423).abs() < 0.001,
+                        (adc_data.cc1.get::<volt>() - 0.423).abs() < 0.001,
                         "CC1 should be ~0.423V, got {}",
-                        adc_data.cc1_v
+                        adc_data.cc1.get::<volt>()
                     );
                     assert!(
-                        (adc_data.cc2_v - 0.001).abs() < 0.001,
+                        (adc_data.cc2.get::<volt>() - 0.001).abs() < 0.001,
                         "CC2 should be ~0.001V, got {}",
-                        adc_data.cc2_v
+                        adc_data.cc2.get::<volt>()
                     );
 
                     println!("Successfully parsed ADC data: {}", adc_data);
@@ -210,7 +214,7 @@ fn test_adc_request_generation_with_new_trait() {
     let packet = Packet::GetData {
         attribute_mask: AttributeSet::single(Attribute::Adc).raw(),
     };
-    let raw_packet = packet.to_raw_packet(0);
+    let raw_packet = packet.to_raw_packet(0).unwrap();
 
     // Use the new trait to convert to bytes
     let bytes = Bytes::from(raw_packet.clone());

@@ -34,6 +34,16 @@ pub struct DataHeader {
     pub obj_count_words: B10,
 }
 
+/// Header used by StreamingAuth, whose final two bytes are a raw result value.
+#[bitfield(bytes = 4)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct StreamingAuthHeader {
+    pub packet_type: B7,
+    pub reserved_flag: bool,
+    pub id: u8,
+    pub attribute: u16,
+}
+
 #[bitfield(bytes = 4)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExtendedHeader {
@@ -85,9 +95,6 @@ pub enum PacketType {
     // >= 0x40 is data type
     Head = 64,
     PutData = 65,
-    // MemoryRead response (0x75) - contains raw data from device memory
-    MemoryReadResponse = 0x75,
-
     #[num_enum(catch_all)]
     Unknown(u8),
 }
@@ -270,7 +277,10 @@ impl FromIterator<Attribute> for AttributeSet {
 /// PutData packets can contain multiple chained logical packets,
 /// each with its own extended header and payload.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "python", pyo3::pyclass(get_all, name = "LogicalPacket"))]
+#[cfg_attr(
+    feature = "python",
+    pyo3::pyclass(get_all, skip_from_py_object, name = "LogicalPacket")
+)]
 pub struct LogicalPacket {
     pub attribute: Attribute,
     pub next: bool,

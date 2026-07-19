@@ -3,6 +3,7 @@
 mod common;
 
 use common::*;
+use km003c_lib::AdcQueueData;
 
 #[test]
 fn test_rawpacket_to_bytes_ctrl() {
@@ -25,6 +26,27 @@ fn test_rawpacket_to_bytes_ctrl() {
         "Ctrl packet should convert to [02, 01, 00, 00], got {:02x?}",
         bytes.as_ref()
     );
+}
+
+#[test]
+fn test_pd_monitor_commands_use_documented_wire_parameters() {
+    let enable = Bytes::from(Packet::EnablePdMonitor.to_raw_packet(3).unwrap());
+    let disable = Bytes::from(Packet::DisablePdMonitor.to_raw_packet(4).unwrap());
+
+    assert_eq!(enable.as_ref(), &[0x10, 0x03, 0x02, 0x00]);
+    assert_eq!(disable.as_ref(), &[0x11, 0x04, 0x00, 0x00]);
+}
+
+#[test]
+fn test_unsupported_semantic_payload_is_not_silently_dropped() {
+    let packet = Packet::DataResponse {
+        payloads: vec![PayloadData::AdcQueue(AdcQueueData { samples: Vec::new() })],
+    };
+
+    assert!(matches!(
+        packet.to_raw_packet(0),
+        Err(KMError::UnsupportedSerialization { packet: "AdcQueue" })
+    ));
 }
 
 #[test]

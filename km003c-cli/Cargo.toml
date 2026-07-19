@@ -1,14 +1,20 @@
 [package]
 name = "km003c-cli"
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.89"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Command-line tools for the ChargerLAB POWER-Z KM003C"
+license.workspace = true
+repository.workspace = true
+publish = false
 
 [dependencies]
-km003c-lib = { path = "../km003c-lib" }
-tokio = { version = "1.45", features = ["full"] }
-clap = { version = "4.0", features = ["derive"] }
-tracing-subscriber = "0.3"
-tracing = "0.1"
-usbpd = { git = "https://github.com/okhsunrog/usbpd", rev = "b5dd12e" }
-uom = "0.36"
+km003c-lib.workspace = true
+tokio.workspace = true
+clap = { version = "4.6.2", features = ["derive"] }
+tracing-subscriber.workspace = true
+tracing.workspace = true
+usbpd.workspace = true
+# Keep this aligned with usbpd's public quantity types.
+uom.workspace = true

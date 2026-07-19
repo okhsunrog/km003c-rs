@@ -1,10 +1,17 @@
-# km003c-rs
+<h1 align="center">km003c-rs</h1>
 
-Rust library and applications for the **ChargerLAB POWER-Z KM003C** USB-C power analyzer.
+<p align="center">Typed Rust library, CLI tools, GUI monitor, and Python bindings for the ChargerLAB POWER-Z KM003C USB-C power analyzer.</p>
+
+<p align="center">
+  <a href="https://github.com/okhsunrog/km003c-rs/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/okhsunrog/km003c-rs/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="license" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg">
+</p>
 
 ## Overview
 
-`km003c-rs` provides a cross-platform Rust implementation for communicating with the KM003C device, enabling real-time USB-C power analysis and USB Power Delivery message capture.
+`km003c-rs` provides asynchronous device communication, recorded-packet
+parsing, real-time power analysis, and USB Power Delivery capture. Physical
+values in the Rust API are type-safe [`uom`](https://docs.rs/uom) quantities.
 
 ![km003c-egui screenshot](assets/screenshot.png)
 
@@ -60,16 +67,19 @@ GUI application featuring:
 - Connect/disconnect control
 
 ### Python Bindings
-Python bindings for parsing KM003C data structures.
+
+Python bindings expose the parser using numeric properties with explicit unit
+suffixes such as `vbus_v`, `ibus_a`, and `power_w`.
 
 ## Quick Start
 
 ### Prerequisites
-- Rust 1.75+ (uses let-else and let-chains)
+- Rust 1.92+ (the library and CLI support Rust 1.89+)
 - USB access permissions (udev rules on Linux)
 - POWER-Z KM003C device
 
 ### Installation
+
 ```bash
 git clone https://github.com/okhsunrog/km003c-rs.git
 cd km003c-rs
@@ -91,21 +101,25 @@ The rules use the `uaccess` tag for secure, dynamic access to logged-in users.
 ### Usage Examples
 
 #### ADC Reading
+
 ```bash
 cargo run --bin adc_simple
 ```
 
 #### AdcQueue Streaming
+
 ```bash
 cargo run --bin adc_queue_simple -- --rate 50 --duration 10
 ```
 
 #### USB PD Capture
+
 ```bash
 cargo run --bin test_usbpd
 ```
 
 #### GUI Application
+
 ```bash
 cargo run --bin km003c-egui
 ```
@@ -113,7 +127,9 @@ cargo run --bin km003c-egui
 ## Library Usage
 
 ```rust
-use km003c_lib::{DeviceConfig, KM003C, GraphSampleRate};
+use km003c_lib::uom::si::electric_current::ampere;
+use km003c_lib::uom::si::electric_potential::volt;
+use km003c_lib::{DeviceConfig, GraphSampleRate, KM003C};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -127,8 +143,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Simple ADC reading
     let adc = device.request_adc_data().await?;
-    println!("Voltage: {:.3} V", adc.vbus_v);
-    println!("Current: {:.3} A", adc.ibus_a);
+    println!("Voltage: {:.3} V", adc.vbus.get::<volt>());
+    println!("Current: {:.3} A", adc.ibus.get::<ampere>());
 
     // AdcQueue streaming (if authenticated)
     if device.adcqueue_enabled() {
@@ -139,6 +155,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+```
+
+### Python bindings
+
+Build and test the extension in the project environment:
+
+```bash
+uv sync --locked
+uv run maturin develop
+uv run pytest -q test_bindings.py
 ```
 
 ### Device Configuration
@@ -176,14 +202,38 @@ The research repository contains:
 - Memory read for device info/calibration
 - Real-time GUI with plotting
 
-### Tested Platforms
-- Linux (primary development platform)
-- macOS (uses `--no-reset` by default for compatibility)
-- Windows (uses cross-platform `nusb`)
+### Validation
+
+| Target | Coverage |
+|---|---|
+| Linux | Tests, lint, docs, package verification, and real KM003C hardware |
+| macOS | Workspace compile check; USB reset is skipped by default |
+| Windows | Workspace compile check |
+| Python 3.13 | Extension build and binding tests |
+
+Protocol tests use recorded device traffic and do not require USB hardware.
+Live testing was performed on firmware 1.9.9 with a Pixel 8 Pro PPS charging
+through the meter. AdcQueue sequence timing was checked at 2, 10, 50, and
+1000 SPS; auxiliary CC/D-line scaling was compared with simultaneous ADC
+measurements.
+
+## Development
+
+Common tasks are available through [`just`](https://just.systems):
+
+```bash
+just fmt
+just test
+just lint
+just ci
+```
+
+Hardware commands are deliberately separate from the offline CI gate; use
+`just hardware-stream 50 10` only with a KM003C connected.
 
 ## Requirements
 
-- **Rust**: 1.75+ (stable)
+- **Rust**: 1.97 or newer
 - **Platforms**: Linux, Windows, macOS
 - **Hardware**: POWER-Z KM003C
 
@@ -193,7 +243,8 @@ Contributions welcome! See the research repository for protocol details.
 
 ## License
 
-MIT License - see LICENSE file.
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
+[MIT license](LICENSE-MIT) at your option.
 
 ## Related Projects
 
