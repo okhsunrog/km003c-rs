@@ -32,7 +32,9 @@ pub enum Packet {
     /// Request data with attribute set
     GetData { attribute_mask: u16 },
     /// Start AdcQueue graph mode with sample rate
-    /// Rate byte: 0=2SPS, 2=10SPS, 4=50SPS, 6=1000SPS (device uses bits 1-2)
+    /// Logical rate index: 0=2SPS, 1=10SPS, 2=50SPS, 3=1000SPS.
+    /// `CtrlHeader` places this attribute in the wire header, producing byte 2
+    /// values 0, 2, 4, and 6 respectively.
     StartGraph { rate_index: u16 },
     /// Stop AdcQueue graph mode
     StopGraph,

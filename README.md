@@ -65,7 +65,7 @@ Python bindings for parsing KM003C data structures.
 ## Quick Start
 
 ### Prerequisites
-- Rust 1.75+ (uses let-else and let-chains)
+- Rust 1.89+
 - USB access permissions (udev rules on Linux)
 - POWER-Z KM003C device
 
@@ -183,7 +183,7 @@ The research repository contains:
 
 ## Requirements
 
-- **Rust**: 1.75+ (stable)
+- **Rust**: 1.89+ (stable)
 - **Platforms**: Linux, Windows, macOS
 - **Hardware**: POWER-Z KM003C
 
