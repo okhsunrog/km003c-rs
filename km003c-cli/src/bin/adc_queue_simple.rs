@@ -167,7 +167,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             total_samples += 1;
 
-            if total_samples % print_interval == 1 {
+            if (total_samples - 1) % print_interval == 0 {
                 println!(
                     "{:>6} {:>10.3} {:>10.3} {:>10.3} {:>8.3} {:>8.3} {:>8.3} {:>8.3}",
                     sample.sequence,
