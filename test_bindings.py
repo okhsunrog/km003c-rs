@@ -25,6 +25,28 @@ def test_sample_rates():
     print("✓ Sample rates test passed")
 
 
+def test_packet_api_shapes():
+    packet = km003c.create_packet(km003c.CMD_GET_DATA, 2, km003c.ATT_ADC)
+    assert isinstance(packet, bytes)
+    assert packet == b"\x0c\x02\x02\x00"
+
+    parsed = km003c.parse_packet(b"\x02\x01\x00\x00")
+    raw = km003c.parse_raw_packet(b"\x02\x01\x00\x00")
+    assert parsed == {"Connect": None}
+    assert raw["Ctrl"]["header"]["id"] == 1
+
+
+def test_adcqueue_helpers_use_rate_index():
+    raw = bytes.fromhex(
+        "413e0202020002050de80800d5c38c00598ce8ffdc401f015b17581701ea0800"
+        "0bac8c000255e9ff92401e0158175417"
+    )
+    queue = km003c.parse_packet(raw)["DataResponse"]["payloads"][0]
+
+    assert queue.sequence_range() == (59405, 59905)
+    assert not queue.has_dropped_samples(km003c.RATE_2_SPS)
+
+
 def test_raw_adc_parsing():
     print("\nTesting raw ADC data parsing...")
     # Create some dummy ADC data (44 bytes total)
@@ -89,6 +111,8 @@ def main():
 
     test_constants()
     test_sample_rates()
+    test_packet_api_shapes()
+    test_adcqueue_helpers_use_rate_index()
     test_raw_adc_parsing()
 
     print("\n🎉 All tests passed!")

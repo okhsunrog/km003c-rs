@@ -189,6 +189,19 @@ impl AdcQueueData {
 #[cfg(feature = "python")]
 #[pyo3::pymethods]
 impl AdcQueueData {
+    #[pyo3(name = "sequence_range")]
+    fn py_sequence_range(&self) -> Option<(u16, u16)> {
+        self.sequence_range()
+    }
+
+    #[pyo3(name = "has_dropped_samples")]
+    fn py_has_dropped_samples(&self, rate_index: u16) -> pyo3::PyResult<bool> {
+        let rate = GraphSampleRate::try_from(rate_index).map_err(|_| {
+            pyo3::exceptions::PyValueError::new_err(format!("Invalid graph sample rate index: {rate_index}"))
+        })?;
+        Ok(self.has_dropped_samples(rate))
+    }
+
     fn __repr__(&self) -> String {
         format!("AdcQueueData({} samples)", self.samples.len())
     }
