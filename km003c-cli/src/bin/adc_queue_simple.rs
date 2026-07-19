@@ -7,6 +7,8 @@ use std::error::Error;
 use std::time::Duration;
 use uom::si::electric_current::ampere;
 use uom::si::electric_potential::volt;
+use uom::si::f64::Frequency;
+use uom::si::frequency::hertz;
 use uom::si::power::watt;
 
 /// AdcQueue streaming example for POWER-Z KM003C
@@ -32,6 +34,38 @@ struct Args {
     /// Force USB reset even on macOS (overrides --no-reset)
     #[arg(long)]
     reset: bool,
+}
+
+#[derive(Debug, Default)]
+struct SequenceStatistics {
+    previous: Option<u16>,
+    intervals: u64,
+    elapsed_ticks: u64,
+    missing_samples: u64,
+}
+
+impl SequenceStatistics {
+    fn observe(&mut self, rate: GraphSampleRate, sequence: u16) -> u16 {
+        let Some(previous) = self.previous.replace(sequence) else {
+            return 0;
+        };
+
+        let elapsed_ticks = sequence.wrapping_sub(previous);
+        let missing = rate.missing_samples(previous, sequence);
+        self.intervals += 1;
+        self.elapsed_ticks += u64::from(elapsed_ticks);
+        self.missing_samples += u64::from(missing);
+        missing
+    }
+
+    fn delivered_sample_rate(&self) -> Option<Frequency> {
+        (self.elapsed_ticks > 0).then(|| {
+            Frequency::new::<hertz>(
+                self.intervals as f64 * GraphSampleRate::sequence_counter_frequency().get::<hertz>()
+                    / self.elapsed_ticks as f64,
+            )
+        })
+    }
 }
 
 #[tokio::main]
@@ -101,7 +135,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let start_time = std::time::Instant::now();
     let mut total_samples = 0;
     let mut packet_count = 0;
-    let mut last_seq: Option<u16> = None;
+    let mut sequence_statistics = SequenceStatistics::default();
 
     while start_time.elapsed() < Duration::from_secs(args.duration) {
         // Request AdcQueue data using library API
@@ -156,14 +190,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         };
 
         for sample in &queue_data.samples {
-            if let Some(last) = last_seq {
-                let dropped = rate.missing_samples(last, sample.sequence);
-                if dropped > 0 {
-                    let gap = sample.sequence.wrapping_sub(last);
-                    println!("Warning: {} samples dropped (gap={})", dropped, gap);
-                }
+            let previous = sequence_statistics.previous;
+            let dropped = sequence_statistics.observe(rate, sample.sequence);
+            if dropped > 0 {
+                let gap = sample
+                    .sequence
+                    .wrapping_sub(previous.expect("a gap requires a previous sample"));
+                println!("Warning: {} samples dropped (gap={})", dropped, gap);
             }
-            last_seq = Some(sample.sequence);
 
             total_samples += 1;
 
@@ -195,7 +229,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Statistics
     let elapsed = start_time.elapsed().as_secs_f64();
-    let effective_rate = total_samples as f64 / elapsed;
     println!("Statistics:");
     println!("  Duration: {:.1}s", elapsed);
     println!("  Packets received: {}", packet_count);
@@ -206,8 +239,43 @@ async fn main() -> Result<(), Box<dyn Error>> {
             total_samples as f64 / packet_count as f64
         );
     }
-    println!("  Effective sample rate: {:.1} SPS", effective_rate);
+    if let Some(rate) = sequence_statistics.delivered_sample_rate() {
+        println!("  Delivered sample rate (device clock): {:.1} SPS", rate.get::<hertz>());
+    } else {
+        println!("  Delivered sample rate (device clock): insufficient samples");
+    }
+    println!("  Missing samples: {}", sequence_statistics.missing_samples);
     println!("  Expected rate: {} SPS", args.rate);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sequence_rate_uses_device_ticks() {
+        let mut statistics = SequenceStatistics::default();
+        for sequence in [100, 120, 140] {
+            statistics.observe(GraphSampleRate::Sps50, sequence);
+        }
+
+        assert_eq!(statistics.delivered_sample_rate().unwrap().get::<hertz>(), 50.0);
+        assert_eq!(statistics.missing_samples, 0);
+    }
+
+    #[test]
+    fn sequence_rate_handles_rollover_and_dropped_samples() {
+        let mut rollover = SequenceStatistics::default();
+        rollover.observe(GraphSampleRate::Sps2, 65_300);
+        rollover.observe(GraphSampleRate::Sps2, 264);
+        assert_eq!(rollover.delivered_sample_rate().unwrap().get::<hertz>(), 2.0);
+
+        let mut dropped = SequenceStatistics::default();
+        dropped.observe(GraphSampleRate::Sps50, 100);
+        dropped.observe(GraphSampleRate::Sps50, 140);
+        assert_eq!(dropped.delivered_sample_rate().unwrap().get::<hertz>(), 25.0);
+        assert_eq!(dropped.missing_samples, 1);
+    }
 }
