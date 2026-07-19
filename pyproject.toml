@@ -42,8 +42,8 @@ module-name = "km003c.km003c_lib"
 manifest-path = "km003c-lib/Cargo.toml"
 features = ["python"]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "maturin>=1.9.4",
     "pytest>=7.0.0",
 ]
