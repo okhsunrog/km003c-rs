@@ -550,7 +550,11 @@ mod tests {
         assert_eq!(success.attribute, 0x0203);
         assert_eq!(success.decrypted_payload, plaintext);
 
-        let serialized = Bytes::from(Packet::StreamingAuthResponse(success.clone()).to_raw_packet(99));
+        let serialized = Bytes::from(
+            Packet::StreamingAuthResponse(success.clone())
+                .to_raw_packet(99)
+                .unwrap(),
+        );
         let reparsed = RawPacket::try_from(serialized).unwrap();
         assert_eq!(
             Packet::try_from(reparsed).unwrap(),

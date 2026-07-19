@@ -501,7 +501,7 @@ impl KM003C {
             _ => {}
         }
 
-        let raw_packet = packet.to_raw_packet(id);
+        let raw_packet = packet.to_raw_packet(id)?;
         self.send_raw_packet(raw_packet).await?;
         Ok(id)
     }

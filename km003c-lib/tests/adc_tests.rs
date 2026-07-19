@@ -72,7 +72,7 @@ fn test_adc_request_generation() {
     let packet = Packet::GetData {
         attribute_mask: AttributeSet::single(Attribute::Adc).raw(),
     };
-    let raw_packet = packet.to_raw_packet(0);
+    let raw_packet = packet.to_raw_packet(0).unwrap();
 
     // Convert to bytes manually to verify the exact output
     let header_bytes = match &raw_packet {
@@ -210,7 +210,7 @@ fn test_adc_request_generation_with_new_trait() {
     let packet = Packet::GetData {
         attribute_mask: AttributeSet::single(Attribute::Adc).raw(),
     };
-    let raw_packet = packet.to_raw_packet(0);
+    let raw_packet = packet.to_raw_packet(0).unwrap();
 
     // Use the new trait to convert to bytes
     let bytes = Bytes::from(raw_packet.clone());

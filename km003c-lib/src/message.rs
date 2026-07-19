@@ -242,12 +242,9 @@ impl TryFrom<RawPacket> for Packet {
 
 impl Packet {
     /// Convert a high-level packet to a raw packet with the given transaction ID
-    pub fn to_raw_packet(self, id: u8) -> RawPacket {
-        match self {
+    pub fn to_raw_packet(self, id: u8) -> Result<RawPacket, KMError> {
+        let raw_packet = match self {
             Packet::DataResponse { payloads } => {
-                // Convert PayloadData vec to LogicalPackets.
-                // Some payload types (AdcQueue, PdEvents) are skipped, so we build
-                // all packets first with next=false, then fix up the chain flags.
                 let mut logical_packets = Vec::new();
 
                 for payload in payloads {
@@ -281,9 +278,13 @@ impl Packet {
                                 payload: raw_bytes,
                             });
                         }
-                        PayloadData::AdcQueue(_) | PayloadData::PdEvents(_) => {
-                            // TODO: Implement AdcQueue/PdEventStream serialization
-                            continue;
+                        PayloadData::AdcQueue(_) => {
+                            return Err(KMError::UnsupportedSerialization { packet: "AdcQueue" });
+                        }
+                        PayloadData::PdEvents(_) => {
+                            return Err(KMError::UnsupportedSerialization {
+                                packet: "PdEventStream",
+                            });
                         }
                         PayloadData::Unknown { attribute, data } => {
                             logical_packets.push(LogicalPacket {
@@ -448,7 +449,9 @@ impl Packet {
                 }
             }
             Packet::Generic(raw_packet) => raw_packet,
-        }
+        };
+
+        Ok(raw_packet)
     }
 }
 
