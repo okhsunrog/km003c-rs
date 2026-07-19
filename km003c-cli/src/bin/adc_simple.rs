@@ -1,10 +1,10 @@
 use clap::Parser;
+use km003c_lib::uom::si::electric_current::ampere;
+use km003c_lib::uom::si::electric_potential::volt;
+use km003c_lib::uom::si::power::watt;
+use km003c_lib::uom::si::thermodynamic_temperature::degree_celsius;
 use km003c_lib::{DeviceConfig, KM003C};
 use std::error::Error;
-use uom::si::electric_current::ampere;
-use uom::si::electric_potential::volt;
-use uom::si::power::watt;
-use uom::si::thermodynamic_temperature::degree_celsius;
 
 /// Simple ADC data reader for POWER-Z KM003C
 #[derive(Parser, Debug)]

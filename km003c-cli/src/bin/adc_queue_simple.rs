@@ -1,15 +1,15 @@
 use clap::Parser;
+use km003c_lib::uom::si::electric_current::ampere;
+use km003c_lib::uom::si::electric_potential::volt;
+use km003c_lib::uom::si::f64::Frequency;
+use km003c_lib::uom::si::frequency::hertz;
+use km003c_lib::uom::si::power::watt;
 use km003c_lib::{
     DeviceConfig, GraphSampleRate, KM003C,
     packet::{Attribute, AttributeSet},
 };
 use std::error::Error;
 use std::time::Duration;
-use uom::si::electric_current::ampere;
-use uom::si::electric_potential::volt;
-use uom::si::f64::Frequency;
-use uom::si::frequency::hertz;
-use uom::si::power::watt;
 
 /// AdcQueue streaming example for POWER-Z KM003C
 #[derive(Parser, Debug)]

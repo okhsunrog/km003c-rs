@@ -33,10 +33,10 @@ struct Args {
 }
 
 // Use uom for nice formatting
+use km003c_lib::uom::si::time::millisecond as km003c_millisecond;
 use uom::si::electric_current::ampere;
 use uom::si::electric_potential::volt;
 use uom::si::power::watt;
-use uom::si::time::millisecond;
 
 /// Format a single PDO for display
 fn format_pdo(pdo: &PowerDataObject) -> String {
@@ -467,18 +467,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             PdEventData::Connect(_) => {
                                 println!(
                                     "[{:>8.3}s] ** CONNECT **",
-                                    event.timestamp.get::<millisecond>() / 1000.0
+                                    event.timestamp.get::<km003c_millisecond>() / 1000.0
                                 );
                                 decoder.handle_connect();
                             }
                             PdEventData::Disconnect(_) => {
                                 println!(
                                     "[{:>8.3}s] ** DISCONNECT **",
-                                    event.timestamp.get::<millisecond>() / 1000.0
+                                    event.timestamp.get::<km003c_millisecond>() / 1000.0
                                 );
                             }
                             PdEventData::PdMessage { sop, wire_data } => {
-                                decoder.decode(event.timestamp.get::<millisecond>() as u32, *sop, wire_data);
+                                decoder.decode(event.timestamp.get::<km003c_millisecond>() as u32, *sop, wire_data);
                             }
                         }
                     }

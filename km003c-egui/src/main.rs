@@ -2,6 +2,10 @@ mod pd_decoder;
 
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
+use km003c_lib::uom::si::electric_current::ampere;
+use km003c_lib::uom::si::electric_potential::volt;
+use km003c_lib::uom::si::power::watt;
+use km003c_lib::uom::si::time::second;
 use km003c_lib::{
     AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C,
     packet::{Attribute, AttributeSet},
@@ -14,10 +18,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
-use uom::si::electric_current::ampere;
-use uom::si::electric_potential::volt;
-use uom::si::power::watt;
-use uom::si::time::second;
 
 /// Message from USB task to UI
 #[derive(Debug, Clone)]
