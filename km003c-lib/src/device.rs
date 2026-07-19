@@ -648,17 +648,6 @@ impl KM003C {
             return Err(KMError::Protocol("Received 0 bytes".to_string()));
         }
 
-        let packet_type = raw_bytes[0] & 0x7F;
-
-        // Special handling for StreamingAuth response (0x4C with high bit = 0xCC)
-        // Format: [type:1][id:1][attr:2][encrypted_payload:32]
-        if packet_type == 0x4C
-            && raw_bytes.len() >= 36
-            && let Some(result) = crate::auth::parse_streaming_auth_response(&raw_bytes)
-        {
-            return Ok(Packet::StreamingAuthResponse(result));
-        }
-
         let raw_packet = RawPacket::try_from(Bytes::from(raw_bytes))?;
         Packet::try_from(raw_packet)
     }

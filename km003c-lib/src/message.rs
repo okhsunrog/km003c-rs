@@ -3,7 +3,9 @@ use crate::adcqueue::AdcQueueData;
 use crate::auth::{self, HardwareId, StreamingAuthResult};
 use crate::constants::*;
 use crate::error::KMError;
-use crate::packet::{Attribute, AttributeSet, CtrlHeader, DataHeader, LogicalPacket, PacketType, RawPacket};
+use crate::packet::{
+    Attribute, AttributeSet, CtrlHeader, DataHeader, LogicalPacket, PacketType, RawPacket, StreamingAuthHeader,
+};
 use crate::pd::{PdEventStream, PdStatus, PdStatusRaw};
 use bytes::Bytes;
 use num_enum::FromPrimitive;
@@ -65,7 +67,7 @@ pub enum Packet {
         /// HardwareID to authenticate with
         hardware_id: HardwareId,
     },
-    /// StreamingAuth response (0xCC) - authentication result
+    /// StreamingAuth response (0x4C) - authentication result
     StreamingAuthResponse(StreamingAuthResult),
     /// Generic packet for types we haven't specifically implemented yet
     Generic(RawPacket),
@@ -170,14 +172,11 @@ impl TryFrom<RawPacket> for Packet {
                         // This is just a confirmation, return as Accept-like
                         Ok(Packet::Accept { id: header.id() })
                     }
-                    // StreamingAuth response (0xCC = 0x4C | 0x80) - encrypted result
+                    // StreamingAuth response (0x4C) - encrypted result
                     PacketType::StreamingAuth => {
-                        if payload.len() >= 32 {
-                            if let Some(result) = auth::parse_streaming_auth_response_payload(&payload) {
-                                Ok(Packet::StreamingAuthResponse(result))
-                            } else {
-                                Ok(Packet::Generic(RawPacket::SimpleData { header, payload }))
-                            }
+                        let auth_header = StreamingAuthHeader::from_bytes(header.into_bytes());
+                        if let Some(result) = auth::parse_streaming_auth_response_parts(auth_header, &payload) {
+                            Ok(Packet::StreamingAuthResponse(result))
                         } else {
                             Ok(Packet::Generic(RawPacket::SimpleData { header, payload }))
                         }
@@ -437,13 +436,14 @@ impl Packet {
             }
             Packet::StreamingAuthResponse(result) => {
                 // Response packets are typically not sent by client, but support for completeness
-                let encrypted_payload = auth::encrypt_streaming_auth_payload(&result.decrypted_payload);
-                RawPacket::SimpleData {
-                    header: DataHeader::new()
-                        .with_packet_type(PacketType::StreamingAuth.into())
-                        .with_reserved_flag(true) // Response has high bit set
-                        .with_id(id)
-                        .with_obj_count_words(result.attribute),
+                let encrypted_payload = auth::encrypt_streaming_auth_response_payload(&result.decrypted_payload);
+                let auth_header = StreamingAuthHeader::new()
+                    .with_packet_type(PacketType::StreamingAuth.into())
+                    .with_reserved_flag(false)
+                    .with_id(auth::STREAMING_AUTH_RESPONSE_ID)
+                    .with_attribute(result.attribute);
+                RawPacket::Ctrl {
+                    header: CtrlHeader::from_bytes(auth_header.into_bytes()),
                     payload: encrypted_payload.to_vec(),
                 }
             }

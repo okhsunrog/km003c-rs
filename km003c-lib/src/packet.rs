@@ -34,6 +34,16 @@ pub struct DataHeader {
     pub obj_count_words: B10,
 }
 
+/// Header used by StreamingAuth, whose final two bytes are a raw result value.
+#[bitfield(bytes = 4)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct StreamingAuthHeader {
+    pub packet_type: B7,
+    pub reserved_flag: bool,
+    pub id: u8,
+    pub attribute: u16,
+}
+
 #[bitfield(bytes = 4)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExtendedHeader {
