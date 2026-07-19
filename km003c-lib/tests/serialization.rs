@@ -28,6 +28,15 @@ fn test_rawpacket_to_bytes_ctrl() {
 }
 
 #[test]
+fn test_pd_monitor_commands_use_documented_wire_parameters() {
+    let enable = Bytes::from(Packet::EnablePdMonitor.to_raw_packet(3));
+    let disable = Bytes::from(Packet::DisablePdMonitor.to_raw_packet(4));
+
+    assert_eq!(enable.as_ref(), &[0x10, 0x03, 0x02, 0x00]);
+    assert_eq!(disable.as_ref(), &[0x11, 0x04, 0x00, 0x00]);
+}
+
+#[test]
 fn test_rawpacket_to_bytes_simple_data() {
     // Test direct conversion of SimpleData packet to bytes
     let payload = Bytes::from_static(&[0xAA, 0xBB, 0xCC, 0xDD]).to_vec();

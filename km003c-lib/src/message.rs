@@ -9,6 +9,9 @@ use bytes::Bytes;
 use num_enum::FromPrimitive;
 use zerocopy::{FromBytes, IntoBytes};
 
+const PD_MONITOR_ENABLED_PARAMETER: u16 = 1;
+const PD_MONITOR_DISABLED_PARAMETER: u16 = 0;
+
 /// Represents parsed payload data from logical packets
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "python", derive(pyo3::IntoPyObject))]
@@ -381,24 +384,20 @@ impl Packet {
                     .with_attribute(0),
                 payload: Vec::new(),
             },
-            // EnablePdMonitor: attribute 0x0002 is the fixed protocol value for enabling PD capture.
-            // Future: could make this configurable via EnablePdMonitor { attribute: u16 } if needed.
             Packet::EnablePdMonitor => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::EnablePdMonitor.into())
                     .with_reserved_flag(false)
                     .with_id(id)
-                    .with_attribute(0x0002),
+                    .with_attribute(PD_MONITOR_ENABLED_PARAMETER),
                 payload: Vec::new(),
             },
-            // DisablePdMonitor: attribute 0x0000 is the fixed protocol value for disabling PD capture.
-            // Future: could make this configurable via DisablePdMonitor { attribute: u16 } if needed.
             Packet::DisablePdMonitor => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::DisablePdMonitor.into())
                     .with_reserved_flag(false)
                     .with_id(id)
-                    .with_attribute(0x0000),
+                    .with_attribute(PD_MONITOR_DISABLED_PARAMETER),
                 payload: Vec::new(),
             },
             Packet::MemoryRead { address, size } => {
