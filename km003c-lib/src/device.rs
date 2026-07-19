@@ -146,6 +146,7 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(2);
 const BULK_TRANSFER_SIZE: usize = 2048;
 const INTERRUPT_TRANSFER_SIZE: usize = 64;
 const MAX_PENDING_RESPONSES: usize = 256;
+const AES_BLOCK_SIZE: usize = 16;
 
 fn parse_framed_response(bytes: &[u8]) -> Option<RawPacket> {
     RawPacket::try_from(Bytes::copy_from_slice(bytes)).ok()
@@ -164,6 +165,20 @@ fn control_response_matches(bytes: &[u8], id: u8) -> bool {
         parse_framed_response(bytes),
         Some(RawPacket::Ctrl { header, .. }) if header.id() == id
     )
+}
+
+fn memory_confirmation_matches(bytes: &[u8], id: u8) -> bool {
+    parse_framed_response(bytes).is_some_and(|packet| {
+        packet.id() == id
+            && matches!(
+                packet.packet_type(),
+                PacketType::MemoryRead | PacketType::Rejected | PacketType::NotReadable
+            )
+    })
+}
+
+fn memory_response_size(requested_size: u32) -> usize {
+    (requested_size as usize).div_ceil(AES_BLOCK_SIZE) * AES_BLOCK_SIZE
 }
 
 /// Transfer type for USB communication
@@ -685,7 +700,7 @@ impl KM003C {
         let raw_bytes = self.receive_raw().await?;
 
         // Response must be multiple of 16 bytes (AES block size)
-        if raw_bytes.is_empty() || raw_bytes.len() % 16 != 0 {
+        if raw_bytes.is_empty() || !raw_bytes.len().is_multiple_of(AES_BLOCK_SIZE) {
             return Err(KMError::Protocol(format!(
                 "Expected encrypted data (multiple of 16 bytes), got {} bytes",
                 raw_bytes.len()
@@ -696,6 +711,19 @@ impl KM003C {
         let decrypted = crate::auth::aes_ecb_decrypt_blocks(&raw_bytes, crate::auth::MEMORY_READ_KEY)?;
 
         Ok(Packet::MemoryReadResponse { data: decrypted })
+    }
+
+    async fn receive_memory_read_data_exact(&mut self, requested_size: u32) -> Result<Vec<u8>, KMError> {
+        let expected_size = memory_response_size(requested_size);
+        let raw_bytes = self.read_raw_from_usb().await?;
+        if raw_bytes.len() != expected_size {
+            return Err(KMError::Protocol(format!(
+                "Expected {expected_size} encrypted memory bytes, got {}",
+                raw_bytes.len()
+            )));
+        }
+
+        crate::auth::aes_ecb_decrypt_blocks(&raw_bytes, crate::auth::MEMORY_READ_KEY)
     }
 
     /// Request data with a specific attribute set
@@ -921,13 +949,19 @@ impl KM003C {
     ///
     /// Response size is rounded up to 16-byte boundary (AES block size).
     pub async fn read_memory_block(&mut self, address: u32, size: u32) -> Result<Vec<u8>, KMError> {
-        self.send(Packet::MemoryRead { address, size }).await?;
-        self.receive().await?; // confirmation
-        match self.receive_memory_read_data().await? {
-            Packet::MemoryReadResponse { data } => Ok(data),
+        let id = self.send_tracked(Packet::MemoryRead { address, size }).await?;
+        let confirmation = self
+            .receive_matching_raw(|bytes| memory_confirmation_matches(bytes, id))
+            .await?;
+
+        match Self::parse_response(confirmation)? {
+            Packet::Accept { .. } => self.receive_memory_read_data_exact(size).await,
+            Packet::Reject { .. } => Err(KMError::Protocol(format!("MemoryRead at 0x{address:08X} was rejected"))),
+            Packet::NotReadable { .. } => Err(KMError::Protocol(format!(
+                "Memory address 0x{address:08X} is not readable"
+            ))),
             other => Err(KMError::Protocol(format!(
-                "Expected MemoryReadResponse, got {:?}",
-                other
+                "Expected MemoryRead confirmation, got {other:?}"
             ))),
         }
     }
@@ -1079,5 +1113,14 @@ mod tests {
     #[test]
     fn response_type_matching_supports_fixed_id_protocol_exceptions() {
         assert!(response_type_matches(&[0x4c, 0, 3, 2], PacketType::StreamingAuth));
+    }
+
+    #[test]
+    fn memory_response_size_rounds_to_complete_aes_blocks() {
+        assert_eq!(memory_response_size(1), 16);
+        assert_eq!(memory_response_size(12), 16);
+        assert_eq!(memory_response_size(16), 16);
+        assert_eq!(memory_response_size(17), 32);
+        assert_eq!(memory_response_size(64), 64);
     }
 }
