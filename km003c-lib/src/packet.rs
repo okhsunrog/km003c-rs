@@ -444,9 +444,15 @@ impl TryFrom<Bytes> for RawPacket {
                         .map_err(|_| KMError::InvalidPacket("Failed to extract extended header bytes".to_string()))?;
                     let ext = ExtendedHeader::from_bytes(ext_header_array);
 
-                    let payload_size = ext.size() as usize;
                     let has_next = ext.next();
                     let attribute = Attribute::from_primitive(ext.attribute());
+                    // AdcQueue uses chunk as its sample count and size as bytes per sample.
+                    let payload_size = ext.size() as usize
+                        * if attribute == Attribute::AdcQueue {
+                            ext.chunk() as usize
+                        } else {
+                            1
+                        };
 
                     // For AdcQueue, the size field indicates sample size (20 bytes),
                     // but the actual payload contains multiple samples.
