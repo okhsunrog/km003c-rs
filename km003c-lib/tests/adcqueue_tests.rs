@@ -64,6 +64,19 @@ fn test_adcqueue_parsing() {
 }
 
 #[test]
+fn test_adcqueue_with_following_pd_status() {
+    // Main header + AdcQueue header + 2 samples + PD header + PD status.
+    let hex = "410a420302800205ae3f0600b0ec300170cd1800ee01c706c900c500\
+               af3f0600b0ec300170cd1800ee01c606c500ba0010000003\
+               b43f0600074e0e08ef01c606";
+    let raw_packet = RawPacket::try_from(Bytes::from(hex::decode(hex).unwrap())).unwrap();
+    let packet = Packet::try_from(raw_packet).unwrap();
+
+    assert_eq!(packet.get_adc_queue().unwrap().samples.len(), 2);
+    assert!(packet.get_pd_status().is_some());
+}
+
+#[test]
 fn test_adcqueue_sequence_check() {
     // Create test data with sequence gap
     let mut raw_bytes = vec![0u8; 40]; // 2 samples
