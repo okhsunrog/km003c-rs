@@ -30,6 +30,12 @@ pub const PD_CONNECTION_CONNECT: u8 = 0x21;
 /// PD connection event code: disconnect (0x22 = 34, appears as SOP34 if not recognized)
 pub const PD_CONNECTION_DISCONNECT: u8 = 0x22;
 
+/// Legacy PD connection event code observed in older KM003C captures
+pub const PD_CONNECTION_CONNECT_LEGACY: u8 = 0x11;
+
+/// Legacy PD disconnection event code observed in older KM003C captures
+pub const PD_CONNECTION_DISCONNECT_LEGACY: u8 = 0x12;
+
 /// Mask for extracting wire length from PD event size_flag
 pub const PD_EVENT_SIZE_MASK: u8 = 0x3F;
 

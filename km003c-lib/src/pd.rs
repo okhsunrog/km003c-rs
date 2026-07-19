@@ -176,8 +176,8 @@ impl PdEventStream {
                 let ts24 = u32::from_le_bytes([bytes[offset + 1], bytes[offset + 2], bytes[offset + 3], 0]);
                 let event_code = bytes[offset + 5];
                 let data = match event_code {
-                    PD_CONNECTION_CONNECT => PdEventData::Connect(()),
-                    PD_CONNECTION_DISCONNECT => PdEventData::Disconnect(()),
+                    PD_CONNECTION_CONNECT | PD_CONNECTION_CONNECT_LEGACY => PdEventData::Connect(()),
+                    PD_CONNECTION_DISCONNECT | PD_CONNECTION_DISCONNECT_LEGACY => PdEventData::Disconnect(()),
                     _ => PdEventData::PdMessage {
                         sop: event_code,
                         wire_data: Vec::new(),
