@@ -23,6 +23,31 @@ pub enum GraphSampleRate {
     Sps1000 = 3,
 }
 
+impl GraphSampleRate {
+    const SEQUENCE_TICKS_PER_SECOND: u16 = 1000;
+
+    /// Number of samples produced by the device each second.
+    pub const fn samples_per_second(self) -> u16 {
+        match self {
+            Self::Sps2 => 2,
+            Self::Sps10 => 10,
+            Self::Sps50 => 50,
+            Self::Sps1000 => 1000,
+        }
+    }
+
+    /// Expected increment of the device's 1000 Hz sequence counter.
+    pub const fn sequence_step(self) -> u16 {
+        Self::SEQUENCE_TICKS_PER_SECOND / self.samples_per_second()
+    }
+
+    /// Number of samples missing between two sequence counter values.
+    pub fn missing_samples(self, previous: u16, current: u16) -> u16 {
+        let elapsed_ticks = current.wrapping_sub(previous);
+        elapsed_ticks.saturating_sub(self.sequence_step()) / self.sequence_step()
+    }
+}
+
 impl fmt::Display for GraphSampleRate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -146,19 +171,11 @@ impl AdcQueueData {
         }
     }
 
-    /// Check for dropped samples by detecting gaps in sequence numbers
-    pub fn has_dropped_samples(&self) -> bool {
-        if self.samples.len() < 2 {
-            return false;
-        }
-
-        for window in self.samples.windows(2) {
-            let expected_next = window[0].sequence.wrapping_add(1);
-            if window[1].sequence != expected_next {
-                return true;
-            }
-        }
-        false
+    /// Check for dropped samples using the sequence step for `rate`.
+    pub fn has_dropped_samples(&self, rate: GraphSampleRate) -> bool {
+        self.samples
+            .windows(2)
+            .any(|window| rate.missing_samples(window[0].sequence, window[1].sequence) > 0)
     }
 }
 

@@ -102,7 +102,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut total_samples = 0;
     let mut packet_count = 0;
     let mut last_seq: Option<u16> = None;
-    let mut seq_stride: Option<u16> = None;
 
     while start_time.elapsed() < Duration::from_secs(args.duration) {
         // Request AdcQueue data using library API
@@ -137,16 +136,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         packet_count += 1;
 
-        if args.verbose {
-            if let Some((first, last)) = queue_data.sequence_range() {
-                println!(
-                    "DEBUG: Packet {} - {} samples, seq {}..{}",
-                    packet_count,
-                    queue_data.samples.len(),
-                    first,
-                    last
-                );
-            }
+        if args.verbose
+            && let Some((first, last)) = queue_data.sequence_range()
+        {
+            println!(
+                "DEBUG: Packet {} - {} samples, seq {}..{}",
+                packet_count,
+                queue_data.samples.len(),
+                first,
+                last
+            );
         }
 
         // Print interval based on rate
@@ -156,28 +155,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
             GraphSampleRate::Sps1000 => 50,
         };
 
-        for (i, sample) in queue_data.samples.iter().enumerate() {
-            // Detect stride from consecutive samples in same packet
+        for sample in &queue_data.samples {
             if let Some(last) = last_seq {
-                if i > 0 && seq_stride.is_none() {
-                    let detected = sample.sequence.wrapping_sub(last);
-                    seq_stride = Some(detected);
-                    if args.verbose {
-                        println!("DEBUG: Detected seq stride = {}", detected);
-                    }
-                }
-
-                // Check for dropped samples using detected stride
-                if i == 0 {
-                    let stride = seq_stride.unwrap_or(20);
-                    let expected = last.wrapping_add(stride);
-                    if sample.sequence != expected {
-                        let gap = sample.sequence.wrapping_sub(last);
-                        let dropped = gap.saturating_sub(stride) / stride;
-                        if dropped > 0 {
-                            println!("Warning: {} samples dropped (gap={})", dropped, gap);
-                        }
-                    }
+                let dropped = rate.missing_samples(last, sample.sequence);
+                if dropped > 0 {
+                    let gap = sample.sequence.wrapping_sub(last);
+                    println!("Warning: {} samples dropped (gap={})", dropped, gap);
                 }
             }
             last_seq = Some(sample.sequence);

@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use km003c_lib::{AdcQueueData, Packet, RawPacket};
+use km003c_lib::{AdcQueueData, GraphSampleRate, Packet, RawPacket};
 
 #[test]
 fn test_adcqueue_parsing() {
@@ -78,19 +78,30 @@ fn test_adcqueue_with_following_pd_status() {
 
 #[test]
 fn test_adcqueue_sequence_check() {
-    // Create test data with sequence gap
+    // At 50 SPS the sequence counter advances by 20 ticks per sample.
     let mut raw_bytes = vec![0u8; 40]; // 2 samples
 
     // Sample 0: sequence 10
     raw_bytes[0..2].copy_from_slice(&10u16.to_le_bytes());
     raw_bytes[2..4].copy_from_slice(&60u16.to_le_bytes()); // marker
 
-    // Sample 1: sequence 12 (gap! should be 11)
-    raw_bytes[20..22].copy_from_slice(&12u16.to_le_bytes());
+    // Sample 1: sequence 50 (one missing sample; contiguous would be 30)
+    raw_bytes[20..22].copy_from_slice(&50u16.to_le_bytes());
     raw_bytes[22..24].copy_from_slice(&60u16.to_le_bytes());
 
     let queue = AdcQueueData::from_bytes(&raw_bytes).unwrap();
-    assert!(queue.has_dropped_samples());
+    assert!(queue.has_dropped_samples(GraphSampleRate::Sps50));
 
     println!("✅ Dropped sample detection works");
+}
+
+#[test]
+fn test_adcqueue_sequence_steps_follow_sample_rate() {
+    assert_eq!(GraphSampleRate::Sps2.sequence_step(), 500);
+    assert_eq!(GraphSampleRate::Sps10.sequence_step(), 100);
+    assert_eq!(GraphSampleRate::Sps50.sequence_step(), 20);
+    assert_eq!(GraphSampleRate::Sps1000.sequence_step(), 1);
+
+    assert_eq!(GraphSampleRate::Sps2.missing_samples(65_300, 264), 0);
+    assert_eq!(GraphSampleRate::Sps50.missing_samples(100, 140), 1);
 }

@@ -154,8 +154,6 @@ struct PowerMonitorApp {
     total_samples: u64,
     /// Last sequence number (for gap detection)
     last_sequence: Option<u16>,
-    /// Detected sequence stride (varies by sample rate)
-    sequence_stride: Option<u16>,
     /// Dropped sample count
     dropped_samples: u64,
     /// Current readings for display
@@ -195,7 +193,6 @@ impl PowerMonitorApp {
             max_points: 100000, // Safety cap for memory
             total_samples: 0,
             last_sequence: None,
-            sequence_stride: None,
             dropped_samples: 0,
             current_voltage: 0.0,
             current_current: 0.0,
@@ -227,25 +224,10 @@ impl PowerMonitorApp {
                     }
                     let time_base = self.time_base.unwrap();
 
-                    for (i, sample) in samples.iter().enumerate() {
+                    let rate = self.current_rate.to_graph_rate();
+                    for sample in &samples {
                         if let Some(last_seq) = self.last_sequence {
-                            let gap = sample.sequence.wrapping_sub(last_seq);
-
-                            // Detect stride from consecutive samples within same batch
-                            if i > 0 && self.sequence_stride.is_none() && gap > 0 {
-                                self.sequence_stride = Some(gap);
-                                debug!("Detected sequence stride: {}", gap);
-                            }
-
-                            // Check for dropped samples using detected stride
-                            if let Some(stride) = self.sequence_stride
-                                && gap > stride
-                            {
-                                let dropped = (gap / stride).saturating_sub(1);
-                                if dropped > 0 {
-                                    self.dropped_samples += dropped as u64;
-                                }
-                            }
+                            self.dropped_samples += rate.missing_samples(last_seq, sample.sequence) as u64;
                         }
                         self.last_sequence = Some(sample.sequence);
 
@@ -277,9 +259,8 @@ impl PowerMonitorApp {
                     self.current_rate = SampleRateOption::from_graph_rate(rate);
                     self.selected_rate = self.current_rate;
                     self.status = format!("Streaming at {}", self.current_rate.label());
-                    // Reset sequence tracking for new rate (stride may differ)
+                    // Reset sequence tracking because the expected step changed.
                     self.last_sequence = None;
-                    self.sequence_stride = None;
                 }
                 UsbMessage::PdEvents(events) => {
                     for event in &events {
@@ -316,7 +297,6 @@ impl PowerMonitorApp {
         self.total_samples = 0;
         self.dropped_samples = 0;
         self.last_sequence = None;
-        self.sequence_stride = None;
         self.time_base = None;
         info!("Data cleared");
     }
