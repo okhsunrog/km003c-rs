@@ -4,4 +4,19 @@ members = [
     "km003c-lib",
     "km003c-cli",
     "km003c-egui"
-    ]
+]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2024"
+authors = ["Danila Gornushko <me@okhsunrog.dev>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/okhsunrog/km003c-rs"
+
+[workspace.dependencies]
+km003c-lib = { version = "0.2.0", path = "km003c-lib" }
+tokio = { version = "1.53.0", features = ["full"] }
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+uom = "0.36"
+usbpd = { git = "https://github.com/okhsunrog/usbpd", rev = "b5dd12e" }

@@ -1,12 +1,17 @@
 [package]
 name = "km003c-lib"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 rust-version = "1.89"
-authors = ["Danila Gornushko <me@okhsunrog.dev>"]
+authors.workspace = true
 description = "Protocol parser and async USB library for the ChargerLAB POWER-Z KM003C"
-license = "MIT"
-repository = "https://github.com/okhsunrog/km003c-rs"
+license.workspace = true
+repository.workspace = true
+documentation = "https://docs.rs/km003c-lib"
+readme = "README.md"
+keywords = ["usb", "usb-c", "power-meter", "km003c", "async"]
+categories = ["hardware-support", "asynchronous", "api-bindings"]
+exclude = ["Cargo.lock", "*.parquet"]
 
 [lib]
 name = "km003c_lib"
@@ -16,8 +21,8 @@ crate-type = ["cdylib", "rlib"]
 modular-bitfield = "0.13.1"
 nusb = { version = "0.2.5", features = ["tokio"] }
 thiserror = "2.0.19"
-tracing = "0.1.44"
-tokio = { version = "1.53.0", features = ["full"] }
+tracing.workspace = true
+tokio.workspace = true
 bytes = "1.12.1"
 num_enum = "0.7.6"
 zerocopy = { version = "0.8.54", features = ["derive"] }
@@ -28,9 +33,9 @@ pyo3 = { version = "0.29.0", features = ["extension-module"], optional = true }
 aes = "0.9.1"
 crc32fast = "1.5.0"
 rand = "0.10.2"
-uom = "0.36"
+uom.workspace = true
 
 [features]
 default = []
-python = ["pyo3"]
+python = ["dep:pyo3"]
 serde = ["dep:serde", "uom/serde"]
