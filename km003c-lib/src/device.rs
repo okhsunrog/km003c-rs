@@ -47,17 +47,18 @@ use crate::adcqueue::GraphSampleRate;
 use crate::auth::{DeviceInfo, HardwareId};
 use crate::error::KMError;
 use crate::message::Packet;
-use crate::packet::{Attribute, AttributeSet, RawPacket};
+use crate::packet::{Attribute, AttributeSet, PacketType, RawPacket};
 use crate::pd::{PdEventStream, PdStatus};
 use bytes::Bytes;
 use nusb::Interface;
 use nusb::io::{EndpointRead, EndpointWrite};
 use nusb::transfer::{Bulk, Interrupt};
+use std::collections::VecDeque;
 use std::fmt;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
-use tracing::{debug, info, trace};
+use tracing::{debug, info, trace, warn};
 
 /// Device state populated by initialization
 ///
@@ -144,6 +145,26 @@ pub const ENDPOINT_IN_HID: u8 = 0x85;
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(2);
 const BULK_TRANSFER_SIZE: usize = 2048;
 const INTERRUPT_TRANSFER_SIZE: usize = 64;
+const MAX_PENDING_RESPONSES: usize = 256;
+
+fn parse_framed_response(bytes: &[u8]) -> Option<RawPacket> {
+    RawPacket::try_from(Bytes::copy_from_slice(bytes)).ok()
+}
+
+fn response_matches(bytes: &[u8], id: u8, packet_type: PacketType) -> bool {
+    parse_framed_response(bytes).is_some_and(|packet| packet.id() == id && packet.packet_type() == packet_type)
+}
+
+fn response_type_matches(bytes: &[u8], packet_type: PacketType) -> bool {
+    parse_framed_response(bytes).is_some_and(|packet| packet.packet_type() == packet_type)
+}
+
+fn control_response_matches(bytes: &[u8], id: u8) -> bool {
+    matches!(
+        parse_framed_response(bytes),
+        Some(RawPacket::Ctrl { header, .. }) if header.id() == id
+    )
+}
 
 /// Transfer type for USB communication
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -289,6 +310,7 @@ pub struct KM003C {
     transaction_id: u8,
     reader: EndpointReaderType,
     writer: EndpointWriterType,
+    pending_responses: VecDeque<Vec<u8>>,
     /// Connection mode: Basic (HID) or Full (Vendor with device state)
     mode: ConnectionMode,
 }
@@ -412,6 +434,7 @@ impl KM003C {
             transaction_id: 0,
             reader,
             writer,
+            pending_responses: VecDeque::new(),
             mode: ConnectionMode::Basic,
         };
 
@@ -438,6 +461,11 @@ impl KM003C {
 
     /// Send a high-level packet to the device
     pub async fn send(&mut self, packet: Packet) -> Result<(), KMError> {
+        self.send_tracked(packet).await.map(|_| ())
+    }
+
+    /// Send a high-level packet and return the transaction ID placed on the wire.
+    async fn send_tracked(&mut self, packet: Packet) -> Result<u8, KMError> {
         use crate::auth;
 
         let id = self.next_transaction_id();
@@ -447,17 +475,20 @@ impl KM003C {
         match &packet {
             Packet::MemoryRead { address, size } => {
                 let raw = auth::build_memory_read_packet(*address, *size, id);
-                return self.send_raw(&raw).await;
+                self.send_raw(&raw).await?;
+                return Ok(id);
             }
             Packet::StreamingAuth { hardware_id } => {
                 let raw = auth::build_streaming_auth_packet(hardware_id, id);
-                return self.send_raw(&raw).await;
+                self.send_raw(&raw).await?;
+                return Ok(id);
             }
             _ => {}
         }
 
         let raw_packet = packet.to_raw_packet(id);
-        self.send_raw_packet(raw_packet).await
+        self.send_raw_packet(raw_packet).await?;
+        Ok(id)
     }
 
     /// Send a raw packet to the device
@@ -515,8 +546,8 @@ impl KM003C {
         Ok(())
     }
 
-    /// Receive raw bytes from the device (for protocol research/testing)
-    pub async fn receive_raw(&mut self) -> Result<Vec<u8>, KMError> {
+    /// Read one complete response directly from the USB endpoint.
+    async fn read_raw_from_usb(&mut self) -> Result<Vec<u8>, KMError> {
         let mut buffer = Vec::new();
         let bytes_read = match &mut self.reader {
             EndpointReaderType::Bulk(reader) => {
@@ -541,11 +572,63 @@ impl KM003C {
         Ok(buffer)
     }
 
-    /// Receive a high-level packet from the device
-    pub async fn receive(&mut self) -> Result<Packet, KMError> {
-        // First get raw bytes to check for special packet formats
-        let raw_bytes = self.receive_raw().await?;
+    fn queue_pending_response(&mut self, response: Vec<u8>) {
+        if self.pending_responses.len() == MAX_PENDING_RESPONSES {
+            warn!("Dropping oldest unmatched response because the pending queue is full");
+            self.pending_responses.pop_front();
+        }
+        self.pending_responses.push_back(response);
+    }
 
+    async fn receive_matching_raw<F>(&mut self, mut predicate: F) -> Result<Vec<u8>, KMError>
+    where
+        F: FnMut(&[u8]) -> bool,
+    {
+        if let Some(index) = self.pending_responses.iter().position(|response| predicate(response)) {
+            return Ok(self
+                .pending_responses
+                .remove(index)
+                .expect("pending response index is valid"));
+        }
+
+        let deadline = tokio::time::Instant::now() + DEFAULT_TIMEOUT;
+        loop {
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                return Err(KMError::Protocol(
+                    "Timed out waiting for a correlated response".to_string(),
+                ));
+            }
+
+            let response = timeout(remaining, self.read_raw_from_usb()).await??;
+            if predicate(&response) {
+                return Ok(response);
+            }
+
+            if let Some(packet) = parse_framed_response(&response) {
+                debug!(
+                    "Queueing unmatched response: type={:?}, id={}, len={}",
+                    packet.packet_type(),
+                    packet.id(),
+                    response.len()
+                );
+            } else {
+                debug!("Queueing unframed response: len={}", response.len());
+            }
+            self.queue_pending_response(response);
+        }
+    }
+
+    /// Receive raw bytes from the device (for protocol research/testing).
+    /// Previously received out-of-order responses are returned first.
+    pub async fn receive_raw(&mut self) -> Result<Vec<u8>, KMError> {
+        if let Some(response) = self.pending_responses.pop_front() {
+            return Ok(response);
+        }
+        self.read_raw_from_usb().await
+    }
+
+    fn parse_response(raw_bytes: Vec<u8>) -> Result<Packet, KMError> {
         if raw_bytes.is_empty() {
             return Err(KMError::Protocol("Received 0 bytes".to_string()));
         }
@@ -561,10 +644,32 @@ impl KM003C {
             return Ok(Packet::StreamingAuthResponse(result));
         }
 
-        // Standard packet parsing
-        let bytes = Bytes::copy_from_slice(&raw_bytes);
-        let raw_packet = RawPacket::try_from(bytes)?;
+        let raw_packet = RawPacket::try_from(Bytes::from(raw_bytes))?;
         Packet::try_from(raw_packet)
+    }
+
+    /// Receive a high-level packet from the device
+    pub async fn receive(&mut self) -> Result<Packet, KMError> {
+        let raw_bytes = self.receive_raw().await?;
+        Self::parse_response(raw_bytes)
+    }
+
+    async fn receive_control_response(&mut self, id: u8) -> Result<Packet, KMError> {
+        let raw_bytes = self
+            .receive_matching_raw(|bytes| control_response_matches(bytes, id))
+            .await?;
+        Self::parse_response(raw_bytes)
+    }
+
+    async fn expect_accept(&mut self, id: u8, command: &str) -> Result<(), KMError> {
+        match self.receive_control_response(id).await? {
+            Packet::Accept { .. } => Ok(()),
+            Packet::Reject { .. } => Err(KMError::Protocol(format!("{command} was rejected by the device"))),
+            Packet::NotReadable { .. } => Err(KMError::Protocol(format!("{command} is not readable"))),
+            other => Err(KMError::Protocol(format!(
+                "Expected Accept for {command}, got {other:?}"
+            ))),
+        }
     }
 
     /// Receive encrypted MemoryRead response data
@@ -595,16 +700,17 @@ impl KM003C {
 
     /// Request data with a specific attribute set
     pub async fn request_data(&mut self, mask: AttributeSet) -> Result<Packet, KMError> {
-        self.send(Packet::GetData {
-            attribute_mask: mask.raw(),
-        })
-        .await?;
-        let packet = self.receive().await?;
-
-        // TODO: Could validate correlation here if we stored the request mask
-        // packet.validate_correlation(mask)?;
-
-        Ok(packet)
+        let id = self
+            .send_tracked(Packet::GetData {
+                attribute_mask: mask.raw(),
+            })
+            .await?;
+        let raw_bytes = self
+            .receive_matching_raw(|bytes| response_matches(bytes, id, PacketType::PutData))
+            .await?;
+        let raw_packet = RawPacket::try_from(Bytes::from(raw_bytes))?;
+        raw_packet.validate_correlation(mask.raw())?;
+        Packet::try_from(raw_packet)
     }
 
     /// Request ADC data only
@@ -660,14 +766,8 @@ impl KM003C {
     ///
     /// Returns Ok(()) on Accept, error otherwise.
     pub async fn enable_pd_monitor(&mut self) -> Result<(), KMError> {
-        self.send(Packet::EnablePdMonitor).await?;
-        match self.receive().await? {
-            Packet::Accept { .. } => Ok(()),
-            other => Err(KMError::Protocol(format!(
-                "Expected Accept for EnablePdMonitor, got {:?}",
-                other
-            ))),
-        }
+        let id = self.send_tracked(Packet::EnablePdMonitor).await?;
+        self.expect_accept(id, "EnablePdMonitor").await
     }
 
     /// Disable PD monitor/sniffer
@@ -676,14 +776,8 @@ impl KM003C {
     ///
     /// Returns Ok(()) on Accept, error otherwise.
     pub async fn disable_pd_monitor(&mut self) -> Result<(), KMError> {
-        self.send(Packet::DisablePdMonitor).await?;
-        match self.receive().await? {
-            Packet::Accept { .. } => Ok(()),
-            other => Err(KMError::Protocol(format!(
-                "Expected Accept for DisablePdMonitor, got {:?}",
-                other
-            ))),
-        }
+        let id = self.send_tracked(Packet::DisablePdMonitor).await?;
+        self.expect_accept(id, "DisablePdMonitor").await
     }
 
     /// Internal: Run initialization sequence for vendor interface (Full mode)
@@ -704,21 +798,15 @@ impl KM003C {
         const MAX_CONNECT_RETRIES: u8 = 3;
         let mut last_error = None;
         for attempt in 1..=MAX_CONNECT_RETRIES {
-            if let Err(err) = self.send(Packet::Connect).await {
-                last_error = Some(format!("Connect send failed: {err:?}"));
-            } else {
-                match self.receive().await {
-                    Ok(Packet::Accept { .. }) => {
+            match self.send_tracked(Packet::Connect).await {
+                Err(err) => last_error = Some(format!("Connect send failed: {err:?}")),
+                Ok(id) => match self.expect_accept(id, "Connect").await {
+                    Ok(()) => {
                         last_error = None;
                         break;
                     }
-                    Ok(other) => {
-                        last_error = Some(format!("Expected Accept for Connect, got {:?}", other));
-                    }
-                    Err(err) => {
-                        last_error = Some(format!("Connect receive failed: {err:?}"));
-                    }
-                }
+                    Err(err) => last_error = Some(format!("Connect receive failed: {err:?}")),
+                },
             }
             if attempt < MAX_CONNECT_RETRIES {
                 debug!("Connect attempt {} failed, retrying...", attempt);
@@ -748,12 +836,17 @@ impl KM003C {
         };
 
         // 6. StreamingAuth
-        self.send(Packet::StreamingAuth {
+        self.send_tracked(Packet::StreamingAuth {
             hardware_id: hardware_id.clone(),
         })
         .await?;
+        let auth_response = self
+            // StreamingAuth is the documented exception to normal transaction
+            // correlation: captured device responses always carry ID 0.
+            .receive_matching_raw(|bytes| response_type_matches(bytes, PacketType::StreamingAuth))
+            .await?;
 
-        let auth = match self.receive().await? {
+        let auth = match Self::parse_response(auth_response)? {
             Packet::StreamingAuthResponse(result) => result,
             other => {
                 return Err(KMError::Protocol(format!(
@@ -942,16 +1035,12 @@ impl KM003C {
         }
 
         // Device expects rate index directly: 0=2SPS, 1=10SPS, 2=50SPS, 3=1000SPS
-        self.send(Packet::StartGraph {
-            rate_index: rate as u16,
-        })
-        .await?;
-
-        // Wait for Accept
-        match self.receive().await? {
-            Packet::Accept { .. } => Ok(()),
-            other => Err(KMError::Protocol(format!("Expected Accept response, got {:?}", other))),
-        }
+        let id = self
+            .send_tracked(Packet::StartGraph {
+                rate_index: rate as u16,
+            })
+            .await?;
+        self.expect_accept(id, "StartGraph").await
     }
 
     /// Stop AdcQueue graph/streaming mode
@@ -966,12 +1055,29 @@ impl KM003C {
             ));
         }
 
-        self.send(Packet::StopGraph).await?;
+        let id = self.send_tracked(Packet::StopGraph).await?;
+        self.expect_accept(id, "StopGraph").await
+    }
+}
 
-        // Wait for Accept
-        match self.receive().await? {
-            Packet::Accept { .. } => Ok(()),
-            other => Err(KMError::Protocol(format!("Expected Accept response, got {:?}", other))),
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn response_matching_uses_the_typed_header_parser() {
+        assert!(response_matches(&[0xc1, 7, 0, 0], 7, PacketType::PutData));
+    }
+
+    #[test]
+    fn response_matching_requires_type_and_transaction_id() {
+        assert!(!response_matches(&[0xc1, 8, 0, 0], 7, PacketType::PutData));
+        assert!(!response_matches(&[0xc0, 7, 0, 0], 7, PacketType::PutData));
+        assert!(!response_matches(&[0xc1], 7, PacketType::PutData));
+    }
+
+    #[test]
+    fn response_type_matching_supports_fixed_id_protocol_exceptions() {
+        assert!(response_type_matches(&[0x4c, 0, 3, 2], PacketType::StreamingAuth));
     }
 }

@@ -1,6 +1,6 @@
 use clap::Parser;
 use km003c_lib::{
-    DeviceConfig, GraphSampleRate, KM003C, Packet,
+    DeviceConfig, GraphSampleRate, KM003C,
     packet::{Attribute, AttributeSet},
 };
 use std::error::Error;
@@ -108,19 +108,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     while start_time.elapsed() < Duration::from_secs(args.duration) {
         // Request AdcQueue data using library API
         let mask = AttributeSet::single(Attribute::AdcQueue);
-        if let Err(e) = device.send(Packet::GetData { attribute_mask: mask.raw() }).await {
-            if args.verbose {
-                println!("DEBUG: Send error: {:?}", e);
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            continue;
-        }
-
-        let packet = match device.receive().await {
+        let packet = match device.request_data(mask).await {
             Ok(p) => p,
             Err(e) => {
                 if args.verbose {
-                    println!("DEBUG: Receive error: {:?}", e);
+                    println!("DEBUG: Request error: {:?}", e);
                 }
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 continue;

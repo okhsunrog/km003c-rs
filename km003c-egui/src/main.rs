@@ -3,7 +3,7 @@ mod pd_decoder;
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
 use km003c_lib::{
-    AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C, Packet,
+    AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C,
     packet::{Attribute, AttributeSet},
     pd::{PdEvent, PdStatus},
 };
@@ -855,24 +855,7 @@ async fn run_streaming_session(
 
         // Request AdcQueue + PD data using library API
         let mask = AttributeSet::single(Attribute::AdcQueue).with(Attribute::PdPacket);
-        if let Err(e) = device
-            .send(Packet::GetData {
-                attribute_mask: mask.raw(),
-            })
-            .await
-        {
-            error!("Send error: {}", e);
-            error_count += 1;
-            if error_count >= MAX_ERRORS {
-                let _ = tx.send(UsbMessage::Error("Too many errors".to_string()));
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            continue;
-        }
-
-        // Receive and parse response using library API
-        match device.receive().await {
+        match device.request_data(mask).await {
             Ok(packet) => {
                 error_count = 0;
 
@@ -895,7 +878,7 @@ async fn run_streaming_session(
             }
             Err(e) => {
                 error_count += 1;
-                debug!("Receive error: {}", e);
+                debug!("Request error: {}", e);
                 if error_count >= MAX_ERRORS {
                     let _ = tx.send(UsbMessage::Error("Too many errors".to_string()));
                     break;
