@@ -1909,7 +1909,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "uom",
+ "uom 0.38.0",
  "usbpd",
 ]
 
@@ -1923,7 +1923,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "uom",
+ "uom 0.38.0",
  "usbpd",
 ]
 
@@ -1945,7 +1945,7 @@ dependencies = [
  "thiserror 2.0.19",
  "tokio",
  "tracing",
- "uom",
+ "uom 0.38.0",
  "zerocopy",
 ]
 
@@ -3781,11 +3781,22 @@ version = "0.36.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ffd36e5350a65d112584053ee91843955826bf9e56ec0d1351214e01f6d7cd9c"
 dependencies = [
+ "num-rational",
+ "num-traits",
+ "typenum",
+]
+
+[[package]]
+name = "uom"
+version = "0.38.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a739f83872836c82a4f2527d4e54b37007b3de68cafe7edde95fd695968bf4b9"
+dependencies = [
  "num-bigint",
  "num-complex",
  "num-rational",
  "num-traits",
- "serde",
+ "serde_core",
  "typenum",
 ]
 
@@ -3811,7 +3822,7 @@ dependencies = [
  "heapless",
  "proc-bitfield",
  "thiserror 2.0.19",
- "uom",
+ "uom 0.36.0",
  "usbpd-traits",
 ]
 
