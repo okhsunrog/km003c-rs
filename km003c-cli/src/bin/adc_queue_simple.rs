@@ -77,8 +77,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Start graph mode using library API
     println!(
         "Starting AdcQueue streaming at {} SPS (rate_index={})...",
-        args.rate,
-        rate as u16
+        args.rate, rate as u16
     );
     device.start_graph_mode(rate).await?;
     println!("Streaming started\n");
@@ -188,8 +187,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
             if total_samples % print_interval == 1 {
                 println!(
                     "{:>6} {:>10.3} {:>10.3} {:>10.3} {:>8.3} {:>8.3} {:>8.3} {:>8.3}",
-                    sample.sequence, sample.vbus_v, sample.ibus_a, sample.power_w, sample.cc1_v, sample.cc2_v,
-                    sample.vdp_v, sample.vdm_v
+                    sample.sequence,
+                    sample.vbus_v,
+                    sample.ibus_a,
+                    sample.power_w,
+                    sample.cc1_v,
+                    sample.cc2_v,
+                    sample.vdp_v,
+                    sample.vdm_v
                 );
             }
         }

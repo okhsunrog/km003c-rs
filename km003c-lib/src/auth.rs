@@ -21,8 +21,8 @@
 //! message module to send authentication commands. This module provides the
 //! underlying encryption and data structures.
 
-use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
 use aes::Aes128;
+use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
 
 /// AES-128 key for StreamingAuth encryption (host → device)
 pub const STREAMING_AUTH_KEY_ENC: &[u8; 16] = b"Fa0b4tA25f4R038a";
