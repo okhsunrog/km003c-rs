@@ -3,6 +3,10 @@ name = "km003c-egui"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.89"
+authors = ["Danila Gornushko <me@okhsunrog.dev>"]
+description = "Graphical monitor for the ChargerLAB POWER-Z KM003C"
+license = "MIT"
+repository = "https://github.com/okhsunrog/km003c-rs"
 
 [[bin]]
 name = "km003c-egui"
