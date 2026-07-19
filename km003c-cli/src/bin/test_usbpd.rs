@@ -449,9 +449,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.duration
     );
 
-    // Drain any pending data after init
-    while let Ok(Ok(_)) = tokio::time::timeout(Duration::from_millis(50), device.receive_raw()).await {}
-
     let start_time = Instant::now();
     let duration = Duration::from_secs(args.duration);
     let mut decoder = PdDecoder::new(args.raw);

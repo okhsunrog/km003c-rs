@@ -794,8 +794,6 @@ async fn run_streaming_session(
     // Initial StopGraph to ensure clean state
     info!("Sending initial StopGraph to ensure clean state");
     let _ = device.stop_graph_mode().await;
-    // Drain any pending data
-    while let Ok(Ok(_)) = tokio::time::timeout(Duration::from_millis(50), device.receive_raw()).await {}
 
     // Start streaming
     let mut current_rate = initial_rate;
@@ -820,9 +818,6 @@ async fn run_streaming_session(
                     // Stop current streaming
                     let _ = device.stop_graph_mode().await;
                     let _ = tx.send(UsbMessage::StreamingStopped);
-
-                    // Drain pending data
-                    while let Ok(Ok(_)) = tokio::time::timeout(Duration::from_millis(50), device.receive_raw()).await {}
 
                     // Start with new rate
                     if let Err(e) = start_streaming(&mut device, new_rate, tx).await {

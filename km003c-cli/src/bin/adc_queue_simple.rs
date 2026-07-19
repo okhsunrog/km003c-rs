@@ -69,9 +69,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let state = device.state().expect("device initialized");
     println!("{}\n", state);
 
-    // Drain any remaining responses
-    while let Ok(Ok(_)) = tokio::time::timeout(Duration::from_millis(100), device.receive_raw()).await {}
-
     println!("Init complete!\n");
 
     // Start graph mode using library API
@@ -179,13 +176,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     sample.vdp_v,
                     sample.vdm_v
                 );
-            }
-        }
-
-        // Drain any queued unsolicited responses (PD events etc.) before sleeping
-        while let Ok(Ok(_)) = tokio::time::timeout(Duration::from_millis(5), device.receive_raw()).await {
-            if args.verbose {
-                println!("DEBUG: Drained unsolicited response");
             }
         }
 
