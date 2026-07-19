@@ -103,7 +103,10 @@ pub struct AdcQueueSampleRaw {
 /// Parsed AdcQueue sample with converted units
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "python", pyo3::pyclass(get_all, name = "AdcQueueSample"))]
+#[cfg_attr(
+    feature = "python",
+    pyo3::pyclass(get_all, skip_from_py_object, name = "AdcQueueSample")
+)]
 pub struct AdcQueueSample {
     pub sequence: u16,
     pub vbus_v: f64,  // Volts
@@ -138,7 +141,10 @@ impl From<AdcQueueSampleRaw> for AdcQueueSample {
 /// Complete AdcQueue response containing multiple buffered samples
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "python", pyo3::pyclass(get_all, name = "AdcQueueData"))]
+#[cfg_attr(
+    feature = "python",
+    pyo3::pyclass(get_all, skip_from_py_object, name = "AdcQueueData")
+)]
 pub struct AdcQueueData {
     pub samples: Vec<AdcQueueSample>,
 }

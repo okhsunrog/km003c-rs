@@ -277,7 +277,10 @@ impl FromIterator<Attribute> for AttributeSet {
 /// PutData packets can contain multiple chained logical packets,
 /// each with its own extended header and payload.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "python", pyo3::pyclass(get_all, name = "LogicalPacket"))]
+#[cfg_attr(
+    feature = "python",
+    pyo3::pyclass(get_all, skip_from_py_object, name = "LogicalPacket")
+)]
 pub struct LogicalPacket {
     pub attribute: Attribute,
     pub next: bool,

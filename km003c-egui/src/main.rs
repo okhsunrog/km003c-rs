@@ -325,18 +325,18 @@ impl PowerMonitorApp {
 }
 
 impl eframe::App for PowerMonitorApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.process_messages();
 
         // Request repaints - fast when streaming, slower when idle
         if self.streaming {
-            ctx.request_repaint_after(Duration::from_millis(16)); // ~60fps when streaming
+            ui.ctx().request_repaint_after(Duration::from_millis(16)); // ~60fps when streaming
         } else {
-            ctx.request_repaint_after(Duration::from_millis(100)); // 10fps when idle
+            ui.ctx().request_repaint_after(Duration::from_millis(100)); // 10fps when idle
         }
 
         // Top panel with device info
-        egui::TopBottomPanel::top("header").show(ctx, |ui| {
+        egui::Panel::top("header").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("POWER-Z KM003C Monitor");
                 ui.separator();
@@ -354,7 +354,7 @@ impl eframe::App for PowerMonitorApp {
         });
 
         // Left panel with device info and controls
-        egui::SidePanel::left("info_panel").min_width(220.0).show(ctx, |ui| {
+        egui::Panel::left("info_panel").min_size(220.0).show(ui, |ui| {
             ui.heading("Device Info");
             ui.separator();
 
@@ -591,11 +591,11 @@ impl eframe::App for PowerMonitorApp {
 
         // Bottom panel with PD log
         if self.pd_panel_visible {
-            egui::TopBottomPanel::bottom("pd_panel")
+            egui::Panel::bottom("pd_panel")
                 .resizable(true)
-                .min_height(100.0)
-                .default_height(200.0)
-                .show(ctx, |ui| {
+                .min_size(100.0)
+                .default_size(200.0)
+                .show(ui, |ui| {
                     ui.heading("USB PD Protocol Log");
                     ui.separator();
 
@@ -636,7 +636,7 @@ impl eframe::App for PowerMonitorApp {
         }
 
         // Main panel with plots
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             let available_height = ui.available_height();
             let plot_height = (available_height - 30.0) / 3.0;
 

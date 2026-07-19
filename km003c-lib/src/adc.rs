@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Default, TryFromPrimitive, IntoPrimitive)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "python", pyo3::pyclass(eq, name = "SampleRate"))]
+#[cfg_attr(feature = "python", pyo3::pyclass(eq, skip_from_py_object, name = "SampleRate"))]
 #[repr(u8)]
 pub enum SampleRate {
     #[default]
@@ -85,7 +85,7 @@ pub struct AdcDataRaw {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "python", pyo3::pyclass(get_all, name = "AdcData"))]
+#[cfg_attr(feature = "python", pyo3::pyclass(get_all, skip_from_py_object, name = "AdcData"))]
 pub struct AdcDataSimple {
     // Main measurements
     pub vbus_v: f64, // Voltage in Volts

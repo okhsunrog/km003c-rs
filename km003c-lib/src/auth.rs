@@ -22,7 +22,7 @@
 //! underlying encryption and data structures.
 
 use aes::Aes128;
-use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
+use aes::cipher::{BlockCipherDecrypt, BlockCipherEncrypt, KeyInit};
 
 use crate::packet::{PacketType, StreamingAuthHeader};
 
@@ -30,6 +30,7 @@ const STREAMING_AUTH_HEADER_SIZE: usize = 4;
 const STREAMING_AUTH_PAYLOAD_SIZE: usize = 32;
 const STREAMING_AUTH_RESULT_FLAG: u16 = 1;
 const STREAMING_AUTH_GRANTED_FLAG: u16 = 1 << 1;
+const AES_BLOCK_SIZE: usize = 16;
 pub(crate) const STREAMING_AUTH_RESPONSE_ID: u8 = 0;
 
 /// AES-128 key for StreamingAuth encryption (host → device)
@@ -387,13 +388,11 @@ pub fn parse_streaming_auth_response_payload(payload: &[u8], attribute: u16) -> 
 /// AES-128-ECB encrypt 32 bytes
 fn aes_ecb_encrypt(plaintext: &[u8; 32], key: &[u8; 16]) -> [u8; 32] {
     let cipher = Aes128::new(key.into());
-
     let mut output = *plaintext;
 
-    // Process two 16-byte blocks
-    let (block1, block2) = output.split_at_mut(16);
-    cipher.encrypt_block(block1.into());
-    cipher.encrypt_block(block2.into());
+    for block in output.chunks_exact_mut(AES_BLOCK_SIZE) {
+        encrypt_aes_block(&cipher, block);
+    }
 
     output
 }
@@ -403,7 +402,7 @@ fn aes_ecb_encrypt(plaintext: &[u8; 32], key: &[u8; 16]) -> [u8; 32] {
 /// The response payload is AES-encrypted with MEMORY_READ_KEY.
 /// Useful for protocol research and manual memory reads.
 pub fn decrypt_memory_read_response(ciphertext: &[u8]) -> Option<Vec<u8>> {
-    if ciphertext.len() < 16 {
+    if ciphertext.len() < AES_BLOCK_SIZE {
         return None;
     }
 
@@ -411,9 +410,9 @@ pub fn decrypt_memory_read_response(ciphertext: &[u8]) -> Option<Vec<u8>> {
     let cipher = Aes128::new(MEMORY_READ_KEY.into());
     let mut output = ciphertext.to_vec();
 
-    for chunk in output.chunks_mut(16) {
-        if chunk.len() == 16 {
-            cipher.decrypt_block(chunk.into());
+    for block in output.chunks_mut(AES_BLOCK_SIZE) {
+        if block.len() == AES_BLOCK_SIZE {
+            decrypt_aes_block(&cipher, block);
         }
     }
 
@@ -423,15 +422,23 @@ pub fn decrypt_memory_read_response(ciphertext: &[u8]) -> Option<Vec<u8>> {
 /// AES-128-ECB decrypt 32 bytes
 fn aes_ecb_decrypt(ciphertext: &[u8; 32], key: &[u8; 16]) -> [u8; 32] {
     let cipher = Aes128::new(key.into());
-
     let mut output = *ciphertext;
 
-    // Process two 16-byte blocks
-    let (block1, block2) = output.split_at_mut(16);
-    cipher.decrypt_block(block1.into());
-    cipher.decrypt_block(block2.into());
+    for block in output.chunks_exact_mut(AES_BLOCK_SIZE) {
+        decrypt_aes_block(&cipher, block);
+    }
 
     output
+}
+
+fn encrypt_aes_block(cipher: &Aes128, bytes: &mut [u8]) {
+    let block: &mut [u8; AES_BLOCK_SIZE] = bytes.try_into().expect("AES chunk has the block size");
+    cipher.encrypt_block(block.into());
+}
+
+fn decrypt_aes_block(cipher: &Aes128, bytes: &mut [u8]) {
+    let block: &mut [u8; AES_BLOCK_SIZE] = bytes.try_into().expect("AES chunk has the block size");
+    cipher.decrypt_block(block.into());
 }
 
 /// AES-128-ECB decrypt a single 16-byte block
@@ -440,7 +447,7 @@ fn aes_ecb_decrypt(ciphertext: &[u8; 32], key: &[u8; 16]) -> [u8; 32] {
 pub fn aes_ecb_decrypt_block(ciphertext: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
     let cipher = Aes128::new(key.into());
     let mut output = *ciphertext;
-    cipher.decrypt_block((&mut output).into());
+    decrypt_aes_block(&cipher, &mut output);
     output
 }
 
@@ -453,9 +460,9 @@ pub fn aes_ecb_decrypt_block(ciphertext: &[u8; 16], key: &[u8; 16]) -> [u8; 16] 
 /// # Returns
 /// Decrypted data, or error if ciphertext length is not a multiple of 16
 pub fn aes_ecb_decrypt_blocks(ciphertext: &[u8], key: &[u8; 16]) -> Result<Vec<u8>, crate::error::KMError> {
-    if !ciphertext.len().is_multiple_of(16) {
+    if !ciphertext.len().is_multiple_of(AES_BLOCK_SIZE) {
         return Err(crate::error::KMError::InvalidPacket(format!(
-            "AES ciphertext must be multiple of 16 bytes, got {}",
+            "AES ciphertext must be a multiple of {AES_BLOCK_SIZE} bytes, got {}",
             ciphertext.len()
         )));
     }
@@ -463,8 +470,8 @@ pub fn aes_ecb_decrypt_blocks(ciphertext: &[u8], key: &[u8; 16]) -> Result<Vec<u
     let cipher = Aes128::new(key.into());
     let mut output = ciphertext.to_vec();
 
-    for chunk in output.chunks_mut(16) {
-        cipher.decrypt_block(chunk.into());
+    for block in output.chunks_exact_mut(AES_BLOCK_SIZE) {
+        decrypt_aes_block(&cipher, block);
     }
 
     Ok(output)

@@ -22,7 +22,7 @@ pub struct PdStatusRaw {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "python", pyo3::pyclass(get_all))]
+#[cfg_attr(feature = "python", pyo3::pyclass(get_all, skip_from_py_object))]
 pub struct PdStatus {
     pub type_id: u8,
     pub timestamp: u32, // Converted from 24-bit, ~40ms per tick
@@ -76,7 +76,7 @@ pub struct PdPreambleRaw {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "python", pyo3::pyclass(get_all))]
+#[cfg_attr(feature = "python", pyo3::pyclass(get_all, skip_from_py_object))]
 pub struct PdPreamble {
     pub timestamp: u32, // Milliseconds, frames following events
     pub vbus_v: f64,
@@ -128,7 +128,7 @@ pub enum PdEventData {
 
 /// Timestamped PD event
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "python", pyo3::pyclass(get_all, name = "PdEvent"))]
+#[cfg_attr(feature = "python", pyo3::pyclass(get_all, skip_from_py_object, name = "PdEvent"))]
 pub struct PdEvent {
     pub timestamp: u32,
     pub data: PdEventData,
@@ -136,7 +136,7 @@ pub struct PdEvent {
 
 /// Complete PD event stream with preamble and events
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "python", pyo3::pyclass(name = "PdEventStream"))]
+#[cfg_attr(feature = "python", pyo3::pyclass(skip_from_py_object, name = "PdEventStream"))]
 pub struct PdEventStream {
     pub preamble: PdPreamble,
     pub events: Vec<PdEvent>,

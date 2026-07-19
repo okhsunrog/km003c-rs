@@ -10,9 +10,10 @@ repository = "https://github.com/okhsunrog/km003c-rs"
 
 [dependencies]
 km003c-lib = { path = "../km003c-lib" }
-tokio = { version = "1.45", features = ["full"] }
-clap = { version = "4.0", features = ["derive"] }
-tracing-subscriber = "0.3"
-tracing = "0.1"
+tokio = { version = "1.53.0", features = ["full"] }
+clap = { version = "4.6.2", features = ["derive"] }
+tracing-subscriber = "0.3.23"
+tracing = "0.1.44"
 usbpd = { git = "https://github.com/okhsunrog/usbpd", rev = "b5dd12e" }
+# Keep this aligned with usbpd's public quantity types.
 uom = "0.36"
