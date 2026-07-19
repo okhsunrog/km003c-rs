@@ -678,7 +678,7 @@ impl eframe::App for PowerMonitorApp {
                             .filter(|(t, _, _, _)| in_window(t))
                             .map(|(t, v, _, _)| [*t, *v])
                             .collect();
-                        plot_ui.line(Line::new("Voltage", points).color(egui::Color32::GREEN).width(1.5));
+                        plot_ui.line(Line::new("Voltage", points).color(egui::Color32::GREEN).width(1.5_f32));
                     }
                 });
 
@@ -699,7 +699,7 @@ impl eframe::App for PowerMonitorApp {
                             .filter(|(t, _, _, _)| in_window(t))
                             .map(|(t, _, i, _)| [*t, *i])
                             .collect();
-                        plot_ui.line(Line::new("Current", points).color(egui::Color32::BLUE).width(1.5));
+                        plot_ui.line(Line::new("Current", points).color(egui::Color32::BLUE).width(1.5_f32));
                     }
                 });
 
@@ -723,7 +723,7 @@ impl eframe::App for PowerMonitorApp {
                         plot_ui.line(
                             Line::new("Power", points)
                                 .color(egui::Color32::from_rgb(255, 165, 0)) // Orange
-                                .width(1.5),
+                                .width(1.5_f32),
                         );
                     }
                 });
