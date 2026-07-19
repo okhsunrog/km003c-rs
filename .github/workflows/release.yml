@@ -1,0 +1,150 @@
+name: Release
+
+# Tag push (v*) builds km003c-egui for every supported desktop platform and
+# attaches the archives to a GitHub Release. workflow_dispatch performs the
+# same builds for verification without publishing a release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate:
+    name: Validate version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate tag against workspace version
+        id: version
+        shell: bash
+        run: |
+          version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml)
+          if [[ -z "$version" ]]; then
+            echo "::error::Could not read the workspace version"
+            exit 1
+          fi
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "v${version}" ]]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match workspace version v${version}"
+            exit 1
+          fi
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.platform }}
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x86_64
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - os: windows-latest
+            platform: windows-x86_64
+            target: x86_64-pc-windows-msvc
+            archive: zip
+          - os: macos-latest
+            platform: macos-universal
+            target: universal-apple-darwin
+            archive: tar.gz
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes libwayland-dev libxkbcommon-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.platform }}
+
+      - name: Build release binary
+        if: matrix.platform != 'macos-universal'
+        shell: bash
+        run: |
+          rustup target add "${{ matrix.target }}"
+          cargo build --release --locked -p km003c-egui --target "${{ matrix.target }}"
+
+      - name: Build universal macOS binary
+        if: matrix.platform == 'macos-universal'
+        shell: bash
+        run: |
+          rustup target add x86_64-apple-darwin aarch64-apple-darwin
+          cargo build --release --locked -p km003c-egui --target x86_64-apple-darwin
+          cargo build --release --locked -p km003c-egui --target aarch64-apple-darwin
+          mkdir -p "target/${{ matrix.target }}/release"
+          lipo -create \
+            target/x86_64-apple-darwin/release/km003c-egui \
+            target/aarch64-apple-darwin/release/km003c-egui \
+            -output "target/${{ matrix.target }}/release/km003c-egui"
+
+      - name: Package Unix archive
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          name="km003c-egui-v${{ needs.validate.outputs.version }}-${{ matrix.platform }}"
+          mkdir -p "dist/${name}"
+          cp "target/${{ matrix.target }}/release/km003c-egui" "dist/${name}/"
+          cp README.md LICENSE-MIT LICENSE-APACHE "dist/${name}/"
+          chmod +x "dist/${name}/km003c-egui"
+          tar -czf "dist/${name}.tar.gz" -C dist "${name}"
+
+      - name: Package Windows archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $name = "km003c-egui-v${{ needs.validate.outputs.version }}-${{ matrix.platform }}"
+          New-Item -ItemType Directory -Force -Path "dist/$name" | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/km003c-egui.exe" "dist/$name/"
+          Copy-Item "README.md", "LICENSE-MIT", "LICENSE-APACHE" "dist/$name/"
+          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip" -Force
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: km003c-egui-${{ matrix.platform }}
+          path: dist/*.${{ matrix.archive }}
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - validate
+      - build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: release-assets
+          pattern: km003c-egui-*
+          merge-multiple: true
+
+      - name: Generate checksums
+        working-directory: release-assets
+        run: sha256sum km003c-egui-* > SHA256SUMS
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: release-assets/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -6,6 +6,12 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     labels: [dependencies]
+    ignore:
+      # usbpd exposes uom 0.36 quantities in its public API. Upgrade both together.
+      - dependency-name: uom
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /
