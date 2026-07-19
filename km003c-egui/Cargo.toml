@@ -2,7 +2,7 @@
 name = "km003c-egui"
 version.workspace = true
 edition.workspace = true
-rust-version = "1.92"
+rust-version.workspace = true
 authors.workspace = true
 description = "Graphical monitor for the ChargerLAB POWER-Z KM003C"
 license.workspace = true

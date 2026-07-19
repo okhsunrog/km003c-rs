@@ -36,29 +36,19 @@ jobs:
       - run: cargo package -p km003c-lib --locked
 
   msrv:
-    name: MSRV ${{ matrix.rust }} / ${{ matrix.package }}
+    name: MSRV 1.97
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - rust: 1.89.0
-            package: km003c-lib
-          - rust: 1.89.0
-            package: km003c-cli
-          - rust: 1.92.0
-            package: km003c-egui
     steps:
       - uses: actions/checkout@v7
       - name: Install Linux build dependencies
         run: sudo apt-get update && sudo apt-get install --yes libwayland-dev libxkbcommon-dev
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ matrix.rust }}
+          toolchain: 1.97.0
       - uses: Swatinem/rust-cache@v2
         with:
-          key: msrv-${{ matrix.rust }}-${{ matrix.package }}
-      - run: cargo check --package ${{ matrix.package }} --all-targets --all-features --locked
+          key: msrv-1.97
+      - run: cargo check --workspace --all-targets --all-features --locked
 
   platforms:
     name: Check ${{ matrix.os }}

@@ -2,7 +2,7 @@
 name = "km003c-cli"
 version.workspace = true
 edition.workspace = true
-rust-version = "1.89"
+rust-version.workspace = true
 authors.workspace = true
 description = "Command-line tools for the ChargerLAB POWER-Z KM003C"
 license.workspace = true

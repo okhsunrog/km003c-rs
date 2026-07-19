@@ -233,7 +233,7 @@ Hardware commands are deliberately separate from the offline CI gate; use
 
 ## Requirements
 
-- **Rust**: 1.92+ for the full workspace; 1.89+ for the library and CLI
+- **Rust**: 1.97 or newer
 - **Platforms**: Linux, Windows, macOS
 - **Hardware**: POWER-Z KM003C
 
