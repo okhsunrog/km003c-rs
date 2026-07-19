@@ -36,6 +36,7 @@ struct Args {
 use uom::si::electric_current::ampere;
 use uom::si::electric_potential::volt;
 use uom::si::power::watt;
+use uom::si::time::millisecond;
 
 /// Format a single PDO for display
 fn format_pdo(pdo: &PowerDataObject) -> String {
@@ -464,14 +465,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     for event in &stream.events {
                         match &event.data {
                             PdEventData::Connect(_) => {
-                                println!("[{:>8.3}s] ** CONNECT **", event.timestamp as f64 / 1000.0);
+                                println!(
+                                    "[{:>8.3}s] ** CONNECT **",
+                                    event.timestamp.get::<millisecond>() / 1000.0
+                                );
                                 decoder.handle_connect();
                             }
                             PdEventData::Disconnect(_) => {
-                                println!("[{:>8.3}s] ** DISCONNECT **", event.timestamp as f64 / 1000.0);
+                                println!(
+                                    "[{:>8.3}s] ** DISCONNECT **",
+                                    event.timestamp.get::<millisecond>() / 1000.0
+                                );
                             }
                             PdEventData::PdMessage { sop, wire_data } => {
-                                decoder.decode(event.timestamp, *sop, wire_data);
+                                decoder.decode(event.timestamp.get::<millisecond>() as u32, *sop, wire_data);
                             }
                         }
                     }

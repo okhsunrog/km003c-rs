@@ -1,6 +1,10 @@
 use clap::Parser;
 use km003c_lib::{DeviceConfig, KM003C};
 use std::error::Error;
+use uom::si::electric_current::ampere;
+use uom::si::electric_potential::volt;
+use uom::si::power::watt;
+use uom::si::thermodynamic_temperature::degree_celsius;
 
 /// Simple ADC data reader for POWER-Z KM003C
 #[derive(Parser, Debug)]
@@ -76,38 +80,41 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Main measurements
     println!("\n⚡ Power Measurements:");
-    println!("  VBUS:        {:>8.3} V", adc_data.vbus_v);
-    println!("  IBUS:        {:>8.3} A", adc_data.ibus_a);
-    println!("  IBUS (abs):  {:>8.3} A", adc_data.current_abs_a());
-    println!("  Power:       {:>8.3} W", adc_data.power_w);
-    println!("  Power (abs): {:>8.3} W", adc_data.power_abs_w());
+    println!("  VBUS:        {:>8.3} V", adc_data.vbus.get::<volt>());
+    println!("  IBUS:        {:>8.3} A", adc_data.ibus.get::<ampere>());
+    println!("  IBUS (abs):  {:>8.3} A", adc_data.current_abs().get::<ampere>());
+    println!("  Power:       {:>8.3} W", adc_data.power.get::<watt>());
+    println!("  Power (abs): {:>8.3} W", adc_data.power_abs().get::<watt>());
 
     // Averaged measurements
     println!("\n📊 Averaged:");
-    println!("  VBUS avg:    {:>8.3} V", adc_data.vbus_avg_v);
-    println!("  IBUS avg:    {:>8.3} A", adc_data.ibus_avg_a);
+    println!("  VBUS avg:    {:>8.3} V", adc_data.vbus_average.get::<volt>());
+    println!("  IBUS avg:    {:>8.3} A", adc_data.ibus_average.get::<ampere>());
 
     // Temperature
     println!("\n🌡️  Temperature:");
-    println!("  Device:      {:>8.1} °C", adc_data.temp_c);
+    println!(
+        "  Device:      {:>8.1} °C",
+        adc_data.temperature.get::<degree_celsius>()
+    );
 
     // USB data lines
     println!("\n🔌 USB Data Lines:");
-    println!("  D+:          {:>8.3} V", adc_data.vdp_v);
-    println!("  D-:          {:>8.3} V", adc_data.vdm_v);
-    println!("  D+ avg:      {:>8.3} V", adc_data.vdp_avg_v);
-    println!("  D- avg:      {:>8.3} V", adc_data.vdm_avg_v);
+    println!("  D+:          {:>8.3} V", adc_data.vdp.get::<volt>());
+    println!("  D-:          {:>8.3} V", adc_data.vdm.get::<volt>());
+    println!("  D+ avg:      {:>8.3} V", adc_data.vdp_average.get::<volt>());
+    println!("  D- avg:      {:>8.3} V", adc_data.vdm_average.get::<volt>());
 
     // USB-C CC lines
     println!("\n🔗 USB-C CC Lines:");
-    println!("  CC1:         {:>8.3} V", adc_data.cc1_v);
-    println!("  CC2:         {:>8.3} V", adc_data.cc2_v);
-    println!("  CC2 avg:     {:>8.3} V", adc_data.cc2_avg_v);
+    println!("  CC1:         {:>8.3} V", adc_data.cc1.get::<volt>());
+    println!("  CC2:         {:>8.3} V", adc_data.cc2.get::<volt>());
+    println!("  CC2 avg:     {:>8.3} V", adc_data.cc2_average.get::<volt>());
 
     // Sample rate and internal voltage
     println!("\n⚙️  Device Info:");
     println!("  Sample Rate: {}", adc_data.sample_rate);
-    println!("  Internal VDD: {:>7.3} V", adc_data.internal_vdd_v);
+    println!("  Internal VDD: {:>7.3} V", adc_data.internal_vdd.get::<volt>());
 
     println!("\n{}", "=".repeat(50));
     println!("✅ Done!");

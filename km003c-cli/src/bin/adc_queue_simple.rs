@@ -5,6 +5,9 @@ use km003c_lib::{
 };
 use std::error::Error;
 use std::time::Duration;
+use uom::si::electric_current::ampere;
+use uom::si::electric_potential::volt;
+use uom::si::power::watt;
 
 /// AdcQueue streaming example for POWER-Z KM003C
 #[derive(Parser, Debug)]
@@ -168,13 +171,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 println!(
                     "{:>6} {:>10.3} {:>10.3} {:>10.3} {:>8.3} {:>8.3} {:>8.3} {:>8.3}",
                     sample.sequence,
-                    sample.vbus_v,
-                    sample.ibus_a,
-                    sample.power_w,
-                    sample.cc1_v,
-                    sample.cc2_v,
-                    sample.vdp_v,
-                    sample.vdm_v
+                    sample.vbus.get::<volt>(),
+                    sample.ibus.get::<ampere>(),
+                    sample.power.get::<watt>(),
+                    sample.cc1.get::<volt>(),
+                    sample.cc2.get::<volt>(),
+                    sample.vdp.get::<volt>(),
+                    sample.vdm.get::<volt>()
                 );
             }
         }
@@ -193,7 +196,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Statistics
     let elapsed = start_time.elapsed().as_secs_f64();
     let effective_rate = total_samples as f64 / elapsed;
-
     println!("Statistics:");
     println!("  Duration: {:.1}s", elapsed);
     println!("  Packets received: {}", packet_count);

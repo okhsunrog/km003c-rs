@@ -326,6 +326,8 @@ pub struct KM003C {
     reader: EndpointReaderType,
     writer: EndpointWriterType,
     pending_responses: VecDeque<Vec<u8>>,
+    /// Rate currently selected with StartGraph, used to decode rate-dependent fields.
+    graph_sample_rate: Option<GraphSampleRate>,
     /// Connection mode: Basic (HID) or Full (Vendor with device state)
     mode: ConnectionMode,
 }
@@ -450,6 +452,7 @@ impl KM003C {
             reader,
             writer,
             pending_responses: VecDeque::new(),
+            graph_sample_rate: None,
             mode: ConnectionMode::Basic,
         };
 
@@ -643,26 +646,30 @@ impl KM003C {
         self.read_raw_from_usb().await
     }
 
-    fn parse_response(raw_bytes: Vec<u8>) -> Result<Packet, KMError> {
+    fn parse_response(raw_bytes: Vec<u8>, graph_rate: Option<GraphSampleRate>) -> Result<Packet, KMError> {
         if raw_bytes.is_empty() {
             return Err(KMError::Protocol("Received 0 bytes".to_string()));
         }
 
         let raw_packet = RawPacket::try_from(Bytes::from(raw_bytes))?;
-        Packet::try_from(raw_packet)
+        if let Some(rate) = graph_rate {
+            Packet::from_raw_with_graph_rate(raw_packet, rate)
+        } else {
+            Packet::try_from(raw_packet)
+        }
     }
 
     /// Receive a high-level packet from the device
     pub async fn receive(&mut self) -> Result<Packet, KMError> {
         let raw_bytes = self.receive_raw().await?;
-        Self::parse_response(raw_bytes)
+        Self::parse_response(raw_bytes, self.graph_sample_rate)
     }
 
     async fn receive_control_response(&mut self, id: u8) -> Result<Packet, KMError> {
         let raw_bytes = self
             .receive_matching_raw(|bytes| control_response_matches(bytes, id))
             .await?;
-        Self::parse_response(raw_bytes)
+        Self::parse_response(raw_bytes, self.graph_sample_rate)
     }
 
     async fn expect_accept(&mut self, id: u8, command: &str) -> Result<(), KMError> {
@@ -727,7 +734,11 @@ impl KM003C {
             .await?;
         let raw_packet = RawPacket::try_from(Bytes::from(raw_bytes))?;
         raw_packet.validate_correlation(mask.raw())?;
-        Packet::try_from(raw_packet)
+        if let Some(rate) = self.graph_sample_rate {
+            Packet::from_raw_with_graph_rate(raw_packet, rate)
+        } else {
+            Packet::try_from(raw_packet)
+        }
     }
 
     /// Request ADC data only
@@ -863,7 +874,7 @@ impl KM003C {
             .receive_matching_raw(|bytes| response_type_matches(bytes, PacketType::StreamingAuth))
             .await?;
 
-        let auth = match Self::parse_response(auth_response)? {
+        let auth = match Self::parse_response(auth_response, self.graph_sample_rate)? {
             Packet::StreamingAuthResponse(result) => result,
             other => {
                 return Err(KMError::Protocol(format!(
@@ -943,7 +954,7 @@ impl KM003C {
             .receive_matching_raw(|bytes| memory_confirmation_matches(bytes, id))
             .await?;
 
-        match Self::parse_response(confirmation)? {
+        match Self::parse_response(confirmation, self.graph_sample_rate)? {
             Packet::Accept { .. } => self.receive_memory_read_data_exact(size).await,
             Packet::Reject { .. } => Err(KMError::Protocol(format!("MemoryRead at 0x{address:08X} was rejected"))),
             Packet::NotReadable { .. } => Err(KMError::Protocol(format!(
@@ -1063,7 +1074,9 @@ impl KM003C {
                 rate_index: rate as u16,
             })
             .await?;
-        self.expect_accept(id, "StartGraph").await
+        self.expect_accept(id, "StartGraph").await?;
+        self.graph_sample_rate = Some(rate);
+        Ok(())
     }
 
     /// Stop AdcQueue graph/streaming mode
@@ -1079,7 +1092,9 @@ impl KM003C {
         }
 
         let id = self.send_tracked(Packet::StopGraph).await?;
-        self.expect_accept(id, "StopGraph").await
+        self.expect_accept(id, "StopGraph").await?;
+        self.graph_sample_rate = None;
+        Ok(())
     }
 }
 

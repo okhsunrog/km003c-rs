@@ -1,9 +1,15 @@
 use bytes::Bytes;
 use km003c_lib::{Packet, PdEventData, PdEventStream, RawPacket};
+use uom::si::electric_potential::volt;
+use uom::si::time::millisecond;
 
 fn parse_pd_events(frame: &str) -> km003c_lib::PdEventStream {
     let raw = RawPacket::try_from(Bytes::from(hex::decode(frame).unwrap())).unwrap();
     Packet::try_from(raw).unwrap().get_pd_events().unwrap().clone()
+}
+
+fn assert_milliseconds(timestamp: uom::si::f64::Time, expected: f64) {
+    assert!((timestamp.get::<millisecond>() - expected).abs() < 1e-6);
 }
 
 #[test]
@@ -12,8 +18,8 @@ fn parses_recorded_pd_message_stream() {
     let frame = "41a90205100000168bfa1200de130000750602009f80fa120000a1632c9101082cd102002cc103002cb10400454106003c21dcc08781fa12000041028b85fa1200008210dc7003238786fa1200002101878afa120000a305878afa1200004104";
     let stream = parse_pd_events(frame);
 
-    assert_eq!(stream.preamble.timestamp, 1_243_787);
-    assert_eq!(stream.preamble.vbus_v, 5.086);
+    assert_milliseconds(stream.preamble.timestamp, 1_243_787.0);
+    assert_eq!(stream.preamble.vbus.get::<volt>(), 5.086);
     assert_eq!(stream.events.len(), 6);
 
     let expected = [
@@ -26,7 +32,7 @@ fn parses_recorded_pd_message_stream() {
     ];
 
     for (event, (timestamp, wire_hex)) in stream.events.iter().zip(expected) {
-        assert_eq!(event.timestamp, timestamp);
+        assert_milliseconds(event.timestamp, f64::from(timestamp));
         assert_eq!(
             event.data,
             PdEventData::PdMessage {
@@ -43,9 +49,9 @@ fn recognizes_legacy_recorded_connection_events() {
     let connect = parse_pd_events("419dc20010008004def81200000000007406020045d4f8120011");
     let disconnect = parse_pd_events("413bc20010008004eb0d1300f1130000a80c7f0045cc0d130012");
 
-    assert_eq!(connect.events[0].timestamp, 1_243_348);
+    assert_milliseconds(connect.events[0].timestamp, 1_243_348.0);
     assert_eq!(connect.events[0].data, PdEventData::Connect(()));
-    assert_eq!(disconnect.events[0].timestamp, 1_248_716);
+    assert_milliseconds(disconnect.events[0].timestamp, 1_248_716.0);
     assert_eq!(disconnect.events[0].data, PdEventData::Disconnect(()));
 }
 
@@ -54,7 +60,7 @@ fn recognizes_current_recorded_connection_event() {
     // Source: usb_master_dataset.parquet, pd_epr0.9, frame 887.
     let connect = parse_pd_events("4194c20010008004fba90100030000000000200645efa9010021");
 
-    assert_eq!(connect.events[0].timestamp, 109_039);
+    assert_milliseconds(connect.events[0].timestamp, 109_039.0);
     assert_eq!(connect.events[0].data, PdEventData::Connect(()));
 }
 

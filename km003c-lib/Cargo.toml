@@ -28,8 +28,9 @@ pyo3 = { version = "0.29.0", features = ["extension-module"], optional = true }
 aes = "0.9.1"
 crc32fast = "1.5.0"
 rand = "0.10.2"
+uom = "0.36"
 
 [features]
 default = []
 python = ["pyo3"]
-serde = ["dep:serde"]
+serde = ["dep:serde", "uom/serde"]

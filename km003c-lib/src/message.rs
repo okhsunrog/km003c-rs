@@ -1,5 +1,5 @@
 use crate::adc::{AdcDataRaw, AdcDataSimple};
-use crate::adcqueue::AdcQueueData;
+use crate::adcqueue::{AdcQueueData, GraphSampleRate};
 use crate::auth::{self, HardwareId, StreamingAuthResult};
 use crate::constants::*;
 use crate::error::KMError;
@@ -9,6 +9,8 @@ use crate::packet::{
 use crate::pd::{PdEventStream, PdStatus, PdStatusRaw};
 use bytes::Bytes;
 use num_enum::FromPrimitive;
+use uom::si::electric_current::milliampere;
+use uom::si::electric_potential::millivolt;
 use zerocopy::{FromBytes, IntoBytes};
 
 const PD_MONITOR_ENABLED_PARAMETER: u16 = 1;
@@ -138,6 +140,20 @@ impl TryFrom<RawPacket> for Packet {
     type Error = KMError;
 
     fn try_from(raw_packet: RawPacket) -> Result<Self, Self::Error> {
+        Self::from_raw(raw_packet, None)
+    }
+}
+
+impl Packet {
+    /// Parse a raw packet using the configured AdcQueue graph rate.
+    ///
+    /// Live device users should supply the rate used with `StartGraph` because
+    /// auxiliary AdcQueue voltage fields use rate-dependent units.
+    pub fn from_raw_with_graph_rate(raw_packet: RawPacket, rate: GraphSampleRate) -> Result<Self, KMError> {
+        Self::from_raw(raw_packet, Some(rate))
+    }
+
+    fn from_raw(raw_packet: RawPacket, graph_rate: Option<GraphSampleRate>) -> Result<Self, KMError> {
         match raw_packet {
             RawPacket::Ctrl { header, payload } => {
                 let packet_type = PacketType::from_primitive(header.packet_type());
@@ -205,7 +221,11 @@ impl TryFrom<RawPacket> for Packet {
                             // Parse AdcQueue data (multiple 20-byte samples)
                             // Note: Extended header size field (typically 20) indicates size per sample,
                             // not total payload size. Actual payload contains N samples.
-                            let adcqueue = AdcQueueData::from_bytes(lp.payload.as_ref())?;
+                            let adcqueue = if let Some(rate) = graph_rate {
+                                AdcQueueData::from_bytes_with_rate(lp.payload.as_ref(), rate)?
+                            } else {
+                                AdcQueueData::from_bytes(lp.payload.as_ref())?
+                            };
                             PayloadData::AdcQueue(adcqueue)
                         }
                         Attribute::PdPacket => {
@@ -257,14 +277,14 @@ impl Packet {
                         }
                         PayloadData::PdStatus(pd_status) => {
                             // Reconstruct PdStatusRaw
-                            let timestamp_bytes = pd_status.timestamp.to_le_bytes();
+                            let timestamp_bytes = pd_status.timestamp_ticks.to_le_bytes();
                             let mut raw_bytes = Vec::with_capacity(12);
                             raw_bytes.push(pd_status.type_id);
                             raw_bytes.extend_from_slice(&timestamp_bytes[..3]); // 24-bit
-                            raw_bytes.extend_from_slice(&((pd_status.vbus_v * 1000.0) as u16).to_le_bytes());
-                            raw_bytes.extend_from_slice(&((pd_status.ibus_a * 1000.0) as i16).to_le_bytes());
-                            raw_bytes.extend_from_slice(&((pd_status.cc1_v * 1000.0) as u16).to_le_bytes());
-                            raw_bytes.extend_from_slice(&((pd_status.cc2_v * 1000.0) as u16).to_le_bytes());
+                            raw_bytes.extend_from_slice(&(pd_status.vbus.get::<millivolt>() as u16).to_le_bytes());
+                            raw_bytes.extend_from_slice(&(pd_status.ibus.get::<milliampere>() as i16).to_le_bytes());
+                            raw_bytes.extend_from_slice(&(pd_status.cc1.get::<millivolt>() as u16).to_le_bytes());
+                            raw_bytes.extend_from_slice(&(pd_status.cc2.get::<millivolt>() as u16).to_le_bytes());
 
                             logical_packets.push(LogicalPacket {
                                 attribute: Attribute::PdPacket,

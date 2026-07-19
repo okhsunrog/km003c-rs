@@ -9,6 +9,7 @@ use usbpd::protocol_layer::message::{Message, ParseError, Payload};
 use uom::si::electric_current::ampere;
 use uom::si::electric_potential::volt;
 use uom::si::power::watt;
+use uom::si::time::millisecond;
 
 /// Category of a decoded PD entry, used for color-coding in the UI
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,18 +58,23 @@ impl PdDecoder {
                 self.handle_connect();
                 vec![DecodedPdEntry {
                     category: PdCategory::Connect,
-                    summary: format!("[{:.3}s] ** CONNECT **", event.timestamp as f64 / 1000.0),
+                    summary: format!("[{:.3}s] ** CONNECT **", event.timestamp.get::<millisecond>() / 1000.0),
                     details: vec![],
                 }]
             }
             PdEventData::Disconnect(()) => {
                 vec![DecodedPdEntry {
                     category: PdCategory::Disconnect,
-                    summary: format!("[{:.3}s] ** DISCONNECT **", event.timestamp as f64 / 1000.0),
+                    summary: format!(
+                        "[{:.3}s] ** DISCONNECT **",
+                        event.timestamp.get::<millisecond>() / 1000.0
+                    ),
                     details: vec![],
                 }]
             }
-            PdEventData::PdMessage { sop, wire_data } => self.decode_message(event.timestamp, *sop, wire_data),
+            PdEventData::PdMessage { sop, wire_data } => {
+                self.decode_message(event.timestamp.get::<millisecond>() as u32, *sop, wire_data)
+            }
         }
     }
 

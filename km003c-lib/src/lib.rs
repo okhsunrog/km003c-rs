@@ -21,3 +21,4 @@ pub use device::{ConnectionMode, DeviceConfig, DeviceState, KM003C, TransferType
 pub use message::{Packet, PayloadData};
 pub use packet::{Attribute, AttributeSet, LogicalPacket, RawPacket};
 pub use pd::{PdEvent, PdEventData, PdEventStream, PdPreamble, PdStatus};
+pub use uom;

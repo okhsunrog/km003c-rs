@@ -1,6 +1,12 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::fmt;
 use strum_macros::Display;
+use uom::si::electric_current::{ampere, microampere};
+use uom::si::electric_potential::{microvolt, millivolt, volt};
+use uom::si::f64::{ElectricCurrent, ElectricPotential, Frequency, Power, ThermodynamicTemperature};
+use uom::si::frequency::hertz;
+use uom::si::power::watt;
+use uom::si::thermodynamic_temperature::degree_celsius;
 use zerocopy::byteorder::little_endian::{I16, I32, U16};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
@@ -27,14 +33,14 @@ pub enum SampleRate {
 
 impl SampleRate {
     /// Get the sample rate in samples per second
-    pub fn as_hz(&self) -> u32 {
-        match self {
-            SampleRate::Sps2 => 2,
-            SampleRate::Sps10 => 10,
-            SampleRate::Sps50 => 50,
-            SampleRate::Sps1000 => 1000,
-            SampleRate::Sps10000 => 10000,
-        }
+    pub fn frequency(self) -> Frequency {
+        Frequency::new::<hertz>(match self {
+            Self::Sps2 => 2.0,
+            Self::Sps10 => 10.0,
+            Self::Sps50 => 50.0,
+            Self::Sps1000 => 1_000.0,
+            Self::Sps10000 => 10_000.0,
+        })
     }
 }
 
@@ -42,8 +48,8 @@ impl SampleRate {
 #[pyo3::pymethods]
 impl SampleRate {
     #[getter]
-    fn hz(&self) -> u32 {
-        self.as_hz()
+    fn hz(&self) -> f64 {
+        self.frequency().get::<hertz>()
     }
 
     #[getter]
@@ -85,39 +91,39 @@ pub struct AdcDataRaw {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "python", pyo3::pyclass(get_all, skip_from_py_object, name = "AdcData"))]
+#[cfg_attr(feature = "python", pyo3::pyclass(skip_from_py_object, name = "AdcData"))]
 pub struct AdcDataSimple {
     // Main measurements
-    pub vbus_v: f64, // Voltage in Volts
+    pub vbus: ElectricPotential,
     /// Current in amperes. Sign indicates power flow direction through the tester:
     /// - Positive: Power flows from USB female (input) to USB male (output)
     /// - Negative: Power flows from USB male (input) to USB female (output)
-    pub ibus_a: f64, // Current in Amperes
+    pub ibus: ElectricCurrent,
     /// Power in watts. Sign indicates power flow direction through the tester:
     /// - Positive: Power flows from USB female (input) to USB male (output)
     /// - Negative: Power flows from USB male (input) to USB female (output)
-    pub power_w: f64, // Power in Watts
+    pub power: Power,
 
     // Averaged measurements
-    pub vbus_avg_v: f64, // Average voltage in Volts
-    pub ibus_avg_a: f64, // Average current in Amperes
+    pub vbus_average: ElectricPotential,
+    pub ibus_average: ElectricCurrent,
 
     // Temperature
-    pub temp_c: f64, // Temperature in Celsius
+    pub temperature: ThermodynamicTemperature,
 
     // USB data lines
-    pub vdp_v: f64,     // D+ voltage in Volts
-    pub vdm_v: f64,     // D- voltage in Volts
-    pub vdp_avg_v: f64, // Average D+ voltage in Volts
-    pub vdm_avg_v: f64, // Average D- voltage in Volts
+    pub vdp: ElectricPotential,
+    pub vdm: ElectricPotential,
+    pub vdp_average: ElectricPotential,
+    pub vdm_average: ElectricPotential,
 
     // USB CC lines
-    pub cc1_v: f64,     // CC1 voltage in Volts
-    pub cc2_v: f64,     // CC2 voltage in Volts
-    pub cc2_avg_v: f64, // Average CC2 voltage in Volts
+    pub cc1: ElectricPotential,
+    pub cc2: ElectricPotential,
+    pub cc2_average: ElectricPotential,
 
     // Internal voltage
-    pub internal_vdd_v: f64, // Internal VDD in Volts
+    pub internal_vdd: ElectricPotential,
 
     // Sample rate
     pub sample_rate: SampleRate, // Sample rate as enum
@@ -125,52 +131,27 @@ pub struct AdcDataSimple {
 
 impl From<AdcDataRaw> for AdcDataSimple {
     fn from(raw: AdcDataRaw) -> Self {
-        // Convert voltage from µV to V
-        let vbus_v = raw.vbus_uv.get() as f64 / 1_000_000.0;
-        let ibus_a = raw.ibus_ua.get() as f64 / 1_000_000.0;
-        let power_w = vbus_v * ibus_a;
-
-        let vbus_avg_v = raw.vbus_avg_uv.get() as f64 / 1_000_000.0;
-        let ibus_avg_a = raw.ibus_avg_ua.get() as f64 / 1_000_000.0;
-
-        // Convert temperature using INA228/9 formula
-        // LSB = 1/128 °C → temperature in °C = raw / 128.0
-        let temp_c = raw.temp_raw.get() as f64 / 128.0;
-
-        // Convert from 0.1mV to V (divide by 10,000)
-        let vdp_v = raw.vdp_mv.get() as f64 / 10_000.0;
-        let vdm_v = raw.vdm_mv.get() as f64 / 10_000.0;
-        // Averaged D+/D- are in 1 mV units
-        let vdp_avg_v = raw.vdp_avg_mv.get() as f64 / 1_000.0;
-        let vdm_avg_v = raw.vdm_avg_mv.get() as f64 / 1_000.0;
-
-        // CC lines also use the 0.1mV unit
-        let cc1_v = raw.vcc1_tenth_mv.get() as f64 / 10_000.0;
-        let cc2_v = raw.vcc2_raw.get() as f64 / 10_000.0;
-        // Averaged CC2 is in 1 mV units
-        let cc2_avg_v = raw.vcc2_avg_raw.get() as f64 / 1_000.0;
-
-        // Internal VDD also uses 0.1mV
-        let internal_vdd_v = raw.internal_vdd_raw.get() as f64 / 10_000.0;
+        let vbus = ElectricPotential::new::<microvolt>(f64::from(raw.vbus_uv.get()));
+        let ibus = ElectricCurrent::new::<microampere>(f64::from(raw.ibus_ua.get()));
 
         // Convert raw sample rate to enum (safely, fallback to 2 SPS if invalid)
         let sample_rate = SampleRate::try_from(raw.rate_raw).unwrap_or(SampleRate::Sps2);
 
         AdcDataSimple {
-            vbus_v,
-            ibus_a,
-            power_w,
-            vbus_avg_v,
-            ibus_avg_a,
-            temp_c,
-            vdp_v,
-            vdm_v,
-            vdp_avg_v,
-            vdm_avg_v,
-            cc1_v,
-            cc2_v,
-            cc2_avg_v,
-            internal_vdd_v,
+            vbus,
+            ibus,
+            power: vbus * ibus,
+            vbus_average: ElectricPotential::new::<microvolt>(f64::from(raw.vbus_avg_uv.get())),
+            ibus_average: ElectricCurrent::new::<microampere>(f64::from(raw.ibus_avg_ua.get())),
+            temperature: ThermodynamicTemperature::new::<degree_celsius>(f64::from(raw.temp_raw.get()) / 128.0),
+            vdp: ElectricPotential::new::<millivolt>(f64::from(raw.vdp_mv.get()) / 10.0),
+            vdm: ElectricPotential::new::<millivolt>(f64::from(raw.vdm_mv.get()) / 10.0),
+            vdp_average: ElectricPotential::new::<millivolt>(f64::from(raw.vdp_avg_mv.get())),
+            vdm_average: ElectricPotential::new::<millivolt>(f64::from(raw.vdm_avg_mv.get())),
+            cc1: ElectricPotential::new::<millivolt>(f64::from(raw.vcc1_tenth_mv.get()) / 10.0),
+            cc2: ElectricPotential::new::<millivolt>(f64::from(raw.vcc2_raw.get()) / 10.0),
+            cc2_average: ElectricPotential::new::<millivolt>(f64::from(raw.vcc2_avg_raw.get())),
+            internal_vdd: ElectricPotential::new::<millivolt>(f64::from(raw.internal_vdd_raw.get()) / 10.0),
             sample_rate,
         }
     }
@@ -179,38 +160,38 @@ impl From<AdcDataRaw> for AdcDataSimple {
 impl From<AdcDataSimple> for AdcDataRaw {
     fn from(data: AdcDataSimple) -> Self {
         AdcDataRaw {
-            vbus_uv: I32::new((data.vbus_v * 1_000_000.0) as i32),
-            ibus_ua: I32::new((data.ibus_a * 1_000_000.0) as i32),
-            vbus_avg_uv: I32::new((data.vbus_avg_v * 1_000_000.0) as i32),
-            ibus_avg_ua: I32::new((data.ibus_avg_a * 1_000_000.0) as i32),
+            vbus_uv: I32::new(data.vbus.get::<microvolt>() as i32),
+            ibus_ua: I32::new(data.ibus.get::<microampere>() as i32),
+            vbus_avg_uv: I32::new(data.vbus_average.get::<microvolt>() as i32),
+            ibus_avg_ua: I32::new(data.ibus_average.get::<microampere>() as i32),
             vbus_ori_avg_raw: I32::new(0), // We don't have this information
             ibus_ori_avg_raw: I32::new(0), // We don't have this information
             // Encode temperature back to raw register: °C * 128
-            temp_raw: I16::new((data.temp_c * 128.0) as i16),
-            vcc1_tenth_mv: U16::new((data.cc1_v * 10_000.0) as u16),
-            vcc2_raw: U16::new((data.cc2_v * 10_000.0) as u16),
-            vdp_mv: U16::new((data.vdp_v * 10_000.0) as u16),
-            vdm_mv: U16::new((data.vdm_v * 10_000.0) as u16),
-            internal_vdd_raw: U16::new((data.internal_vdd_v * 10_000.0) as u16),
+            temp_raw: I16::new((data.temperature.get::<degree_celsius>() * 128.0) as i16),
+            vcc1_tenth_mv: U16::new((data.cc1.get::<millivolt>() * 10.0) as u16),
+            vcc2_raw: U16::new((data.cc2.get::<millivolt>() * 10.0) as u16),
+            vdp_mv: U16::new((data.vdp.get::<millivolt>() * 10.0) as u16),
+            vdm_mv: U16::new((data.vdm.get::<millivolt>() * 10.0) as u16),
+            internal_vdd_raw: U16::new((data.internal_vdd.get::<millivolt>() * 10.0) as u16),
             rate_raw: data.sample_rate as u8,
             reserved: 0,
             // Store averaged fields in 1 mV units
-            vcc2_avg_raw: U16::new((data.cc2_avg_v * 1_000.0) as u16),
-            vdp_avg_mv: U16::new((data.vdp_avg_v * 1_000.0) as u16),
-            vdm_avg_mv: U16::new((data.vdm_avg_v * 1_000.0) as u16),
+            vcc2_avg_raw: U16::new(data.cc2_average.get::<millivolt>() as u16),
+            vdp_avg_mv: U16::new(data.vdp_average.get::<millivolt>() as u16),
+            vdm_avg_mv: U16::new(data.vdm_average.get::<millivolt>() as u16),
         }
     }
 }
 
 impl AdcDataSimple {
     /// Get the absolute current in amperes (magnitude regardless of direction)
-    pub fn current_abs_a(&self) -> f64 {
-        self.ibus_a.abs()
+    pub fn current_abs(&self) -> ElectricCurrent {
+        self.ibus.abs()
     }
 
     /// Get the absolute power in watts (magnitude regardless of direction)
-    pub fn power_abs_w(&self) -> f64 {
-        self.power_w.abs()
+    pub fn power_abs(&self) -> Power {
+        self.power.abs()
     }
 }
 
@@ -219,7 +200,11 @@ impl fmt::Display for AdcDataSimple {
         write!(
             f,
             "VBUS: {:.3} V, IBUS: {:.3} A, Power: {:.3} W, Temp: {:.1} °C, Rate: {}",
-            self.vbus_v, self.ibus_a, self.power_w, self.temp_c, self.sample_rate
+            self.vbus.get::<volt>(),
+            self.ibus.get::<ampere>(),
+            self.power.get::<watt>(),
+            self.temperature.get::<degree_celsius>(),
+            self.sample_rate
         )
     }
 }
@@ -227,10 +212,74 @@ impl fmt::Display for AdcDataSimple {
 #[cfg(feature = "python")]
 #[pyo3::pymethods]
 impl AdcDataSimple {
+    #[getter]
+    fn vbus_v(&self) -> f64 {
+        self.vbus.get::<volt>()
+    }
+    #[getter]
+    fn ibus_a(&self) -> f64 {
+        self.ibus.get::<ampere>()
+    }
+    #[getter]
+    fn power_w(&self) -> f64 {
+        self.power.get::<watt>()
+    }
+    #[getter]
+    fn vbus_avg_v(&self) -> f64 {
+        self.vbus_average.get::<volt>()
+    }
+    #[getter]
+    fn ibus_avg_a(&self) -> f64 {
+        self.ibus_average.get::<ampere>()
+    }
+    #[getter]
+    fn temp_c(&self) -> f64 {
+        self.temperature.get::<degree_celsius>()
+    }
+    #[getter]
+    fn vdp_v(&self) -> f64 {
+        self.vdp.get::<volt>()
+    }
+    #[getter]
+    fn vdm_v(&self) -> f64 {
+        self.vdm.get::<volt>()
+    }
+    #[getter]
+    fn vdp_avg_v(&self) -> f64 {
+        self.vdp_average.get::<volt>()
+    }
+    #[getter]
+    fn vdm_avg_v(&self) -> f64 {
+        self.vdm_average.get::<volt>()
+    }
+    #[getter]
+    fn cc1_v(&self) -> f64 {
+        self.cc1.get::<volt>()
+    }
+    #[getter]
+    fn cc2_v(&self) -> f64 {
+        self.cc2.get::<volt>()
+    }
+    #[getter]
+    fn cc2_avg_v(&self) -> f64 {
+        self.cc2_average.get::<volt>()
+    }
+    #[getter]
+    fn internal_vdd_v(&self) -> f64 {
+        self.internal_vdd.get::<volt>()
+    }
+    #[getter]
+    fn sample_rate(&self) -> SampleRate {
+        self.sample_rate
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "AdcData(vbus={:.3}V, ibus={:.3}A, power={:.3}W, temp={:.1}°C)",
-            self.vbus_v, self.ibus_a, self.power_w, self.temp_c
+            self.vbus.get::<volt>(),
+            self.ibus.get::<ampere>(),
+            self.power.get::<watt>(),
+            self.temperature.get::<degree_celsius>()
         )
     }
 

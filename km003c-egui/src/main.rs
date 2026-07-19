@@ -14,6 +14,10 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
+use uom::si::electric_current::ampere;
+use uom::si::electric_potential::volt;
+use uom::si::power::watt;
+use uom::si::time::second;
 
 /// Message from USB task to UI
 #[derive(Debug, Clone)]
@@ -229,17 +233,18 @@ impl PowerMonitorApp {
                     let batch_duration = sequence_elapsed(first_sample.sequence, last_sample.sequence);
                     let now = std::time::Instant::now();
                     if self.time_base.is_none() {
-                        self.time_base = Some(now.checked_sub(batch_duration).unwrap_or(now));
+                        let batch_duration_std = Duration::from_secs_f64(batch_duration.get::<second>());
+                        self.time_base = Some(now.checked_sub(batch_duration_std).unwrap_or(now));
                     }
                     let time_base = self.time_base.unwrap();
                     let arrival_timestamp = time_base.elapsed().as_secs_f64();
-                    let first_timestamp = arrival_timestamp - batch_duration.as_secs_f64();
+                    let first_timestamp = arrival_timestamp - batch_duration.get::<second>();
 
                     let rate = self.current_rate.to_graph_rate();
                     for sample in &samples {
                         let timestamp = match (self.last_sequence, self.last_sample_timestamp) {
                             (Some(last_sequence), Some(last_timestamp)) => {
-                                last_timestamp + sequence_elapsed(last_sequence, sample.sequence).as_secs_f64()
+                                last_timestamp + sequence_elapsed(last_sequence, sample.sequence).get::<second>()
                             }
                             _ => first_timestamp,
                         };
@@ -252,15 +257,15 @@ impl PowerMonitorApp {
 
                         self.data_points.push_back((
                             timestamp,
-                            sample.vbus_v,
-                            sample.ibus_a.abs(),
-                            sample.power_w.abs(),
+                            sample.vbus.get::<volt>(),
+                            sample.ibus.abs().get::<ampere>(),
+                            sample.power.abs().get::<watt>(),
                         ));
 
                         // Update current readings
-                        self.current_voltage = sample.vbus_v;
-                        self.current_current = sample.ibus_a;
-                        self.current_power = sample.power_w;
+                        self.current_voltage = sample.vbus.get::<volt>();
+                        self.current_current = sample.ibus.get::<ampere>();
+                        self.current_power = sample.power.get::<watt>();
 
                         self.total_samples += 1;
 
@@ -443,25 +448,27 @@ impl eframe::App for PowerMonitorApp {
                     .spacing([10.0, 4.0])
                     .show(ui, |ui| {
                         ui.label("CC1:");
-                        let cc1_color = if pd.cc1_v > 0.2 {
+                        let cc1_v = pd.cc1.get::<volt>();
+                        let cc1_color = if cc1_v > 0.2 {
                             egui::Color32::GREEN
                         } else {
                             egui::Color32::GRAY
                         };
-                        ui.colored_label(cc1_color, format!("{:.3} V", pd.cc1_v));
+                        ui.colored_label(cc1_color, format!("{cc1_v:.3} V"));
                         ui.end_row();
 
                         ui.label("CC2:");
-                        let cc2_color = if pd.cc2_v > 0.2 {
+                        let cc2_v = pd.cc2.get::<volt>();
+                        let cc2_color = if cc2_v > 0.2 {
                             egui::Color32::GREEN
                         } else {
                             egui::Color32::GRAY
                         };
-                        ui.colored_label(cc2_color, format!("{:.3} V", pd.cc2_v));
+                        ui.colored_label(cc2_color, format!("{cc2_v:.3} V"));
                         ui.end_row();
 
                         ui.label("Connection:");
-                        let connected = pd.cc1_v > 0.2 || pd.cc2_v > 0.2;
+                        let connected = cc1_v > 0.2 || cc2_v > 0.2;
                         ui.colored_label(
                             if connected {
                                 egui::Color32::GREEN
