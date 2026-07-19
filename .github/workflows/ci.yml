@@ -28,7 +28,9 @@ jobs:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all -- --check
+      - run: cargo test --workspace --all-targets --locked
       - run: cargo test --workspace --all-targets --all-features --locked
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: cargo doc --workspace --all-features --no-deps --locked
         env:
@@ -36,7 +38,7 @@ jobs:
       - run: cargo package -p km003c-lib --locked
 
   msrv:
-    name: MSRV 1.97
+    name: Rust 1.97 compatibility
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -47,7 +49,8 @@ jobs:
           toolchain: 1.97.0
       - uses: Swatinem/rust-cache@v2
         with:
-          key: msrv-1.97
+          key: rust-1.97
+      - run: cargo check --workspace --all-targets --locked
       - run: cargo check --workspace --all-targets --all-features --locked
 
   platforms:
