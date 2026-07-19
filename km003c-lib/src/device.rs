@@ -142,6 +142,8 @@ pub const ENDPOINT_IN_HID: u8 = 0x85;
 
 // Default timeout for USB operations
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(2);
+const BULK_TRANSFER_SIZE: usize = 2048;
+const INTERRUPT_TRANSFER_SIZE: usize = 64;
 
 /// Transfer type for USB communication
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -384,22 +386,23 @@ impl KM003C {
 
         // Create persistent endpoints based on transfer type
         // Using 4 concurrent transfers for better throughput
-        // Buffer size of 2048 bytes to handle large AdcQueue responses (up to ~1300 bytes)
+        // A bulk response can span multiple 2048-byte transfers. receive_raw()
+        // joins transfers until the device terminates the response with a short packet.
         let (reader, writer) = match config.transfer_type {
             TransferType::Bulk => {
                 let ep_in = interface.endpoint::<Bulk, _>(config.endpoint_in)?;
                 let ep_out = interface.endpoint::<Bulk, _>(config.endpoint_out)?;
                 (
-                    EndpointReaderType::Bulk(ep_in.reader(2048).with_num_transfers(4)),
-                    EndpointWriterType::Bulk(ep_out.writer(64).with_num_transfers(4)),
+                    EndpointReaderType::Bulk(ep_in.reader(BULK_TRANSFER_SIZE).with_num_transfers(4)),
+                    EndpointWriterType::Bulk(ep_out.writer(INTERRUPT_TRANSFER_SIZE).with_num_transfers(4)),
                 )
             }
             TransferType::Interrupt => {
                 let ep_in = interface.endpoint::<Interrupt, _>(config.endpoint_in)?;
                 let ep_out = interface.endpoint::<Interrupt, _>(config.endpoint_out)?;
                 (
-                    EndpointReaderType::Interrupt(ep_in.reader(64).with_num_transfers(4)),
-                    EndpointWriterType::Interrupt(ep_out.writer(64).with_num_transfers(4)),
+                    EndpointReaderType::Interrupt(ep_in.reader(INTERRUPT_TRANSFER_SIZE).with_num_transfers(4)),
+                    EndpointWriterType::Interrupt(ep_out.writer(INTERRUPT_TRANSFER_SIZE).with_num_transfers(4)),
                 )
             }
         };
@@ -514,12 +517,26 @@ impl KM003C {
 
     /// Receive raw bytes from the device (for protocol research/testing)
     pub async fn receive_raw(&mut self) -> Result<Vec<u8>, KMError> {
-        let mut buffer = vec![0u8; 1024];
+        let mut buffer = Vec::new();
         let bytes_read = match &mut self.reader {
-            EndpointReaderType::Bulk(reader) => timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??,
-            EndpointReaderType::Interrupt(reader) => timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??,
+            EndpointReaderType::Bulk(reader) => {
+                // Bulk messages are delimited by a short USB packet. Reading through
+                // this adapter preserves one complete protocol response even when it
+                // is larger than either the caller's buffer or one 2048-byte transfer.
+                let mut message = reader.until_short_packet();
+                let bytes_read = timeout(DEFAULT_TIMEOUT, message.read_to_end(&mut buffer)).await??;
+                message
+                    .consume_end()
+                    .map_err(|_| KMError::Protocol("Bulk response ended without a short packet".to_string()))?;
+                bytes_read
+            }
+            EndpointReaderType::Interrupt(reader) => {
+                buffer.resize(INTERRUPT_TRANSFER_SIZE, 0);
+                let bytes_read = timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??;
+                buffer.truncate(bytes_read);
+                bytes_read
+            }
         };
-        buffer.truncate(bytes_read);
         trace!("RX [{} bytes]: {:02x?}", bytes_read, buffer);
         Ok(buffer)
     }
@@ -716,7 +733,10 @@ impl KM003C {
         let mut hardware_id_bytes = [0u8; HARDWARE_ID_SIZE];
 
         // 5. Read HardwareID
-        let hardware_id = if let Ok(data) = self.read_memory_block(HARDWARE_ID_ADDRESS, HARDWARE_ID_SIZE as u32).await {
+        let hardware_id = if let Ok(data) = self
+            .read_memory_block(HARDWARE_ID_ADDRESS, HARDWARE_ID_SIZE as u32)
+            .await
+        {
             if data.len() >= HARDWARE_ID_SIZE {
                 hardware_id_bytes.copy_from_slice(&data[..HARDWARE_ID_SIZE]);
             }
@@ -855,17 +875,26 @@ impl KM003C {
 
         let mut info = DeviceInfo::default();
 
-        match self.read_memory_block(DEVICE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+        match self
+            .read_memory_block(DEVICE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32)
+            .await
+        {
             Ok(data) => info.parse_device_info(&data),
             Err(e) => warn!("Failed to read DeviceInfo at 0x{:08X}: {}", DEVICE_INFO_ADDRESS, e),
         }
 
-        match self.read_memory_block(FIRMWARE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+        match self
+            .read_memory_block(FIRMWARE_INFO_ADDRESS, INFO_BLOCK_SIZE as u32)
+            .await
+        {
             Ok(data) => info.parse_firmware_info(&data),
             Err(e) => warn!("Failed to read FirmwareInfo at 0x{:08X}: {}", FIRMWARE_INFO_ADDRESS, e),
         }
 
-        match self.read_memory_block(CALIBRATION_ADDRESS, INFO_BLOCK_SIZE as u32).await {
+        match self
+            .read_memory_block(CALIBRATION_ADDRESS, INFO_BLOCK_SIZE as u32)
+            .await
+        {
             Ok(data) => info.parse_calibration(&data),
             Err(e) => warn!("Failed to read CalibrationData at 0x{:08X}: {}", CALIBRATION_ADDRESS, e),
         }
