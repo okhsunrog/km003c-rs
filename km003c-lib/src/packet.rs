@@ -128,6 +128,8 @@ pub enum Attribute {
     /// PD protocol data. Response is either 12-byte PdStatus (measurements only)
     /// or longer PdEventStream (12-byte preamble + PD wire events).
     PdPacket = 0x10,
+    /// Internal USB PD state-machine trace queues.
+    PdTrace = 0x20,
 
     /// Offline recording metadata.
     LogMetadata = 0x200,
@@ -445,12 +447,16 @@ impl TryFrom<Bytes> for RawPacket {
                     let has_next = ext.next();
                     let attribute = Attribute::from_primitive(ext.attribute());
                     // AdcQueue uses chunk as its sample count and size as bytes per sample.
-                    let payload_size = ext.size() as usize
-                        * if attribute == Attribute::AdcQueue {
-                            ext.chunk() as usize
-                        } else {
-                            1
-                        };
+                    let payload_size = if attribute == Attribute::PdTrace {
+                        crate::pd_trace::payload_size(&payload)?
+                    } else {
+                        ext.size() as usize
+                            * if attribute == Attribute::AdcQueue {
+                                ext.chunk() as usize
+                            } else {
+                                1
+                            }
+                    };
 
                     // For AdcQueue, the size field indicates sample size (20 bytes),
                     // but the actual payload contains multiple samples.
