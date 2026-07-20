@@ -405,9 +405,11 @@ impl TryFrom<Bytes> for RawPacket {
 
             // Only PutData packets have chained logical packets with extended headers
             if packet_type == PacketType::PutData {
-                // Check for empty PutData (obj_count_words == 0)
-                if header.obj_count_words() == 0 || payload.is_empty() {
-                    // Valid empty response - device has no data
+                // The firmware's top-level count encoding can be zero even
+                // when a valid logical packet follows (for example, a
+                // 15-byte PdTrace response). Only the actual absence of bytes
+                // means that PutData has no logical packets.
+                if payload.is_empty() {
                     return Ok(RawPacket::Data {
                         header,
                         logical_packets: vec![],
