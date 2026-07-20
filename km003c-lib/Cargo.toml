@@ -34,8 +34,10 @@ aes = "0.9.1"
 crc32fast = "1.5.0"
 rand = "0.10.2"
 uom.workspace = true
+usbpd = { workspace = true, optional = true }
 
 [features]
 default = []
 python = ["dep:pyo3"]
 serde = ["dep:serde", "uom/serde"]
+usbpd = ["dep:usbpd"]

@@ -53,6 +53,7 @@ Core library providing:
 - Streaming authentication (required for AdcQueue)
 - ADC and AdcQueue data parsing
 - USB PD event parsing
+- Optional stateful USB PD semantic decoding through the `usbpd` feature
 
 ### `km003c-cli`
 Command-line tools:
@@ -76,7 +77,7 @@ suffixes such as `vbus_v`, `ibus_a`, and `power_w`.
 ## Quick Start
 
 ### Prerequisites
-- Rust 1.92+ (the library and CLI support Rust 1.89+)
+- Rust 1.97+
 - USB access permissions (udev rules on Linux)
 - POWER-Z KM003C device
 
@@ -188,7 +189,7 @@ This implementation is based on reverse engineering documented at:
 **[km003c-protocol-research](https://github.com/okhsunrog/km003c-protocol-research)**
 
 The research repository contains:
-- Complete protocol specification
+- A capture-backed protocol reference and an explicit list of remaining gaps
 - USB transport documentation
 - PCAPNG captures and analysis tools
 - Firmware analysis notes

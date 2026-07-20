@@ -1,29 +1,29 @@
-use km003c_lib::pd::{PdEvent, PdEventData};
-use usbpd::protocol_layer::message::data::source_capabilities::{Augmented, PowerDataObject, SourceCapabilities};
-use usbpd::protocol_layer::message::data::{self, Data};
-use usbpd::protocol_layer::message::extended::Extended;
-use usbpd::protocol_layer::message::extended::chunked::{ChunkResult, ChunkedMessageAssembler};
-use usbpd::protocol_layer::message::header::ExtendedMessageType;
-use usbpd::protocol_layer::message::{Message, ParseError, Payload};
+use km003c_lib::pd::PdEvent;
+use km003c_lib::uom::si::electric_current::ampere;
+use km003c_lib::uom::si::electric_potential::volt;
+use km003c_lib::uom::si::power::watt;
+use km003c_lib::uom::si::time::millisecond;
+use km003c_lib::usbpd::protocol_layer::message::Payload;
+use km003c_lib::usbpd::protocol_layer::message::data::source_capabilities::{
+    Augmented, PowerDataObject, SourceCapabilities,
+};
+use km003c_lib::usbpd::protocol_layer::message::data::{self, Data};
+use km003c_lib::usbpd::protocol_layer::message::extended::Extended;
+use km003c_lib::{DecodedPdEvent, DecodedPdMessage, PdChunkState, PdChunkStatus, PdDecodeFailure, PdSessionDecoder};
 
-use km003c_lib::uom::si::time::millisecond as km003c_millisecond;
-use uom::si::electric_current::ampere;
-use uom::si::electric_potential::volt;
-use uom::si::power::watt;
-
-/// Category of a decoded PD entry, used for color-coding in the UI
+/// Category of a decoded PD entry, used for color-coding in the UI.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PdCategory {
     Connect,
     Disconnect,
     SourceCaps,
     Request,
-    Control,  // Accept, Reject, GoodCRC, PS_RDY, etc.
-    Extended, // EPR caps, extended control
-    Error,    // Parse failures
+    Control,
+    Extended,
+    Error,
 }
 
-/// A single decoded PD log entry for display
+/// A single decoded PD log entry for display.
 #[derive(Debug, Clone)]
 pub struct DecodedPdEntry {
     pub category: PdCategory,
@@ -31,466 +31,311 @@ pub struct DecodedPdEntry {
     pub details: Vec<String>,
 }
 
-/// PD protocol decoder that maintains state across events
+/// UI formatter backed by the shared stateful decoder in `km003c-lib`.
 pub struct PdDecoder {
-    source_caps: Option<SourceCapabilities>,
-    epr_assembler: ChunkedMessageAssembler,
+    session: PdSessionDecoder,
 }
 
 impl PdDecoder {
     pub fn new() -> Self {
         Self {
-            source_caps: None,
-            epr_assembler: ChunkedMessageAssembler::new(),
+            session: PdSessionDecoder::new(),
         }
     }
 
-    /// Reset state on new connection
-    pub fn handle_connect(&mut self) {
-        self.source_caps = None;
-        self.epr_assembler.reset();
-    }
-
-    /// Decode a PdEvent into one or more DecodedPdEntry structs
     pub fn decode_event(&mut self, event: &PdEvent) -> Vec<DecodedPdEntry> {
-        match &event.data {
-            PdEventData::Connect(()) => {
-                self.handle_connect();
-                vec![DecodedPdEntry {
-                    category: PdCategory::Connect,
-                    summary: format!(
-                        "[{:.3}s] ** CONNECT **",
-                        event.timestamp.get::<km003c_millisecond>() / 1000.0
-                    ),
-                    details: vec![],
-                }]
-            }
-            PdEventData::Disconnect(()) => {
-                vec![DecodedPdEntry {
-                    category: PdCategory::Disconnect,
-                    summary: format!(
-                        "[{:.3}s] ** DISCONNECT **",
-                        event.timestamp.get::<km003c_millisecond>() / 1000.0
-                    ),
-                    details: vec![],
-                }]
-            }
-            PdEventData::PdMessage { sop, wire_data } => {
-                self.decode_message(event.timestamp.get::<km003c_millisecond>() as u32, *sop, wire_data)
-            }
-        }
-    }
-
-    fn decode_message(&mut self, timestamp_ms: u32, sop: u8, wire_data: &[u8]) -> Vec<DecodedPdEntry> {
-        if wire_data.is_empty() {
-            return vec![];
-        }
-
-        let ts = timestamp_ms as f64 / 1000.0;
-
-        match Message::from_bytes(wire_data) {
-            Ok(msg) => {
-                let msg_type = msg.header.message_type();
-                let msg_id = msg.header.message_id();
-                let role = format!("{:?}/{:?}", msg.header.port_power_role(), msg.header.port_data_role());
-
-                let type_str = format!("{:?}", msg_type);
-                let summary = format!("[{:.3}s] SOP{}: {} (ID={}, ROLE={})", ts, sop, type_str, msg_id, role);
-
-                match &msg.payload {
-                    Some(Payload::Data(data)) => match data {
-                        Data::SourceCapabilities(caps) => {
-                            self.source_caps = Some(caps.clone());
-                            let details = format_capabilities(caps.pdos(), "SPR Source Capabilities");
-                            vec![DecodedPdEntry {
-                                category: PdCategory::SourceCaps,
-                                summary,
-                                details,
-                            }]
-                        }
-                        Data::Request(req) => {
-                            let details = self.format_request(req);
-                            vec![DecodedPdEntry {
-                                category: PdCategory::Request,
-                                summary,
-                                details,
-                            }]
-                        }
-                        Data::EprMode(mode) => {
-                            vec![DecodedPdEntry {
-                                category: PdCategory::Extended,
-                                summary,
-                                details: vec![format!("EPR Mode: {:?}", mode)],
-                            }]
-                        }
-                        Data::Unknown => {
-                            vec![DecodedPdEntry {
-                                category: PdCategory::Control,
-                                summary,
-                                details: vec!["Unknown Data Message".to_string()],
-                            }]
-                        }
-                        _ => {
-                            vec![DecodedPdEntry {
-                                category: PdCategory::Control,
-                                summary,
-                                details: vec![format!("Data: {:?}", data)],
-                            }]
-                        }
-                    },
-                    Some(Payload::Extended(ext)) => match ext {
-                        Extended::EprSourceCapabilities(pdos) => {
-                            let details = format_capabilities(pdos.as_slice(), "EPR Source Capabilities");
-                            vec![DecodedPdEntry {
-                                category: PdCategory::Extended,
-                                summary,
-                                details,
-                            }]
-                        }
-                        Extended::ExtendedControl(ctrl) => {
-                            vec![DecodedPdEntry {
-                                category: PdCategory::Extended,
-                                summary,
-                                details: vec![format!(
-                                    "Extended Control: {:?} (data=0x{:02X})",
-                                    ctrl.message_type(),
-                                    ctrl.data()
-                                )],
-                            }]
-                        }
-                        _ => {
-                            vec![DecodedPdEntry {
-                                category: PdCategory::Extended,
-                                summary,
-                                details: vec![format!("Extended: {:?}", ext)],
-                            }]
-                        }
-                    },
-                    None => {
-                        // Control message (GoodCRC, Accept, etc.)
-                        vec![DecodedPdEntry {
-                            category: PdCategory::Control,
-                            summary,
-                            details: vec![],
-                        }]
-                    }
-                }
-            }
-            Err(ParseError::ChunkedExtendedMessage {
-                chunk_number,
-                data_size: _,
-                request_chunk,
-                message_type,
-            }) => self.handle_chunked(ts, sop, chunk_number, request_chunk, message_type, wire_data),
-            Err(e) => {
-                vec![DecodedPdEntry {
-                    category: PdCategory::Error,
-                    summary: format!("[{:.3}s] SOP{}: Parse error: {:?}", ts, sop, e),
-                    details: vec![format!("Hex: {:02X?}", wire_data)],
-                }]
-            }
-        }
-    }
-
-    fn handle_chunked(
-        &mut self,
-        ts: f64,
-        sop: u8,
-        chunk_number: u8,
-        request_chunk: bool,
-        message_type: ExtendedMessageType,
-        wire_data: &[u8],
-    ) -> Vec<DecodedPdEntry> {
-        if request_chunk {
-            return vec![DecodedPdEntry {
-                category: PdCategory::Extended,
-                summary: format!(
-                    "[{:.3}s] SOP{}: Chunk Request (chunk={}, type={:?})",
-                    ts, sop, chunk_number, message_type
-                ),
+        let decoded = self.session.decode_event(event);
+        vec![match decoded {
+            DecodedPdEvent::Connect { timestamp } => DecodedPdEntry {
+                category: PdCategory::Connect,
+                summary: format!("[{:.3}s] ** CONNECT **", timestamp.get::<millisecond>() / 1000.0),
                 details: vec![],
-            }];
-        }
-
-        if message_type != ExtendedMessageType::EprSourceCapabilities {
-            return vec![DecodedPdEntry {
-                category: PdCategory::Extended,
-                summary: format!(
-                    "[{:.3}s] SOP{}: Chunked {:?} (chunk {}) - not assembled",
-                    ts, sop, message_type, chunk_number
-                ),
+            },
+            DecodedPdEvent::Disconnect { timestamp } => DecodedPdEntry {
+                category: PdCategory::Disconnect,
+                summary: format!("[{:.3}s] ** DISCONNECT **", timestamp.get::<millisecond>() / 1000.0),
                 details: vec![],
-            }];
-        }
-
-        match Message::parse_extended_chunk(wire_data) {
-            Ok((header, ext_header, chunk_data)) => {
-                match self.epr_assembler.process_chunk(header, ext_header, chunk_data) {
-                    Ok(ChunkResult::Complete(assembled_data)) => {
-                        let ext = Message::parse_extended_payload(
-                            ExtendedMessageType::EprSourceCapabilities,
-                            &assembled_data,
-                        );
-
-                        if let Extended::EprSourceCapabilities(pdos) = ext {
-                            let msg_id = header.message_id();
-                            let role = format!("{:?}/{:?}", header.port_power_role(), header.port_data_role());
-                            let title = format!("EPR Source Capabilities - {} chunks assembled", chunk_number + 1);
-                            let details = format_capabilities(pdos.as_slice(), &title);
-                            vec![DecodedPdEntry {
-                                category: PdCategory::SourceCaps,
-                                summary: format!(
-                                    "[{:.3}s] SOP{}: Extended(EprSourceCapabilities) (ID={}, ROLE={})",
-                                    ts, sop, msg_id, role
-                                ),
-                                details,
-                            }]
-                        } else {
-                            vec![]
-                        }
-                    }
-                    Ok(ChunkResult::NeedMoreChunks(next)) => {
-                        vec![DecodedPdEntry {
-                            category: PdCategory::Extended,
-                            summary: format!(
-                                "[{:.3}s] SOP{}: EPR Source Caps chunk {} received, waiting for chunk {}...",
-                                ts, sop, chunk_number, next
-                            ),
-                            details: vec![],
-                        }]
-                    }
-                    Ok(ChunkResult::ChunkRequested(num)) => {
-                        vec![DecodedPdEntry {
-                            category: PdCategory::Extended,
-                            summary: format!("[{:.3}s] SOP{}: Chunk {} requested", ts, sop, num),
-                            details: vec![],
-                        }]
-                    }
-                    Err(e) => {
-                        self.epr_assembler.reset();
-                        vec![DecodedPdEntry {
-                            category: PdCategory::Error,
-                            summary: format!("[{:.3}s] SOP{}: Chunk assembly error: {:?}", ts, sop, e),
-                            details: vec![],
-                        }]
-                    }
-                }
-            }
-            Err(e) => {
-                vec![DecodedPdEntry {
-                    category: PdCategory::Error,
-                    summary: format!("[{:.3}s] SOP{}: Failed to parse chunk: {:?}", ts, sop, e),
-                    details: vec![],
-                }]
-            }
-        }
+            },
+            DecodedPdEvent::Message(message) => self.format_message(&message),
+            DecodedPdEvent::Chunk(status) => format_chunk_status(status),
+            DecodedPdEvent::Error(failure) => format_failure(failure),
+        }]
     }
 
-    fn format_request(&self, req: &data::request::PowerSource) -> Vec<String> {
-        use data::request::PowerSource;
+    fn format_message(&self, decoded: &DecodedPdMessage) -> DecodedPdEntry {
+        let message = &decoded.message;
+        let message_type = message.header.message_type();
+        let summary = format!(
+            "[{:.3}s] SOP{}: {:?} (ID={}, ROLE={:?}/{:?})",
+            decoded.timestamp.get::<millisecond>() / 1000.0,
+            decoded.sop,
+            message_type,
+            message.header.message_id(),
+            message.header.port_power_role(),
+            message.header.port_data_role(),
+        );
 
-        match req {
-            PowerSource::FixedVariableSupply(p) => {
-                let curr = p.operating_current().get::<ampere>();
-                let max_curr = p.max_operating_current().get::<ampere>();
-                let pos = p.object_position();
+        match &message.payload {
+            Some(Payload::Data(Data::SourceCapabilities(capabilities))) => DecodedPdEntry {
+                category: PdCategory::SourceCaps,
+                summary,
+                details: format_capabilities(capabilities.pdos(), "SPR Source Capabilities"),
+            },
+            Some(Payload::Data(Data::Request(request))) => DecodedPdEntry {
+                category: PdCategory::Request,
+                summary,
+                details: format_request(request, self.session.source_capabilities()),
+            },
+            Some(Payload::Data(Data::EprMode(mode))) => DecodedPdEntry {
+                category: PdCategory::Extended,
+                summary,
+                details: vec![format!("EPR Mode: {mode:?}")],
+            },
+            Some(Payload::Data(Data::Unknown)) => DecodedPdEntry {
+                category: PdCategory::Control,
+                summary,
+                details: vec!["Unknown Data Message".to_string()],
+            },
+            Some(Payload::Data(data)) => DecodedPdEntry {
+                category: PdCategory::Control,
+                summary,
+                details: vec![format!("Data: {data:?}")],
+            },
+            Some(Payload::Extended(Extended::EprSourceCapabilities(pdos))) => DecodedPdEntry {
+                category: PdCategory::Extended,
+                summary,
+                details: format_capabilities(pdos.as_slice(), "EPR Source Capabilities"),
+            },
+            Some(Payload::Extended(Extended::ExtendedControl(control))) => DecodedPdEntry {
+                category: PdCategory::Extended,
+                summary,
+                details: vec![format!(
+                    "Extended Control: {:?} (data=0x{:02X})",
+                    control.message_type(),
+                    control.data()
+                )],
+            },
+            Some(Payload::Extended(extended)) => DecodedPdEntry {
+                category: PdCategory::Extended,
+                summary,
+                details: vec![format!("Extended: {extended:?}")],
+            },
+            None => DecodedPdEntry {
+                category: PdCategory::Control,
+                summary,
+                details: vec![],
+            },
+        }
+    }
+}
 
-                let pdo_info = self
-                    .source_caps
-                    .as_ref()
-                    .and_then(|caps| caps.pdos().get(pos as usize - 1))
-                    .map(format_pdo);
+fn format_chunk_status(status: PdChunkStatus) -> DecodedPdEntry {
+    let timestamp = status.timestamp.get::<millisecond>() / 1000.0;
+    let summary = match status.state {
+        PdChunkState::Request { chunk_number } => format!(
+            "[{timestamp:.3}s] SOP{}: Chunk Request (chunk={chunk_number}, type={:?})",
+            status.sop, status.message_type
+        ),
+        PdChunkState::Pending {
+            received_chunk,
+            next_chunk,
+        } => format!(
+            "[{timestamp:.3}s] SOP{}: {:?} chunk {received_chunk} received, waiting for chunk {next_chunk}",
+            status.sop, status.message_type
+        ),
+        PdChunkState::Requested { chunk_number } => format!(
+            "[{timestamp:.3}s] SOP{}: {:?} chunk {chunk_number} requested",
+            status.sop, status.message_type
+        ),
+        PdChunkState::Unsupported {
+            chunk_number,
+            data_size,
+        } => format!(
+            "[{timestamp:.3}s] SOP{}: Chunked {:?} (chunk {chunk_number}, {data_size} bytes) - not assembled",
+            status.sop, status.message_type
+        ),
+    };
 
-                if let Some(info) = pdo_info {
-                    vec![format!("RDO: PDO#{} ({}) @ {:.1}A", pos, info, curr)]
-                } else {
-                    vec![format!("RDO: PDO#{} @ {:.1}A (Max {:.1}A)", pos, curr, max_curr)]
-                }
+    DecodedPdEntry {
+        category: PdCategory::Extended,
+        summary,
+        details: vec![],
+    }
+}
+
+fn format_failure(failure: PdDecodeFailure) -> DecodedPdEntry {
+    DecodedPdEntry {
+        category: PdCategory::Error,
+        summary: format!(
+            "[{:.3}s] SOP{}: Parse error: {}",
+            failure.timestamp.get::<millisecond>() / 1000.0,
+            failure.sop,
+            failure.error
+        ),
+        details: vec![format!("Hex: {:02X?}", failure.wire_data)],
+    }
+}
+
+fn format_request(request: &data::request::PowerSource, source_caps: Option<&SourceCapabilities>) -> Vec<String> {
+    use data::request::PowerSource;
+
+    match request {
+        PowerSource::FixedVariableSupply(request) => {
+            let current = request.operating_current().get::<ampere>();
+            let max_current = request.max_operating_current().get::<ampere>();
+            let position = request.object_position();
+            let pdo = source_caps
+                .and_then(|capabilities| capabilities.pdos().get(position as usize - 1))
+                .map(format_pdo);
+
+            if let Some(pdo) = pdo {
+                vec![format!("RDO: PDO#{position} ({pdo}) @ {current:.1}A")]
+            } else {
+                vec![format!("RDO: PDO#{position} @ {current:.1}A (Max {max_current:.1}A)")]
             }
-            PowerSource::Battery(p) => {
-                let power = p.operating_power().get::<watt>();
-                vec![format!(
-                    "RDO: Requesting Battery PDO#{} @ {:.2}W",
-                    p.object_position(),
-                    power
-                )]
-            }
-            PowerSource::Pps(p) => {
-                let v = p.output_voltage().get::<volt>();
-                let c = p.operating_current().get::<ampere>();
-                vec![format!(
-                    "RDO: Requesting PPS PDO#{} @ {:.2}V / {:.2}A",
-                    p.object_position(),
-                    v,
-                    c
-                )]
-            }
-            PowerSource::Avs(p) => {
-                let v = p.output_voltage().get::<volt>();
-                let c = p.operating_current().get::<ampere>();
-                vec![format!(
-                    "RDO: Requesting AVS PDO#{} @ {:.2}V / {:.2}A",
-                    p.object_position(),
-                    v,
-                    c
-                )]
-            }
-            PowerSource::EprRequest { rdo, pdo } => {
-                use usbpd::protocol_layer::message::data::request::{
-                    Avs as RdoAvs, FixedVariableSupply as RdoFixed, RawDataObject,
-                };
-                use usbpd::protocol_layer::message::data::source_capabilities::PowerDataObject;
+        }
+        PowerSource::Battery(request) => vec![format!(
+            "RDO: Requesting Battery PDO#{} @ {:.2}W",
+            request.object_position(),
+            request.operating_power().get::<watt>()
+        )],
+        PowerSource::Pps(request) => vec![format!(
+            "RDO: Requesting PPS PDO#{} @ {:.2}V / {:.2}A",
+            request.object_position(),
+            request.output_voltage().get::<volt>(),
+            request.operating_current().get::<ampere>()
+        )],
+        PowerSource::Avs(request) => vec![format!(
+            "RDO: Requesting AVS PDO#{} @ {:.2}V / {:.2}A",
+            request.object_position(),
+            request.output_voltage().get::<volt>(),
+            request.operating_current().get::<ampere>()
+        )],
+        PowerSource::EprRequest { rdo, pdo } => {
+            use data::request::{Avs as RdoAvs, FixedVariableSupply as RdoFixed, RawDataObject};
 
-                let pos = RawDataObject(*rdo).object_position();
-
-                match pdo {
-                    PowerDataObject::FixedSupply(f) => {
-                        let rdo_parsed = RdoFixed(*rdo);
-                        let curr = rdo_parsed.operating_current().get::<ampere>();
-                        let max_curr = rdo_parsed.max_operating_current().get::<ampere>();
-                        let voltage = f.voltage().get::<volt>();
-                        vec![format!(
-                            "RDO: EPR Fixed PDO#{} ({:.1}V) @ {:.2}A (Max {:.2}A)",
-                            pos, voltage, curr, max_curr
-                        )]
-                    }
-                    PowerDataObject::Augmented(a) => {
-                        use usbpd::protocol_layer::message::data::source_capabilities::Augmented;
-                        match a {
-                            Augmented::Spr(pps) => {
-                                let rdo_parsed = RdoAvs(*rdo);
-                                let v = rdo_parsed.output_voltage().get::<volt>();
-                                let c = rdo_parsed.operating_current().get::<ampere>();
-                                vec![format!(
-                                    "RDO: EPR PPS PDO#{} ({:.1}-{:.1}V) @ {:.2}V / {:.2}A",
-                                    pos,
-                                    pps.min_voltage().get::<volt>(),
-                                    pps.max_voltage().get::<volt>(),
-                                    v,
-                                    c
-                                )]
-                            }
-                            Augmented::Epr(avs) => {
-                                let rdo_parsed = RdoAvs(*rdo);
-                                let v = rdo_parsed.output_voltage().get::<volt>();
-                                let c = rdo_parsed.operating_current().get::<ampere>();
-                                vec![format!(
-                                    "RDO: EPR AVS PDO#{} ({:.1}-{:.1}V @ {:.0}W) @ {:.2}V / {:.2}A",
-                                    pos,
-                                    avs.min_voltage().get::<volt>(),
-                                    avs.max_voltage().get::<volt>(),
-                                    avs.pd_power().get::<watt>(),
-                                    v,
-                                    c
-                                )]
-                            }
-                            _ => {
-                                vec![format!("RDO: EPR Augmented PDO#{} (Raw=0x{:08X})", pos, rdo)]
-                            }
-                        }
-                    }
-                    _ => {
-                        vec![format!("RDO: EPR PDO#{} (Raw=0x{:08X}, PDO={:?})", pos, rdo, pdo)]
-                    }
-                }
-            }
-            PowerSource::Unknown(raw) => {
-                let pos = raw.object_position();
-
-                if let Some(caps) = &self.source_caps
-                    && let Some(pdo) = caps.pdos().get(pos as usize - 1)
-                {
-                    let rdo_parsed = data::request::FixedVariableSupply(raw.0);
-                    let curr = rdo_parsed.operating_current().get::<ampere>();
+            let position = RawDataObject(*rdo).object_position();
+            match pdo {
+                PowerDataObject::FixedSupply(fixed) => {
+                    let request = RdoFixed(*rdo);
                     vec![format!(
-                        "RDO: Requesting PDO#{} ({}) @ {:.1}A",
-                        pos,
-                        format_pdo(pdo),
-                        curr
+                        "RDO: EPR Fixed PDO#{position} ({:.1}V) @ {:.2}A (Max {:.2}A)",
+                        fixed.voltage().get::<volt>(),
+                        request.operating_current().get::<ampere>(),
+                        request.max_operating_current().get::<ampere>()
                     )]
-                } else {
-                    vec![format!("RDO: Requesting PDO#{} (Raw=0x{:08X})", pos, raw.0)]
                 }
+                PowerDataObject::Augmented(Augmented::Spr(pps)) => {
+                    let request = RdoAvs(*rdo);
+                    vec![format!(
+                        "RDO: EPR PPS PDO#{position} ({:.1}-{:.1}V) @ {:.2}V / {:.2}A",
+                        pps.min_voltage().get::<volt>(),
+                        pps.max_voltage().get::<volt>(),
+                        request.output_voltage().get::<volt>(),
+                        request.operating_current().get::<ampere>()
+                    )]
+                }
+                PowerDataObject::Augmented(Augmented::Epr(avs)) => {
+                    let request = RdoAvs(*rdo);
+                    vec![format!(
+                        "RDO: EPR AVS PDO#{position} ({:.1}-{:.1}V @ {:.0}W) @ {:.2}V / {:.2}A",
+                        avs.min_voltage().get::<volt>(),
+                        avs.max_voltage().get::<volt>(),
+                        avs.pd_power().get::<watt>(),
+                        request.output_voltage().get::<volt>(),
+                        request.operating_current().get::<ampere>()
+                    )]
+                }
+                PowerDataObject::Augmented(_) => {
+                    vec![format!("RDO: EPR Augmented PDO#{position} (Raw=0x{rdo:08X})")]
+                }
+                _ => vec![format!("RDO: EPR PDO#{position} (Raw=0x{rdo:08X}, PDO={pdo:?})")],
+            }
+        }
+        PowerSource::Unknown(raw) => {
+            let position = raw.object_position();
+            if let Some(pdo) = source_caps.and_then(|capabilities| capabilities.pdos().get(position as usize - 1)) {
+                let request = data::request::FixedVariableSupply(raw.0);
+                vec![format!(
+                    "RDO: Requesting PDO#{position} ({}) @ {:.1}A",
+                    format_pdo(pdo),
+                    request.operating_current().get::<ampere>()
+                )]
+            } else {
+                vec![format!("RDO: Requesting PDO#{position} (Raw=0x{:08X})", raw.0)]
             }
         }
     }
 }
 
-/// Format a single PDO for display
 fn format_pdo(pdo: &PowerDataObject) -> String {
     match pdo {
-        PowerDataObject::FixedSupply(f) => {
-            let v = f.voltage().get::<volt>();
-            let i = f.max_current().get::<ampere>();
-            let p = v * i;
+        PowerDataObject::FixedSupply(fixed) => {
+            let voltage = fixed.voltage().get::<volt>();
+            let current = fixed.max_current().get::<ampere>();
             let mut flags = Vec::new();
-            if f.dual_role_power() {
+            if fixed.dual_role_power() {
                 flags.push("DRP");
             }
-            if f.usb_communications_capable() {
+            if fixed.usb_communications_capable() {
                 flags.push("USB");
             }
-            if f.dual_role_data() {
+            if fixed.dual_role_data() {
                 flags.push("DRD");
             }
-            if f.unconstrained_power() {
+            if fixed.unconstrained_power() {
                 flags.push("UP");
             }
-            if f.epr_mode_capable() {
+            if fixed.epr_mode_capable() {
                 flags.push("EPR");
             }
-            let flags_str = if flags.is_empty() {
+            let flags = if flags.is_empty() {
                 String::new()
             } else {
                 format!(" [{}]", flags.join(","))
             };
-            format!("Fixed {:.0}V @ {:.1}A ({:.0}W){}", v, i, p, flags_str)
+            format!("Fixed {voltage:.0}V @ {current:.1}A ({:.0}W){flags}", voltage * current)
         }
-        PowerDataObject::Battery(b) => {
-            let min_v = b.min_voltage().get::<volt>();
-            let max_v = b.max_voltage().get::<volt>();
-            let p = b.max_power().get::<watt>();
-            format!("Battery {:.0}-{:.0}V @ {:.0}W", min_v, max_v, p)
+        PowerDataObject::Battery(battery) => format!(
+            "Battery {:.0}-{:.0}V @ {:.0}W",
+            battery.min_voltage().get::<volt>(),
+            battery.max_voltage().get::<volt>(),
+            battery.max_power().get::<watt>()
+        ),
+        PowerDataObject::VariableSupply(variable) => format!(
+            "Variable {:.0}-{:.0}V @ {:.1}A",
+            variable.min_voltage().get::<volt>(),
+            variable.max_voltage().get::<volt>(),
+            variable.max_current().get::<ampere>()
+        ),
+        PowerDataObject::Augmented(Augmented::Spr(pps)) => {
+            let min_voltage = pps.min_voltage().get::<volt>();
+            let max_voltage = pps.max_voltage().get::<volt>();
+            let current = pps.max_current().get::<ampere>();
+            let limited = if pps.pps_power_limited() { " (limited)" } else { "" };
+            format!(
+                "PPS {min_voltage:.1}-{max_voltage:.1}V @ {current:.1}A ({:.0}W){limited}",
+                max_voltage * current
+            )
         }
-        PowerDataObject::VariableSupply(v) => {
-            let min_v = v.min_voltage().get::<volt>();
-            let max_v = v.max_voltage().get::<volt>();
-            let i = v.max_current().get::<ampere>();
-            format!("Variable {:.0}-{:.0}V @ {:.1}A", min_v, max_v, i)
-        }
-        PowerDataObject::Augmented(aug) => match aug {
-            Augmented::Spr(pps) => {
-                let min_v = pps.min_voltage().get::<volt>();
-                let max_v = pps.max_voltage().get::<volt>();
-                let i = pps.max_current().get::<ampere>();
-                let p = max_v * i;
-                let limited = if pps.pps_power_limited() { " (limited)" } else { "" };
-                format!("PPS {:.1}-{:.1}V @ {:.1}A ({:.0}W){}", min_v, max_v, i, p, limited)
-            }
-            Augmented::Epr(avs) => {
-                let min_v = avs.min_voltage().get::<volt>();
-                let max_v = avs.max_voltage().get::<volt>();
-                let p = avs.pd_power().get::<watt>();
-                format!("EPR AVS {:.0}-{:.0}V @ {:.0}W", min_v, max_v, p)
-            }
-            Augmented::Unknown(raw) => {
-                format!("Augmented(0x{:08X})", raw)
-            }
-        },
-        PowerDataObject::Unknown(u) => {
-            format!("Unknown(0x{:08X})", u.0)
-        }
+        PowerDataObject::Augmented(Augmented::Epr(avs)) => format!(
+            "EPR AVS {:.0}-{:.0}V @ {:.0}W",
+            avs.min_voltage().get::<volt>(),
+            avs.max_voltage().get::<volt>(),
+            avs.pd_power().get::<watt>()
+        ),
+        PowerDataObject::Augmented(Augmented::Unknown(raw)) => format!("Augmented(0x{raw:08X})"),
+        PowerDataObject::Unknown(raw) => format!("Unknown(0x{:08X})", raw.0),
     }
 }
 
-/// Format source capabilities as a list of detail strings
-fn format_capabilities(caps: &[PowerDataObject], title: &str) -> Vec<String> {
-    let mut lines = vec![format!("[{}]", title)];
-    for (i, pdo) in caps.iter().enumerate() {
-        if matches!(pdo, PowerDataObject::FixedSupply(f) if f.0 == 0) {
-            lines.push(format!("PDO[{}]: --- (separator) ---", i + 1));
+fn format_capabilities(capabilities: &[PowerDataObject], title: &str) -> Vec<String> {
+    let mut lines = vec![format!("[{title}]")];
+    for (index, pdo) in capabilities.iter().enumerate() {
+        if matches!(pdo, PowerDataObject::FixedSupply(fixed) if fixed.0 == 0) {
+            lines.push(format!("PDO[{}]: --- (separator) ---", index + 1));
         } else {
-            lines.push(format!("PDO[{}]: {}", i + 1, format_pdo(pdo)));
+            lines.push(format!("PDO[{}]: {}", index + 1, format_pdo(pdo)));
         }
     }
     lines

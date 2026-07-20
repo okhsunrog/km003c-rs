@@ -20,4 +20,4 @@ tokio = { version = "1.53.0", features = ["full"] }
 tracing = "0.1.44"
 tracing-subscriber = "0.3.23"
 uom = "0.36"
-usbpd = { git = "https://github.com/okhsunrog/usbpd", rev = "b5dd12e" }
+usbpd = { version = "2.0.0", git = "https://github.com/okhsunrog/usbpd", rev = "b5dd12e" }

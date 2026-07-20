@@ -8,6 +8,10 @@ streaming at 2/10/50/1000 SPS, USB Power Delivery event capture, device
 information, and recorded-packet parsing. Physical measurements use
 [`uom`](https://docs.rs/uom) quantities throughout the Rust API.
 
+Enable the optional `usbpd` feature to turn captured PD wire frames into typed
+USB PD messages. `PdSessionDecoder` retains Source Capabilities state for
+subsequent Request messages and reassembles chunked EPR Source Capabilities.
+
 ```rust,no_run
 use km003c_lib::uom::si::electric_potential::volt;
 use km003c_lib::{DeviceConfig, KM003C};
