@@ -177,15 +177,23 @@ impl Packet {
                 let packet_type = PacketType::from_primitive(header.packet_type());
 
                 match packet_type {
-                    // MemoryRead response (0xC4 = 0x44 | 0x80) - confirmation
                     PacketType::MemoryRead => {
-                        // This is just a confirmation, return as Accept-like
-                        Ok(Packet::Accept { id: header.id() })
+                        if !header.reserved_flag()
+                            && header.into_bytes()[2..4] == [0x01, 0x01]
+                            && let Some((address, size)) = auth::parse_memory_read_payload(&payload)
+                        {
+                            Ok(Packet::MemoryRead { address, size })
+                        } else {
+                            Ok(Packet::Generic(RawPacket::SimpleData { header, payload }))
+                        }
                     }
-                    // StreamingAuth response (0x4C) - encrypted result
                     PacketType::StreamingAuth => {
                         let auth_header = StreamingAuthHeader::from_bytes(header.into_bytes());
-                        if let Some(result) = auth::parse_streaming_auth_response_parts(auth_header, &payload) {
+                        if auth_header.attribute() == 0x0200
+                            && let Some(hardware_id) = auth::parse_streaming_auth_request_payload(&payload)
+                        {
+                            Ok(Packet::StreamingAuth { hardware_id })
+                        } else if let Some(result) = auth::parse_streaming_auth_response_parts(auth_header, &payload) {
                             Ok(Packet::StreamingAuthResponse(result))
                         } else {
                             Ok(Packet::Generic(RawPacket::SimpleData { header, payload }))
@@ -419,11 +427,7 @@ impl Packet {
                 // Build encrypted MemoryRead payload
                 let encrypted_payload = auth::build_memory_read_payload(address, size);
                 RawPacket::SimpleData {
-                    header: DataHeader::new()
-                        .with_packet_type(PacketType::MemoryRead.into())
-                        .with_reserved_flag(false)
-                        .with_id(id)
-                        .with_obj_count_words(0x0101), // Attribute for MemoryRead
+                    header: DataHeader::from_bytes([PacketType::MemoryRead.into(), id, 0x01, 0x01]),
                     payload: encrypted_payload.to_vec(),
                 }
             }
@@ -436,11 +440,7 @@ impl Packet {
                 // Build encrypted StreamingAuth payload
                 let encrypted_payload = auth::build_streaming_auth_payload(&hardware_id);
                 RawPacket::SimpleData {
-                    header: DataHeader::new()
-                        .with_packet_type(PacketType::StreamingAuth.into())
-                        .with_reserved_flag(false)
-                        .with_id(id)
-                        .with_obj_count_words(0x0200), // Attribute for StreamingAuth
+                    header: DataHeader::from_bytes([PacketType::StreamingAuth.into(), id, 0x00, 0x02]),
                     payload: encrypted_payload.to_vec(),
                 }
             }

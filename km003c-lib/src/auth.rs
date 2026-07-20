@@ -254,6 +254,24 @@ pub fn build_memory_read_payload(address: u32, size: u32) -> [u8; 32] {
     aes_ecb_encrypt(&plaintext, MEMORY_READ_KEY)
 }
 
+/// Decrypt and validate a 32-byte MemoryRead request payload.
+pub fn parse_memory_read_payload(ciphertext: &[u8]) -> Option<(u32, u32)> {
+    let plaintext = decrypt_memory_read_response(ciphertext)?;
+    if plaintext.len() != 32 {
+        return None;
+    }
+
+    let address = u32::from_le_bytes(plaintext[0..4].try_into().ok()?);
+    let size = u32::from_le_bytes(plaintext[4..8].try_into().ok()?);
+    let magic = u32::from_le_bytes(plaintext[8..12].try_into().ok()?);
+    let checksum = u32::from_le_bytes(plaintext[12..16].try_into().ok()?);
+    if magic != u32::MAX || checksum != crc32fast::hash(&plaintext[..12]) || plaintext[16..] != [0xFF; 16] {
+        return None;
+    }
+
+    Some((address, size))
+}
+
 /// Build a MemoryRead (0x44) request packet
 ///
 /// # Arguments
@@ -304,6 +322,13 @@ pub fn build_streaming_auth_payload(hardware_id: &HardwareId) -> [u8; 32] {
 
     // Encrypt with AES-128-ECB
     aes_ecb_encrypt(&plaintext, STREAMING_AUTH_KEY_ENC)
+}
+
+/// Decrypt a host-to-device StreamingAuth request and extract its HardwareID.
+pub fn parse_streaming_auth_request_payload(ciphertext: &[u8]) -> Option<HardwareId> {
+    let encrypted: [u8; STREAMING_AUTH_PAYLOAD_SIZE] = ciphertext.try_into().ok()?;
+    let plaintext = aes_ecb_decrypt(&encrypted, STREAMING_AUTH_KEY_ENC);
+    Some(HardwareId::from_bytes(plaintext[8..20].try_into().ok()?))
 }
 
 /// Encrypt a StreamingAuth payload (for serializing responses)
@@ -402,7 +427,7 @@ fn aes_ecb_encrypt(plaintext: &[u8; 32], key: &[u8; 16]) -> [u8; 32] {
 /// The response payload is AES-encrypted with MEMORY_READ_KEY.
 /// Useful for protocol research and manual memory reads.
 pub fn decrypt_memory_read_response(ciphertext: &[u8]) -> Option<Vec<u8>> {
-    if ciphertext.len() < AES_BLOCK_SIZE {
+    if ciphertext.is_empty() || !ciphertext.len().is_multiple_of(AES_BLOCK_SIZE) {
         return None;
     }
 
