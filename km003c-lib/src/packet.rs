@@ -129,8 +129,8 @@ pub enum Attribute {
     /// or longer PdEventStream (12-byte preamble + PD wire events).
     PdPacket = 0x10,
 
-    /// Unknown attribute observed inside a framed PutData packet.
-    Unknown512 = 0x200,
+    /// Offline recording metadata.
+    LogMetadata = 0x200,
 
     #[num_enum(catch_all)]
     Unknown(u16),
