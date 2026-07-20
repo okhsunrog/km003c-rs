@@ -200,6 +200,20 @@ fn append_memory_chunk(buffer: &mut Vec<u8>, chunk: &[u8], expected_size: usize)
     Ok(buffer.len() == expected_size)
 }
 
+fn decrypt_memory_response(encrypted: &[u8], requested_size: u32) -> Result<Vec<u8>, KMError> {
+    let expected_size = memory_response_size(requested_size);
+    if encrypted.len() != expected_size {
+        return Err(KMError::Protocol(format!(
+            "Encrypted memory response has the wrong size: expected {expected_size} bytes, got {}",
+            encrypted.len()
+        )));
+    }
+
+    let mut decrypted = crate::auth::aes_ecb_decrypt_blocks(encrypted, crate::auth::MEMORY_READ_KEY)?;
+    decrypted.truncate(requested_size as usize);
+    Ok(decrypted)
+}
+
 fn validate_memory_read_confirmation(
     packet: &RawPacket,
     expected_id: u8,
@@ -791,7 +805,7 @@ impl KM003C {
             }
         }
 
-        crate::auth::aes_ecb_decrypt_blocks(&encrypted, crate::auth::MEMORY_READ_KEY)
+        decrypt_memory_response(&encrypted, requested_size)
     }
 
     /// Request data with a specific attribute set
@@ -1017,9 +1031,8 @@ impl KM003C {
     /// Read an encrypted memory block from the device
     ///
     /// Sends a MemoryRead request, receives the confirmation, then receives
-    /// and decrypts the actual data. Returns the decrypted bytes.
-    ///
-    /// Response size is rounded up to 16-byte boundary (AES block size).
+    /// and decrypts the actual data. Returns exactly `size` decrypted bytes;
+    /// AES block padding received from the device is removed.
     pub async fn read_memory_block(&mut self, address: u32, size: u32) -> Result<Vec<u8>, KMError> {
         let id = self.send_tracked(Packet::MemoryRead { address, size }).await?;
         let confirmation = self
@@ -1202,6 +1215,22 @@ mod tests {
         assert_eq!(memory_response_size(16), 16);
         assert_eq!(memory_response_size(17), 32);
         assert_eq!(memory_response_size(64), 64);
+    }
+
+    #[test]
+    fn decrypted_memory_response_is_trimmed_to_the_requested_size() {
+        let ciphertext = crate::auth::build_memory_read_payload(0x4001_0450, 12);
+        let decrypted = decrypt_memory_response(&ciphertext[..16], 12).unwrap();
+
+        assert_eq!(decrypted.len(), 12);
+        assert_eq!(&decrypted[..4], &0x4001_0450_u32.to_le_bytes());
+        assert_eq!(&decrypted[4..8], &12_u32.to_le_bytes());
+        assert_eq!(&decrypted[8..12], &u32::MAX.to_le_bytes());
+    }
+
+    #[test]
+    fn decrypted_memory_response_rejects_an_incorrect_ciphertext_size() {
+        assert!(decrypt_memory_response(&[0; 32], 12).is_err());
     }
 
     #[test]
