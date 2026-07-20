@@ -36,12 +36,12 @@ fn captured_auth_requests_roundtrip_as_semantic_packets() {
     let auth =
         Bytes::from(hex::decode("4c0600025538815b69a452c83e54ef1d70f3bc9ae6aac1b12a6ac07c20fde58c7bf517ca").unwrap());
     let auth_packet = Packet::try_from(RawPacket::try_from(auth).unwrap()).unwrap();
-    let Packet::StreamingAuth { hardware_id } = auth_packet else {
+    let Packet::StreamingAuth { credential } = auth_packet else {
         panic!("captured StreamingAuth request did not parse semantically");
     };
-    assert_eq!(hardware_id.as_bytes(), b"071KBP\r\xff\x11\n\xff\xff");
+    assert_eq!(credential.as_bytes(), b"071KBP\r\xff\x11\n\xff\xff");
 
-    let serialized = Bytes::from(Packet::StreamingAuth { hardware_id }.to_raw_packet(6).unwrap());
+    let serialized = Bytes::from(Packet::StreamingAuth { credential }.to_raw_packet(6).unwrap());
     assert_eq!(&serialized[..4], &[0x4c, 0x06, 0x00, 0x02]);
     assert!(matches!(
         Packet::try_from(RawPacket::try_from(serialized).unwrap()).unwrap(),

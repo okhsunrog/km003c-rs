@@ -50,7 +50,13 @@ fn auth_requests_use_their_special_wire_headers() {
     let hardware_id = km003c_lib::auth::HardwareId::from_bytes([
         0x30, 0x37, 0x31, 0x4b, 0x42, 0x50, 0x0d, 0xff, 0x11, 0x0a, 0xff, 0xff,
     ]);
-    let streaming_auth = Bytes::from(Packet::StreamingAuth { hardware_id }.to_raw_packet(6).unwrap());
+    let streaming_auth = Bytes::from(
+        Packet::StreamingAuth {
+            credential: (&hardware_id).into(),
+        }
+        .to_raw_packet(6)
+        .unwrap(),
+    );
 
     assert_eq!(&memory[..4], &[0x44, 0x02, 0x01, 0x01]);
     assert_eq!(&streaming_auth[..4], &[0x4c, 0x06, 0x00, 0x02]);

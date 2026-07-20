@@ -44,7 +44,10 @@
 
 use crate::adc::AdcDataSimple;
 use crate::adcqueue::GraphSampleRate;
-use crate::auth::{DeviceInfo, HardwareId};
+use crate::auth::{
+    AuthCredential, CALIBRATION_ADDRESS, DeviceInfo, HardwareId, PREFERRED_CALIBRATION_ADDRESS,
+    STREAMING_AUTH_CREDENTIAL_SIZE, StreamingAuthResult,
+};
 use crate::error::KMError;
 use crate::message::Packet;
 use crate::offline::{LogMetadata, LogMetadataResponse, OfflineLog};
@@ -60,6 +63,10 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
 use tracing::{debug, info, trace, warn};
+
+fn calibration_record_is_erased(record: &[u8]) -> bool {
+    record.starts_with(&[0xff; 4])
+}
 
 /// Device state populated by initialization
 ///
@@ -594,8 +601,8 @@ impl KM003C {
                 self.send_raw(&raw).await?;
                 return Ok(id);
             }
-            Packet::StreamingAuth { hardware_id } => {
-                let raw = auth::build_streaming_auth_packet(hardware_id, id);
+            Packet::StreamingAuth { credential } => {
+                let raw = auth::build_streaming_auth_packet(credential, id);
                 self.send_raw(&raw).await?;
                 return Ok(id);
             }
@@ -965,25 +972,7 @@ impl KM003C {
         };
 
         // 6. StreamingAuth
-        self.send_tracked(Packet::StreamingAuth {
-            hardware_id: hardware_id.clone(),
-        })
-        .await?;
-        let auth_response = self
-            // StreamingAuth is the documented exception to normal transaction
-            // correlation: captured device responses always carry ID 0.
-            .receive_matching_raw(|bytes| response_type_matches(bytes, PacketType::StreamingAuth))
-            .await?;
-
-        let auth = match Self::parse_response(auth_response, self.graph_sample_rate)? {
-            Packet::StreamingAuthResponse(result) => result,
-            other => {
-                return Err(KMError::Protocol(format!(
-                    "Expected StreamingAuthResponse, got {:?}",
-                    other
-                )));
-            }
-        };
+        let auth = self.perform_streaming_auth(AuthCredential::from(&hardware_id)).await?;
 
         // Store device state in Full mode
         let state = DeviceState {
@@ -998,6 +987,22 @@ impl KM003C {
         self.mode = ConnectionMode::Full(state);
 
         Ok(())
+    }
+
+    async fn perform_streaming_auth(&mut self, credential: AuthCredential) -> Result<StreamingAuthResult, KMError> {
+        self.send_tracked(Packet::StreamingAuth { credential }).await?;
+        let response = self
+            // StreamingAuth is the documented exception to normal transaction
+            // correlation: captured device responses always carry ID 0.
+            .receive_matching_raw(|bytes| response_type_matches(bytes, PacketType::StreamingAuth))
+            .await?;
+
+        match Self::parse_response(response, self.graph_sample_rate)? {
+            Packet::StreamingAuthResponse(result) => Ok(result),
+            other => Err(KMError::Protocol(format!(
+                "Expected StreamingAuthResponse, got {other:?}"
+            ))),
+        }
     }
 
     /// Get the current connection mode
@@ -1041,6 +1046,51 @@ impl KM003C {
     /// Returns `false` in Basic mode or if not authenticated for streaming.
     pub fn adcqueue_enabled(&self) -> bool {
         self.state().map(|s| s.adcqueue_enabled).unwrap_or(false)
+    }
+
+    /// Authenticate with the device's calibration credential and enter auth level 2.
+    ///
+    /// KM003C firmware V1.9.9 prefers the first 12 bytes at `0x03000D80`.
+    /// When that record starts with `0xFFFFFFFF`, it falls back to
+    /// `0x03000C00`. This method only reads those known addresses and sends a
+    /// StreamingAuth request; it does not write settings or flash memory.
+    pub async fn authenticate_calibration(&mut self) -> Result<StreamingAuthResult, KMError> {
+        if !self.is_full_mode() {
+            return Err(KMError::Protocol(
+                "Calibration authentication requires the vendor interface".to_string(),
+            ));
+        }
+
+        let preferred = self
+            .read_memory_block(PREFERRED_CALIBRATION_ADDRESS, STREAMING_AUTH_CREDENTIAL_SIZE as u32)
+            .await?;
+        let selected = if calibration_record_is_erased(&preferred) {
+            self.read_memory_block(CALIBRATION_ADDRESS, STREAMING_AUTH_CREDENTIAL_SIZE as u32)
+                .await?
+        } else {
+            preferred
+        };
+        let credential = AuthCredential::from_bytes(
+            selected
+                .as_slice()
+                .try_into()
+                .map_err(|_| KMError::Protocol("Calibration credential has the wrong length".to_string()))?,
+        );
+        let result = self.perform_streaming_auth(credential).await?;
+
+        if result.auth_level != 2 {
+            return Err(KMError::Protocol(format!(
+                "Calibration authentication returned level {} instead of 2",
+                result.auth_level
+            )));
+        }
+
+        if let ConnectionMode::Full(state) = &mut self.mode {
+            state.auth_level = result.auth_level;
+            state.adcqueue_enabled = result.adcqueue_enabled();
+        }
+
+        Ok(result)
     }
 
     /// Read an encrypted memory block from the device
@@ -1201,6 +1251,13 @@ impl KM003C {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn calibration_auth_falls_back_only_for_an_erased_preferred_record() {
+        assert!(calibration_record_is_erased(&[0xff; STREAMING_AUTH_CREDENTIAL_SIZE]));
+        assert!(!calibration_record_is_erased(b"007965 CDFDD"));
+        assert!(!calibration_record_is_erased(&[0xff, 0xff, 0xff]));
+    }
 
     #[test]
     fn response_matching_uses_the_typed_header_parser() {

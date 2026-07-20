@@ -15,9 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `offline-log` CLI with metadata inspection and CSV/JSON export.
 - Explicit-rate AdcQueue decoding in Python through
   `AdcQueueRawData.decode()` and `parse_packet_with_graph_rate()`.
+- Level-2 calibration authentication through
+  `KM003C::authenticate_calibration()`.
+- `AuthCredential` distinguishes the StreamingAuth credential from a device
+  `HardwareId`.
 
 ### Changed
 
+- `Packet::StreamingAuth` and its Python dictionary representation now name
+  their 12-byte value `credential` instead of incorrectly assuming it is
+  always a HardwareID.
 - Context-free AdcQueue parsing now returns `AdcQueueRawData`; use
   `decode(GraphSampleRate)` when the `StartGraph` rate is known.
 - `AdcQueueData` stores its configured `rate`, and
