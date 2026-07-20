@@ -148,4 +148,7 @@ fn test_attribute_set_edge_cases() {
     assert!(multi.contains(Attribute::Adc));
     assert!(multi.contains(Attribute::PdPacket));
     assert!(multi.contains(Attribute::Settings));
+
+    let log_metadata = AttributeSet::single(Attribute::LogMetadata);
+    assert_eq!(log_metadata.raw(), 0x0200);
 }

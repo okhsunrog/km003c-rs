@@ -1,5 +1,6 @@
 use bytes::Bytes;
-use km003c_lib::{Packet, PdEventData, PdEventStream, RawPacket};
+use km003c_lib::{Packet, PayloadData, PdEventData, PdEventStream, RawPacket};
+use uom::si::electric_current::milliampere;
 use uom::si::electric_potential::volt;
 use uom::si::time::millisecond;
 
@@ -10,6 +11,42 @@ fn parse_pd_events(frame: &str) -> km003c_lib::PdEventStream {
 
 fn assert_milliseconds(timestamp: uom::si::f64::Time, expected: f64) {
     assert!((timestamp.get::<millisecond>() - expected).abs() < 1e-6);
+}
+
+fn parse_pd_status(frame: &str) -> km003c_lib::PdStatus {
+    let raw = RawPacket::try_from(Bytes::from(hex::decode(frame).unwrap())).unwrap();
+    *Packet::try_from(raw).unwrap().get_pd_status().unwrap()
+}
+
+#[test]
+fn parses_recorded_standalone_pd_status_timestamp() {
+    // Source: usb_master_dataset.parquet, orig_with_pd.13, frame 150.
+    let status = parse_pd_status("411c820010000003d6e7120003000000a50c7d00");
+
+    assert_milliseconds(status.timestamp, 1_238_998.0);
+    assert_eq!(status.ibus.get::<milliampere>(), 0.0);
+}
+
+#[test]
+fn parses_recorded_chained_pd_status_timestamp() {
+    // Source: usb_master_dataset.parquet, orig_with_pd.13, frame 166.
+    let raw = RawPacket::try_from(Bytes::from(
+        hex::decode("412082030180000bc1100000160000009a10000010000000fe1000006e000000dd0f837ed8041b0310038b7e008078004d004c001000000376e8120003000000a50c7b00").unwrap(),
+    ))
+    .unwrap();
+    let Packet::DataResponse { payloads } = Packet::try_from(raw).unwrap() else {
+        panic!("expected data response");
+    };
+    let status = payloads
+        .iter()
+        .find_map(|payload| match payload {
+            PayloadData::PdStatus(status) => Some(status),
+            _ => None,
+        })
+        .unwrap();
+
+    assert_milliseconds(status.timestamp, 1_239_158.0);
+    assert_eq!(status.ibus.get::<milliampere>(), 0.0);
 }
 
 #[test]
@@ -66,7 +103,7 @@ fn recognizes_current_recorded_connection_event() {
 
 #[test]
 fn rejects_incomplete_event_header() {
-    let mut payload = vec![0; km003c_lib::constants::PD_PREAMBLE_SIZE];
+    let mut payload = vec![0; km003c_lib::constants::PD_STATUS_SIZE];
     payload.push(0x87);
 
     let error = PdEventStream::from_bytes(Bytes::from(payload)).unwrap_err();
@@ -75,7 +112,7 @@ fn rejects_incomplete_event_header() {
 
 #[test]
 fn rejects_event_size_smaller_than_protocol_offset() {
-    let mut payload = vec![0; km003c_lib::constants::PD_PREAMBLE_SIZE];
+    let mut payload = vec![0; km003c_lib::constants::PD_STATUS_SIZE];
     payload.extend_from_slice(&[0x04, 0, 0, 0, 0, 0]);
 
     let error = PdEventStream::from_bytes(Bytes::from(payload)).unwrap_err();

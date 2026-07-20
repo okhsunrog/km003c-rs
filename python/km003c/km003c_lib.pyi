@@ -72,17 +72,7 @@ class AdcQueueData:
     def __str__(self) -> str: ...
 
 class PdStatus:
-    type_id: int
-    timestamp: int
-    vbus_v: float
-    ibus_a: float
-    cc1_v: float
-    cc2_v: float
-    def __repr__(self) -> str: ...
-    def __str__(self) -> str: ...
-
-class PdPreamble:
-    timestamp: int
+    timestamp: float
     vbus_v: float
     ibus_a: float
     cc1_v: float
@@ -93,14 +83,14 @@ class PdPreamble:
 PdEventData = Dict[str, Any]
 
 class PdEvent:
-    timestamp: int
+    timestamp: float
     data: PdEventData
     def __repr__(self) -> str: ...
     def __str__(self) -> str: ...
 
 class PdEventStream:
     @property
-    def preamble(self) -> PdPreamble: ...
+    def preamble(self) -> PdStatus: ...
     @property
     def events(self) -> List[PdEvent]: ...
     def __repr__(self) -> str: ...

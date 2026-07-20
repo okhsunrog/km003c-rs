@@ -21,7 +21,7 @@ use crate::adc::{AdcDataRaw, AdcDataSimple, SampleRate};
 use crate::adcqueue::{AdcQueueData, AdcQueueSample};
 use crate::message::Packet;
 use crate::packet::{CtrlHeader, LogicalPacket, RawPacket};
-use crate::pd::{PdEvent, PdEventStream, PdPreamble, PdStatus};
+use crate::pd::{PdEvent, PdEventStream, PdStatus};
 use bytes::Bytes;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -201,7 +201,6 @@ fn km003c_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AdcQueueSample>()?;
     m.add_class::<AdcQueueData>()?;
     m.add_class::<PdStatus>()?;
-    m.add_class::<PdPreamble>()?;
     m.add_class::<PdEvent>()?;
     m.add_class::<PdEventStream>()?;
     m.add_class::<LogicalPacket>()?;

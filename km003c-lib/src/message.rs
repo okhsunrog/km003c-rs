@@ -9,8 +9,6 @@ use crate::packet::{
 use crate::pd::{PdEventStream, PdStatus, PdStatusRaw};
 use bytes::Bytes;
 use num_enum::FromPrimitive;
-use uom::si::electric_current::milliampere;
-use uom::si::electric_potential::millivolt;
 use zerocopy::{FromBytes, IntoBytes};
 
 const PD_MONITOR_ENABLED_PARAMETER: u16 = 1;
@@ -179,15 +177,23 @@ impl Packet {
                 let packet_type = PacketType::from_primitive(header.packet_type());
 
                 match packet_type {
-                    // MemoryRead response (0xC4 = 0x44 | 0x80) - confirmation
                     PacketType::MemoryRead => {
-                        // This is just a confirmation, return as Accept-like
-                        Ok(Packet::Accept { id: header.id() })
+                        if !header.reserved_flag()
+                            && header.into_bytes()[2..4] == [0x01, 0x01]
+                            && let Some((address, size)) = auth::parse_memory_read_payload(&payload)
+                        {
+                            Ok(Packet::MemoryRead { address, size })
+                        } else {
+                            Ok(Packet::Generic(RawPacket::SimpleData { header, payload }))
+                        }
                     }
-                    // StreamingAuth response (0x4C) - encrypted result
                     PacketType::StreamingAuth => {
                         let auth_header = StreamingAuthHeader::from_bytes(header.into_bytes());
-                        if let Some(result) = auth::parse_streaming_auth_response_parts(auth_header, &payload) {
+                        if auth_header.attribute() == 0x0200
+                            && let Some(hardware_id) = auth::parse_streaming_auth_request_payload(&payload)
+                        {
+                            Ok(Packet::StreamingAuth { hardware_id })
+                        } else if let Some(result) = auth::parse_streaming_auth_response_parts(auth_header, &payload) {
                             Ok(Packet::StreamingAuthResponse(result))
                         } else {
                             Ok(Packet::Generic(RawPacket::SimpleData { header, payload }))
@@ -276,22 +282,14 @@ impl Packet {
                             });
                         }
                         PayloadData::PdStatus(pd_status) => {
-                            // Reconstruct PdStatusRaw
-                            let timestamp_bytes = pd_status.timestamp_ticks.to_le_bytes();
-                            let mut raw_bytes = Vec::with_capacity(12);
-                            raw_bytes.push(pd_status.type_id);
-                            raw_bytes.extend_from_slice(&timestamp_bytes[..3]); // 24-bit
-                            raw_bytes.extend_from_slice(&(pd_status.vbus.get::<millivolt>() as u16).to_le_bytes());
-                            raw_bytes.extend_from_slice(&(pd_status.ibus.get::<milliampere>() as i16).to_le_bytes());
-                            raw_bytes.extend_from_slice(&(pd_status.cc1.get::<millivolt>() as u16).to_le_bytes());
-                            raw_bytes.extend_from_slice(&(pd_status.cc2.get::<millivolt>() as u16).to_le_bytes());
+                            let raw = PdStatusRaw::from(pd_status);
 
                             logical_packets.push(LogicalPacket {
                                 attribute: Attribute::PdPacket,
                                 next: false, // Will be fixed below
                                 chunk: 0,
                                 size: PD_STATUS_SIZE as u16,
-                                payload: raw_bytes,
+                                payload: raw.as_bytes().to_vec(),
                             });
                         }
                         PayloadData::AdcQueue(_) => {
@@ -322,14 +320,23 @@ impl Packet {
                     last.next = false;
                 }
 
-                // Calculate total payload size
+                // Calculate the serialized size of all extended headers and payloads.
                 let total_size: usize = logical_packets.iter().map(|lp| 4 + lp.payload.len()).sum();
+
+                // Recorded PutData responses encode a word count relative to the
+                // complete packet: packet_len / 4 - 3. The field is not the raw
+                // payload length despite its historical `obj_count_words` name.
+                let obj_count_words = if logical_packets.is_empty() {
+                    0
+                } else {
+                    ((4 + total_size) / 4).saturating_sub(3) as u16
+                };
 
                 let header = DataHeader::new()
                     .with_packet_type(PacketType::PutData.into())
-                    .with_reserved_flag(true)
+                    .with_reserved_flag(false)
                     .with_id(id)
-                    .with_obj_count_words((total_size / 4) as u16);
+                    .with_obj_count_words(obj_count_words);
 
                 RawPacket::Data {
                     header,
@@ -420,11 +427,7 @@ impl Packet {
                 // Build encrypted MemoryRead payload
                 let encrypted_payload = auth::build_memory_read_payload(address, size);
                 RawPacket::SimpleData {
-                    header: DataHeader::new()
-                        .with_packet_type(PacketType::MemoryRead.into())
-                        .with_reserved_flag(false)
-                        .with_id(id)
-                        .with_obj_count_words(0x0101), // Attribute for MemoryRead
+                    header: DataHeader::from_bytes([PacketType::MemoryRead.into(), id, 0x01, 0x01]),
                     payload: encrypted_payload.to_vec(),
                 }
             }
@@ -437,11 +440,7 @@ impl Packet {
                 // Build encrypted StreamingAuth payload
                 let encrypted_payload = auth::build_streaming_auth_payload(&hardware_id);
                 RawPacket::SimpleData {
-                    header: DataHeader::new()
-                        .with_packet_type(PacketType::StreamingAuth.into())
-                        .with_reserved_flag(false)
-                        .with_id(id)
-                        .with_obj_count_words(0x0200), // Attribute for StreamingAuth
+                    header: DataHeader::from_bytes([PacketType::StreamingAuth.into(), id, 0x00, 0x02]),
                     payload: encrypted_payload.to_vec(),
                 }
             }

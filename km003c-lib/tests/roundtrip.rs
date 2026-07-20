@@ -20,6 +20,44 @@ fn test_unknown_control_packet_preserves_payload() {
 }
 
 #[test]
+fn captured_auth_requests_roundtrip_as_semantic_packets() {
+    let memory =
+        Bytes::from(hex::decode("4402010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e").unwrap());
+    let memory_packet = Packet::try_from(RawPacket::try_from(memory.clone()).unwrap()).unwrap();
+    assert!(matches!(
+        memory_packet,
+        Packet::MemoryRead {
+            address: 0x420,
+            size: 64
+        }
+    ));
+    assert_eq!(Bytes::from(memory_packet.to_raw_packet(2).unwrap()), memory);
+
+    let auth =
+        Bytes::from(hex::decode("4c0600025538815b69a452c83e54ef1d70f3bc9ae6aac1b12a6ac07c20fde58c7bf517ca").unwrap());
+    let auth_packet = Packet::try_from(RawPacket::try_from(auth).unwrap()).unwrap();
+    let Packet::StreamingAuth { hardware_id } = auth_packet else {
+        panic!("captured StreamingAuth request did not parse semantically");
+    };
+    assert_eq!(hardware_id.as_bytes(), b"071KBP\r\xff\x11\n\xff\xff");
+
+    let serialized = Bytes::from(Packet::StreamingAuth { hardware_id }.to_raw_packet(6).unwrap());
+    assert_eq!(&serialized[..4], &[0x4c, 0x06, 0x00, 0x02]);
+    assert!(matches!(
+        Packet::try_from(RawPacket::try_from(serialized).unwrap()).unwrap(),
+        Packet::StreamingAuth { .. }
+    ));
+}
+
+#[test]
+fn memory_read_confirmation_is_not_misreported_as_accept() {
+    let bytes = Bytes::from(hex::decode("c40201012004000040000000ffffffff1b8c1b24").unwrap());
+    let packet = Packet::try_from(RawPacket::try_from(bytes).unwrap()).unwrap();
+
+    assert!(matches!(packet, Packet::Generic(_)));
+}
+
+#[test]
 fn test_unframed_memory_ciphertext_is_not_misclassified_by_first_byte() {
     let original = Bytes::from_static(&[
         0x75, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
@@ -30,6 +68,15 @@ fn test_unframed_memory_ciphertext_is_not_misclassified_by_first_byte() {
     };
 
     assert_eq!(Bytes::from(generic), original);
+}
+
+#[test]
+fn ciphertext_derived_values_remain_unknown() {
+    assert_eq!(PacketType::from(0x1a), PacketType::Unknown(0x1a));
+    assert_eq!(PacketType::from(0x3a), PacketType::Unknown(0x3a));
+    assert_eq!(Attribute::from(1609), Attribute::Unknown(1609));
+    assert_eq!(Attribute::from(11046), Attribute::Unknown(11046));
+    assert_eq!(Attribute::from(26817), Attribute::Unknown(26817));
 }
 
 #[test]

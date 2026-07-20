@@ -6,10 +6,7 @@ pub const MAIN_HEADER_SIZE: usize = 4;
 /// Size of extended header in logical packets (4 bytes)
 pub const EXTENDED_HEADER_SIZE: usize = 4;
 
-/// Size of PD preamble (12 bytes)
-pub const PD_PREAMBLE_SIZE: usize = 12;
-
-/// Size of PD status block (12 bytes)
+/// Size of the PD measurement block used for status and event preambles.
 pub const PD_STATUS_SIZE: usize = 12;
 
 /// Size of PD event header (6 bytes)

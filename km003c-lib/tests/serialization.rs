@@ -38,6 +38,25 @@ fn test_pd_monitor_commands_use_documented_wire_parameters() {
 }
 
 #[test]
+fn auth_requests_use_their_special_wire_headers() {
+    let memory = Bytes::from(
+        Packet::MemoryRead {
+            address: 0x420,
+            size: 64,
+        }
+        .to_raw_packet(2)
+        .unwrap(),
+    );
+    let hardware_id = km003c_lib::auth::HardwareId::from_bytes([
+        0x30, 0x37, 0x31, 0x4b, 0x42, 0x50, 0x0d, 0xff, 0x11, 0x0a, 0xff, 0xff,
+    ]);
+    let streaming_auth = Bytes::from(Packet::StreamingAuth { hardware_id }.to_raw_packet(6).unwrap());
+
+    assert_eq!(&memory[..4], &[0x44, 0x02, 0x01, 0x01]);
+    assert_eq!(&streaming_auth[..4], &[0x4c, 0x06, 0x00, 0x02]);
+}
+
+#[test]
 fn test_unsupported_semantic_payload_is_not_silently_dropped() {
     let packet = Packet::DataResponse {
         payloads: vec![PayloadData::AdcQueue(AdcQueueData { samples: Vec::new() })],
@@ -47,6 +66,18 @@ fn test_unsupported_semantic_payload_is_not_silently_dropped() {
         packet.to_raw_packet(0),
         Err(KMError::UnsupportedSerialization { packet: "AdcQueue" })
     ));
+}
+
+#[test]
+fn semantic_adc_response_uses_recorded_header_encoding() {
+    let recorded = Bytes::from(REAL_ADC_RESPONSE.to_vec());
+    let packet = Packet::try_from(RawPacket::try_from(recorded.clone()).unwrap()).unwrap();
+
+    let serialized = Bytes::from(packet.to_raw_packet(0).unwrap());
+
+    assert_eq!(&serialized[..8], &recorded[..8]);
+    assert_eq!(serialized[0], 0x41, "PutData does not set the reserved bit");
+    assert_eq!(&serialized[2..4], &[0x80, 0x02], "recorded ADC obj_count is 10 words");
 }
 
 #[test]
