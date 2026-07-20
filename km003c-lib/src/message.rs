@@ -1,6 +1,6 @@
 use crate::adc::{AdcDataRaw, AdcDataSimple};
 use crate::adcqueue::{AdcQueueData, AdcQueueRawData, GraphSampleRate};
-use crate::auth::{self, HardwareId, StreamingAuthResult};
+use crate::auth::{self, AuthCredential, StreamingAuthResult};
 use crate::constants::*;
 use crate::error::KMError;
 use crate::offline::{LogMetadata, LogMetadataResponse};
@@ -64,8 +64,8 @@ pub enum Packet {
     },
     /// StreamingAuth command (0x4C) - authenticate for AdcQueue streaming
     StreamingAuth {
-        /// HardwareID to authenticate with
-        hardware_id: HardwareId,
+        /// Device or calibration credential to authenticate with
+        credential: AuthCredential,
     },
     /// StreamingAuth response (0x4C) - authentication result
     StreamingAuthResponse(StreamingAuthResult),
@@ -212,9 +212,9 @@ impl Packet {
                     PacketType::StreamingAuth => {
                         let auth_header = StreamingAuthHeader::from_bytes(header.into_bytes());
                         if auth_header.attribute() == 0x0200
-                            && let Some(hardware_id) = auth::parse_streaming_auth_request_payload(&payload)
+                            && let Some(credential) = auth::parse_streaming_auth_request_payload(&payload)
                         {
-                            Ok(Packet::StreamingAuth { hardware_id })
+                            Ok(Packet::StreamingAuth { credential })
                         } else if let Some(result) = auth::parse_streaming_auth_response_parts(auth_header, &payload) {
                             Ok(Packet::StreamingAuthResponse(result))
                         } else {
@@ -495,9 +495,9 @@ impl Packet {
                     payload: encrypted_payload.to_vec(),
                 }
             }
-            Packet::StreamingAuth { hardware_id } => {
+            Packet::StreamingAuth { credential } => {
                 // Build encrypted StreamingAuth payload
-                let encrypted_payload = auth::build_streaming_auth_payload(&hardware_id);
+                let encrypted_payload = auth::build_streaming_auth_payload(&credential);
                 RawPacket::SimpleData {
                     header: DataHeader::from_bytes([PacketType::StreamingAuth.into(), id, 0x00, 0x02]),
                     payload: encrypted_payload.to_vec(),
@@ -586,9 +586,9 @@ impl<'py> pyo3::IntoPyObject<'py> for Packet {
                 inner.set_item("size", size)?;
                 dict.set_item("MemoryRead", inner)?;
             }
-            Packet::StreamingAuth { hardware_id } => {
+            Packet::StreamingAuth { credential } => {
                 let inner = PyDict::new(py);
-                inner.set_item("hardware_id", hex::encode(hardware_id.bytes))?;
+                inner.set_item("credential", hex::encode(credential.as_bytes()))?;
                 dict.set_item("StreamingAuth", inner)?;
             }
             Packet::StreamingAuthResponse(result) => {

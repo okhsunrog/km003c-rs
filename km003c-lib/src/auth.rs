@@ -62,8 +62,14 @@ pub const FIRMWARE_INFO_ADDRESS: u32 = 0x00004420;
 /// Memory address for CalibrationData (serial, UUID, timestamp)
 pub const CALIBRATION_ADDRESS: u32 = 0x03000C00;
 
+/// Preferred calibration record used for level-2 authentication when present.
+pub const PREFERRED_CALIBRATION_ADDRESS: u32 = 0x03000D80;
+
 /// Size of info blocks (DeviceInfo, FirmwareInfo, Calibration)
 pub const INFO_BLOCK_SIZE: usize = 64;
+
+/// Size of the credential embedded in a StreamingAuth request.
+pub const STREAMING_AUTH_CREDENTIAL_SIZE: usize = 12;
 
 /// 12-byte Hardware ID read from device memory at 0x40010450
 ///
@@ -107,6 +113,39 @@ impl HardwareId {
 impl std::fmt::Display for HardwareId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", hex::encode(self.bytes))
+    }
+}
+
+/// Opaque 12-byte credential embedded in a StreamingAuth request.
+///
+/// Firmware V1.9.9 accepts the device HardwareID for auth level 1 and the
+/// beginning of its selected calibration record for auth level 2.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthCredential {
+    bytes: [u8; STREAMING_AUTH_CREDENTIAL_SIZE],
+}
+
+impl AuthCredential {
+    /// Create a credential from its exact wire bytes.
+    pub fn from_bytes(bytes: [u8; STREAMING_AUTH_CREDENTIAL_SIZE]) -> Self {
+        Self { bytes }
+    }
+
+    /// Return the exact credential bytes.
+    pub fn as_bytes(&self) -> &[u8; STREAMING_AUTH_CREDENTIAL_SIZE] {
+        &self.bytes
+    }
+}
+
+impl From<&HardwareId> for AuthCredential {
+    fn from(hardware_id: &HardwareId) -> Self {
+        Self::from_bytes(*hardware_id.as_bytes())
+    }
+}
+
+impl From<HardwareId> for AuthCredential {
+    fn from(hardware_id: HardwareId) -> Self {
+        Self::from(&hardware_id)
     }
 }
 
@@ -303,11 +342,11 @@ pub fn build_memory_read_packet(address: u32, size: u32, tid: u8) -> Vec<u8> {
 /// Build StreamingAuth encrypted payload (32 bytes)
 ///
 /// # Arguments
-/// * `hardware_id` - 12-byte HardwareID from device
+/// * `credential` - 12-byte device or calibration credential
 ///
 /// # Returns
 /// 32-byte AES-encrypted payload
-pub fn build_streaming_auth_payload(hardware_id: &HardwareId) -> [u8; 32] {
+pub fn build_streaming_auth_payload(credential: &AuthCredential) -> [u8; 32] {
     // Build 32-byte plaintext
     let mut plaintext = [0u8; 32];
 
@@ -318,8 +357,8 @@ pub fn build_streaming_auth_payload(hardware_id: &HardwareId) -> [u8; 32] {
         .unwrap_or(0);
     plaintext[0..8].copy_from_slice(&timestamp.to_le_bytes());
 
-    // Bytes 8-19: HardwareID (12 bytes) - THIS IS THE CRITICAL PART
-    plaintext[8..20].copy_from_slice(hardware_id.as_bytes());
+    // Bytes 8-19: device or calibration authentication credential
+    plaintext[8..20].copy_from_slice(credential.as_bytes());
 
     // Bytes 20-31: Random padding
     let random_bytes: [u8; 12] = rand::random();
@@ -329,11 +368,11 @@ pub fn build_streaming_auth_payload(hardware_id: &HardwareId) -> [u8; 32] {
     aes_ecb_encrypt(&plaintext, STREAMING_AUTH_KEY_ENC)
 }
 
-/// Decrypt a host-to-device StreamingAuth request and extract its HardwareID.
-pub fn parse_streaming_auth_request_payload(ciphertext: &[u8]) -> Option<HardwareId> {
+/// Decrypt a host-to-device StreamingAuth request and extract its credential.
+pub fn parse_streaming_auth_request_payload(ciphertext: &[u8]) -> Option<AuthCredential> {
     let encrypted: [u8; STREAMING_AUTH_PAYLOAD_SIZE] = ciphertext.try_into().ok()?;
     let plaintext = aes_ecb_decrypt(&encrypted, STREAMING_AUTH_KEY_ENC);
-    Some(HardwareId::from_bytes(plaintext[8..20].try_into().ok()?))
+    Some(AuthCredential::from_bytes(plaintext[8..20].try_into().ok()?))
 }
 
 /// Encrypt a StreamingAuth payload (for serializing responses)
@@ -350,13 +389,13 @@ pub fn encrypt_streaming_auth_response_payload(plaintext: &[u8; 32]) -> [u8; 32]
 /// Build a StreamingAuth (0x4C) request packet
 ///
 /// # Arguments
-/// * `hardware_id` - 12-byte HardwareID from device
+/// * `credential` - 12-byte device or calibration credential
 /// * `tid` - Transaction ID
 ///
 /// # Returns
 /// 36-byte packet: 4-byte header + 32-byte AES-encrypted payload
-pub fn build_streaming_auth_packet(hardware_id: &HardwareId, tid: u8) -> Vec<u8> {
-    let ciphertext = build_streaming_auth_payload(hardware_id);
+pub fn build_streaming_auth_packet(credential: &AuthCredential, tid: u8) -> Vec<u8> {
+    let ciphertext = build_streaming_auth_payload(credential);
 
     // Build packet: header + encrypted payload
     let mut packet = Vec::with_capacity(36);
@@ -554,12 +593,20 @@ mod tests {
     #[test]
     fn test_streaming_auth_packet_structure() {
         let hw_id = HardwareId::from_bytes([0x30, 0x37, 0x31, 0x4b, 0x42, 0x50, 0x0d, 0xff, 0x11, 0x0a, 0xff, 0xff]);
-        let packet = build_streaming_auth_packet(&hw_id, 0x06);
+        let packet = build_streaming_auth_packet(&AuthCredential::from(&hw_id), 0x06);
         assert_eq!(packet.len(), 36);
         assert_eq!(packet[0], 0x4C); // StreamingAuth
         assert_eq!(packet[1], 0x06); // TID
         assert_eq!(packet[2], 0x00); // Attribute low
         assert_eq!(packet[3], 0x02); // Attribute high (0x0002)
+    }
+
+    #[test]
+    fn test_streaming_auth_calibration_credential_roundtrip() {
+        let credential = AuthCredential::from_bytes(*b"007965 CDFDD");
+        let encrypted = build_streaming_auth_payload(&credential);
+
+        assert_eq!(parse_streaming_auth_request_payload(&encrypted), Some(credential));
     }
 
     #[test]
@@ -718,7 +765,7 @@ mod tests {
         ]);
 
         // Generate StreamingAuth packet
-        let packet = build_streaming_auth_packet(&hw_id, 0x06);
+        let packet = build_streaming_auth_packet(&AuthCredential::from(&hw_id), 0x06);
 
         // Verify header matches hardcoded
         let hardcoded = hex::decode(HARDCODED_STREAMING_AUTH).unwrap();

@@ -51,6 +51,7 @@ values in the Rust API are type-safe [`uom`](https://docs.rs/uom) quantities.
 Core library providing:
 - Device communication and automatic initialization
 - Streaming authentication (required for AdcQueue)
+- Firmware-selected calibration authentication for level-2 operations
 - ADC and AdcQueue data parsing
 - Offline recording catalog and encrypted log downloads
 - USB PD event parsing

@@ -21,7 +21,7 @@ pub use python::*;
 pub use adcqueue::{
     AdcQueueData, AdcQueueRawData, AdcQueueSample, AdcQueueSampleRaw, GraphSampleRate, sequence_elapsed,
 };
-pub use auth::{DeviceInfo, HardwareId, StreamingAuthResult};
+pub use auth::{AuthCredential, DeviceInfo, HardwareId, StreamingAuthResult};
 pub use device::{ConnectionMode, DeviceConfig, DeviceState, KM003C, TransferType};
 pub use message::{Packet, PayloadData};
 pub use offline::{LogMetadata, LogMetadataResponse, OfflineLog, OfflineLogSample, OfflineLogSampleRaw};
