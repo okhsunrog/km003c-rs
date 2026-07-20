@@ -56,6 +56,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = device.state().expect("vendor interface provides state");
     println!("{state}\n");
 
+    device.enable_pd_monitor().await?;
+
     println!("USB PD Negotiation Capture");
     println!("NOW: Disconnect and reconnect your USB-C load!");
     println!(
@@ -96,6 +98,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    device.disable_pd_monitor().await?;
     device.send(Packet::Disconnect).await?;
     println!("\nCapture complete.");
     Ok(())

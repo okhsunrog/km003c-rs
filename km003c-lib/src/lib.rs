@@ -17,7 +17,9 @@ pub mod python;
 pub use python::*;
 
 // Re-export commonly used types
-pub use adcqueue::{AdcQueueData, AdcQueueSample, GraphSampleRate, sequence_elapsed};
+pub use adcqueue::{
+    AdcQueueData, AdcQueueRawData, AdcQueueSample, AdcQueueSampleRaw, GraphSampleRate, sequence_elapsed,
+};
 pub use auth::{DeviceInfo, HardwareId, StreamingAuthResult};
 pub use device::{ConnectionMode, DeviceConfig, DeviceState, KM003C, TransferType};
 pub use message::{Packet, PayloadData};

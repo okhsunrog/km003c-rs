@@ -3,7 +3,7 @@
 mod common;
 
 use common::*;
-use km003c_lib::AdcQueueData;
+use km003c_lib::{AdcQueueData, GraphSampleRate};
 
 #[test]
 fn test_rawpacket_to_bytes_ctrl() {
@@ -59,7 +59,10 @@ fn auth_requests_use_their_special_wire_headers() {
 #[test]
 fn test_unsupported_semantic_payload_is_not_silently_dropped() {
     let packet = Packet::DataResponse {
-        payloads: vec![PayloadData::AdcQueue(AdcQueueData { samples: Vec::new() })],
+        payloads: vec![PayloadData::AdcQueue(AdcQueueData {
+            rate: GraphSampleRate::Sps50,
+            samples: Vec::new(),
+        })],
     };
 
     assert!(matches!(
@@ -76,8 +79,26 @@ fn semantic_adc_response_uses_recorded_header_encoding() {
     let serialized = Bytes::from(packet.to_raw_packet(0).unwrap());
 
     assert_eq!(&serialized[..8], &recorded[..8]);
+    assert_eq!(
+        serialized, recorded,
+        "semantic ADC parsing must preserve every wire field"
+    );
     assert_eq!(serialized[0], 0x41, "PutData does not set the reserved bit");
     assert_eq!(&serialized[2..4], &[0x80, 0x02], "recorded ADC obj_count is 10 words");
+}
+
+#[test]
+fn unknown_adc_sample_rate_is_preserved_without_a_fallback() {
+    let mut recorded = REAL_ADC_RESPONSE.to_vec();
+    recorded[8 + 36] = 0xfe;
+
+    let packet = Packet::try_from(RawPacket::try_from(Bytes::from(recorded.clone())).unwrap()).unwrap();
+    let adc = packet.get_adc().unwrap();
+    assert_eq!(adc.sample_rate, None);
+    assert_eq!(adc.sample_rate_raw, 0xfe);
+
+    let serialized = Bytes::from(packet.to_raw_packet(0).unwrap());
+    assert_eq!(serialized.as_ref(), recorded);
 }
 
 #[test]

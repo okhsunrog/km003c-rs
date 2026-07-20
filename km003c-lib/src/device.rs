@@ -200,6 +200,20 @@ fn append_memory_chunk(buffer: &mut Vec<u8>, chunk: &[u8], expected_size: usize)
     Ok(buffer.len() == expected_size)
 }
 
+fn decrypt_memory_response(encrypted: &[u8], requested_size: u32) -> Result<Vec<u8>, KMError> {
+    let expected_size = memory_response_size(requested_size);
+    if encrypted.len() != expected_size {
+        return Err(KMError::Protocol(format!(
+            "Encrypted memory response has the wrong size: expected {expected_size} bytes, got {}",
+            encrypted.len()
+        )));
+    }
+
+    let mut decrypted = crate::auth::aes_ecb_decrypt_blocks(encrypted, crate::auth::MEMORY_READ_KEY)?;
+    decrypted.truncate(requested_size as usize);
+    Ok(decrypted)
+}
+
 fn validate_memory_read_confirmation(
     packet: &RawPacket,
     expected_id: u8,
@@ -266,6 +280,18 @@ pub enum ConnectionMode {
     Basic,
     /// Full mode (Vendor interface) - all features, includes device state
     Full(DeviceState),
+}
+
+fn ensure_adcqueue_available(mode: &ConnectionMode) -> Result<(), KMError> {
+    match mode {
+        ConnectionMode::Basic => Err(KMError::Protocol(
+            "AdcQueue streaming requires Full mode (vendor interface)".to_string(),
+        )),
+        ConnectionMode::Full(state) if !state.adcqueue_enabled => Err(KMError::Protocol(
+            "StreamingAuth did not enable AdcQueue streaming".to_string(),
+        )),
+        ConnectionMode::Full(_) => Ok(()),
+    }
 }
 
 /// Configuration for KM003C device communication
@@ -791,7 +817,7 @@ impl KM003C {
             }
         }
 
-        crate::auth::aes_ecb_decrypt_blocks(&encrypted, crate::auth::MEMORY_READ_KEY)
+        decrypt_memory_response(&encrypted, requested_size)
     }
 
     /// Request data with a specific attribute set
@@ -1017,9 +1043,8 @@ impl KM003C {
     /// Read an encrypted memory block from the device
     ///
     /// Sends a MemoryRead request, receives the confirmation, then receives
-    /// and decrypts the actual data. Returns the decrypted bytes.
-    ///
-    /// Response size is rounded up to 16-byte boundary (AES block size).
+    /// and decrypts the actual data. Returns exactly `size` decrypted bytes;
+    /// AES block padding received from the device is removed.
     pub async fn read_memory_block(&mut self, address: u32, size: u32) -> Result<Vec<u8>, KMError> {
         let id = self.send_tracked(Packet::MemoryRead { address, size }).await?;
         let confirmation = self
@@ -1110,7 +1135,7 @@ impl KM003C {
     /// # Arguments
     /// * `rate` - Sample rate (use GraphSampleRate enum)
     ///
-    /// **Requires Full mode** (vendor interface). Will return error in Basic mode.
+    /// **Requires Full mode** (vendor interface) and successful StreamingAuth.
     ///
     /// Rate values:
     /// - `GraphSampleRate::Sps2` = 2 samples per second
@@ -1138,11 +1163,7 @@ impl KM003C {
     /// # }
     /// ```
     pub async fn start_graph_mode(&mut self, rate: GraphSampleRate) -> Result<(), KMError> {
-        if self.is_basic_mode() {
-            return Err(KMError::Protocol(
-                "AdcQueue streaming requires Full mode (vendor interface)".to_string(),
-            ));
-        }
+        ensure_adcqueue_available(&self.mode)?;
 
         // Device expects rate index directly: 0=2SPS, 1=10SPS, 2=50SPS, 3=1000SPS
         let id = self
@@ -1184,6 +1205,26 @@ mod tests {
     }
 
     #[test]
+    fn graph_mode_requires_streaming_auth_permission() {
+        assert!(ensure_adcqueue_available(&ConnectionMode::Basic).is_err());
+
+        let state = DeviceState {
+            info: DeviceInfo::default(),
+            hardware_id: HardwareId::from_bytes([0; 12]),
+            auth_level: 0,
+            adcqueue_enabled: false,
+        };
+        assert!(ensure_adcqueue_available(&ConnectionMode::Full(state.clone())).is_err());
+
+        let enabled = DeviceState {
+            auth_level: 1,
+            adcqueue_enabled: true,
+            ..state
+        };
+        assert!(ensure_adcqueue_available(&ConnectionMode::Full(enabled)).is_ok());
+    }
+
+    #[test]
     fn response_matching_requires_type_and_transaction_id() {
         assert!(!response_matches(&[0xc1, 8, 0, 0], 7, PacketType::PutData));
         assert!(!response_matches(&[0xc0, 7, 0, 0], 7, PacketType::PutData));
@@ -1202,6 +1243,22 @@ mod tests {
         assert_eq!(memory_response_size(16), 16);
         assert_eq!(memory_response_size(17), 32);
         assert_eq!(memory_response_size(64), 64);
+    }
+
+    #[test]
+    fn decrypted_memory_response_is_trimmed_to_the_requested_size() {
+        let ciphertext = crate::auth::build_memory_read_payload(0x4001_0450, 12);
+        let decrypted = decrypt_memory_response(&ciphertext[..16], 12).unwrap();
+
+        assert_eq!(decrypted.len(), 12);
+        assert_eq!(&decrypted[..4], &0x4001_0450_u32.to_le_bytes());
+        assert_eq!(&decrypted[4..8], &12_u32.to_le_bytes());
+        assert_eq!(&decrypted[8..12], &u32::MAX.to_le_bytes());
+    }
+
+    #[test]
+    fn decrypted_memory_response_rejects_an_incorrect_ciphertext_size() {
+        assert!(decrypt_memory_response(&[0; 32], 12).is_err());
     }
 
     #[test]

@@ -113,7 +113,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Sample rate and internal voltage
     println!("\n⚙️  Device Info:");
-    println!("  Sample Rate: {}", adc_data.sample_rate);
+    match adc_data.sample_rate {
+        Some(rate) => println!("  Sample Rate: {rate}"),
+        None => println!("  Sample Rate: Unknown ({})", adc_data.sample_rate_raw),
+    }
     println!("  Internal VDD: {:>7.3} V", adc_data.internal_vdd.get::<volt>());
 
     println!("\n{}", "=".repeat(50));

@@ -107,6 +107,10 @@ pub struct AdcDataSimple {
     // Averaged measurements
     pub vbus_average: ElectricPotential,
     pub ibus_average: ElectricCurrent,
+    /// Uncalibrated VBUS average preserved verbatim from the device.
+    pub vbus_uncalibrated_average_raw: i32,
+    /// Uncalibrated IBUS average preserved verbatim from the device.
+    pub ibus_uncalibrated_average_raw: i32,
 
     // Temperature
     pub temperature: ThermodynamicTemperature,
@@ -125,8 +129,12 @@ pub struct AdcDataSimple {
     // Internal voltage
     pub internal_vdd: ElectricPotential,
 
-    // Sample rate
-    pub sample_rate: SampleRate, // Sample rate as enum
+    /// Known sample rate, or `None` when the device reports an unknown index.
+    pub sample_rate: Option<SampleRate>,
+    /// Original sample-rate index, retained for lossless parsing and serialization.
+    pub sample_rate_raw: u8,
+    /// Opaque vendor flags preserved from the ADC payload.
+    pub vendor_flags: u8,
 }
 
 impl From<AdcDataRaw> for AdcDataSimple {
@@ -134,8 +142,7 @@ impl From<AdcDataRaw> for AdcDataSimple {
         let vbus = ElectricPotential::new::<microvolt>(f64::from(raw.vbus_uv.get()));
         let ibus = ElectricCurrent::new::<microampere>(f64::from(raw.ibus_ua.get()));
 
-        // Convert raw sample rate to enum (safely, fallback to 2 SPS if invalid)
-        let sample_rate = SampleRate::try_from(raw.rate_raw).unwrap_or(SampleRate::Sps2);
+        let sample_rate = SampleRate::try_from(raw.rate_raw).ok();
 
         AdcDataSimple {
             vbus,
@@ -143,6 +150,8 @@ impl From<AdcDataRaw> for AdcDataSimple {
             power: vbus * ibus,
             vbus_average: ElectricPotential::new::<microvolt>(f64::from(raw.vbus_avg_uv.get())),
             ibus_average: ElectricCurrent::new::<microampere>(f64::from(raw.ibus_avg_ua.get())),
+            vbus_uncalibrated_average_raw: raw.vbus_ori_avg_raw.get(),
+            ibus_uncalibrated_average_raw: raw.ibus_ori_avg_raw.get(),
             temperature: ThermodynamicTemperature::new::<degree_celsius>(f64::from(raw.temp_raw.get()) / 128.0),
             vdp: ElectricPotential::new::<millivolt>(f64::from(raw.vdp_mv.get()) / 10.0),
             vdm: ElectricPotential::new::<millivolt>(f64::from(raw.vdm_mv.get()) / 10.0),
@@ -153,6 +162,8 @@ impl From<AdcDataRaw> for AdcDataSimple {
             cc2_average: ElectricPotential::new::<millivolt>(f64::from(raw.vcc2_avg_raw.get())),
             internal_vdd: ElectricPotential::new::<millivolt>(f64::from(raw.internal_vdd_raw.get()) / 10.0),
             sample_rate,
+            sample_rate_raw: raw.rate_raw,
+            vendor_flags: raw.reserved,
         }
     }
 }
@@ -160,25 +171,25 @@ impl From<AdcDataRaw> for AdcDataSimple {
 impl From<AdcDataSimple> for AdcDataRaw {
     fn from(data: AdcDataSimple) -> Self {
         AdcDataRaw {
-            vbus_uv: I32::new(data.vbus.get::<microvolt>() as i32),
-            ibus_ua: I32::new(data.ibus.get::<microampere>() as i32),
-            vbus_avg_uv: I32::new(data.vbus_average.get::<microvolt>() as i32),
-            ibus_avg_ua: I32::new(data.ibus_average.get::<microampere>() as i32),
-            vbus_ori_avg_raw: I32::new(0), // We don't have this information
-            ibus_ori_avg_raw: I32::new(0), // We don't have this information
+            vbus_uv: I32::new(data.vbus.get::<microvolt>().round() as i32),
+            ibus_ua: I32::new(data.ibus.get::<microampere>().round() as i32),
+            vbus_avg_uv: I32::new(data.vbus_average.get::<microvolt>().round() as i32),
+            ibus_avg_ua: I32::new(data.ibus_average.get::<microampere>().round() as i32),
+            vbus_ori_avg_raw: I32::new(data.vbus_uncalibrated_average_raw),
+            ibus_ori_avg_raw: I32::new(data.ibus_uncalibrated_average_raw),
             // Encode temperature back to raw register: °C * 128
-            temp_raw: I16::new((data.temperature.get::<degree_celsius>() * 128.0) as i16),
-            vcc1_tenth_mv: U16::new((data.cc1.get::<millivolt>() * 10.0) as u16),
-            vcc2_raw: U16::new((data.cc2.get::<millivolt>() * 10.0) as u16),
-            vdp_mv: U16::new((data.vdp.get::<millivolt>() * 10.0) as u16),
-            vdm_mv: U16::new((data.vdm.get::<millivolt>() * 10.0) as u16),
-            internal_vdd_raw: U16::new((data.internal_vdd.get::<millivolt>() * 10.0) as u16),
-            rate_raw: data.sample_rate as u8,
-            reserved: 0,
+            temp_raw: I16::new((data.temperature.get::<degree_celsius>() * 128.0).round() as i16),
+            vcc1_tenth_mv: U16::new((data.cc1.get::<millivolt>() * 10.0).round() as u16),
+            vcc2_raw: U16::new((data.cc2.get::<millivolt>() * 10.0).round() as u16),
+            vdp_mv: U16::new((data.vdp.get::<millivolt>() * 10.0).round() as u16),
+            vdm_mv: U16::new((data.vdm.get::<millivolt>() * 10.0).round() as u16),
+            internal_vdd_raw: U16::new((data.internal_vdd.get::<millivolt>() * 10.0).round() as u16),
+            rate_raw: data.sample_rate.map_or(data.sample_rate_raw, u8::from),
+            reserved: data.vendor_flags,
             // Store averaged fields in 1 mV units
-            vcc2_avg_raw: U16::new(data.cc2_average.get::<millivolt>() as u16),
-            vdp_avg_mv: U16::new(data.vdp_average.get::<millivolt>() as u16),
-            vdm_avg_mv: U16::new(data.vdm_average.get::<millivolt>() as u16),
+            vcc2_avg_raw: U16::new(data.cc2_average.get::<millivolt>().round() as u16),
+            vdp_avg_mv: U16::new(data.vdp_average.get::<millivolt>().round() as u16),
+            vdm_avg_mv: U16::new(data.vdm_average.get::<millivolt>().round() as u16),
         }
     }
 }
@@ -204,7 +215,10 @@ impl fmt::Display for AdcDataSimple {
             self.ibus.get::<ampere>(),
             self.power.get::<watt>(),
             self.temperature.get::<degree_celsius>(),
-            self.sample_rate
+            self.sample_rate.map_or_else(
+                || format!("Unknown ({})", self.sample_rate_raw),
+                |rate| rate.to_string()
+            )
         )
     }
 }
@@ -269,8 +283,24 @@ impl AdcDataSimple {
         self.internal_vdd.get::<volt>()
     }
     #[getter]
-    fn sample_rate(&self) -> SampleRate {
+    fn sample_rate(&self) -> Option<SampleRate> {
         self.sample_rate
+    }
+    #[getter]
+    fn sample_rate_raw(&self) -> u8 {
+        self.sample_rate_raw
+    }
+    #[getter]
+    fn vendor_flags(&self) -> u8 {
+        self.vendor_flags
+    }
+    #[getter]
+    fn vbus_uncalibrated_average_raw(&self) -> i32 {
+        self.vbus_uncalibrated_average_raw
+    }
+    #[getter]
+    fn ibus_uncalibrated_average_raw(&self) -> i32 {
+        self.ibus_uncalibrated_average_raw
     }
 
     fn __repr__(&self) -> String {

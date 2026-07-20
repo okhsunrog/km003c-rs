@@ -19,6 +19,7 @@ use uom::si::{electric_current::ampere, electric_potential::volt, power::watt};
 /// Used with StartGraph (0x0E) command to configure device sampling rate.
 /// The device expects the rate index directly (0-3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[repr(u16)]
 pub enum GraphSampleRate {
     /// 2 samples per second
@@ -119,7 +120,7 @@ impl fmt::Display for GraphSampleRate {
 /// - VDD (internal voltage)
 #[derive(Debug, Clone, Copy, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
-pub struct AdcQueueSampleRaw {
+struct AdcQueueSampleWire {
     /// Incrementing sequence number for detecting dropped samples
     pub sequence: U16,
     /// Marker/flags field (varies by firmware version and mode, not temperature)
@@ -138,12 +139,130 @@ pub struct AdcQueueSampleRaw {
     pub vdm_raw: U16,
 }
 
+/// Lossless raw AdcQueue sample.
+///
+/// The four auxiliary-line fields are device counts rather than voltages.
+/// Converting them requires the sample rate selected by `StartGraph`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "python", pyo3::pyclass(get_all, skip_from_py_object))]
+pub struct AdcQueueSampleRaw {
+    pub sequence: u16,
+    pub marker: u16,
+    pub vbus_uv: i32,
+    pub ibus_ua: i32,
+    pub cc1_raw: u16,
+    pub cc2_raw: u16,
+    pub vdp_raw: u16,
+    pub vdm_raw: u16,
+}
+
+impl From<AdcQueueSampleWire> for AdcQueueSampleRaw {
+    fn from(raw: AdcQueueSampleWire) -> Self {
+        Self {
+            sequence: raw.sequence.get(),
+            marker: raw.marker.get(),
+            vbus_uv: raw.vbus_uv.get(),
+            ibus_ua: raw.ibus_ua.get(),
+            cc1_raw: raw.cc1_raw.get(),
+            cc2_raw: raw.cc2_raw.get(),
+            vdp_raw: raw.vdp_raw.get(),
+            vdm_raw: raw.vdm_raw.get(),
+        }
+    }
+}
+
+impl From<AdcQueueSampleRaw> for AdcQueueSampleWire {
+    fn from(raw: AdcQueueSampleRaw) -> Self {
+        Self {
+            sequence: U16::new(raw.sequence),
+            marker: U16::new(raw.marker),
+            vbus_uv: I32::new(raw.vbus_uv),
+            ibus_ua: I32::new(raw.ibus_ua),
+            cc1_raw: U16::new(raw.cc1_raw),
+            cc2_raw: U16::new(raw.cc2_raw),
+            vdp_raw: U16::new(raw.vdp_raw),
+            vdm_raw: U16::new(raw.vdm_raw),
+        }
+    }
+}
+
+/// AdcQueue payload parsed without guessing the graph sample rate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "python", pyo3::pyclass(skip_from_py_object))]
+pub struct AdcQueueRawData {
+    pub samples: Vec<AdcQueueSampleRaw>,
+}
+
+impl AdcQueueRawData {
+    const SAMPLE_SIZE: usize = 20;
+
+    /// Parse a payload losslessly without assigning units to auxiliary counts.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::error::KMError> {
+        if !bytes.len().is_multiple_of(Self::SAMPLE_SIZE) {
+            return Err(crate::error::KMError::InvalidPacket(format!(
+                "AdcQueue payload length must be a multiple of {}, got {}",
+                Self::SAMPLE_SIZE,
+                bytes.len()
+            )));
+        }
+
+        let samples = bytes
+            .chunks_exact(Self::SAMPLE_SIZE)
+            .map(|sample| {
+                AdcQueueSampleWire::ref_from_bytes(sample)
+                    .map(|wire| AdcQueueSampleRaw::from(*wire))
+                    .map_err(|_| crate::error::KMError::InvalidPacket("Failed to parse AdcQueue sample".to_string()))
+            })
+            .collect::<Result<_, _>>()?;
+
+        Ok(Self { samples })
+    }
+
+    /// Convert raw auxiliary counts using an explicitly known graph rate.
+    pub fn decode(&self, rate: GraphSampleRate) -> AdcQueueData {
+        AdcQueueData {
+            rate,
+            samples: self
+                .samples
+                .iter()
+                .copied()
+                .map(|sample| AdcQueueSample::from_raw(sample, rate))
+                .collect(),
+        }
+    }
+
+    pub fn sequence_range(&self) -> Option<(u16, u16)> {
+        self.samples
+            .first()
+            .zip(self.samples.last())
+            .map(|(first, last)| (first.sequence, last.sequence))
+    }
+
+    pub fn has_dropped_samples(&self, rate: GraphSampleRate) -> bool {
+        self.samples
+            .windows(2)
+            .any(|window| rate.missing_samples(window[0].sequence, window[1].sequence) > 0)
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.samples
+            .iter()
+            .copied()
+            .flat_map(|sample| AdcQueueSampleWire::from(sample).as_bytes().to_vec())
+            .collect()
+    }
+}
+
 /// Parsed AdcQueue sample with converted units
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "python", pyo3::pyclass(skip_from_py_object, name = "AdcQueueSample"))]
 pub struct AdcQueueSample {
     pub sequence: u16,
+    /// Opaque device marker/flags preserved from the wire sample.
+    pub marker: u16,
     pub vbus: ElectricPotential,
     pub ibus: ElectricCurrent,
     pub power: Power,
@@ -156,19 +275,20 @@ pub struct AdcQueueSample {
 impl AdcQueueSample {
     /// Convert a raw sample using the units for the configured graph rate.
     pub fn from_raw(raw: AdcQueueSampleRaw, rate: GraphSampleRate) -> Self {
-        let vbus = ElectricPotential::new::<microvolt>(f64::from(raw.vbus_uv.get()));
-        let ibus = ElectricCurrent::new::<microampere>(f64::from(raw.ibus_ua.get()));
+        let vbus = ElectricPotential::new::<microvolt>(f64::from(raw.vbus_uv));
+        let ibus = ElectricCurrent::new::<microampere>(f64::from(raw.ibus_ua));
         let auxiliary_voltage_lsb = rate.auxiliary_voltage_lsb();
 
         Self {
-            sequence: raw.sequence.get(),
+            sequence: raw.sequence,
+            marker: raw.marker,
             vbus,
             ibus,
             power: vbus * ibus,
-            cc1: auxiliary_voltage_lsb * f64::from(raw.cc1_raw.get()),
-            cc2: auxiliary_voltage_lsb * f64::from(raw.cc2_raw.get()),
-            vdp: auxiliary_voltage_lsb * f64::from(raw.vdp_raw.get()),
-            vdm: auxiliary_voltage_lsb * f64::from(raw.vdm_raw.get()),
+            cc1: auxiliary_voltage_lsb * f64::from(raw.cc1_raw),
+            cc2: auxiliary_voltage_lsb * f64::from(raw.cc2_raw),
+            vdp: auxiliary_voltage_lsb * f64::from(raw.vdp_raw),
+            vdm: auxiliary_voltage_lsb * f64::from(raw.vdm_raw),
         }
     }
 }
@@ -176,90 +296,42 @@ impl AdcQueueSample {
 /// Complete AdcQueue response containing multiple buffered samples
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(
-    feature = "python",
-    pyo3::pyclass(get_all, skip_from_py_object, name = "AdcQueueData")
-)]
+#[cfg_attr(feature = "python", pyo3::pyclass(skip_from_py_object, name = "AdcQueueData"))]
 pub struct AdcQueueData {
+    pub rate: GraphSampleRate,
     pub samples: Vec<AdcQueueSample>,
 }
 
 impl AdcQueueData {
-    /// Parse AdcQueue payload containing multiple 20-byte samples
-    ///
-    /// Note: Some firmware versions may return payloads not divisible by 20.
-    /// In this case, we parse as many complete samples as possible.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::error::KMError> {
-        let rate = Self::infer_rate(bytes).unwrap_or(GraphSampleRate::Sps2);
-        Self::from_bytes_with_rate(bytes, rate)
-    }
-
     /// Parse AdcQueue payload using the explicitly configured graph rate.
-    ///
-    /// Prefer this method for live device traffic. [`Self::from_bytes`] infers
-    /// the rate from adjacent sequence values, but a one-sample payload does
-    /// not carry enough information and falls back to the 2 SPS scale.
     pub fn from_bytes_with_rate(bytes: &[u8], rate: GraphSampleRate) -> Result<Self, crate::error::KMError> {
-        const SAMPLE_SIZE: usize = 20;
-
-        // Take as many complete samples as we can
-        let num_samples = bytes.len() / SAMPLE_SIZE;
-        let mut samples = Vec::with_capacity(num_samples);
-
-        for i in 0..num_samples {
-            let offset = i * SAMPLE_SIZE;
-            let sample_raw = AdcQueueSampleRaw::ref_from_bytes(&bytes[offset..offset + SAMPLE_SIZE])
-                .map_err(|_| crate::error::KMError::InvalidPacket("Failed to parse AdcQueue sample".to_string()))?;
-
-            samples.push(AdcQueueSample::from_raw(*sample_raw, rate));
-        }
-
-        Ok(Self { samples })
-    }
-
-    fn infer_rate(bytes: &[u8]) -> Option<GraphSampleRate> {
-        const SAMPLE_SIZE: usize = 20;
-
-        let mut sequences = bytes
-            .chunks_exact(SAMPLE_SIZE)
-            .filter_map(|sample| AdcQueueSampleRaw::ref_from_bytes(sample).ok())
-            .map(|sample| sample.sequence.get());
-        let mut previous = sequences.next()?;
-
-        for current in sequences {
-            let step = current.wrapping_sub(previous);
-            if let Some(rate) = GraphSampleRate::from_sequence_step(step) {
-                return Some(rate);
-            }
-            previous = current;
-        }
-
-        None
+        Ok(AdcQueueRawData::from_bytes(bytes)?.decode(rate))
     }
 
     /// Get the sequence number range of samples in this queue
     pub fn sequence_range(&self) -> Option<(u16, u16)> {
-        if self.samples.is_empty() {
-            None
-        } else {
-            Some((
-                self.samples.first().unwrap().sequence,
-                self.samples.last().unwrap().sequence,
-            ))
-        }
+        self.samples
+            .first()
+            .zip(self.samples.last())
+            .map(|(first, last)| (first.sequence, last.sequence))
     }
 
-    /// Check for dropped samples using the sequence step for `rate`.
-    pub fn has_dropped_samples(&self, rate: GraphSampleRate) -> bool {
+    /// Check for dropped samples using the configured graph rate.
+    pub fn has_dropped_samples(&self) -> bool {
         self.samples
             .windows(2)
-            .any(|window| rate.missing_samples(window[0].sequence, window[1].sequence) > 0)
+            .any(|window| self.rate.missing_samples(window[0].sequence, window[1].sequence) > 0)
     }
 }
 
 #[cfg(feature = "python")]
 #[pyo3::pymethods]
-impl AdcQueueData {
+impl AdcQueueRawData {
+    #[getter]
+    fn samples(&self) -> Vec<AdcQueueSampleRaw> {
+        self.samples.clone()
+    }
+
     #[pyo3(name = "sequence_range")]
     fn py_sequence_range(&self) -> Option<(u16, u16)> {
         self.sequence_range()
@@ -271,6 +343,38 @@ impl AdcQueueData {
             pyo3::exceptions::PyValueError::new_err(format!("Invalid graph sample rate index: {rate_index}"))
         })?;
         Ok(self.has_dropped_samples(rate))
+    }
+
+    fn __repr__(&self) -> String {
+        format!("AdcQueueRawData({} samples)", self.samples.len())
+    }
+
+    fn __str__(&self) -> String {
+        self.__repr__()
+    }
+}
+
+#[cfg(feature = "python")]
+#[pyo3::pymethods]
+impl AdcQueueData {
+    #[getter]
+    fn rate_index(&self) -> u16 {
+        self.rate as u16
+    }
+
+    #[getter]
+    fn samples(&self) -> Vec<AdcQueueSample> {
+        self.samples.clone()
+    }
+
+    #[pyo3(name = "sequence_range")]
+    fn py_sequence_range(&self) -> Option<(u16, u16)> {
+        self.sequence_range()
+    }
+
+    #[pyo3(name = "has_dropped_samples")]
+    fn py_has_dropped_samples(&self) -> bool {
+        self.has_dropped_samples()
     }
 
     fn __repr__(&self) -> String {
@@ -288,6 +392,10 @@ impl AdcQueueSample {
     #[getter]
     fn sequence(&self) -> u16 {
         self.sequence
+    }
+    #[getter]
+    fn marker(&self) -> u16 {
+        self.marker
     }
     #[getter]
     fn vbus_v(&self) -> f64 {
