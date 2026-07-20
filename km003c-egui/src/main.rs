@@ -1,3 +1,4 @@
+mod pd_connection;
 mod pd_decoder;
 
 use eframe::egui;
@@ -9,9 +10,10 @@ use km003c_lib::uom::si::time::second;
 use km003c_lib::{
     AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C,
     packet::{Attribute, AttributeSet},
-    pd::{PdEvent, PdStatus},
+    pd::{PdEvent, PdEventData, PdStatus},
     sequence_elapsed,
 };
+use pd_connection::PdConnectionTracker;
 use pd_decoder::{DecodedPdEntry, PdCategory, PdDecoder};
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -177,6 +179,8 @@ struct PowerMonitorApp {
     max_pd_entries: usize,
     /// Current PD status
     pd_status: Option<PdStatus>,
+    /// Debounced phone connection state
+    pd_connection: PdConnectionTracker,
     /// Auto-scroll PD log
     pd_auto_scroll: bool,
     /// PD panel visible
@@ -210,6 +214,7 @@ impl PowerMonitorApp {
             pd_log: VecDeque::new(),
             max_pd_entries: 1000,
             pd_status: None,
+            pd_connection: PdConnectionTracker::default(),
             pd_auto_scroll: true,
             pd_panel_visible: true,
             usb_reset: !cfg!(target_os = "macos"),
@@ -222,6 +227,7 @@ impl PowerMonitorApp {
                 UsbMessage::Connected(state) => {
                     self.status = format!("Connected: {}", state.model());
                     self.device_state = Some(state);
+                    self.pd_connection = PdConnectionTracker::default();
                 }
                 UsbMessage::ConnectionFailed(err) => {
                     self.status = format!("Connection failed: {}", err);
@@ -285,6 +291,16 @@ impl PowerMonitorApp {
                 }
                 UsbMessage::PdEvents(events) => {
                     for event in &events {
+                        match &event.data {
+                            PdEventData::Connect(()) => {
+                                self.pd_connection.observe_event(true, std::time::Instant::now());
+                            }
+                            PdEventData::Disconnect(()) => {
+                                self.pd_connection.observe_event(false, std::time::Instant::now());
+                            }
+                            PdEventData::PdMessage { .. } => {}
+                        }
+
                         let entries = self.pd_decoder.decode_event(event);
                         for entry in entries {
                             self.pd_log.push_back(entry);
@@ -295,6 +311,7 @@ impl PowerMonitorApp {
                     }
                 }
                 UsbMessage::PdStatusUpdate(status) => {
+                    self.pd_connection.observe_status(&status, std::time::Instant::now());
                     self.pd_status = Some(status);
                 }
                 UsbMessage::StreamingStopped => {
@@ -308,9 +325,13 @@ impl PowerMonitorApp {
                     self.status = "Disconnected".to_string();
                     self.streaming = false;
                     self.device_state = None;
+                    self.pd_status = None;
+                    self.pd_connection = PdConnectionTracker::default();
                 }
             }
         }
+
+        self.pd_connection.update(std::time::Instant::now());
     }
 
     fn clear_data(&mut self) {
@@ -449,7 +470,7 @@ impl eframe::App for PowerMonitorApp {
                     .show(ui, |ui| {
                         ui.label("CC1:");
                         let cc1_v = pd.cc1.get::<volt>();
-                        let cc1_color = if cc1_v > 0.2 {
+                        let cc1_color = if self.pd_connection.connected() == Some(true) && cc1_v > 0.2 {
                             egui::Color32::GREEN
                         } else {
                             egui::Color32::GRAY
@@ -459,7 +480,7 @@ impl eframe::App for PowerMonitorApp {
 
                         ui.label("CC2:");
                         let cc2_v = pd.cc2.get::<volt>();
-                        let cc2_color = if cc2_v > 0.2 {
+                        let cc2_color = if self.pd_connection.connected() == Some(true) && cc2_v > 0.2 {
                             egui::Color32::GREEN
                         } else {
                             egui::Color32::GRAY
@@ -467,16 +488,13 @@ impl eframe::App for PowerMonitorApp {
                         ui.colored_label(cc2_color, format!("{cc2_v:.3} V"));
                         ui.end_row();
 
-                        ui.label("Connection:");
-                        let connected = cc1_v > 0.2 || cc2_v > 0.2;
-                        ui.colored_label(
-                            if connected {
-                                egui::Color32::GREEN
-                            } else {
-                                egui::Color32::RED
-                            },
-                            if connected { "Connected" } else { "No device" },
-                        );
+                        ui.label("Type-C sink:");
+                        let (color, label) = match self.pd_connection.connected() {
+                            Some(true) => (egui::Color32::GREEN, "Attached"),
+                            Some(false) => (egui::Color32::RED, "Not attached"),
+                            None => (egui::Color32::YELLOW, "Detecting..."),
+                        };
+                        ui.colored_label(color, label);
                         ui.end_row();
                     });
             } else {
@@ -869,6 +887,7 @@ async fn run_streaming_session(
                 }
 
                 if let Some(stream) = packet.get_pd_events() {
+                    let _ = tx.send(UsbMessage::PdStatusUpdate(stream.preamble));
                     let _ = tx.send(UsbMessage::PdEvents(stream.events.clone()));
                 }
                 if let Some(status) = packet.get_pd_status() {
