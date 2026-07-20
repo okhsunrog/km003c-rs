@@ -55,7 +55,7 @@ enum Command {
         #[arg(short, long, value_enum, default_value_t = OutputFormat::Csv)]
         format: OutputFormat,
 
-        /// Output path. Defaults to <device-filename>.csv or .json.
+        /// Output path. Defaults to `<device-filename>.csv` or `.json`.
         #[arg(short, long)]
         output: Option<PathBuf>,
     },

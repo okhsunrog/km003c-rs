@@ -10,7 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Shared stateful USB PD decoding, including chunked EPR messages.
-- Typed `LogMetadata` attribute support in the protocol header layer.
+- Typed offline-log catalogs and samples, including high-level encrypted
+  downloads and final-accumulator validation.
+- `offline-log` CLI with metadata inspection and CSV/JSON export.
 - Explicit-rate AdcQueue decoding in Python through
   `AdcQueueRawData.decode()` and `parse_packet_with_graph_rate()`.
 

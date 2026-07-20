@@ -52,6 +52,7 @@ Core library providing:
 - Device communication and automatic initialization
 - Streaming authentication (required for AdcQueue)
 - ADC and AdcQueue data parsing
+- Offline recording catalog and encrypted log downloads
 - USB PD event parsing
 - Optional stateful USB PD semantic decoding through the `usbpd` feature
 
@@ -60,6 +61,7 @@ Command-line tools:
 - `adc_simple` - Single-shot ADC readings with device info
 - `adc_queue_simple` - AdcQueue streaming demo
 - `test_usbpd` - USB PD negotiation capture
+- `offline-log` - List and export stored recordings as CSV or JSON
 
 ### `km003c-egui`
 GUI application featuring:
@@ -119,6 +121,13 @@ cargo run --bin adc_queue_simple -- --rate 50 --duration 10
 
 ```bash
 cargo run --bin test_usbpd
+```
+
+#### Offline Recordings
+
+```bash
+cargo run --bin offline-log -- metadata
+cargo run --bin offline-log -- download --index 0 --format csv
 ```
 
 #### GUI Application
@@ -181,6 +190,18 @@ let plaintext_blocks = km003c_lib::auth::decrypt_memory_read_response(&ciphertex
 
 The offline helper returns complete decrypted AES blocks because a capture does
 not itself carry the originally requested byte count.
+
+Stored recordings have a higher-level API. Metadata requests return every
+catalog entry; each entry carries the memory offset needed to download that
+specific log:
+
+```rust,no_run
+let catalog = device.request_log_metadata().await?;
+if let Some(metadata) = catalog.into_iter().next() {
+    let log = device.download_offline_log(metadata).await?;
+    println!("downloaded {} samples", log.samples.len());
+}
+```
 
 ### Python bindings
 
