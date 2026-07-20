@@ -55,6 +55,26 @@ pub enum PdTypeCState {
     Unknown(u8),
 }
 
+/// Firmware protocol-engine trace codes confirmed in KM003C V1.9.9.
+///
+/// Most values in this queue are internal protocol-engine states whose names
+/// are not present in the firmware. The two non-state markers below are
+/// emitted directly by the receive path and have independently recoverable
+/// semantics. All other values are preserved losslessly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, IntoPrimitive)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[repr(u8)]
+pub enum PdProtocolTraceEventKind {
+    /// The protocol engine was reset while the Type-C state detached.
+    Disabled = 0x00,
+    /// A received PD message or extended-message chunk was processed.
+    ReceivedMessage = 0x82,
+    /// The receive path queued a request for the next extended-message chunk.
+    ExtendedChunkRequest = 0x83,
+    #[num_enum(catch_all)]
+    Unknown(u8),
+}
+
 /// One Type-C state transition with a one-second-resolution uptime timestamp.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -70,9 +90,8 @@ pub struct PdTraceStateEvent {
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "python", pyo3::pyclass(skip_from_py_object))]
 pub struct PdTraceProtocolEvent {
-    /// Firmware event code. Names remain raw until the complete enumeration is
-    /// independently confirmed.
-    pub code: u8,
+    /// Typed firmware marker, or a losslessly preserved protocol-engine state.
+    pub kind: PdProtocolTraceEventKind,
     /// Device uptime when the event was recorded.
     pub timestamp: Time,
 }
@@ -112,7 +131,7 @@ impl PdTrace {
             protocol_events: protocol_records
                 .into_iter()
                 .map(|record| PdTraceProtocolEvent {
-                    code: record.code,
+                    kind: PdProtocolTraceEventKind::from_primitive(record.code),
                     timestamp: record.timestamp,
                 })
                 .collect(),
@@ -133,7 +152,7 @@ impl PdTrace {
         append_queue(
             &mut bytes,
             self.protocol_events.iter().map(|event| TraceRecord {
-                code: event.code,
+                code: event.kind.into(),
                 timestamp: event.timestamp,
             }),
             "protocol",
@@ -245,7 +264,12 @@ impl PdTraceStateEvent {
 impl PdTraceProtocolEvent {
     #[getter]
     fn code(&self) -> u8 {
-        self.code
+        self.kind.into()
+    }
+
+    #[getter]
+    fn event_name(&self) -> String {
+        format!("{:?}", self.kind)
     }
 
     #[getter]

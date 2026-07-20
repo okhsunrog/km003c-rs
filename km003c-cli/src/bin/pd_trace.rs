@@ -80,8 +80,9 @@ fn print_state_events(events: &[PdTraceStateEvent]) {
 fn print_protocol_events(events: &[PdTraceProtocolEvent]) {
     for event in events {
         println!(
-            "  protocol code=0x{:02x} uptime={:.0}s",
-            event.code,
+            "  protocol {:?} (0x{:02x}) uptime={:.0}s",
+            event.kind,
+            u8::from(event.kind),
             event.timestamp.get::<second>()
         );
     }
