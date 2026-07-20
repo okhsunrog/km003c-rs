@@ -170,6 +170,19 @@ uv run maturin develop
 uv run pytest -q test_bindings.py
 ```
 
+Context-free AdcQueue parsing preserves raw auxiliary-line counts because their
+scale depends on the configured graph rate. Decode them explicitly when the
+rate used by `StartGraph` is known:
+
+```python
+packet = km003c.parse_packet(captured_bytes)
+raw_queue = packet["DataResponse"]["payloads"][0]
+queue = raw_queue.decode(km003c.RATE_50_SPS)
+
+# Or parse directly with the known rate.
+packet = km003c.parse_packet_with_graph_rate(captured_bytes, km003c.RATE_50_SPS)
+```
+
 ### Device Configuration
 
 ```rust

@@ -18,7 +18,7 @@
 //! zero-overhead Python bindings.
 
 use crate::adc::{AdcDataRaw, AdcDataSimple, SampleRate};
-use crate::adcqueue::{AdcQueueData, AdcQueueRawData, AdcQueueSample, AdcQueueSampleRaw};
+use crate::adcqueue::{AdcQueueData, AdcQueueRawData, AdcQueueSample, AdcQueueSampleRaw, GraphSampleRate};
 use crate::message::Packet;
 use crate::packet::{CtrlHeader, LogicalPacket, RawPacket};
 use crate::pd::{PdEvent, PdEventStream, PdStatus};
@@ -98,6 +98,22 @@ pub fn parse_packet(data: &[u8]) -> PyResult<Packet> {
         Packet::try_from(raw_packet).map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))?;
 
     Ok(packet)
+}
+
+/// Parse packet bytes using the graph rate selected by `StartGraph`.
+///
+/// This is the typed counterpart to [`parse_packet`] for callers processing
+/// captured or live AdcQueue responses with known stream configuration.
+#[pyfunction]
+pub fn parse_packet_with_graph_rate(data: &[u8], rate_index: u16) -> PyResult<Packet> {
+    let rate = GraphSampleRate::try_from(rate_index).map_err(|_| {
+        pyo3::exceptions::PyValueError::new_err(format!("Invalid graph sample rate index: {rate_index}"))
+    })?;
+    let raw_packet = RawPacket::try_from(Bytes::from(data.to_vec()))
+        .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))?;
+
+    Packet::from_raw_with_graph_rate(raw_packet, rate)
+        .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))
 }
 
 /// Parse packet bytes into low-level protocol structure.
@@ -195,6 +211,8 @@ pub fn create_packet<'py>(py: Python<'py>, packet_type: u8, transaction_id: u8, 
 ///   PID: USB Product ID for KM003C (0x0063)
 #[pymodule]
 fn km003c_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+
     // Core data classes (using native types with Python bindings)
     m.add_class::<AdcDataSimple>()?;
     m.add_class::<SampleRate>()?;
@@ -210,6 +228,7 @@ fn km003c_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Parsing functions
     m.add_function(wrap_pyfunction!(parse_raw_adc_data, m)?)?;
     m.add_function(wrap_pyfunction!(parse_packet, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_packet_with_graph_rate, m)?)?;
     m.add_function(wrap_pyfunction!(parse_raw_packet, m)?)?;
     m.add_function(wrap_pyfunction!(get_sample_rates, m)?)?;
 

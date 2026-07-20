@@ -10,6 +10,8 @@ from .km003c_lib import (
     SampleRate,
     AdcQueueSample,
     AdcQueueData,
+    AdcQueueSampleRaw,
+    AdcQueueRawData,
     PdStatus,
     PdEvent,
     PdEventStream,
@@ -17,6 +19,7 @@ from .km003c_lib import (
     # Parsing functions
     parse_raw_adc_data,
     parse_packet,
+    parse_packet_with_graph_rate,
     parse_raw_packet,
     get_sample_rates,
     create_packet,
@@ -43,6 +46,7 @@ from .km003c_lib import (
     RATE_10_SPS,
     RATE_50_SPS,
     RATE_1000_SPS,
+    __version__,
 )
 
 __all__ = [
@@ -51,6 +55,8 @@ __all__ = [
     "SampleRate",
     "AdcQueueSample",
     "AdcQueueData",
+    "AdcQueueSampleRaw",
+    "AdcQueueRawData",
     "PdStatus",
     "PdEvent",
     "PdEventStream",
@@ -58,6 +64,7 @@ __all__ = [
     # Parsing functions
     "parse_raw_adc_data",
     "parse_packet",
+    "parse_packet_with_graph_rate",
     "parse_raw_packet",
     "get_sample_rates",
     "create_packet",
@@ -84,6 +91,5 @@ __all__ = [
     "RATE_10_SPS",
     "RATE_50_SPS",
     "RATE_1000_SPS",
+    "__version__",
 ]
-
-__version__ = "0.1.0"

@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recorded-capture tests for ADC, AdcQueue, authentication, and PD events.
 - Cross-platform CI, MSRV checks, and Python binding validation.
 - A single Rust 1.97 minimum supported version for the workspace.
+- Explicit-rate AdcQueue decoding in Python through
+  `AdcQueueRawData.decode()` and `parse_packet_with_graph_rate()`.
 
 ### Fixed
 
