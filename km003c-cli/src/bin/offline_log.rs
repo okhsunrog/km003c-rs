@@ -96,7 +96,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Command::Metadata { json } => {
             let metadata = device.request_log_metadata().await?;
             if metadata.is_empty() {
-                println!("No offline log is selected on the device.");
+                println!("No offline logs are stored on the device.");
                 return Ok(());
             }
             print_metadata_list(&metadata, json)?;
@@ -104,7 +104,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Command::Download { index, format, output } => {
             let metadata = device.request_log_metadata().await?;
             if metadata.is_empty() {
-                println!("No offline log is selected on the device.");
+                println!("No offline logs are stored on the device.");
                 return Ok(());
             }
             let metadata = metadata.get(index).cloned().ok_or_else(|| {
