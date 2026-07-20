@@ -571,7 +571,10 @@ impl KM003C {
         self.transaction_id = id;
     }
 
-    /// Send a high-level packet to the device
+    /// Send a high-level packet without waiting for or correlating its response.
+    ///
+    /// This is a low-level protocol-research API. Prefer command-specific methods
+    /// such as [`Self::request_data`] and [`Self::read_memory_block`] for normal use.
     pub async fn send(&mut self, packet: Packet) -> Result<(), KMError> {
         self.send_tracked(packet).await.map(|_| ())
     }
@@ -731,8 +734,10 @@ impl KM003C {
         }
     }
 
-    /// Receive raw bytes from the device (for protocol research/testing).
-    /// Previously received out-of-order responses are returned first.
+    /// Receive raw bytes without transaction correlation.
+    ///
+    /// This is a low-level protocol-research API. Previously received
+    /// out-of-order responses are returned first.
     pub async fn receive_raw(&mut self) -> Result<Vec<u8>, KMError> {
         if let Some(response) = self.pending_responses.pop_front() {
             return Ok(response);
@@ -753,7 +758,10 @@ impl KM003C {
         }
     }
 
-    /// Receive a high-level packet from the device
+    /// Receive the next framed high-level packet without transaction correlation.
+    ///
+    /// Unframed transfers such as encrypted MemoryRead data cannot be parsed by
+    /// this method. Use [`Self::read_memory_block`] for device memory reads.
     pub async fn receive(&mut self) -> Result<Packet, KMError> {
         let raw_bytes = self.receive_raw().await?;
         Self::parse_response(raw_bytes, self.graph_sample_rate)
@@ -775,32 +783,6 @@ impl KM003C {
                 "Expected Accept for {command}, got {other:?}"
             ))),
         }
-    }
-
-    /// Receive encrypted MemoryRead response data
-    ///
-    /// After sending a MemoryRead request and receiving the confirmation (0xC4),
-    /// the actual data comes as raw encrypted AES blocks. This method
-    /// receives and decrypts that data.
-    ///
-    /// Response size is rounded up to 16-byte boundary (AES block size):
-    /// - 12-byte request → 16-byte response
-    /// - 64-byte request → 64-byte response (4 blocks)
-    pub async fn receive_memory_read_data(&mut self) -> Result<Packet, KMError> {
-        let raw_bytes = self.receive_raw().await?;
-
-        // Response must be multiple of 16 bytes (AES block size)
-        if raw_bytes.is_empty() || !raw_bytes.len().is_multiple_of(AES_BLOCK_SIZE) {
-            return Err(KMError::Protocol(format!(
-                "Expected encrypted data (multiple of 16 bytes), got {} bytes",
-                raw_bytes.len()
-            )));
-        }
-
-        // Decrypt all blocks with MEMORY_READ_KEY
-        let decrypted = crate::auth::aes_ecb_decrypt_blocks(&raw_bytes, crate::auth::MEMORY_READ_KEY)?;
-
-        Ok(Packet::MemoryReadResponse { data: decrypted })
     }
 
     async fn receive_memory_read_data_exact(&mut self, requested_size: u32) -> Result<Vec<u8>, KMError> {

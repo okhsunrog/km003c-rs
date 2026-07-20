@@ -22,4 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validation of memory-read confirmations and streaming-auth failures.
 - Parsing of chained AdcQueue/PD responses and legacy PD connection events.
 
+### Removed
+
+- `KM003C::receive_memory_read_data()` and the synthetic
+  `Packet::MemoryReadResponse` variant. Use `KM003C::read_memory_block()` for
+  correlated device reads, or `auth::decrypt_memory_read_response()` for
+  captured ciphertext.
+
 [Unreleased]: https://github.com/okhsunrog/km003c-rs/commits/main
