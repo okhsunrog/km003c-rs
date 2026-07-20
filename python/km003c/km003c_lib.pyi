@@ -48,7 +48,11 @@ class AdcData:
     cc2_v: float
     cc2_avg_v: float
     internal_vdd_v: float
-    sample_rate: SampleRate
+    sample_rate: Optional[SampleRate]
+    sample_rate_raw: int
+    vendor_flags: int
+    vbus_uncalibrated_average_raw: int
+    ibus_uncalibrated_average_raw: int
     def __repr__(self) -> str: ...
     def __str__(self) -> str: ...
 

@@ -79,8 +79,26 @@ fn semantic_adc_response_uses_recorded_header_encoding() {
     let serialized = Bytes::from(packet.to_raw_packet(0).unwrap());
 
     assert_eq!(&serialized[..8], &recorded[..8]);
+    assert_eq!(
+        serialized, recorded,
+        "semantic ADC parsing must preserve every wire field"
+    );
     assert_eq!(serialized[0], 0x41, "PutData does not set the reserved bit");
     assert_eq!(&serialized[2..4], &[0x80, 0x02], "recorded ADC obj_count is 10 words");
+}
+
+#[test]
+fn unknown_adc_sample_rate_is_preserved_without_a_fallback() {
+    let mut recorded = REAL_ADC_RESPONSE.to_vec();
+    recorded[8 + 36] = 0xfe;
+
+    let packet = Packet::try_from(RawPacket::try_from(Bytes::from(recorded.clone())).unwrap()).unwrap();
+    let adc = packet.get_adc().unwrap();
+    assert_eq!(adc.sample_rate, None);
+    assert_eq!(adc.sample_rate_raw, 0xfe);
+
+    let serialized = Bytes::from(packet.to_raw_packet(0).unwrap());
+    assert_eq!(serialized.as_ref(), recorded);
 }
 
 #[test]
