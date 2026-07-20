@@ -272,9 +272,19 @@ impl Packet {
                             if lp.payload.is_empty() {
                                 PayloadData::LogMetadata(LogMetadataResponse::Empty)
                             } else {
-                                PayloadData::LogMetadata(LogMetadataResponse::Available(LogMetadata::from_bytes(
-                                    &lp.payload,
-                                )?))
+                                if !lp.payload.len().is_multiple_of(crate::offline::LOG_METADATA_SIZE) {
+                                    return Err(KMError::InvalidPacket(format!(
+                                        "LogMetadata payload length must be a multiple of {}, got {}",
+                                        crate::offline::LOG_METADATA_SIZE,
+                                        lp.payload.len()
+                                    )));
+                                }
+                                let entries = lp
+                                    .payload
+                                    .chunks_exact(crate::offline::LOG_METADATA_SIZE)
+                                    .map(LogMetadata::from_bytes)
+                                    .collect::<Result<Vec<_>, _>>()?;
+                                PayloadData::LogMetadata(LogMetadataResponse::Available(entries))
                             }
                         }
                         _ => PayloadData::Unknown {
@@ -342,7 +352,9 @@ impl Packet {
                         PayloadData::LogMetadata(response) => {
                             let payload = match response {
                                 LogMetadataResponse::Empty => Vec::new(),
-                                LogMetadataResponse::Available(metadata) => metadata.to_bytes(),
+                                LogMetadataResponse::Available(metadata) => {
+                                    metadata.iter().flat_map(LogMetadata::to_bytes).collect()
+                                }
                             };
                             logical_packets.push(LogicalPacket {
                                 attribute: Attribute::LogMetadata,

@@ -30,7 +30,10 @@ struct LogMetadataWire {
     interval_ms: U16,
     flags: U16,
     recorded_duration_seconds: U32,
-    opaque_tail: [u8; 20],
+    final_charge_uah: I32,
+    final_energy_uwh: I32,
+    data_offset: U32,
+    reserved_tail: [u8; 8],
 }
 
 /// Metadata describing the offline log selected on the device.
@@ -47,7 +50,11 @@ pub struct LogMetadata {
     pub interval: Time,
     pub flags: u16,
     pub recorded_duration: Time,
-    pub opaque_tail: [u8; 20],
+    pub final_charge: ElectricCharge,
+    pub final_energy: Energy,
+    /// Offset from `OFFLINE_LOG_ADDRESS` at which this log's samples begin.
+    pub data_offset: u32,
+    pub reserved_tail: [u8; 8],
 }
 
 impl LogMetadata {
@@ -69,7 +76,10 @@ impl LogMetadata {
             interval: Time::new::<millisecond>(f64::from(wire.interval_ms.get())),
             flags: wire.flags.get(),
             recorded_duration: Time::new::<second>(f64::from(wire.recorded_duration_seconds.get())),
-            opaque_tail: wire.opaque_tail,
+            final_charge: ElectricCharge::new::<microampere_hour>(f64::from(wire.final_charge_uah.get())),
+            final_energy: Energy::new::<microwatt_hour>(f64::from(wire.final_energy_uwh.get())),
+            data_offset: wire.data_offset.get(),
+            reserved_tail: wire.reserved_tail,
         })
     }
 
@@ -95,6 +105,23 @@ impl LogMetadata {
         self.sample_count as u32 * OFFLINE_LOG_SAMPLE_SIZE as u32
     }
 
+    pub fn data_address(&self) -> Result<u32, KMError> {
+        OFFLINE_LOG_ADDRESS.checked_add(self.data_offset).ok_or_else(|| {
+            KMError::Protocol(format!(
+                "Offline log data offset 0x{:08X} overflows the base address",
+                self.data_offset
+            ))
+        })
+    }
+
+    pub fn final_charge_raw_uah(&self) -> i32 {
+        self.final_charge.get::<microampere_hour>().round() as i32
+    }
+
+    pub fn final_energy_raw_uwh(&self) -> i32 {
+        self.final_energy.get::<microwatt_hour>().round() as i32
+    }
+
     /// Duration implied by the sample count and interval.
     pub fn calculated_duration(&self) -> Time {
         self.interval * f64::from(self.sample_count.saturating_sub(1))
@@ -105,10 +132,13 @@ impl LogMetadata {
             filename: self.filename_raw,
             unknown_0x10: U16::new(self.unknown_0x10),
             sample_count: U16::new(self.sample_count),
-            interval_ms: U16::new(self.interval.get::<millisecond>() as u16),
+            interval_ms: U16::new(self.interval.get::<millisecond>().round() as u16),
             flags: U16::new(self.flags),
-            recorded_duration_seconds: U32::new(self.recorded_duration.get::<second>() as u32),
-            opaque_tail: self.opaque_tail,
+            recorded_duration_seconds: U32::new(self.recorded_duration.get::<second>().round() as u32),
+            final_charge_uah: I32::new(self.final_charge_raw_uah()),
+            final_energy_uwh: I32::new(self.final_energy_raw_uwh()),
+            data_offset: U32::new(self.data_offset),
+            reserved_tail: self.reserved_tail,
         }
         .as_bytes()
         .to_vec()
@@ -121,7 +151,7 @@ impl LogMetadata {
 pub enum LogMetadataResponse {
     /// No offline log is currently available.
     Empty,
-    Available(LogMetadata),
+    Available(Vec<LogMetadata>),
 }
 
 #[cfg(feature = "python")]
@@ -239,6 +269,19 @@ impl OfflineLog {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
+        if let Some(last) = samples.last() {
+            let raw = last.raw();
+            if raw.charge_uah != metadata.final_charge_raw_uah() || raw.energy_uwh != metadata.final_energy_raw_uwh() {
+                return Err(KMError::InvalidPacket(format!(
+                    "Offline log final accumulators do not match metadata: sample has charge={} µAh and energy={} µWh, metadata has charge={} µAh and energy={} µWh",
+                    raw.charge_uah,
+                    raw.energy_uwh,
+                    metadata.final_charge_raw_uah(),
+                    metadata.final_energy_raw_uwh()
+                )));
+            }
+        }
+
         Ok(Self { metadata, samples })
     }
 
@@ -279,6 +322,10 @@ mod tests {
         assert_eq!(metadata.recorded_duration.get::<second>(), 5_200.0);
         assert_eq!(metadata.calculated_duration().get::<second>(), 5_200.0);
         assert_eq!(metadata.data_size(), 8_336);
+        assert_eq!(metadata.final_charge.get::<microampere_hour>(), -810_335.0);
+        assert!((metadata.final_energy.get::<microwatt_hour>() + 5_747_232.0).abs() < 1e-8);
+        assert_eq!(metadata.data_offset, 0);
+        assert_eq!(metadata.reserved_tail, [0; 8]);
         assert_eq!(metadata.to_bytes(), bytes);
     }
 
@@ -315,6 +362,15 @@ mod tests {
     }
 
     #[test]
+    fn rejects_data_from_the_wrong_catalog_entry() {
+        let mut metadata = LogMetadata::from_bytes(&hex::decode(CAPTURED_METADATA).unwrap()).unwrap();
+        metadata.sample_count = 1;
+        let wrong_sample = hex::decode("81494c0021f0e2ff56ebffffb998ffff").unwrap();
+        let error = OfflineLog::from_bytes(metadata, &wrong_sample).unwrap_err();
+        assert!(error.to_string().contains("final accumulators do not match"));
+    }
+
+    #[test]
     fn parses_available_and_empty_captured_metadata_responses() {
         use bytes::Bytes;
 
@@ -330,7 +386,7 @@ mod tests {
         let packet = Packet::try_from(RawPacket::try_from(Bytes::from(available)).unwrap()).unwrap();
         assert!(matches!(
             packet.get_log_metadata(),
-            Some(LogMetadataResponse::Available(metadata)) if metadata.sample_count == 521
+            Some(LogMetadataResponse::Available(metadata)) if metadata.len() == 1 && metadata[0].sample_count == 521
         ));
 
         let empty = hex::decode("4108c2ff00020000").unwrap();

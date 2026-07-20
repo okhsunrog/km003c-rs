@@ -47,6 +47,10 @@ enum Command {
     },
     /// Download all samples and write them to a file.
     Download {
+        /// Zero-based index shown by the metadata command.
+        #[arg(short, long, default_value_t = 0)]
+        index: usize,
+
         /// Output format.
         #[arg(short, long, value_enum, default_value_t = OutputFormat::Csv)]
         format: OutputFormat,
@@ -90,17 +94,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     match args.command {
         Command::Metadata { json } => {
-            let Some(metadata) = device.request_log_metadata().await? else {
+            let metadata = device.request_log_metadata().await?;
+            if metadata.is_empty() {
                 println!("No offline log is selected on the device.");
                 return Ok(());
-            };
-            print_metadata(&metadata, json)?;
+            }
+            print_metadata_list(&metadata, json)?;
         }
-        Command::Download { format, output } => {
-            let Some(metadata) = device.request_log_metadata().await? else {
+        Command::Download { index, format, output } => {
+            let metadata = device.request_log_metadata().await?;
+            if metadata.is_empty() {
                 println!("No offline log is selected on the device.");
                 return Ok(());
-            };
+            }
+            let metadata = metadata.get(index).cloned().ok_or_else(|| {
+                format!(
+                    "offline log index {index} is out of range; device reported {} logs",
+                    metadata.len()
+                )
+            })?;
             let path = output.unwrap_or_else(|| default_output_path(&metadata, format));
             let log = device.download_offline_log(metadata).await?;
             write_log(&path, format, &log)?;
@@ -121,7 +133,11 @@ fn metadata_json(metadata: &LogMetadata) -> serde_json::Value {
         "recorded_duration_seconds": metadata.recorded_duration.get::<second>(),
         "calculated_duration_seconds": metadata.calculated_duration().get::<second>(),
         "unknown_0x10": metadata.unknown_0x10,
-        "opaque_tail": hex::encode(metadata.opaque_tail),
+        "final_charge_uah": metadata.final_charge_raw_uah(),
+        "final_energy_uwh": metadata.final_energy_raw_uwh(),
+        "data_offset": metadata.data_offset,
+        "data_address": metadata.data_address().ok(),
+        "reserved_tail": hex::encode(metadata.reserved_tail),
     })
 }
 
@@ -140,7 +156,27 @@ fn print_metadata(metadata: &LogMetadata, as_json: bool) -> Result<(), Box<dyn E
         println!("Data size:           {} bytes", metadata.data_size());
         println!("Flags:               0x{:04x}", metadata.flags);
         println!("Unknown field 0x10:  0x{:04x}", metadata.unknown_0x10);
-        println!("Opaque tail:         {}", hex::encode(metadata.opaque_tail));
+        println!("Final charge:        {} µAh", metadata.final_charge_raw_uah());
+        println!("Final energy:        {} µWh", metadata.final_energy_raw_uwh());
+        println!("Data offset:         0x{:08x}", metadata.data_offset);
+        println!("Data address:        0x{:08x}", metadata.data_address()?);
+        println!("Reserved tail:       {}", hex::encode(metadata.reserved_tail));
+    }
+    Ok(())
+}
+
+fn print_metadata_list(metadata: &[LogMetadata], as_json: bool) -> Result<(), Box<dyn Error>> {
+    if as_json {
+        let entries = metadata.iter().map(metadata_json).collect::<Vec<_>>();
+        println!("{}", serde_json::to_string_pretty(&entries)?);
+    } else {
+        for (index, entry) in metadata.iter().enumerate() {
+            if index > 0 {
+                println!();
+            }
+            println!("Offline log #{index}");
+            print_metadata(entry, false)?;
+        }
     }
     Ok(())
 }
@@ -225,6 +261,8 @@ fn write_json(mut writer: impl Write, log: &OfflineLog) -> Result<(), Box<dyn Er
 #[cfg(test)]
 mod tests {
     use km003c_lib::LogMetadata;
+    use km003c_lib::uom::si::electric_charge::microampere_hour;
+    use km003c_lib::uom::si::energy::microwatt_hour;
     use km003c_lib::uom::si::f64::Time;
 
     use super::*;
@@ -239,7 +277,10 @@ mod tests {
             interval: Time::new::<millisecond>(1_000.0),
             flags: 0,
             recorded_duration: Time::new::<second>(0.0),
-            opaque_tail: [0; 20],
+            final_charge: km003c_lib::uom::si::f64::ElectricCharge::new::<microampere_hour>(0.0),
+            final_energy: km003c_lib::uom::si::f64::Energy::new::<microwatt_hour>(0.0),
+            data_offset: 0,
+            reserved_tail: [0; 8],
         }
     }
 
@@ -263,6 +304,8 @@ mod tests {
     fn exports_exact_raw_sample_values() {
         let mut metadata = metadata(b"A01.d");
         metadata.sample_count = 1;
+        metadata.final_charge = km003c_lib::uom::si::f64::ElectricCharge::new::<microampere_hour>(-5_290.0);
+        metadata.final_energy = km003c_lib::uom::si::f64::Energy::new::<microwatt_hour>(-26_439.0);
         let bytes = hex::decode("81494c0021f0e2ff56ebffffb998ffff").unwrap();
         let log = OfflineLog::from_bytes(metadata, &bytes).unwrap();
 

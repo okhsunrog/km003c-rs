@@ -47,7 +47,7 @@ use crate::adcqueue::GraphSampleRate;
 use crate::auth::{DeviceInfo, HardwareId};
 use crate::error::KMError;
 use crate::message::Packet;
-use crate::offline::{LogMetadata, LogMetadataResponse, OFFLINE_LOG_ADDRESS, OfflineLog};
+use crate::offline::{LogMetadata, LogMetadataResponse, OfflineLog};
 use crate::packet::{Attribute, AttributeSet, PacketType, RawPacket};
 use crate::pd::{PdEventStream, PdStatus};
 use bytes::Bytes;
@@ -833,12 +833,12 @@ impl KM003C {
 
     /// Request metadata for the offline log currently selected on the device.
     ///
-    /// Returns `None` when the device reports that no offline log is available.
-    pub async fn request_log_metadata(&mut self) -> Result<Option<LogMetadata>, KMError> {
+    /// Returns an empty vector when no offline log is available.
+    pub async fn request_log_metadata(&mut self) -> Result<Vec<LogMetadata>, KMError> {
         let packet = self.request_data(AttributeSet::single(Attribute::LogMetadata)).await?;
         match packet.get_log_metadata() {
-            Some(LogMetadataResponse::Empty) => Ok(None),
-            Some(LogMetadataResponse::Available(metadata)) => Ok(Some(metadata.clone())),
+            Some(LogMetadataResponse::Empty) => Ok(Vec::new()),
+            Some(LogMetadataResponse::Available(metadata)) => Ok(metadata.clone()),
             None => Err(KMError::Protocol("No LogMetadata data in response".to_string())),
         }
     }
@@ -846,19 +846,9 @@ impl KM003C {
     /// Download the offline samples described by previously requested metadata.
     pub async fn download_offline_log(&mut self, metadata: LogMetadata) -> Result<OfflineLog, KMError> {
         let data = self
-            .read_memory_block(OFFLINE_LOG_ADDRESS, metadata.data_size())
+            .read_memory_block(metadata.data_address()?, metadata.data_size())
             .await?;
         OfflineLog::from_bytes(metadata, &data)
-    }
-
-    /// Request metadata and download the selected offline log.
-    ///
-    /// Returns `None` when no offline log is available.
-    pub async fn read_offline_log(&mut self) -> Result<Option<OfflineLog>, KMError> {
-        let Some(metadata) = self.request_log_metadata().await? else {
-            return Ok(None);
-        };
-        self.download_offline_log(metadata).await.map(Some)
     }
 
     /// Request PD data (returns full packet as it can contain PdStatus OR PdEventStream)
