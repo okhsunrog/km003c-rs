@@ -3,6 +3,7 @@ use crate::adcqueue::{AdcQueueData, AdcQueueRawData, GraphSampleRate};
 use crate::auth::{self, HardwareId, StreamingAuthResult};
 use crate::constants::*;
 use crate::error::KMError;
+use crate::offline::{LogMetadata, LogMetadataResponse};
 use crate::packet::{
     Attribute, AttributeSet, CtrlHeader, DataHeader, LogicalPacket, PacketType, RawPacket, StreamingAuthHeader,
 };
@@ -23,6 +24,7 @@ pub enum PayloadData {
     AdcQueueRaw(AdcQueueRawData),
     PdStatus(PdStatus),
     PdEvents(PdEventStream),
+    LogMetadata(LogMetadataResponse),
     Unknown { attribute: Attribute, data: Vec<u8> },
 }
 
@@ -127,6 +129,17 @@ impl Packet {
         }
     }
 
+    /// Get the response to a LogMetadata request, if present.
+    pub fn get_log_metadata(&self) -> Option<&LogMetadataResponse> {
+        match self {
+            Self::DataResponse { payloads } => payloads.iter().find_map(|payload| match payload {
+                PayloadData::LogMetadata(metadata) => Some(metadata),
+                _ => None,
+            }),
+            _ => None,
+        }
+    }
+
     /// Check if packet has a specific payload type
     pub fn has_payload(&self, attr: Attribute) -> bool {
         match self {
@@ -135,6 +148,7 @@ impl Packet {
                 PayloadData::AdcQueue(_) => attr == Attribute::AdcQueue,
                 PayloadData::AdcQueueRaw(_) => attr == Attribute::AdcQueue,
                 PayloadData::PdStatus(_) | PayloadData::PdEvents(_) => attr == Attribute::PdPacket,
+                PayloadData::LogMetadata(_) => attr == Attribute::LogMetadata,
                 PayloadData::Unknown { attribute, .. } => *attribute == attr,
             }),
             _ => false,
@@ -254,6 +268,25 @@ impl Packet {
                                 PayloadData::PdEvents(pd_events)
                             }
                         }
+                        Attribute::LogMetadata => {
+                            if lp.payload.is_empty() {
+                                PayloadData::LogMetadata(LogMetadataResponse::Empty)
+                            } else {
+                                if !lp.payload.len().is_multiple_of(crate::offline::LOG_METADATA_SIZE) {
+                                    return Err(KMError::InvalidPacket(format!(
+                                        "LogMetadata payload length must be a multiple of {}, got {}",
+                                        crate::offline::LOG_METADATA_SIZE,
+                                        lp.payload.len()
+                                    )));
+                                }
+                                let entries = lp
+                                    .payload
+                                    .chunks_exact(crate::offline::LOG_METADATA_SIZE)
+                                    .map(LogMetadata::from_bytes)
+                                    .collect::<Result<Vec<_>, _>>()?;
+                                PayloadData::LogMetadata(LogMetadataResponse::Available(entries))
+                            }
+                        }
                         _ => PayloadData::Unknown {
                             attribute: lp.attribute,
                             data: lp.payload.to_vec(),
@@ -314,6 +347,21 @@ impl Packet {
                         PayloadData::PdEvents(_) => {
                             return Err(KMError::UnsupportedSerialization {
                                 packet: "PdEventStream",
+                            });
+                        }
+                        PayloadData::LogMetadata(response) => {
+                            let payload = match response {
+                                LogMetadataResponse::Empty => Vec::new(),
+                                LogMetadataResponse::Available(metadata) => {
+                                    metadata.iter().flat_map(LogMetadata::to_bytes).collect()
+                                }
+                            };
+                            logical_packets.push(LogicalPacket {
+                                attribute: Attribute::LogMetadata,
+                                next: false,
+                                chunk: 0,
+                                size: payload.len() as u16,
+                                payload,
                             });
                         }
                         PayloadData::Unknown { attribute, data } => {
