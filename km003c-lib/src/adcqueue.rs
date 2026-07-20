@@ -345,6 +345,15 @@ impl AdcQueueRawData {
         Ok(self.has_dropped_samples(rate))
     }
 
+    /// Decode auxiliary-line counts using an explicitly known graph rate.
+    #[pyo3(name = "decode")]
+    fn py_decode(&self, rate_index: u16) -> pyo3::PyResult<AdcQueueData> {
+        let rate = GraphSampleRate::try_from(rate_index).map_err(|_| {
+            pyo3::exceptions::PyValueError::new_err(format!("Invalid graph sample rate index: {rate_index}"))
+        })?;
+        Ok(self.decode(rate))
+    }
+
     fn __repr__(&self) -> String {
         format!("AdcQueueRawData({} samples)", self.samples.len())
     }

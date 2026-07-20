@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import km003c
+import pytest
 
 
 def test_constants():
@@ -9,6 +10,7 @@ def test_constants():
     print(f"PID: {hex(km003c.PID)}")
     assert km003c.VID == 0x5FC9
     assert km003c.PID == 0x0063
+    assert km003c.__version__ == "0.2.0"
     print("✓ Constants test passed")
 
 
@@ -48,6 +50,20 @@ def test_adcqueue_helpers_use_rate_index():
     assert not queue.has_dropped_samples(km003c.RATE_2_SPS)
     assert queue.samples[0].marker == 8
     assert queue.samples[0].cc1_raw == 16604
+
+    decoded = queue.decode(km003c.RATE_2_SPS)
+    assert decoded.rate_index == km003c.RATE_2_SPS
+    assert abs(decoded.samples[0].cc1_v - 1.6604) < 1e-9
+    assert not decoded.has_dropped_samples()
+
+    typed = km003c.parse_packet_with_graph_rate(raw, km003c.RATE_2_SPS)["DataResponse"]["payloads"][0]
+    assert repr(typed).startswith("AdcQueueData")
+    assert abs(typed.samples[0].cc1_v - 1.6604) < 1e-9
+
+    with pytest.raises(ValueError, match="Invalid graph sample rate index"):
+        queue.decode(99)
+    with pytest.raises(ValueError, match="Invalid graph sample rate index"):
+        km003c.parse_packet_with_graph_rate(raw, 99)
 
 
 def test_raw_adc_parsing():

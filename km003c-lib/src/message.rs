@@ -60,11 +60,6 @@ pub enum Packet {
         /// Number of bytes to read
         size: u32,
     },
-    /// Decrypted data returned by the unframed MemoryRead data transfer
-    MemoryReadResponse {
-        /// Raw data read from memory (e.g., 12-byte HardwareID)
-        data: Vec<u8>,
-    },
     /// StreamingAuth command (0x4C) - authenticate for AdcQueue streaming
     StreamingAuth {
         /// HardwareID to authenticate with
@@ -452,11 +447,6 @@ impl Packet {
                     payload: encrypted_payload.to_vec(),
                 }
             }
-            Packet::MemoryReadResponse { .. } => {
-                return Err(KMError::UnsupportedSerialization {
-                    packet: "MemoryReadResponse",
-                });
-            }
             Packet::StreamingAuth { hardware_id } => {
                 // Build encrypted StreamingAuth payload
                 let encrypted_payload = auth::build_streaming_auth_payload(&hardware_id);
@@ -547,11 +537,6 @@ impl<'py> pyo3::IntoPyObject<'py> for Packet {
                 inner.set_item("address", address)?;
                 inner.set_item("size", size)?;
                 dict.set_item("MemoryRead", inner)?;
-            }
-            Packet::MemoryReadResponse { data } => {
-                let inner = PyDict::new(py);
-                inner.set_item("data", data)?;
-                dict.set_item("MemoryReadResponse", inner)?;
             }
             Packet::StreamingAuth { hardware_id } => {
                 let inner = PyDict::new(py);
