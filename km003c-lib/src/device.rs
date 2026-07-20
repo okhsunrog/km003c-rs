@@ -848,6 +848,15 @@ impl KM003C {
             .ok_or_else(|| KMError::Protocol("No Settings data in response".to_string()))
     }
 
+    /// Request and drain the internal USB PD state-machine trace queues.
+    pub async fn request_pd_trace(&mut self) -> Result<crate::pd_trace::PdTrace, KMError> {
+        let packet = self.request_data(AttributeSet::single(Attribute::PdTrace)).await?;
+        packet
+            .get_pd_trace()
+            .cloned()
+            .ok_or_else(|| KMError::Protocol("No PD trace data in response".to_string()))
+    }
+
     /// Request metadata for the offline log currently selected on the device.
     ///
     /// Returns an empty vector when no offline log is available.

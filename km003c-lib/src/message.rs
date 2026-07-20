@@ -8,6 +8,7 @@ use crate::packet::{
     Attribute, AttributeSet, CtrlHeader, DataHeader, LogicalPacket, PacketType, RawPacket, StreamingAuthHeader,
 };
 use crate::pd::{PdEventStream, PdStatus, PdStatusRaw};
+use crate::pd_trace::PdTrace;
 use crate::settings::Settings;
 use bytes::Bytes;
 use num_enum::FromPrimitive;
@@ -25,6 +26,7 @@ pub enum PayloadData {
     AdcQueueRaw(AdcQueueRawData),
     PdStatus(PdStatus),
     PdEvents(PdEventStream),
+    PdTrace(PdTrace),
     Settings(Settings),
     LogMetadata(LogMetadataResponse),
     Unknown { attribute: Attribute, data: Vec<u8> },
@@ -131,6 +133,17 @@ impl Packet {
         }
     }
 
+    /// Get the internal PD state-machine trace, if present.
+    pub fn get_pd_trace(&self) -> Option<&PdTrace> {
+        match self {
+            Self::DataResponse { payloads } => payloads.iter().find_map(|payload| match payload {
+                PayloadData::PdTrace(trace) => Some(trace),
+                _ => None,
+            }),
+            _ => None,
+        }
+    }
+
     /// Get the read-only settings payload, if present.
     pub fn get_settings(&self) -> Option<&Settings> {
         match self {
@@ -161,6 +174,7 @@ impl Packet {
                 PayloadData::AdcQueue(_) => attr == Attribute::AdcQueue,
                 PayloadData::AdcQueueRaw(_) => attr == Attribute::AdcQueue,
                 PayloadData::PdStatus(_) | PayloadData::PdEvents(_) => attr == Attribute::PdPacket,
+                PayloadData::PdTrace(_) => attr == Attribute::PdTrace,
                 PayloadData::Settings(_) => attr == Attribute::Settings,
                 PayloadData::LogMetadata(_) => attr == Attribute::LogMetadata,
                 PayloadData::Unknown { attribute, .. } => *attribute == attr,
@@ -282,6 +296,7 @@ impl Packet {
                                 PayloadData::PdEvents(pd_events)
                             }
                         }
+                        Attribute::PdTrace => PayloadData::PdTrace(PdTrace::from_bytes(&lp.payload)?),
                         Attribute::Settings => PayloadData::Settings(Settings::from_bytes(lp.payload.as_ref())?),
                         Attribute::LogMetadata => {
                             if lp.payload.is_empty() {
@@ -362,6 +377,15 @@ impl Packet {
                         PayloadData::PdEvents(_) => {
                             return Err(KMError::UnsupportedSerialization {
                                 packet: "PdEventStream",
+                            });
+                        }
+                        PayloadData::PdTrace(trace) => {
+                            logical_packets.push(LogicalPacket {
+                                attribute: Attribute::PdTrace,
+                                next: false,
+                                chunk: 0,
+                                size: 0,
+                                payload: trace.to_bytes()?,
                             });
                         }
                         PayloadData::Settings(settings) => {
