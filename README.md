@@ -53,6 +53,7 @@ Core library providing:
 - Streaming authentication (required for AdcQueue)
 - Firmware-selected calibration authentication for level-2 operations
 - ADC and AdcQueue data parsing
+- CRC-validated read-only device settings
 - Offline recording catalog and encrypted log downloads
 - USB PD event parsing
 - Optional stateful USB PD semantic decoding through the `usbpd` feature

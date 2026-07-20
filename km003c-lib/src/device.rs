@@ -53,6 +53,7 @@ use crate::message::Packet;
 use crate::offline::{LogMetadata, LogMetadataResponse, OfflineLog};
 use crate::packet::{Attribute, AttributeSet, PacketType, RawPacket};
 use crate::pd::{PdEventStream, PdStatus};
+use crate::settings::Settings;
 use bytes::Bytes;
 use nusb::Interface;
 use nusb::io::{EndpointRead, EndpointWrite};
@@ -836,6 +837,15 @@ impl KM003C {
             .get_adc()
             .cloned()
             .ok_or_else(|| KMError::Protocol("No ADC data in response".to_string()))
+    }
+
+    /// Request and parse the two read-only settings blocks.
+    pub async fn request_settings(&mut self) -> Result<Settings, KMError> {
+        let packet = self.request_data(AttributeSet::single(Attribute::Settings)).await?;
+        packet
+            .get_settings()
+            .cloned()
+            .ok_or_else(|| KMError::Protocol("No Settings data in response".to_string()))
     }
 
     /// Request metadata for the offline log currently selected on the device.

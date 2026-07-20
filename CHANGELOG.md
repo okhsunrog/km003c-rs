@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `KM003C::authenticate_calibration()`.
 - `AuthCredential` distinguishes the StreamingAuth credential from a device
   `HardwareId`.
+- Lossless, CRC-validated, read-only Settings parsing with typed accessors for
+  firmware-confirmed fields and `KM003C::request_settings()`.
 
 ### Changed
 
