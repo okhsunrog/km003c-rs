@@ -1,5 +1,5 @@
 use crate::adc::{AdcDataRaw, AdcDataSimple};
-use crate::adcqueue::{AdcQueueData, GraphSampleRate};
+use crate::adcqueue::{AdcQueueData, AdcQueueRawData, GraphSampleRate};
 use crate::auth::{self, HardwareId, StreamingAuthResult};
 use crate::constants::*;
 use crate::error::KMError;
@@ -20,6 +20,7 @@ const PD_MONITOR_DISABLED_PARAMETER: u16 = 0;
 pub enum PayloadData {
     Adc(AdcDataSimple),
     AdcQueue(AdcQueueData),
+    AdcQueueRaw(AdcQueueRawData),
     PdStatus(PdStatus),
     PdEvents(PdEventStream),
     Unknown { attribute: Attribute, data: Vec<u8> },
@@ -98,6 +99,17 @@ impl Packet {
         }
     }
 
+    /// Get losslessly parsed AdcQueue data whose graph rate is unknown.
+    pub fn get_adc_queue_raw(&self) -> Option<&AdcQueueRawData> {
+        match self {
+            Self::DataResponse { payloads } => payloads.iter().find_map(|p| match p {
+                PayloadData::AdcQueueRaw(queue) => Some(queue),
+                _ => None,
+            }),
+            _ => None,
+        }
+    }
+
     /// Get PD status from the packet, if present
     pub fn get_pd_status(&self) -> Option<&PdStatus> {
         match self {
@@ -126,6 +138,7 @@ impl Packet {
             Self::DataResponse { payloads } => payloads.iter().any(|p| match p {
                 PayloadData::Adc(_) => attr == Attribute::Adc,
                 PayloadData::AdcQueue(_) => attr == Attribute::AdcQueue,
+                PayloadData::AdcQueueRaw(_) => attr == Attribute::AdcQueue,
                 PayloadData::PdStatus(_) | PayloadData::PdEvents(_) => attr == Attribute::PdPacket,
                 PayloadData::Unknown { attribute, .. } => *attribute == attr,
             }),
@@ -227,12 +240,11 @@ impl Packet {
                             // Parse AdcQueue data (multiple 20-byte samples)
                             // Note: Extended header size field (typically 20) indicates size per sample,
                             // not total payload size. Actual payload contains N samples.
-                            let adcqueue = if let Some(rate) = graph_rate {
-                                AdcQueueData::from_bytes_with_rate(lp.payload.as_ref(), rate)?
+                            if let Some(rate) = graph_rate {
+                                PayloadData::AdcQueue(AdcQueueData::from_bytes_with_rate(lp.payload.as_ref(), rate)?)
                             } else {
-                                AdcQueueData::from_bytes(lp.payload.as_ref())?
-                            };
-                            PayloadData::AdcQueue(adcqueue)
+                                PayloadData::AdcQueueRaw(AdcQueueRawData::from_bytes(lp.payload.as_ref())?)
+                            }
                         }
                         Attribute::PdPacket => {
                             // Determine if this is PD status or PD events
@@ -294,6 +306,15 @@ impl Packet {
                         }
                         PayloadData::AdcQueue(_) => {
                             return Err(KMError::UnsupportedSerialization { packet: "AdcQueue" });
+                        }
+                        PayloadData::AdcQueueRaw(queue) => {
+                            logical_packets.push(LogicalPacket {
+                                attribute: Attribute::AdcQueue,
+                                next: false,
+                                chunk: 0,
+                                size: 20,
+                                payload: queue.to_bytes(),
+                            });
                         }
                         PayloadData::PdEvents(_) => {
                             return Err(KMError::UnsupportedSerialization {

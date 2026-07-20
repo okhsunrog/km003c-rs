@@ -18,7 +18,7 @@
 //! zero-overhead Python bindings.
 
 use crate::adc::{AdcDataRaw, AdcDataSimple, SampleRate};
-use crate::adcqueue::{AdcQueueData, AdcQueueSample};
+use crate::adcqueue::{AdcQueueData, AdcQueueRawData, AdcQueueSample, AdcQueueSampleRaw};
 use crate::message::Packet;
 use crate::packet::{CtrlHeader, LogicalPacket, RawPacket};
 use crate::pd::{PdEvent, PdEventStream, PdStatus};
@@ -200,6 +200,8 @@ fn km003c_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SampleRate>()?;
     m.add_class::<AdcQueueSample>()?;
     m.add_class::<AdcQueueData>()?;
+    m.add_class::<AdcQueueSampleRaw>()?;
+    m.add_class::<AdcQueueRawData>()?;
     m.add_class::<PdStatus>()?;
     m.add_class::<PdEvent>()?;
     m.add_class::<PdEventStream>()?;

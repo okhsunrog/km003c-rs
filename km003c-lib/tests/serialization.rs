@@ -3,7 +3,7 @@
 mod common;
 
 use common::*;
-use km003c_lib::AdcQueueData;
+use km003c_lib::{AdcQueueData, GraphSampleRate};
 
 #[test]
 fn test_rawpacket_to_bytes_ctrl() {
@@ -59,7 +59,10 @@ fn auth_requests_use_their_special_wire_headers() {
 #[test]
 fn test_unsupported_semantic_payload_is_not_silently_dropped() {
     let packet = Packet::DataResponse {
-        payloads: vec![PayloadData::AdcQueue(AdcQueueData { samples: Vec::new() })],
+        payloads: vec![PayloadData::AdcQueue(AdcQueueData {
+            rate: GraphSampleRate::Sps50,
+            samples: Vec::new(),
+        })],
     };
 
     assert!(matches!(

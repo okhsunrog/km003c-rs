@@ -54,6 +54,7 @@ class AdcData:
 
 class AdcQueueSample:
     sequence: int
+    marker: int
     vbus_v: float
     ibus_a: float
     power_w: float
@@ -65,7 +66,25 @@ class AdcQueueSample:
     def __str__(self) -> str: ...
 
 class AdcQueueData:
+    rate_index: int
     samples: List[AdcQueueSample]
+    def sequence_range(self) -> Optional[Tuple[int, int]]: ...
+    def has_dropped_samples(self) -> bool: ...
+    def __repr__(self) -> str: ...
+    def __str__(self) -> str: ...
+
+class AdcQueueSampleRaw:
+    sequence: int
+    marker: int
+    vbus_uv: int
+    ibus_ua: int
+    cc1_raw: int
+    cc2_raw: int
+    vdp_raw: int
+    vdm_raw: int
+
+class AdcQueueRawData:
+    samples: List[AdcQueueSampleRaw]
     def sequence_range(self) -> Optional[Tuple[int, int]]: ...
     def has_dropped_samples(self, rate_index: int) -> bool: ...
     def __repr__(self) -> str: ...

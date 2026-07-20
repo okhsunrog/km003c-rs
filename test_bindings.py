@@ -43,8 +43,11 @@ def test_adcqueue_helpers_use_rate_index():
     )
     queue = km003c.parse_packet(raw)["DataResponse"]["payloads"][0]
 
+    assert repr(queue).startswith("AdcQueueRawData")
     assert queue.sequence_range() == (59405, 59905)
     assert not queue.has_dropped_samples(km003c.RATE_2_SPS)
+    assert queue.samples[0].marker == 8
+    assert queue.samples[0].cc1_raw == 16604
 
 
 def test_raw_adc_parsing():
