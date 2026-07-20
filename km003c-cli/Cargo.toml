@@ -10,11 +10,8 @@ repository.workspace = true
 publish = false
 
 [dependencies]
-km003c-lib.workspace = true
+km003c-lib = { workspace = true, features = ["usbpd"] }
 tokio.workspace = true
 clap = { version = "4.6.2", features = ["derive"] }
 tracing-subscriber.workspace = true
 tracing.workspace = true
-usbpd.workspace = true
-# Keep this aligned with usbpd's public quantity types.
-uom.workspace = true

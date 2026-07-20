@@ -4,6 +4,17 @@ use uom::si::electric_current::milliampere;
 use uom::si::electric_potential::volt;
 use uom::si::time::millisecond;
 
+#[cfg(feature = "usbpd")]
+use km003c_lib::usbpd::protocol_layer::message::Payload;
+#[cfg(feature = "usbpd")]
+use km003c_lib::usbpd::protocol_layer::message::data::Data;
+#[cfg(feature = "usbpd")]
+use km003c_lib::usbpd::protocol_layer::message::data::request::PowerSource;
+#[cfg(feature = "usbpd")]
+use km003c_lib::usbpd::protocol_layer::message::extended::Extended;
+#[cfg(feature = "usbpd")]
+use km003c_lib::{DecodedPdEvent, PdChunkState, PdEvent, PdSessionDecoder};
+
 fn parse_pd_events(frame: &str) -> km003c_lib::PdEventStream {
     let raw = RawPacket::try_from(Bytes::from(hex::decode(frame).unwrap())).unwrap();
     Packet::try_from(raw).unwrap().get_pd_events().unwrap().clone()
@@ -117,4 +128,119 @@ fn rejects_event_size_smaller_than_protocol_offset() {
 
     let error = PdEventStream::from_bytes(Bytes::from(payload)).unwrap_err();
     assert!(error.to_string().contains("Invalid PD event size"));
+}
+
+#[cfg(feature = "usbpd")]
+#[test]
+fn semantically_decodes_recorded_pd_negotiation_with_source_state() {
+    // Source: usb_master_dataset.parquet, orig_with_pd.13, frame 714.
+    let stream = parse_pd_events(
+        "41a90205100000168bfa1200de130000750602009f80fa120000a1632c9101082cd102002cc103002cb10400454106003c21dcc08781fa12000041028b85fa1200008210dc7003238786fa1200002101878afa120000a305878afa1200004104",
+    );
+    let mut decoder = PdSessionDecoder::new();
+
+    let DecodedPdEvent::Message(source_caps) = decoder.decode_event(&stream.events[0]) else {
+        panic!("expected SourceCapabilities message");
+    };
+    assert!(matches!(
+        source_caps.message.payload,
+        Some(Payload::Data(Data::SourceCapabilities(_)))
+    ));
+    assert!(decoder.source_capabilities().is_some());
+
+    let DecodedPdEvent::Message(request) = decoder.decode_event(&stream.events[2]) else {
+        panic!("expected Request message");
+    };
+    assert!(matches!(
+        request.message.payload,
+        Some(Payload::Data(Data::Request(
+            PowerSource::FixedVariableSupply(_) | PowerSource::Battery(_) | PowerSource::Pps(_) | PowerSource::Avs(_)
+        )))
+    ));
+}
+
+#[cfg(feature = "usbpd")]
+#[test]
+fn connection_event_resets_semantic_decoder_state() {
+    let stream = parse_pd_events(
+        "41a90205100000168bfa1200de130000750602009f80fa120000a1632c9101082cd102002cc103002cb10400454106003c21dcc08781fa12000041028b85fa1200008210dc7003238786fa1200002101878afa120000a305878afa1200004104",
+    );
+    let mut decoder = PdSessionDecoder::new();
+    decoder.decode_event(&stream.events[0]);
+    assert!(decoder.source_capabilities().is_some());
+
+    let connect = PdEvent {
+        timestamp: uom::si::f64::Time::new::<millisecond>(1_250_000.0),
+        data: PdEventData::Connect(()),
+    };
+    assert!(matches!(decoder.decode_event(&connect), DecodedPdEvent::Connect { .. }));
+    assert!(decoder.source_capabilities().is_none());
+}
+
+#[cfg(feature = "usbpd")]
+#[test]
+fn assembles_recorded_chunked_epr_source_capabilities() {
+    // Captured EPR Source Capabilities split into two USB PD extended-message chunks.
+    let chunks = [
+        vec![
+            0xB1, 0xFD, 0x28, 0x80, 0x2C, 0x91, 0x91, 0x0A, 0x2C, 0xD1, 0x12, 0x00, 0x2C, 0xC1, 0x13, 0x00, 0x2C, 0xB1,
+            0x14, 0x00, 0xF4, 0x41, 0x16, 0x00, 0x64, 0x32, 0xA4, 0xC9, 0x00, 0x00,
+        ],
+        vec![
+            0xB1, 0xCF, 0x28, 0x88, 0x00, 0x00, 0xF4, 0xC1, 0x18, 0x00, 0xF4, 0x41, 0x1B, 0x00, 0xF4, 0x01, 0x1F, 0x00,
+        ],
+    ];
+    let mut decoder = PdSessionDecoder::new();
+
+    let first = PdEvent {
+        timestamp: uom::si::f64::Time::new::<millisecond>(1.0),
+        data: PdEventData::PdMessage {
+            sop: 0,
+            wire_data: chunks[0].clone(),
+        },
+    };
+    let DecodedPdEvent::Chunk(status) = decoder.decode_event(&first) else {
+        panic!("expected pending chunk status");
+    };
+    assert_eq!(
+        status.state,
+        PdChunkState::Pending {
+            received_chunk: 0,
+            next_chunk: 1,
+        }
+    );
+
+    let second = PdEvent {
+        timestamp: uom::si::f64::Time::new::<millisecond>(2.0),
+        data: PdEventData::PdMessage {
+            sop: 0,
+            wire_data: chunks[1].clone(),
+        },
+    };
+    let DecodedPdEvent::Message(message) = decoder.decode_event(&second) else {
+        panic!("expected assembled EPR SourceCapabilities");
+    };
+    let Some(Payload::Extended(Extended::EprSourceCapabilities(pdos))) = message.message.payload else {
+        panic!("expected EPR SourceCapabilities payload");
+    };
+    assert_eq!(pdos.len(), 10);
+}
+
+#[cfg(feature = "usbpd")]
+#[test]
+fn reports_short_wire_messages_without_panicking() {
+    let event = PdEvent {
+        timestamp: uom::si::f64::Time::new::<millisecond>(1.0),
+        data: PdEventData::PdMessage {
+            sop: 0,
+            wire_data: vec![0x01],
+        },
+    };
+    let mut decoder = PdSessionDecoder::new();
+
+    let DecodedPdEvent::Error(failure) = decoder.decode_event(&event) else {
+        panic!("expected decode failure");
+    };
+    assert!(failure.error.to_string().contains("expected 2"));
+    assert_eq!(failure.wire_data, vec![0x01]);
 }

@@ -1,423 +1,44 @@
-use clap::Parser;
-use km003c_lib::{DeviceConfig, KM003C, Packet, pd::PdEventData};
 use std::time::{Duration, Instant};
-use usbpd::protocol_layer::message::data::source_capabilities::{Augmented, PowerDataObject, SourceCapabilities};
-use usbpd::protocol_layer::message::data::{self, Data};
-use usbpd::protocol_layer::message::extended::Extended;
-use usbpd::protocol_layer::message::extended::chunked::{ChunkResult, ChunkedMessageAssembler};
-use usbpd::protocol_layer::message::header::ExtendedMessageType;
-use usbpd::protocol_layer::message::{Message, ParseError, Payload};
 
-/// USB PD negotiation capture for POWER-Z KM003C
+use clap::Parser;
+use km003c_lib::pd::PdEventData;
+use km003c_lib::uom::si::electric_current::ampere;
+use km003c_lib::uom::si::electric_potential::volt;
+use km003c_lib::uom::si::power::watt;
+use km003c_lib::uom::si::time::millisecond;
+use km003c_lib::usbpd::protocol_layer::message::Payload;
+use km003c_lib::usbpd::protocol_layer::message::data::source_capabilities::{
+    Augmented, PowerDataObject, SourceCapabilities,
+};
+use km003c_lib::usbpd::protocol_layer::message::data::{self, Data};
+use km003c_lib::usbpd::protocol_layer::message::extended::Extended;
+use km003c_lib::{
+    DecodedPdEvent, DecodedPdMessage, DeviceConfig, KM003C, Packet, PdChunkState, PdChunkStatus, PdDecodeFailure,
+    PdSessionDecoder,
+};
+
+/// USB PD negotiation capture for POWER-Z KM003C.
 ///
-/// Note: PD capture only works reliably with the vendor interface.
-/// HID interface causes device crashes when attempting PD operations.
+/// PD capture only works reliably with the vendor interface. The HID interface
+/// can crash the device when attempting PD operations.
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Skip USB reset (defaults to true on macOS for compatibility)
+    /// Skip USB reset (defaults to true on macOS for compatibility).
     #[arg(long, default_value_t = cfg!(target_os = "macos"))]
     no_reset: bool,
 
-    /// Force USB reset even on macOS (overrides --no-reset)
+    /// Force USB reset even on macOS (overrides --no-reset).
     #[arg(long)]
     reset: bool,
 
-    /// Capture duration in seconds
+    /// Capture duration in seconds.
     #[arg(short, long, default_value = "20")]
     duration: u64,
 
-    /// Show raw bytes for each message
+    /// Show raw bytes for each message.
     #[arg(long)]
     raw: bool,
-}
-
-// Use uom for nice formatting
-use km003c_lib::uom::si::time::millisecond as km003c_millisecond;
-use uom::si::electric_current::ampere;
-use uom::si::electric_potential::volt;
-use uom::si::power::watt;
-
-/// Format a single PDO for display
-fn format_pdo(pdo: &PowerDataObject) -> String {
-    match pdo {
-        PowerDataObject::FixedSupply(f) => {
-            let v = f.voltage().get::<volt>();
-            let i = f.max_current().get::<ampere>();
-            let p = v * i;
-            let mut flags = Vec::new();
-            if f.dual_role_power() {
-                flags.push("DRP");
-            }
-            if f.usb_communications_capable() {
-                flags.push("USB");
-            }
-            if f.dual_role_data() {
-                flags.push("DRD");
-            }
-            if f.unconstrained_power() {
-                flags.push("UP");
-            }
-            if f.epr_mode_capable() {
-                flags.push("EPR");
-            }
-            let flags_str = if flags.is_empty() {
-                String::new()
-            } else {
-                format!(" [{}]", flags.join(","))
-            };
-            format!("Fixed {:.0}V @ {:.1}A ({:.0}W){}", v, i, p, flags_str)
-        }
-        PowerDataObject::Battery(b) => {
-            let min_v = b.min_voltage().get::<volt>();
-            let max_v = b.max_voltage().get::<volt>();
-            let p = b.max_power().get::<watt>();
-            format!("Battery {:.0}-{:.0}V @ {:.0}W", min_v, max_v, p)
-        }
-        PowerDataObject::VariableSupply(v) => {
-            let min_v = v.min_voltage().get::<volt>();
-            let max_v = v.max_voltage().get::<volt>();
-            let i = v.max_current().get::<ampere>();
-            format!("Variable {:.0}-{:.0}V @ {:.1}A", min_v, max_v, i)
-        }
-        PowerDataObject::Augmented(aug) => match aug {
-            Augmented::Spr(pps) => {
-                let min_v = pps.min_voltage().get::<volt>();
-                let max_v = pps.max_voltage().get::<volt>();
-                let i = pps.max_current().get::<ampere>();
-                let p = max_v * i;
-                let limited = if pps.pps_power_limited() { " (limited)" } else { "" };
-                format!("PPS {:.1}-{:.1}V @ {:.1}A ({:.0}W){}", min_v, max_v, i, p, limited)
-            }
-            Augmented::Epr(avs) => {
-                let min_v = avs.min_voltage().get::<volt>();
-                let max_v = avs.max_voltage().get::<volt>();
-                let p = avs.pd_power().get::<watt>();
-                format!("EPR AVS {:.0}-{:.0}V @ {:.0}W", min_v, max_v, p)
-            }
-            Augmented::Unknown(raw) => {
-                format!("Augmented(0x{:08X})", raw)
-            }
-        },
-        PowerDataObject::Unknown(u) => {
-            format!("Unknown(0x{:08X})", u.0)
-        }
-    }
-}
-
-/// Print source capabilities in a nice format
-fn print_capabilities(caps: &[PowerDataObject], title: &str) {
-    println!("             [{}]", title);
-    for (i, pdo) in caps.iter().enumerate() {
-        // Skip null PDOs (separator between SPR and EPR)
-        if matches!(pdo, PowerDataObject::FixedSupply(f) if f.0 == 0) {
-            println!("             PDO[{}]: --- (separator) ---", i + 1);
-        } else {
-            println!("             PDO[{}]: {}", i + 1, format_pdo(pdo));
-        }
-    }
-}
-
-struct PdDecoder {
-    source_caps: Option<SourceCapabilities>,
-    /// Assembler for chunked EPR Source Capabilities
-    epr_assembler: ChunkedMessageAssembler,
-    /// Whether to show raw bytes
-    show_raw: bool,
-}
-
-impl PdDecoder {
-    fn new(show_raw: bool) -> Self {
-        Self {
-            source_caps: None,
-            epr_assembler: ChunkedMessageAssembler::new(),
-            show_raw,
-        }
-    }
-
-    fn handle_connect(&mut self) {
-        self.source_caps = None;
-        self.epr_assembler.reset();
-    }
-
-    fn decode(&mut self, timestamp_ms: u32, sop: u8, wire_data: &[u8]) {
-        if wire_data.is_empty() {
-            return;
-        }
-
-        let ts = timestamp_ms as f64 / 1000.0;
-
-        // Print raw bytes if enabled
-        if self.show_raw {
-            print!("[{:>8.3}s] RAW[{}]: ", ts, wire_data.len());
-            for (i, byte) in wire_data.iter().enumerate() {
-                if i > 0 && i % 16 == 0 {
-                    print!("\n                     ");
-                }
-                print!("{:02X} ", byte);
-            }
-            println!();
-        }
-
-        match Message::from_bytes(wire_data) {
-            Ok(msg) => {
-                let msg_type = msg.header.message_type();
-                let msg_id = msg.header.message_id();
-                let role = format!("{:?}/{:?}", msg.header.port_power_role(), msg.header.port_data_role());
-
-                let type_str = format!("{:?}", msg_type);
-                println!(
-                    "[{:>8.3}s] SOP{}: {:<20} (ID={}, ROLE={})",
-                    ts, sop, type_str, msg_id, role
-                );
-
-                match &msg.payload {
-                    Some(Payload::Data(data)) => match data {
-                        Data::SourceCapabilities(caps) => {
-                            self.source_caps = Some(caps.clone());
-                            print_capabilities(caps.pdos(), "SPR Source Capabilities");
-                        }
-                        Data::Request(req) => {
-                            self.print_request(req);
-                        }
-                        Data::EprMode(mode) => {
-                            println!("             EPR Mode: {:?}", mode);
-                        }
-                        Data::Unknown => {
-                            println!("             Unknown Data Message");
-                        }
-                        _ => {
-                            println!("             Data: {:?}", data);
-                        }
-                    },
-                    Some(Payload::Extended(ext)) => match ext {
-                        Extended::EprSourceCapabilities(pdos) => {
-                            print_capabilities(pdos.as_slice(), "EPR Source Capabilities");
-                        }
-                        Extended::ExtendedControl(ctrl) => {
-                            println!(
-                                "             Extended Control: {:?} (data=0x{:02X})",
-                                ctrl.message_type(),
-                                ctrl.data()
-                            );
-                        }
-                        _ => {
-                            println!("             Extended: {:?}", ext);
-                        }
-                    },
-                    None => {
-                        // Control message (GoodCRC, Accept, etc.) - already summarized by type_str
-                    }
-                }
-            }
-            Err(ParseError::ChunkedExtendedMessage {
-                chunk_number,
-                data_size,
-                request_chunk,
-                message_type,
-            }) => {
-                // Handle chunked extended messages
-                if request_chunk {
-                    // This is a chunk request - just log it
-                    println!(
-                        "[{:>8.3}s] SOP{}: Chunk Request (chunk={}, type={:?})",
-                        ts, sop, chunk_number, message_type
-                    );
-                    return;
-                }
-
-                // Only handle EPR Source Capabilities for now
-                if message_type != ExtendedMessageType::EprSourceCapabilities {
-                    println!(
-                        "[{:>8.3}s] SOP{}: Chunked {:?} (chunk {}/{} bytes) - not assembled",
-                        ts, sop, message_type, chunk_number, data_size
-                    );
-                    return;
-                }
-
-                // Parse chunk and feed to assembler
-                match Message::parse_extended_chunk(wire_data) {
-                    Ok((header, ext_header, chunk_data)) => {
-                        match self.epr_assembler.process_chunk(header, ext_header, chunk_data) {
-                            Ok(ChunkResult::Complete(assembled_data)) => {
-                                // Parse the assembled EPR Source Capabilities
-                                let ext = Message::parse_extended_payload(
-                                    ExtendedMessageType::EprSourceCapabilities,
-                                    &assembled_data,
-                                );
-
-                                if let Extended::EprSourceCapabilities(pdos) = ext {
-                                    let msg_id = header.message_id();
-                                    let role = format!("{:?}/{:?}", header.port_power_role(), header.port_data_role());
-                                    println!(
-                                        "[{:>8.3}s] SOP{}: Extended(EprSourceCapabilities) (ID={}, ROLE={})",
-                                        ts, sop, msg_id, role
-                                    );
-                                    let title =
-                                        format!("EPR Source Capabilities - {} chunks assembled", chunk_number + 1);
-                                    print_capabilities(pdos.as_slice(), &title);
-                                }
-                            }
-                            Ok(ChunkResult::NeedMoreChunks(next)) => {
-                                println!(
-                                    "[{:>8.3}s] SOP{}: EPR Source Caps chunk {} received, waiting for chunk {}...",
-                                    ts, sop, chunk_number, next
-                                );
-                            }
-                            Ok(ChunkResult::ChunkRequested(num)) => {
-                                println!("[{:>8.3}s] SOP{}: Chunk {} requested", ts, sop, num);
-                            }
-                            Err(e) => {
-                                println!("[{:>8.3}s] SOP{}: Chunk assembly error: {:?}", ts, sop, e);
-                                self.epr_assembler.reset();
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        println!("[{:>8.3}s] SOP{}: Failed to parse chunk: {:?}", ts, sop, e);
-                    }
-                }
-            }
-            Err(e) => {
-                println!(
-                    "[{:>8.3}s] SOP{}: Failed to parse: {:?} (Hex: {:02X?})",
-                    ts, sop, e, wire_data
-                );
-            }
-        }
-    }
-
-    fn print_request(&self, req: &data::request::PowerSource) {
-        use data::request::PowerSource;
-
-        match req {
-            PowerSource::FixedVariableSupply(p) => {
-                let curr = p.operating_current().get::<ampere>();
-                let max_curr = p.max_operating_current().get::<ampere>();
-                let pos = p.object_position();
-
-                // Look up Voltage from PDO if available
-                let pdo_info = self
-                    .source_caps
-                    .as_ref()
-                    .and_then(|caps| caps.pdos().get(pos as usize - 1))
-                    .map(format_pdo);
-
-                if let Some(info) = pdo_info {
-                    println!("             RDO: PDO#{} ({}) @ {:.1}A", pos, info, curr);
-                } else {
-                    println!("             RDO: PDO#{} @ {:.1}A (Max {:.1}A)", pos, curr, max_curr);
-                }
-            }
-            PowerSource::Battery(p) => {
-                let power = p.operating_power().get::<watt>();
-                println!(
-                    "             RDO: Requesting Battery PDO#{} @ {:.2}W",
-                    p.object_position(),
-                    power
-                );
-            }
-            PowerSource::Pps(p) => {
-                let v = p.output_voltage().get::<volt>();
-                let c = p.operating_current().get::<ampere>();
-                println!(
-                    "             RDO: Requesting PPS PDO#{} @ {:.2}V / {:.2}A",
-                    p.object_position(),
-                    v,
-                    c
-                );
-            }
-            PowerSource::Avs(p) => {
-                let v = p.output_voltage().get::<volt>();
-                let c = p.operating_current().get::<ampere>();
-                println!(
-                    "             RDO: Requesting AVS PDO#{} @ {:.2}V / {:.2}A",
-                    p.object_position(),
-                    v,
-                    c
-                );
-            }
-            PowerSource::EprRequest { rdo, pdo } => {
-                use usbpd::protocol_layer::message::data::request::{
-                    Avs as RdoAvs, FixedVariableSupply as RdoFixed, RawDataObject,
-                };
-                use usbpd::protocol_layer::message::data::source_capabilities::PowerDataObject;
-
-                let pos = RawDataObject(*rdo).object_position();
-
-                // Parse the RDO based on the PDO type
-                match pdo {
-                    PowerDataObject::FixedSupply(f) => {
-                        let rdo_parsed = RdoFixed(*rdo);
-                        let curr = rdo_parsed.operating_current().get::<ampere>();
-                        let max_curr = rdo_parsed.max_operating_current().get::<ampere>();
-                        let voltage = f.voltage().get::<volt>();
-                        println!(
-                            "             RDO: EPR Fixed PDO#{} ({:.1}V) @ {:.2}A (Max {:.2}A)",
-                            pos, voltage, curr, max_curr
-                        );
-                    }
-                    PowerDataObject::Augmented(a) => {
-                        use usbpd::protocol_layer::message::data::source_capabilities::Augmented;
-                        match a {
-                            Augmented::Spr(pps) => {
-                                let rdo_parsed = RdoAvs(*rdo);
-                                let v = rdo_parsed.output_voltage().get::<volt>();
-                                let c = rdo_parsed.operating_current().get::<ampere>();
-                                println!(
-                                    "             RDO: EPR PPS PDO#{} ({:.1}-{:.1}V) @ {:.2}V / {:.2}A",
-                                    pos,
-                                    pps.min_voltage().get::<volt>(),
-                                    pps.max_voltage().get::<volt>(),
-                                    v,
-                                    c
-                                );
-                            }
-                            Augmented::Epr(avs) => {
-                                let rdo_parsed = RdoAvs(*rdo);
-                                let v = rdo_parsed.output_voltage().get::<volt>();
-                                let c = rdo_parsed.operating_current().get::<ampere>();
-                                println!(
-                                    "             RDO: EPR AVS PDO#{} ({:.1}-{:.1}V @ {:.0}W) @ {:.2}V / {:.2}A",
-                                    pos,
-                                    avs.min_voltage().get::<volt>(),
-                                    avs.max_voltage().get::<volt>(),
-                                    avs.pd_power().get::<watt>(),
-                                    v,
-                                    c
-                                );
-                            }
-                            _ => {
-                                println!("             RDO: EPR Augmented PDO#{} (Raw=0x{:08X})", pos, rdo);
-                            }
-                        }
-                    }
-                    _ => {
-                        println!("             RDO: EPR PDO#{} (Raw=0x{:08X}, PDO={:?})", pos, rdo, pdo);
-                    }
-                }
-            }
-            PowerSource::Unknown(raw) => {
-                let pos = raw.object_position();
-
-                if let Some(caps) = &self.source_caps
-                    && let Some(pdo) = caps.pdos().get(pos as usize - 1)
-                {
-                    // Try to parse as FixedVariableSupply RDO and show nice format
-                    let rdo_parsed = data::request::FixedVariableSupply(raw.0);
-                    let curr = rdo_parsed.operating_current().get::<ampere>();
-                    println!(
-                        "             RDO: Requesting PDO#{} ({}) @ {:.1}A",
-                        pos,
-                        format_pdo(pdo),
-                        curr
-                    );
-                } else {
-                    println!("             RDO: Requesting PDO#{} (Raw=0x{:08X})", pos, raw.0);
-                }
-            }
-        }
-    }
 }
 
 #[tokio::main]
@@ -425,7 +46,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     tracing_subscriber::fmt::init();
 
-    // PD capture requires vendor interface (HID causes device crashes)
     let config = if args.no_reset && !args.reset {
         DeviceConfig::vendor().skip_reset()
     } else {
@@ -434,14 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut device = KM003C::new(config).await?;
     let state = device.state().expect("vendor interface provides state");
-
-    println!("{}\n", state);
-
-    // Note: EnablePdMonitor (0x10) and DisablePdMonitor (0x11) commands exist in the protocol
-    // and are used by the official app, but PD capture works without them.
-    // Their exact purpose is unclear. Sending EnablePdMonitor over HID crashes the device.
-    // Keeping them commented out for reference:
-    // device.enable_pd_monitor().await?;
+    println!("{state}\n");
 
     println!("USB PD Negotiation Capture");
     println!("NOW: Disconnect and reconnect your USB-C load!");
@@ -452,39 +65,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let start_time = Instant::now();
     let duration = Duration::from_secs(args.duration);
-    let mut decoder = PdDecoder::new(args.raw);
+    let mut decoder = PdSessionDecoder::new();
 
     loop {
         if start_time.elapsed() >= duration {
             break;
         }
 
-        match device.request_pd_data().await {
-            Ok(packet) => {
-                if let Some(stream) = KM003C::extract_pd_events(&packet) {
-                    for event in &stream.events {
-                        match &event.data {
-                            PdEventData::Connect(_) => {
-                                println!(
-                                    "[{:>8.3}s] ** CONNECT **",
-                                    event.timestamp.get::<km003c_millisecond>() / 1000.0
-                                );
-                                decoder.handle_connect();
-                            }
-                            PdEventData::Disconnect(_) => {
-                                println!(
-                                    "[{:>8.3}s] ** DISCONNECT **",
-                                    event.timestamp.get::<km003c_millisecond>() / 1000.0
-                                );
-                            }
-                            PdEventData::PdMessage { sop, wire_data } => {
-                                decoder.decode(event.timestamp.get::<km003c_millisecond>() as u32, *sop, wire_data);
-                            }
-                        }
-                    }
+        if let Ok(packet) = device.request_pd_data().await
+            && let Some(stream) = KM003C::extract_pd_events(&packet)
+        {
+            for event in &stream.events {
+                if args.raw
+                    && let PdEventData::PdMessage { wire_data, .. } = &event.data
+                {
+                    print_raw(event.timestamp.get::<millisecond>(), wire_data);
                 }
+
+                let decoded = decoder.decode_event(event);
+                print_decoded(&decoded, decoder.source_capabilities());
             }
-            Err(_e) => {}
         }
 
         tokio::select! {
@@ -496,11 +96,265 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // See note above about EnablePdMonitor/DisablePdMonitor - purpose unclear, works without them
-    // device.disable_pd_monitor().await?;
-
     device.send(Packet::Disconnect).await?;
     println!("\nCapture complete.");
-
     Ok(())
+}
+
+fn print_raw(timestamp_ms: f64, wire_data: &[u8]) {
+    print!("[{:>8.3}s] RAW[{}]: ", timestamp_ms / 1000.0, wire_data.len());
+    for (index, byte) in wire_data.iter().enumerate() {
+        if index > 0 && index % 16 == 0 {
+            print!("\n                     ");
+        }
+        print!("{byte:02X} ");
+    }
+    println!();
+}
+
+fn print_decoded(decoded: &DecodedPdEvent, source_caps: Option<&SourceCapabilities>) {
+    match decoded {
+        DecodedPdEvent::Connect { timestamp } => {
+            println!("[{:>8.3}s] ** CONNECT **", timestamp.get::<millisecond>() / 1000.0);
+        }
+        DecodedPdEvent::Disconnect { timestamp } => {
+            println!("[{:>8.3}s] ** DISCONNECT **", timestamp.get::<millisecond>() / 1000.0);
+        }
+        DecodedPdEvent::Message(message) => print_message(message, source_caps),
+        DecodedPdEvent::Chunk(status) => print_chunk_status(*status),
+        DecodedPdEvent::Error(failure) => print_failure(failure),
+    }
+}
+
+fn print_message(decoded: &DecodedPdMessage, source_caps: Option<&SourceCapabilities>) {
+    let message = &decoded.message;
+    println!(
+        "[{:>8.3}s] SOP{}: {:<20} (ID={}, ROLE={:?}/{:?})",
+        decoded.timestamp.get::<millisecond>() / 1000.0,
+        decoded.sop,
+        format!("{:?}", message.header.message_type()),
+        message.header.message_id(),
+        message.header.port_power_role(),
+        message.header.port_data_role(),
+    );
+
+    match &message.payload {
+        Some(Payload::Data(Data::SourceCapabilities(capabilities))) => {
+            print_capabilities(capabilities.pdos(), "SPR Source Capabilities");
+        }
+        Some(Payload::Data(Data::Request(request))) => print_request(request, source_caps),
+        Some(Payload::Data(Data::EprMode(mode))) => println!("             EPR Mode: {mode:?}"),
+        Some(Payload::Data(Data::Unknown)) => println!("             Unknown Data Message"),
+        Some(Payload::Data(data)) => println!("             Data: {data:?}"),
+        Some(Payload::Extended(Extended::EprSourceCapabilities(pdos))) => {
+            print_capabilities(pdos.as_slice(), "EPR Source Capabilities");
+        }
+        Some(Payload::Extended(Extended::ExtendedControl(control))) => println!(
+            "             Extended Control: {:?} (data=0x{:02X})",
+            control.message_type(),
+            control.data()
+        ),
+        Some(Payload::Extended(extended)) => println!("             Extended: {extended:?}"),
+        None => {}
+    }
+}
+
+fn print_chunk_status(status: PdChunkStatus) {
+    let timestamp = status.timestamp.get::<millisecond>() / 1000.0;
+    match status.state {
+        PdChunkState::Request { chunk_number } => println!(
+            "[{timestamp:>8.3}s] SOP{}: Chunk Request (chunk={chunk_number}, type={:?})",
+            status.sop, status.message_type
+        ),
+        PdChunkState::Pending {
+            received_chunk,
+            next_chunk,
+        } => println!(
+            "[{timestamp:>8.3}s] SOP{}: {:?} chunk {received_chunk} received, waiting for chunk {next_chunk}",
+            status.sop, status.message_type
+        ),
+        PdChunkState::Requested { chunk_number } => println!(
+            "[{timestamp:>8.3}s] SOP{}: {:?} chunk {chunk_number} requested",
+            status.sop, status.message_type
+        ),
+        PdChunkState::Unsupported {
+            chunk_number,
+            data_size,
+        } => println!(
+            "[{timestamp:>8.3}s] SOP{}: Chunked {:?} (chunk {chunk_number}, {data_size} bytes) - not assembled",
+            status.sop, status.message_type
+        ),
+    }
+}
+
+fn print_failure(failure: &PdDecodeFailure) {
+    println!(
+        "[{:>8.3}s] SOP{}: Failed to parse: {} (Hex: {:02X?})",
+        failure.timestamp.get::<millisecond>() / 1000.0,
+        failure.sop,
+        failure.error,
+        failure.wire_data
+    );
+}
+
+fn print_request(request: &data::request::PowerSource, source_caps: Option<&SourceCapabilities>) {
+    use data::request::PowerSource;
+
+    match request {
+        PowerSource::FixedVariableSupply(request) => {
+            let current = request.operating_current().get::<ampere>();
+            let max_current = request.max_operating_current().get::<ampere>();
+            let position = request.object_position();
+            if let Some(pdo) = source_caps.and_then(|caps| caps.pdos().get(position as usize - 1)) {
+                println!("             RDO: PDO#{position} ({}) @ {current:.1}A", format_pdo(pdo));
+            } else {
+                println!("             RDO: PDO#{position} @ {current:.1}A (Max {max_current:.1}A)");
+            }
+        }
+        PowerSource::Battery(request) => println!(
+            "             RDO: Requesting Battery PDO#{} @ {:.2}W",
+            request.object_position(),
+            request.operating_power().get::<watt>()
+        ),
+        PowerSource::Pps(request) => println!(
+            "             RDO: Requesting PPS PDO#{} @ {:.2}V / {:.2}A",
+            request.object_position(),
+            request.output_voltage().get::<volt>(),
+            request.operating_current().get::<ampere>()
+        ),
+        PowerSource::Avs(request) => println!(
+            "             RDO: Requesting AVS PDO#{} @ {:.2}V / {:.2}A",
+            request.object_position(),
+            request.output_voltage().get::<volt>(),
+            request.operating_current().get::<ampere>()
+        ),
+        PowerSource::EprRequest { rdo, pdo } => print_epr_request(*rdo, pdo),
+        PowerSource::Unknown(raw) => {
+            let position = raw.object_position();
+            if let Some(pdo) = source_caps.and_then(|caps| caps.pdos().get(position as usize - 1)) {
+                let request = data::request::FixedVariableSupply(raw.0);
+                println!(
+                    "             RDO: Requesting PDO#{position} ({}) @ {:.1}A",
+                    format_pdo(pdo),
+                    request.operating_current().get::<ampere>()
+                );
+            } else {
+                println!("             RDO: Requesting PDO#{position} (Raw=0x{:08X})", raw.0);
+            }
+        }
+    }
+}
+
+fn print_epr_request(rdo: u32, pdo: &PowerDataObject) {
+    use data::request::{Avs as RdoAvs, FixedVariableSupply as RdoFixed, RawDataObject};
+
+    let position = RawDataObject(rdo).object_position();
+    match pdo {
+        PowerDataObject::FixedSupply(fixed) => {
+            let request = RdoFixed(rdo);
+            println!(
+                "             RDO: EPR Fixed PDO#{position} ({:.1}V) @ {:.2}A (Max {:.2}A)",
+                fixed.voltage().get::<volt>(),
+                request.operating_current().get::<ampere>(),
+                request.max_operating_current().get::<ampere>()
+            );
+        }
+        PowerDataObject::Augmented(Augmented::Spr(pps)) => {
+            let request = RdoAvs(rdo);
+            println!(
+                "             RDO: EPR PPS PDO#{position} ({:.1}-{:.1}V) @ {:.2}V / {:.2}A",
+                pps.min_voltage().get::<volt>(),
+                pps.max_voltage().get::<volt>(),
+                request.output_voltage().get::<volt>(),
+                request.operating_current().get::<ampere>()
+            );
+        }
+        PowerDataObject::Augmented(Augmented::Epr(avs)) => {
+            let request = RdoAvs(rdo);
+            println!(
+                "             RDO: EPR AVS PDO#{position} ({:.1}-{:.1}V @ {:.0}W) @ {:.2}V / {:.2}A",
+                avs.min_voltage().get::<volt>(),
+                avs.max_voltage().get::<volt>(),
+                avs.pd_power().get::<watt>(),
+                request.output_voltage().get::<volt>(),
+                request.operating_current().get::<ampere>()
+            );
+        }
+        PowerDataObject::Augmented(_) => {
+            println!("             RDO: EPR Augmented PDO#{position} (Raw=0x{rdo:08X})");
+        }
+        _ => println!("             RDO: EPR PDO#{position} (Raw=0x{rdo:08X}, PDO={pdo:?})"),
+    }
+}
+
+fn format_pdo(pdo: &PowerDataObject) -> String {
+    match pdo {
+        PowerDataObject::FixedSupply(fixed) => {
+            let voltage = fixed.voltage().get::<volt>();
+            let current = fixed.max_current().get::<ampere>();
+            let mut flags = Vec::new();
+            if fixed.dual_role_power() {
+                flags.push("DRP");
+            }
+            if fixed.usb_communications_capable() {
+                flags.push("USB");
+            }
+            if fixed.dual_role_data() {
+                flags.push("DRD");
+            }
+            if fixed.unconstrained_power() {
+                flags.push("UP");
+            }
+            if fixed.epr_mode_capable() {
+                flags.push("EPR");
+            }
+            let flags = if flags.is_empty() {
+                String::new()
+            } else {
+                format!(" [{}]", flags.join(","))
+            };
+            format!("Fixed {voltage:.0}V @ {current:.1}A ({:.0}W){flags}", voltage * current)
+        }
+        PowerDataObject::Battery(battery) => format!(
+            "Battery {:.0}-{:.0}V @ {:.0}W",
+            battery.min_voltage().get::<volt>(),
+            battery.max_voltage().get::<volt>(),
+            battery.max_power().get::<watt>()
+        ),
+        PowerDataObject::VariableSupply(variable) => format!(
+            "Variable {:.0}-{:.0}V @ {:.1}A",
+            variable.min_voltage().get::<volt>(),
+            variable.max_voltage().get::<volt>(),
+            variable.max_current().get::<ampere>()
+        ),
+        PowerDataObject::Augmented(Augmented::Spr(pps)) => {
+            let min_voltage = pps.min_voltage().get::<volt>();
+            let max_voltage = pps.max_voltage().get::<volt>();
+            let current = pps.max_current().get::<ampere>();
+            let limited = if pps.pps_power_limited() { " (limited)" } else { "" };
+            format!(
+                "PPS {min_voltage:.1}-{max_voltage:.1}V @ {current:.1}A ({:.0}W){limited}",
+                max_voltage * current
+            )
+        }
+        PowerDataObject::Augmented(Augmented::Epr(avs)) => format!(
+            "EPR AVS {:.0}-{:.0}V @ {:.0}W",
+            avs.min_voltage().get::<volt>(),
+            avs.max_voltage().get::<volt>(),
+            avs.pd_power().get::<watt>()
+        ),
+        PowerDataObject::Augmented(Augmented::Unknown(raw)) => format!("Augmented(0x{raw:08X})"),
+        PowerDataObject::Unknown(raw) => format!("Unknown(0x{:08X})", raw.0),
+    }
+}
+
+fn print_capabilities(capabilities: &[PowerDataObject], title: &str) {
+    println!("             [{title}]");
+    for (index, pdo) in capabilities.iter().enumerate() {
+        if matches!(pdo, PowerDataObject::FixedSupply(fixed) if fixed.0 == 0) {
+            println!("             PDO[{}]: --- (separator) ---", index + 1);
+        } else {
+            println!("             PDO[{}]: {}", index + 1, format_pdo(pdo));
+        }
+    }
 }

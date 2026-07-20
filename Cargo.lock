@@ -1909,8 +1909,6 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "uom",
- "usbpd",
 ]
 
 [[package]]
@@ -1923,8 +1921,6 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "uom",
- "usbpd",
 ]
 
 [[package]]
@@ -1946,6 +1942,7 @@ dependencies = [
  "tokio",
  "tracing",
  "uom",
+ "usbpd",
  "zerocopy",
 ]
 

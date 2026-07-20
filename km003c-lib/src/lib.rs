@@ -7,6 +7,8 @@ pub mod error;
 pub mod message;
 pub mod packet;
 pub mod pd;
+#[cfg(feature = "usbpd")]
+pub mod pd_decode;
 
 #[cfg(feature = "python")]
 pub mod python;
@@ -21,4 +23,10 @@ pub use device::{ConnectionMode, DeviceConfig, DeviceState, KM003C, TransferType
 pub use message::{Packet, PayloadData};
 pub use packet::{Attribute, AttributeSet, LogicalPacket, RawPacket};
 pub use pd::{PdEvent, PdEventData, PdEventStream, PdStatus};
+#[cfg(feature = "usbpd")]
+pub use pd_decode::{
+    DecodedPdEvent, DecodedPdMessage, PdChunkState, PdChunkStatus, PdDecodeError, PdDecodeFailure, PdSessionDecoder,
+};
 pub use uom;
+#[cfg(feature = "usbpd")]
+pub use usbpd;
