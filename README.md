@@ -160,6 +160,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### Memory reads
+
+Use the correlated high-level operation for a connected device. It validates
+the transaction, confirmation address and size, receives all encrypted USB
+transfers, and removes AES block padding:
+
+```rust
+let hardware_id = device.read_memory_block(0x4001_0450, 12).await?;
+assert_eq!(hardware_id.len(), 12);
+```
+
+For offline protocol research on previously captured ciphertext, use the pure
+decrypt helper instead of a device receive method:
+
+```rust
+let plaintext_blocks = km003c_lib::auth::decrypt_memory_read_response(&ciphertext)
+    .ok_or("ciphertext must contain complete AES blocks")?;
+```
+
+The offline helper returns complete decrypted AES blocks because a capture does
+not itself carry the originally requested byte count.
+
 ### Python bindings
 
 Build and test the extension in the project environment:
