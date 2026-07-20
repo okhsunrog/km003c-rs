@@ -36,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PD timestamps, connection-state resets, and connection-status stability.
 - Semantic round-trips for authentication and protocol packets.
 - StartGraph validation when StreamingAuth does not grant AdcQueue access.
+- StreamingAuth response decoding now preserves firmware auth levels 0, 1,
+  and 2 instead of treating the level field as a Boolean flag.
 
 ### Removed
 
