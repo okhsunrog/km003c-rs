@@ -161,7 +161,7 @@ fn semantically_decodes_recorded_pd_negotiation_with_source_state() {
 
 #[cfg(feature = "usbpd")]
 #[test]
-fn connection_event_resets_semantic_decoder_state() {
+fn connection_events_reset_semantic_decoder_state() {
     let stream = parse_pd_events(
         "41a90205100000168bfa1200de130000750602009f80fa120000a1632c9101082cd102002cc103002cb10400454106003c21dcc08781fa12000041028b85fa1200008210dc7003238786fa1200002101878afa120000a305878afa1200004104",
     );
@@ -174,6 +174,18 @@ fn connection_event_resets_semantic_decoder_state() {
         data: PdEventData::Connect(()),
     };
     assert!(matches!(decoder.decode_event(&connect), DecodedPdEvent::Connect { .. }));
+    assert!(decoder.source_capabilities().is_none());
+
+    decoder.decode_event(&stream.events[0]);
+    assert!(decoder.source_capabilities().is_some());
+    let disconnect = PdEvent {
+        timestamp: uom::si::f64::Time::new::<millisecond>(1_250_001.0),
+        data: PdEventData::Disconnect(()),
+    };
+    assert!(matches!(
+        decoder.decode_event(&disconnect),
+        DecodedPdEvent::Disconnect { .. }
+    ));
     assert!(decoder.source_capabilities().is_none());
 }
 

@@ -113,9 +113,12 @@ impl PdSessionDecoder {
                     timestamp: event.timestamp,
                 }
             }
-            PdEventData::Disconnect(()) => DecodedPdEvent::Disconnect {
-                timestamp: event.timestamp,
-            },
+            PdEventData::Disconnect(()) => {
+                self.reset();
+                DecodedPdEvent::Disconnect {
+                    timestamp: event.timestamp,
+                }
+            }
             PdEventData::PdMessage { sop, wire_data } => self.decode_message(event.timestamp, *sop, wire_data),
         }
     }
