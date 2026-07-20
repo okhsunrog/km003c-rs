@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use km003c_lib::packet::{DataHeader, ExtendedHeader, PacketType};
 use km003c_lib::uom::si::time::second;
-use km003c_lib::{Attribute, Packet, PayloadData, PdTrace, PdTypeCState, RawPacket};
+use km003c_lib::{Attribute, Packet, PayloadData, PdProtocolTraceEventKind, PdTrace, PdTypeCState, RawPacket};
 
 fn trace_payload() -> Vec<u8> {
     vec![10, 1, 100, 0, 0, 0, 4, 105, 0, 0, 0, 5, 0x82, 110, 0, 0, 0]
@@ -21,9 +21,23 @@ fn parses_two_firmware_trace_queues() {
     assert_eq!(trace.state_events[0].timestamp.get::<second>(), 100.0);
     assert_eq!(trace.state_events[1].state, PdTypeCState::AttachedDebSource);
     assert_eq!(trace.protocol_events.len(), 1);
-    assert_eq!(trace.protocol_events[0].code, 0x82);
+    assert_eq!(trace.protocol_events[0].kind, PdProtocolTraceEventKind::ReceivedMessage);
     assert_eq!(trace.protocol_events[0].timestamp.get::<second>(), 110.0);
     assert_eq!(trace.to_bytes().unwrap(), trace_payload());
+}
+
+#[test]
+fn types_confirmed_protocol_markers_and_preserves_unknown_states() {
+    let payload = vec![0, 15, 0x82, 1, 0, 0, 0, 0x83, 2, 0, 0, 0, 0x52, 3, 0, 0, 0];
+    let trace = PdTrace::from_bytes(&payload).unwrap();
+
+    assert_eq!(trace.protocol_events[0].kind, PdProtocolTraceEventKind::ReceivedMessage);
+    assert_eq!(
+        trace.protocol_events[1].kind,
+        PdProtocolTraceEventKind::ExtendedChunkRequest
+    );
+    assert_eq!(trace.protocol_events[2].kind, PdProtocolTraceEventKind::Unknown(0x52));
+    assert_eq!(trace.to_bytes().unwrap(), payload);
 }
 
 #[test]
@@ -93,7 +107,7 @@ fn parses_recorded_single_event_response_with_zero_top_level_count() {
 
     assert!(trace.state_events.is_empty());
     assert_eq!(trace.protocol_events.len(), 1);
-    assert_eq!(trace.protocol_events[0].code, 0x82);
+    assert_eq!(trace.protocol_events[0].kind, PdProtocolTraceEventKind::ReceivedMessage);
     assert_eq!(trace.protocol_events[0].timestamp.get::<second>(), 185.0);
 }
 
@@ -105,7 +119,7 @@ fn parses_recorded_phone_disconnect_response() {
     assert_eq!(trace.state_events[0].state, PdTypeCState::AttachedResistance);
     assert_eq!(trace.state_events[0].timestamp.get::<second>(), 267.0);
     assert_eq!(trace.protocol_events.len(), 1);
-    assert_eq!(trace.protocol_events[0].code, 0x00);
+    assert_eq!(trace.protocol_events[0].kind, PdProtocolTraceEventKind::Disabled);
     assert_eq!(trace.protocol_events[0].timestamp.get::<second>(), 267.0);
 }
 
@@ -127,9 +141,9 @@ fn parses_recorded_phone_connect_response_with_a_full_protocol_queue() {
     assert_eq!(trace.state_events[1].state, PdTypeCState::UnattachedDebSource);
     assert_eq!(trace.state_events[2].state, PdTypeCState::TryDebSource);
     assert_eq!(trace.protocol_events.len(), 40);
-    assert_eq!(trace.protocol_events[0].code, 0x76);
-    assert_eq!(trace.protocol_events[1].code, 0x77);
-    assert_eq!(trace.protocol_events[2].code, 0x82);
+    assert_eq!(trace.protocol_events[0].kind, PdProtocolTraceEventKind::Unknown(0x76));
+    assert_eq!(trace.protocol_events[1].kind, PdProtocolTraceEventKind::Unknown(0x77));
+    assert_eq!(trace.protocol_events[2].kind, PdProtocolTraceEventKind::ReceivedMessage);
     assert_eq!(trace.protocol_events.last().unwrap().timestamp.get::<second>(), 177.0);
 }
 

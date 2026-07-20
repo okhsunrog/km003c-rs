@@ -33,7 +33,7 @@ pub use pd::{PdEvent, PdEventData, PdEventStream, PdStatus};
 pub use pd_decode::{
     DecodedPdEvent, DecodedPdMessage, PdChunkState, PdChunkStatus, PdDecodeError, PdDecodeFailure, PdSessionDecoder,
 };
-pub use pd_trace::{PdTrace, PdTraceProtocolEvent, PdTraceStateEvent, PdTypeCState};
+pub use pd_trace::{PdProtocolTraceEventKind, PdTrace, PdTraceProtocolEvent, PdTraceStateEvent, PdTypeCState};
 pub use settings::Settings;
 pub use uom;
 #[cfg(feature = "usbpd")]
