@@ -9,6 +9,10 @@
 //! 2. Send StreamingAuth (0x4C) with HardwareID embedded in encrypted payload
 //! 3. Device validates and grants auth level 1 (AdcQueue access)
 //!
+//! Firmware V1.9.9 also grants level 2 when the same 12-byte credential field
+//! matches the beginning of its selected calibration record. Response
+//! attribute bits 1-2 contain the resulting authentication level.
+//!
 //! # AES Keys
 //!
 //! - StreamingAuth encrypt (host→device): `Fa0b4tA25f4R038a`
@@ -29,7 +33,8 @@ use crate::packet::{PacketType, StreamingAuthHeader};
 const STREAMING_AUTH_HEADER_SIZE: usize = 4;
 const STREAMING_AUTH_PAYLOAD_SIZE: usize = 32;
 const STREAMING_AUTH_RESULT_FLAG: u16 = 1;
-const STREAMING_AUTH_GRANTED_FLAG: u16 = 1 << 1;
+const STREAMING_AUTH_LEVEL_SHIFT: u32 = 1;
+const STREAMING_AUTH_LEVEL_MASK: u16 = 0b11 << STREAMING_AUTH_LEVEL_SHIFT;
 const AES_BLOCK_SIZE: usize = 16;
 pub(crate) const STREAMING_AUTH_RESPONSE_ID: u8 = 0;
 
@@ -198,7 +203,7 @@ pub struct StreamingAuthResult {
 impl StreamingAuthResult {
     /// Check if AdcQueue streaming is enabled
     pub fn adcqueue_enabled(&self) -> bool {
-        (self.attribute & STREAMING_AUTH_GRANTED_FLAG) != 0
+        self.auth_level != 0
     }
 }
 
@@ -400,12 +405,12 @@ pub(crate) fn parse_streaming_auth_response_parts(
 pub fn parse_streaming_auth_response_payload(payload: &[u8], attribute: u16) -> Option<StreamingAuthResult> {
     let encrypted: [u8; STREAMING_AUTH_PAYLOAD_SIZE] = payload.get(..STREAMING_AUTH_PAYLOAD_SIZE)?.try_into().ok()?;
     let decrypted = aes_ecb_decrypt(&encrypted, STREAMING_AUTH_KEY_DEC);
-    let success = (attribute & STREAMING_AUTH_GRANTED_FLAG) != 0;
+    let auth_level = ((attribute & STREAMING_AUTH_LEVEL_MASK) >> STREAMING_AUTH_LEVEL_SHIFT) as u8;
 
     Some(StreamingAuthResult {
-        success,
+        success: auth_level != 0,
         attribute,
-        auth_level: u8::from(success),
+        auth_level,
         decrypted_payload: decrypted,
     })
 }
@@ -576,21 +581,29 @@ mod tests {
             bytes
         };
 
-        let success = parse_streaming_auth_response(&response(0x0203)).unwrap();
-        assert!(success.success);
-        assert_eq!(success.auth_level, 1);
-        assert_eq!(success.attribute, 0x0203);
-        assert_eq!(success.decrypted_payload, plaintext);
+        let device_auth = parse_streaming_auth_response(&response(0x0203)).unwrap();
+        assert!(device_auth.success);
+        assert!(device_auth.adcqueue_enabled());
+        assert_eq!(device_auth.auth_level, 1);
+        assert_eq!(device_auth.attribute, 0x0203);
+        assert_eq!(device_auth.decrypted_payload, plaintext);
+
+        let calibration_auth = parse_streaming_auth_response(&response(0x0205)).unwrap();
+        assert!(calibration_auth.success);
+        assert!(calibration_auth.adcqueue_enabled());
+        assert_eq!(calibration_auth.auth_level, 2);
+        assert_eq!(calibration_auth.attribute, 0x0205);
+        assert_eq!(calibration_auth.decrypted_payload, plaintext);
 
         let serialized = Bytes::from(
-            Packet::StreamingAuthResponse(success.clone())
+            Packet::StreamingAuthResponse(calibration_auth.clone())
                 .to_raw_packet(99)
                 .unwrap(),
         );
         let reparsed = RawPacket::try_from(serialized).unwrap();
         assert_eq!(
             Packet::try_from(reparsed).unwrap(),
-            Packet::StreamingAuthResponse(success)
+            Packet::StreamingAuthResponse(calibration_auth)
         );
 
         let raw_failure = RawPacket::try_from(Bytes::from(response(0x0201))).unwrap();
@@ -598,6 +611,7 @@ mod tests {
             panic!("expected StreamingAuthResponse");
         };
         assert!(!failure.success);
+        assert!(!failure.adcqueue_enabled());
         assert_eq!(failure.auth_level, 0);
         assert_eq!(failure.attribute, 0x0201);
         assert_eq!(failure.decrypted_payload, plaintext);
