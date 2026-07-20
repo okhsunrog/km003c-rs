@@ -33,6 +33,15 @@ fn test_unframed_memory_ciphertext_is_not_misclassified_by_first_byte() {
 }
 
 #[test]
+fn ciphertext_derived_values_remain_unknown() {
+    assert_eq!(PacketType::from(0x1a), PacketType::Unknown(0x1a));
+    assert_eq!(PacketType::from(0x3a), PacketType::Unknown(0x3a));
+    assert_eq!(Attribute::from(1609), Attribute::Unknown(1609));
+    assert_eq!(Attribute::from(11046), Attribute::Unknown(11046));
+    assert_eq!(Attribute::from(26817), Attribute::Unknown(26817));
+}
+
+#[test]
 fn test_roundtrip_bytes_to_rawpacket_to_bytes_ctrl() {
     // Test round-trip conversion: Bytes → RawPacket → Bytes
     let original_bytes = Bytes::from_static(&[0x02, 0x01, 0x00, 0x00]);

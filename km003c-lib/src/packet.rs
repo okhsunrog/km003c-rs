@@ -56,8 +56,6 @@ pub struct ExtendedHeader {
 /// KM003C protocol packet types.
 ///
 /// Values < 0x40 are control packet types, >= 0x40 are data packet types.
-/// Unknown types have been discovered through protocol analysis but their
-/// purpose has not yet been reverse engineered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, FromPrimitive)]
 #[repr(u8)]
 pub enum PacketType {
@@ -87,10 +85,6 @@ pub enum PacketType {
 
     // Error responses
     NotReadable = 0x27, // Memory address not accessible
-
-    // Unknown control types discovered in protocol analysis
-    Unknown26 = 26,
-    Unknown58 = 58,
 
     // >= 0x40 is data type
     Head = 64,
@@ -123,8 +117,6 @@ impl<'py> pyo3::IntoPyObject<'py> for PacketType {
 /// Attribute values used in command headers and extended headers.
 ///
 /// These values specify the type of data or command being sent.
-/// Unknown attributes have been discovered through protocol analysis
-/// but their purpose has not yet been reverse engineered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, FromPrimitive)]
 #[repr(u16)]
 pub enum Attribute {
@@ -137,12 +129,8 @@ pub enum Attribute {
     /// or longer PdEventStream (12-byte preamble + PD wire events).
     PdPacket = 0x10,
 
-    // Unknown attributes discovered in protocol analysis
-    // TODO: Reverse engineer the purpose of these attributes
-    Unknown512 = 512,     // 0x200 - found with PutData packets
-    Unknown1609 = 1609,   // 0x649 - found with Unknown26 packets
-    Unknown11046 = 11046, // 0x2B26 - found with Unknown44 packets
-    Unknown26817 = 26817, // 0x68C1 - found with Unknown58 packets
+    /// Unknown attribute observed inside a framed PutData packet.
+    Unknown512 = 0x200,
 
     #[num_enum(catch_all)]
     Unknown(u16),
