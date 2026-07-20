@@ -282,6 +282,18 @@ pub enum ConnectionMode {
     Full(DeviceState),
 }
 
+fn ensure_adcqueue_available(mode: &ConnectionMode) -> Result<(), KMError> {
+    match mode {
+        ConnectionMode::Basic => Err(KMError::Protocol(
+            "AdcQueue streaming requires Full mode (vendor interface)".to_string(),
+        )),
+        ConnectionMode::Full(state) if !state.adcqueue_enabled => Err(KMError::Protocol(
+            "StreamingAuth did not enable AdcQueue streaming".to_string(),
+        )),
+        ConnectionMode::Full(_) => Ok(()),
+    }
+}
+
 /// Configuration for KM003C device communication
 ///
 /// Specifies which USB interface to use. The interface determines the connection mode:
@@ -1123,7 +1135,7 @@ impl KM003C {
     /// # Arguments
     /// * `rate` - Sample rate (use GraphSampleRate enum)
     ///
-    /// **Requires Full mode** (vendor interface). Will return error in Basic mode.
+    /// **Requires Full mode** (vendor interface) and successful StreamingAuth.
     ///
     /// Rate values:
     /// - `GraphSampleRate::Sps2` = 2 samples per second
@@ -1151,11 +1163,7 @@ impl KM003C {
     /// # }
     /// ```
     pub async fn start_graph_mode(&mut self, rate: GraphSampleRate) -> Result<(), KMError> {
-        if self.is_basic_mode() {
-            return Err(KMError::Protocol(
-                "AdcQueue streaming requires Full mode (vendor interface)".to_string(),
-            ));
-        }
+        ensure_adcqueue_available(&self.mode)?;
 
         // Device expects rate index directly: 0=2SPS, 1=10SPS, 2=50SPS, 3=1000SPS
         let id = self
@@ -1194,6 +1202,26 @@ mod tests {
     #[test]
     fn response_matching_uses_the_typed_header_parser() {
         assert!(response_matches(&[0xc1, 7, 0, 0], 7, PacketType::PutData));
+    }
+
+    #[test]
+    fn graph_mode_requires_streaming_auth_permission() {
+        assert!(ensure_adcqueue_available(&ConnectionMode::Basic).is_err());
+
+        let state = DeviceState {
+            info: DeviceInfo::default(),
+            hardware_id: HardwareId::from_bytes([0; 12]),
+            auth_level: 0,
+            adcqueue_enabled: false,
+        };
+        assert!(ensure_adcqueue_available(&ConnectionMode::Full(state.clone())).is_err());
+
+        let enabled = DeviceState {
+            auth_level: 1,
+            adcqueue_enabled: true,
+            ..state
+        };
+        assert!(ensure_adcqueue_available(&ConnectionMode::Full(enabled)).is_ok());
     }
 
     #[test]
