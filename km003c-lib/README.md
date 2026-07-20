@@ -16,6 +16,11 @@ Normal vendor initialization authenticates with the device HardwareID at
 level 1. `KM003C::authenticate_calibration()` safely reads the firmware-selected
 calibration credential and requests level 2 without writing device memory.
 
+`KM003C::request_settings()` validates both persisted settings-block checksums
+and exposes only firmware-confirmed fields semantically. Unknown bytes remain
+available through the lossless raw block accessors; the API does not provide
+settings writes.
+
 Enable the optional `usbpd` feature to turn captured PD wire frames into typed
 USB PD messages. `PdSessionDecoder` retains Source Capabilities state for
 subsequent Request messages and reassembles chunked EPR Source Capabilities.

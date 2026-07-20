@@ -10,6 +10,7 @@ pub mod packet;
 pub mod pd;
 #[cfg(feature = "usbpd")]
 pub mod pd_decode;
+pub mod settings;
 
 #[cfg(feature = "python")]
 pub mod python;
@@ -31,6 +32,7 @@ pub use pd::{PdEvent, PdEventData, PdEventStream, PdStatus};
 pub use pd_decode::{
     DecodedPdEvent, DecodedPdMessage, PdChunkState, PdChunkStatus, PdDecodeError, PdDecodeFailure, PdSessionDecoder,
 };
+pub use settings::Settings;
 pub use uom;
 #[cfg(feature = "usbpd")]
 pub use usbpd;
