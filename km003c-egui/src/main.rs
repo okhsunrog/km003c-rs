@@ -1,5 +1,6 @@
 mod pd_connection;
 mod pd_decoder;
+mod pd_trace_view;
 
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
@@ -8,13 +9,14 @@ use km003c_lib::uom::si::electric_potential::volt;
 use km003c_lib::uom::si::power::watt;
 use km003c_lib::uom::si::time::second;
 use km003c_lib::{
-    AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C,
+    AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C, PdTrace,
     packet::{Attribute, AttributeSet},
     pd::{PdEvent, PdEventData, PdStatus},
     sequence_elapsed,
 };
 use pd_connection::PdConnectionTracker;
 use pd_decoder::{DecodedPdEntry, PdCategory, PdDecoder};
+use pd_trace_view::{PdTraceCategory, PdTraceEntry, decode_trace};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
@@ -34,6 +36,8 @@ enum UsbMessage {
     PdEvents(Vec<PdEvent>),
     /// PD status (CC line voltages)
     PdStatusUpdate(PdStatus),
+    /// Firmware Type-C and protocol-engine trace
+    PdTrace(PdTrace),
     /// Streaming started at given rate
     StreamingStarted(GraphSampleRate),
     /// Streaming stopped
@@ -51,8 +55,41 @@ enum UsbCommand {
     Connect(GraphSampleRate, bool),
     /// Change sample rate (stops current streaming, starts with new rate)
     SetSampleRate(GraphSampleRate),
+    /// Enable or disable firmware PD trace collection
+    SetPdTraceEnabled(bool),
     /// Stop streaming and disconnect
     Disconnect,
+}
+
+enum PdTimelineEntry<'a> {
+    Protocol(&'a DecodedPdEntry),
+    FirmwareTrace(&'a PdTraceEntry),
+}
+
+impl PdTimelineEntry<'_> {
+    fn timestamp_seconds(&self) -> f64 {
+        match self {
+            Self::Protocol(entry) => entry.timestamp_seconds,
+            Self::FirmwareTrace(entry) => entry.timestamp_seconds,
+        }
+    }
+}
+
+fn pd_timeline_entries<'a>(
+    protocol_log: &'a VecDeque<DecodedPdEntry>,
+    trace_log: &'a VecDeque<PdTraceEntry>,
+    show_protocol: bool,
+    show_trace: bool,
+) -> Vec<PdTimelineEntry<'a>> {
+    let mut timeline = Vec::with_capacity(protocol_log.len() + trace_log.len());
+    if show_protocol {
+        timeline.extend(protocol_log.iter().map(PdTimelineEntry::Protocol));
+    }
+    if show_trace {
+        timeline.extend(trace_log.iter().map(PdTimelineEntry::FirmwareTrace));
+    }
+    timeline.sort_by(|left, right| left.timestamp_seconds().total_cmp(&right.timestamp_seconds()));
+    timeline
 }
 
 /// Sample rate options for the UI
@@ -185,6 +222,14 @@ struct PowerMonitorApp {
     pd_auto_scroll: bool,
     /// PD panel visible
     pd_panel_visible: bool,
+    /// Show decoded wire-protocol events in the shared timeline
+    pd_protocol_visible: bool,
+    /// Whether the USB task should drain the firmware PD trace queues
+    pd_trace_enabled: bool,
+    /// Firmware PD trace entries
+    pd_trace_log: VecDeque<PdTraceEntry>,
+    /// Max firmware PD trace entries
+    max_pd_trace_entries: usize,
     /// Whether to perform USB reset on connect
     usb_reset: bool,
 }
@@ -217,6 +262,10 @@ impl PowerMonitorApp {
             pd_connection: PdConnectionTracker::default(),
             pd_auto_scroll: true,
             pd_panel_visible: true,
+            pd_protocol_visible: true,
+            pd_trace_enabled: false,
+            pd_trace_log: VecDeque::new(),
+            max_pd_trace_entries: 2000,
             usb_reset: !cfg!(target_os = "macos"),
         }
     }
@@ -228,6 +277,9 @@ impl PowerMonitorApp {
                     self.status = format!("Connected: {}", state.model());
                     self.device_state = Some(state);
                     self.pd_connection = PdConnectionTracker::default();
+                    if self.pd_trace_enabled {
+                        let _ = self.cmd_sender.send(UsbCommand::SetPdTraceEnabled(true));
+                    }
                 }
                 UsbMessage::ConnectionFailed(err) => {
                     self.status = format!("Connection failed: {}", err);
@@ -314,6 +366,14 @@ impl PowerMonitorApp {
                     self.pd_connection.observe_status(&status, std::time::Instant::now());
                     self.pd_status = Some(status);
                 }
+                UsbMessage::PdTrace(trace) => {
+                    for entry in decode_trace(&trace) {
+                        self.pd_trace_log.push_back(entry);
+                        while self.pd_trace_log.len() > self.max_pd_trace_entries {
+                            self.pd_trace_log.pop_front();
+                        }
+                    }
+                }
                 UsbMessage::StreamingStopped => {
                     self.streaming = false;
                     self.status = "Stopped".to_string();
@@ -346,7 +406,8 @@ impl PowerMonitorApp {
 
     fn clear_pd_log(&mut self) {
         self.pd_log.clear();
-        info!("PD log cleared");
+        self.pd_trace_log.clear();
+        info!("PD timeline cleared");
     }
 }
 
@@ -503,6 +564,38 @@ impl eframe::App for PowerMonitorApp {
 
             ui.add_space(20.0);
             ui.separator();
+            ui.heading("PD Timeline");
+            ui.separator();
+
+            ui.checkbox(&mut self.pd_panel_visible, "Show PD Panel");
+            ui.label("Filters:");
+            ui.checkbox(&mut self.pd_protocol_visible, "Protocol messages");
+            let trace_changed = ui
+                .checkbox(&mut self.pd_trace_enabled, "Firmware trace")
+                .on_hover_text(
+                    "Also drains the diagnostic Type-C and protocol-engine queues reverse engineered from KM003C firmware V1.9.9",
+                )
+                .changed();
+            if trace_changed && self.device_state.is_some() {
+                let _ = self
+                    .cmd_sender
+                    .send(UsbCommand::SetPdTraceEnabled(self.pd_trace_enabled));
+            }
+
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut self.pd_auto_scroll, "Auto-scroll");
+                if ui.button("Clear Timeline").clicked() {
+                    self.clear_pd_log();
+                }
+            });
+            ui.label(format!(
+                "Protocol: {}  |  Trace: {}",
+                self.pd_log.len(),
+                self.pd_trace_log.len()
+            ));
+
+            ui.add_space(20.0);
+            ui.separator();
             ui.heading("Statistics");
             ui.separator();
 
@@ -595,65 +688,79 @@ impl eframe::App for PowerMonitorApp {
                 }
             }
 
-            ui.add_space(20.0);
-            ui.separator();
-            ui.heading("PD Log");
-            ui.separator();
-
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut self.pd_panel_visible, "Show PD Panel");
-            });
-
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut self.pd_auto_scroll, "Auto-scroll");
-                if ui.button("Clear PD Log").clicked() {
-                    self.clear_pd_log();
-                }
-            });
-
-            ui.label(format!("PD entries: {}", self.pd_log.len()));
         });
 
-        // Bottom panel with PD log
+        // Bottom panel with the combined PD timeline
         if self.pd_panel_visible {
             egui::Panel::bottom("pd_panel")
                 .resizable(true)
                 .min_size(100.0)
                 .default_size(200.0)
                 .show(ui, |ui| {
-                    ui.heading("USB PD Protocol Log");
+                    ui.heading("USB PD Timeline");
+                    if self.pd_trace_enabled {
+                        ui.small(
+                            "[FW] timestamps have one-second resolution; same-second ordering relative to [WIRE] events is approximate.",
+                        );
+                    }
                     ui.separator();
 
                     let text_style = egui::TextStyle::Monospace;
                     let row_height = ui.text_style_height(&text_style);
+                    let timeline = pd_timeline_entries(
+                        &self.pd_log,
+                        &self.pd_trace_log,
+                        self.pd_protocol_visible,
+                        self.pd_trace_enabled,
+                    );
 
                     egui::ScrollArea::vertical()
                         .auto_shrink([false; 2])
                         .stick_to_bottom(self.pd_auto_scroll)
                         .show(ui, |ui| {
-                            for entry in &self.pd_log {
-                                let color = match entry.category {
-                                    PdCategory::Connect => egui::Color32::GREEN,
-                                    PdCategory::Disconnect => egui::Color32::RED,
-                                    PdCategory::SourceCaps => egui::Color32::from_rgb(100, 149, 237), // Cornflower blue
-                                    PdCategory::Request => egui::Color32::YELLOW,
-                                    PdCategory::Control => egui::Color32::GRAY,
-                                    PdCategory::Extended => egui::Color32::from_rgb(255, 165, 0), // Orange
-                                    PdCategory::Error => egui::Color32::from_rgb(255, 80, 80),    // Light red
-                                };
+                            for timeline_entry in timeline {
+                                match timeline_entry {
+                                    PdTimelineEntry::Protocol(entry) => {
+                                        let color = match entry.category {
+                                            PdCategory::Connect => egui::Color32::GREEN,
+                                            PdCategory::Disconnect => egui::Color32::RED,
+                                            PdCategory::SourceCaps => egui::Color32::from_rgb(100, 149, 237),
+                                            PdCategory::Request => egui::Color32::YELLOW,
+                                            PdCategory::Control => egui::Color32::GRAY,
+                                            PdCategory::Extended => egui::Color32::from_rgb(255, 165, 0),
+                                            PdCategory::Error => egui::Color32::from_rgb(255, 80, 80),
+                                        };
 
-                                ui.colored_label(
-                                    color,
-                                    egui::RichText::new(&entry.summary).monospace().size(row_height),
-                                );
-
-                                for detail in &entry.details {
-                                    ui.colored_label(
-                                        color.gamma_multiply(0.8),
-                                        egui::RichText::new(format!("  {}", detail))
-                                            .monospace()
-                                            .size(row_height),
-                                    );
+                                        ui.colored_label(
+                                            color,
+                                            egui::RichText::new(format!("[WIRE] {}", entry.summary))
+                                                .monospace()
+                                                .size(row_height),
+                                        );
+                                        for detail in &entry.details {
+                                            ui.colored_label(
+                                                color.gamma_multiply(0.8),
+                                                egui::RichText::new(format!("       {detail}"))
+                                                    .monospace()
+                                                    .size(row_height),
+                                            );
+                                        }
+                                    }
+                                    PdTimelineEntry::FirmwareTrace(entry) => {
+                                        let color = match entry.category {
+                                            PdTraceCategory::TypeCState => {
+                                                egui::Color32::from_rgb(100, 200, 255)
+                                            }
+                                            PdTraceCategory::ProtocolEvent => egui::Color32::LIGHT_GREEN,
+                                            PdTraceCategory::Unknown => egui::Color32::YELLOW,
+                                        };
+                                        ui.colored_label(
+                                            color,
+                                            egui::RichText::new(format!("[FW]   {}", entry.summary))
+                                                .monospace()
+                                                .size(row_height),
+                                        );
+                                    }
                                 }
                             }
                         });
@@ -775,7 +882,7 @@ async fn usb_streaming_task(tx: mpsc::UnboundedSender<UsbMessage>, mut cmd_rx: m
                 info!("Connect command received, rate={:?}, reset={}", initial_rate, usb_reset);
                 run_streaming_session(&tx, &mut cmd_rx, initial_rate, usb_reset).await;
             }
-            UsbCommand::SetSampleRate(_) | UsbCommand::Disconnect => {
+            UsbCommand::SetSampleRate(_) | UsbCommand::SetPdTraceEnabled(_) | UsbCommand::Disconnect => {
                 // Ignore these when not connected
                 debug!("Ignoring command while disconnected: {:?}", cmd);
             }
@@ -831,6 +938,7 @@ async fn run_streaming_session(
 
     // Streaming loop - poll for data and handle commands
     let mut error_count = 0;
+    let mut pd_trace_enabled = false;
     const MAX_ERRORS: u32 = 10;
 
     loop {
@@ -853,6 +961,13 @@ async fn run_streaming_session(
                     current_rate = new_rate;
                 }
             }
+            Ok(UsbCommand::SetPdTraceEnabled(enabled)) => {
+                pd_trace_enabled = enabled;
+                info!(
+                    "Firmware PD trace collection {}",
+                    if enabled { "enabled" } else { "disabled" }
+                );
+            }
             Ok(UsbCommand::Disconnect) => {
                 info!("Disconnect command received");
                 break;
@@ -870,8 +985,8 @@ async fn run_streaming_session(
             }
         }
 
-        // Request AdcQueue + PD data using library API
-        let mask = AttributeSet::single(Attribute::AdcQueue).with(Attribute::PdPacket);
+        // Request the regular streams and the opt-in firmware trace.
+        let mask = streaming_attribute_mask(pd_trace_enabled);
         match device.request_data(mask).await {
             Ok(packet) => {
                 error_count = 0;
@@ -892,6 +1007,11 @@ async fn run_streaming_session(
                 }
                 if let Some(status) = packet.get_pd_status() {
                     let _ = tx.send(UsbMessage::PdStatusUpdate(*status));
+                }
+                if let Some(trace) = packet.get_pd_trace()
+                    && (!trace.state_events.is_empty() || !trace.protocol_events.is_empty())
+                {
+                    let _ = tx.send(UsbMessage::PdTrace(trace.clone()));
                 }
             }
             Err(e) => {
@@ -918,6 +1038,15 @@ async fn run_streaming_session(
     info!("Stopping streaming");
     let _ = device.stop_graph_mode().await;
     let _ = tx.send(UsbMessage::Disconnected);
+}
+
+fn streaming_attribute_mask(pd_trace_enabled: bool) -> AttributeSet {
+    let mask = AttributeSet::single(Attribute::AdcQueue).with(Attribute::PdPacket);
+    if pd_trace_enabled {
+        mask.with(Attribute::PdTrace)
+    } else {
+        mask
+    }
 }
 
 async fn start_streaming(
@@ -958,4 +1087,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     eframe::run_native("POWER-Z KM003C Monitor", options, Box::new(|_cc| Ok(Box::new(app))))
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn firmware_trace_is_only_requested_when_enabled() {
+        let disabled = streaming_attribute_mask(false);
+        assert!(disabled.contains(Attribute::AdcQueue));
+        assert!(disabled.contains(Attribute::PdPacket));
+        assert!(!disabled.contains(Attribute::PdTrace));
+
+        let enabled = streaming_attribute_mask(true);
+        assert!(enabled.contains(Attribute::AdcQueue));
+        assert!(enabled.contains(Attribute::PdPacket));
+        assert!(enabled.contains(Attribute::PdTrace));
+    }
+
+    #[test]
+    fn pd_timeline_filters_and_orders_both_sources() {
+        let protocol_log = VecDeque::from([DecodedPdEntry {
+            timestamp_seconds: 12.25,
+            category: PdCategory::Control,
+            summary: "wire".to_string(),
+            details: Vec::new(),
+        }]);
+        let trace_log = VecDeque::from([PdTraceEntry {
+            timestamp_seconds: 11.0,
+            category: PdTraceCategory::TypeCState,
+            summary: "trace".to_string(),
+        }]);
+
+        let combined = pd_timeline_entries(&protocol_log, &trace_log, true, true);
+        assert!(matches!(combined[0], PdTimelineEntry::FirmwareTrace(_)));
+        assert!(matches!(combined[1], PdTimelineEntry::Protocol(_)));
+
+        let protocol_only = pd_timeline_entries(&protocol_log, &trace_log, true, false);
+        assert_eq!(protocol_only.len(), 1);
+        assert!(matches!(protocol_only[0], PdTimelineEntry::Protocol(_)));
+    }
 }

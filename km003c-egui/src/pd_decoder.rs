@@ -26,6 +26,7 @@ pub enum PdCategory {
 /// A single decoded PD log entry for display.
 #[derive(Debug, Clone)]
 pub struct DecodedPdEntry {
+    pub timestamp_seconds: f64,
     pub category: PdCategory,
     pub summary: String,
     pub details: Vec<String>,
@@ -47,11 +48,13 @@ impl PdDecoder {
         let decoded = self.session.decode_event(event);
         vec![match decoded {
             DecodedPdEvent::Connect { timestamp } => DecodedPdEntry {
+                timestamp_seconds: timestamp.get::<millisecond>() / 1000.0,
                 category: PdCategory::Connect,
                 summary: format!("[{:.3}s] ** CONNECT **", timestamp.get::<millisecond>() / 1000.0),
                 details: vec![],
             },
             DecodedPdEvent::Disconnect { timestamp } => DecodedPdEntry {
+                timestamp_seconds: timestamp.get::<millisecond>() / 1000.0,
                 category: PdCategory::Disconnect,
                 summary: format!("[{:.3}s] ** DISCONNECT **", timestamp.get::<millisecond>() / 1000.0),
                 details: vec![],
@@ -65,6 +68,7 @@ impl PdDecoder {
     fn format_message(&self, decoded: &DecodedPdMessage) -> DecodedPdEntry {
         let message = &decoded.message;
         let message_type = message.header.message_type();
+        let timestamp_seconds = decoded.timestamp.get::<millisecond>() / 1000.0;
         let summary = format!(
             "[{:.3}s] SOP{}: {:?} (ID={}, ROLE={:?}/{:?})",
             decoded.timestamp.get::<millisecond>() / 1000.0,
@@ -77,36 +81,43 @@ impl PdDecoder {
 
         match &message.payload {
             Some(Payload::Data(Data::SourceCapabilities(capabilities))) => DecodedPdEntry {
+                timestamp_seconds,
                 category: PdCategory::SourceCaps,
                 summary,
                 details: format_capabilities(capabilities.pdos(), "SPR Source Capabilities"),
             },
             Some(Payload::Data(Data::Request(request))) => DecodedPdEntry {
+                timestamp_seconds,
                 category: PdCategory::Request,
                 summary,
                 details: format_request(request, self.session.source_capabilities()),
             },
             Some(Payload::Data(Data::EprMode(mode))) => DecodedPdEntry {
+                timestamp_seconds,
                 category: PdCategory::Extended,
                 summary,
                 details: vec![format!("EPR Mode: {mode:?}")],
             },
             Some(Payload::Data(Data::Unknown)) => DecodedPdEntry {
+                timestamp_seconds,
                 category: PdCategory::Control,
                 summary,
                 details: vec!["Unknown Data Message".to_string()],
             },
             Some(Payload::Data(data)) => DecodedPdEntry {
+                timestamp_seconds,
                 category: PdCategory::Control,
                 summary,
                 details: vec![format!("Data: {data:?}")],
             },
             Some(Payload::Extended(Extended::EprSourceCapabilities(pdos))) => DecodedPdEntry {
+                timestamp_seconds,
                 category: PdCategory::Extended,
                 summary,
                 details: format_capabilities(pdos.as_slice(), "EPR Source Capabilities"),
             },
             Some(Payload::Extended(Extended::ExtendedControl(control))) => DecodedPdEntry {
+                timestamp_seconds,
                 category: PdCategory::Extended,
                 summary,
                 details: vec![format!(
@@ -116,11 +127,13 @@ impl PdDecoder {
                 )],
             },
             Some(Payload::Extended(extended)) => DecodedPdEntry {
+                timestamp_seconds,
                 category: PdCategory::Extended,
                 summary,
                 details: vec![format!("Extended: {extended:?}")],
             },
             None => DecodedPdEntry {
+                timestamp_seconds,
                 category: PdCategory::Control,
                 summary,
                 details: vec![],
@@ -157,6 +170,7 @@ fn format_chunk_status(status: PdChunkStatus) -> DecodedPdEntry {
     };
 
     DecodedPdEntry {
+        timestamp_seconds: timestamp,
         category: PdCategory::Extended,
         summary,
         details: vec![],
@@ -164,7 +178,9 @@ fn format_chunk_status(status: PdChunkStatus) -> DecodedPdEntry {
 }
 
 fn format_failure(failure: PdDecodeFailure) -> DecodedPdEntry {
+    let timestamp_seconds = failure.timestamp.get::<millisecond>() / 1000.0;
     DecodedPdEntry {
+        timestamp_seconds,
         category: PdCategory::Error,
         summary: format!(
             "[{:.3}s] SOP{}: Parse error: {}",
