@@ -20,15 +20,40 @@ const SAMPLE_INTERVAL_OFFSET: usize = 0x08;
 const DEVICE_NAME_OFFSET: usize = 0x70;
 const DEVICE_NAME_END: usize = 0xb0;
 
-const LANGUAGE_SELECTION_MASK: u32 = 1;
-const UNCALIBRATED_MASK: u32 = 1 << 2;
-const BRIGHTNESS_SHIFT: u32 = 3;
-const BRIGHTNESS_MASK: u32 = 0x7f << BRIGHTNESS_SHIFT;
-const ORIENTATION_MASK: u32 = 0b11;
-const MTOOLS_DEVICE_MODE_SHIFT: u32 = 2;
-const MTOOLS_DEVICE_MODE_MASK: u32 = 0b11 << MTOOLS_DEVICE_MODE_SHIFT;
-const SELECTED_MAIN_PAGE_SHIFT: u32 = 6;
-const SELECTED_MAIN_PAGE_MASK: u32 = 0x0f << SELECTED_MAIN_PAGE_SHIFT;
+mod fields {
+    #![allow(
+        dead_code,
+        reason = "modular-bitfield generates constructors for these read-only views"
+    )]
+
+    use modular_bitfield::prelude::*;
+
+    #[bitfield(bytes = 4)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(super) struct SettingsAFields {
+        pub language_selection: B1,
+        #[skip]
+        __: B1,
+        pub uncalibrated: bool,
+        pub brightness_percent: B7,
+        #[skip]
+        __: B22,
+    }
+
+    #[bitfield(bytes = 4)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(super) struct SettingsBFields {
+        pub screen_orientation: B2,
+        pub mtools_device_mode: B2,
+        #[skip]
+        __: B2,
+        pub selected_main_page: B4,
+        #[skip]
+        __: B22,
+    }
+}
+
+use fields::{SettingsAFields, SettingsBFields};
 
 /// Lossless, read-only representation of a GetData(Settings) payload.
 ///
@@ -85,25 +110,33 @@ impl Settings {
         read_u32(&self.bytes, SETTINGS_B_OFFSET)
     }
 
+    fn settings_a_fields(&self) -> SettingsAFields {
+        SettingsAFields::from_bytes(self.settings_a_flags().to_le_bytes())
+    }
+
+    fn settings_b_fields(&self) -> SettingsBFields {
+        SettingsBFields::from_bytes(self.settings_b_flags().to_le_bytes())
+    }
+
     /// Firmware language-table selection, encoded as 0 or 1.
     ///
     /// The mapping from these indices to a particular language is not yet
     /// independently confirmed, so this accessor deliberately returns the
     /// stored index rather than guessing an enum variant.
     pub fn language_selection(&self) -> u8 {
-        (self.settings_a_flags() & LANGUAGE_SELECTION_MASK) as u8
+        self.settings_a_fields().language_selection()
     }
 
     /// Whether firmware marks the device as requiring calibration.
     pub fn is_uncalibrated(&self) -> bool {
-        self.settings_a_flags() & UNCALIBRATED_MASK != 0
+        self.settings_a_fields().uncalibrated()
     }
 
     /// Display brightness as applied by firmware, in percent.
     ///
     /// The stored field is seven bits wide; firmware clamps values above 100.
     pub fn brightness(&self) -> Ratio {
-        let percent_value = (((self.settings_a_flags() & BRIGHTNESS_MASK) >> BRIGHTNESS_SHIFT) as u8).min(100);
+        let percent_value = self.settings_a_fields().brightness_percent().min(100);
         Ratio::new::<percent>(f64::from(percent_value))
     }
 
@@ -114,17 +147,17 @@ impl Settings {
 
     /// Display orientation index stored by firmware, in the range 0..=3.
     pub fn screen_orientation(&self) -> u8 {
-        (self.settings_b_flags() & ORIENTATION_MASK) as u8
+        self.settings_b_fields().screen_orientation()
     }
 
     /// Mtools device-mode index stored by firmware, in the range 0..=3.
     pub fn mtools_device_mode(&self) -> u8 {
-        ((self.settings_b_flags() & MTOOLS_DEVICE_MODE_MASK) >> MTOOLS_DEVICE_MODE_SHIFT) as u8
+        self.settings_b_fields().mtools_device_mode()
     }
 
     /// Persisted main-page index, in the range 0..=15.
     pub fn selected_main_page(&self) -> u8 {
-        ((self.settings_b_flags() & SELECTED_MAIN_PAGE_MASK) >> SELECTED_MAIN_PAGE_SHIFT) as u8
+        self.settings_b_fields().selected_main_page()
     }
 
     /// Raw 64-byte device-name field, including trailing zero padding.
