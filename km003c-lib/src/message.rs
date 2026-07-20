@@ -322,14 +322,23 @@ impl Packet {
                     last.next = false;
                 }
 
-                // Calculate total payload size
+                // Calculate the serialized size of all extended headers and payloads.
                 let total_size: usize = logical_packets.iter().map(|lp| 4 + lp.payload.len()).sum();
+
+                // Recorded PutData responses encode a word count relative to the
+                // complete packet: packet_len / 4 - 3. The field is not the raw
+                // payload length despite its historical `obj_count_words` name.
+                let obj_count_words = if logical_packets.is_empty() {
+                    0
+                } else {
+                    ((4 + total_size) / 4).saturating_sub(3) as u16
+                };
 
                 let header = DataHeader::new()
                     .with_packet_type(PacketType::PutData.into())
-                    .with_reserved_flag(true)
+                    .with_reserved_flag(false)
                     .with_id(id)
-                    .with_obj_count_words((total_size / 4) as u16);
+                    .with_obj_count_words(obj_count_words);
 
                 RawPacket::Data {
                     header,

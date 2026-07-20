@@ -50,6 +50,18 @@ fn test_unsupported_semantic_payload_is_not_silently_dropped() {
 }
 
 #[test]
+fn semantic_adc_response_uses_recorded_header_encoding() {
+    let recorded = Bytes::from(REAL_ADC_RESPONSE.to_vec());
+    let packet = Packet::try_from(RawPacket::try_from(recorded.clone()).unwrap()).unwrap();
+
+    let serialized = Bytes::from(packet.to_raw_packet(0).unwrap());
+
+    assert_eq!(&serialized[..8], &recorded[..8]);
+    assert_eq!(serialized[0], 0x41, "PutData does not set the reserved bit");
+    assert_eq!(&serialized[2..4], &[0x80, 0x02], "recorded ADC obj_count is 10 words");
+}
+
+#[test]
 fn test_rawpacket_to_bytes_simple_data() {
     // Test direct conversion of SimpleData packet to bytes
     let payload = Bytes::from_static(&[0xAA, 0xBB, 0xCC, 0xDD]).to_vec();
