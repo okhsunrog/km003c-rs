@@ -9,9 +9,6 @@ use crate::packet::{
 use crate::pd::{PdEventStream, PdStatus, PdStatusRaw};
 use bytes::Bytes;
 use num_enum::FromPrimitive;
-use uom::si::electric_current::milliampere;
-use uom::si::electric_potential::millivolt;
-use uom::si::time::millisecond;
 use zerocopy::{FromBytes, IntoBytes};
 
 const PD_MONITOR_ENABLED_PARAMETER: u16 = 1;
@@ -277,21 +274,14 @@ impl Packet {
                             });
                         }
                         PayloadData::PdStatus(pd_status) => {
-                            // Reconstruct PdStatusRaw
-                            let mut raw_bytes = Vec::with_capacity(12);
-                            raw_bytes
-                                .extend_from_slice(&(pd_status.timestamp.get::<millisecond>() as u32).to_le_bytes());
-                            raw_bytes.extend_from_slice(&(pd_status.vbus.get::<millivolt>() as u16).to_le_bytes());
-                            raw_bytes.extend_from_slice(&(pd_status.ibus.get::<milliampere>() as i16).to_le_bytes());
-                            raw_bytes.extend_from_slice(&(pd_status.cc1.get::<millivolt>() as u16).to_le_bytes());
-                            raw_bytes.extend_from_slice(&(pd_status.cc2.get::<millivolt>() as u16).to_le_bytes());
+                            let raw = PdStatusRaw::from(pd_status);
 
                             logical_packets.push(LogicalPacket {
                                 attribute: Attribute::PdPacket,
                                 next: false, // Will be fixed below
                                 chunk: 0,
                                 size: PD_STATUS_SIZE as u16,
-                                payload: raw_bytes,
+                                payload: raw.as_bytes().to_vec(),
                             });
                         }
                         PayloadData::AdcQueue(_) => {

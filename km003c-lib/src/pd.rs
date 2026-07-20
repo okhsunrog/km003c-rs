@@ -15,11 +15,10 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "python")]
 use uom::si::{electric_current::ampere, electric_potential::volt};
 
-/// PD status block (12 bytes) - appears in ADC+PD packets.
+/// PD measurement block (12 bytes).
 ///
-/// This uses the same measurement layout as [`PdPreambleRaw`]. Recorded
-/// traffic shows that the first four bytes are a millisecond timestamp in
-/// both standalone PD responses and ADC+PD responses.
+/// The device uses this exact layout both as a standalone/chained PD status
+/// payload and as the preamble of a PD event stream.
 #[derive(Debug, Clone, Copy, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 pub struct PdStatusRaw {
@@ -49,6 +48,18 @@ impl From<PdStatusRaw> for PdStatus {
             ibus: ElectricCurrent::new::<milliampere>(f64::from(raw.ibus_ma.get())),
             cc1: ElectricPotential::new::<millivolt>(f64::from(raw.cc1_mv.get())),
             cc2: ElectricPotential::new::<millivolt>(f64::from(raw.cc2_mv.get())),
+        }
+    }
+}
+
+impl From<PdStatus> for PdStatusRaw {
+    fn from(status: PdStatus) -> Self {
+        Self {
+            timestamp_ms: U32::new(status.timestamp.get::<millisecond>() as u32),
+            vbus_mv: U16::new(status.vbus.get::<millivolt>() as u16),
+            ibus_ma: I16::new(status.ibus.get::<milliampere>() as i16),
+            cc1_mv: U16::new(status.cc1.get::<millivolt>() as u16),
+            cc2_mv: U16::new(status.cc2.get::<millivolt>() as u16),
         }
     }
 }
@@ -91,78 +102,6 @@ impl PdStatus {
     }
 }
 
-/// PD Preamble (12 bytes) - appears before event stream in PD-only responses
-#[derive(Debug, Clone, Copy, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
-#[repr(C)]
-pub struct PdPreambleRaw {
-    pub timestamp32: U32,
-    pub vbus_mv: U16,
-    pub ibus_ma: I16, // Signed!
-    pub cc1_mv: U16,
-    pub cc2_mv: U16,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "python", pyo3::pyclass(skip_from_py_object))]
-pub struct PdPreamble {
-    pub timestamp: Time,
-    pub vbus: ElectricPotential,
-    pub ibus: ElectricCurrent,
-    pub cc1: ElectricPotential,
-    pub cc2: ElectricPotential,
-}
-
-impl From<PdPreambleRaw> for PdPreamble {
-    fn from(raw: PdPreambleRaw) -> Self {
-        Self {
-            timestamp: Time::new::<millisecond>(f64::from(raw.timestamp32.get())),
-            vbus: ElectricPotential::new::<millivolt>(f64::from(raw.vbus_mv.get())),
-            ibus: ElectricCurrent::new::<milliampere>(f64::from(raw.ibus_ma.get())),
-            cc1: ElectricPotential::new::<millivolt>(f64::from(raw.cc1_mv.get())),
-            cc2: ElectricPotential::new::<millivolt>(f64::from(raw.cc2_mv.get())),
-        }
-    }
-}
-
-#[cfg(feature = "python")]
-#[pyo3::pymethods]
-impl PdPreamble {
-    #[getter]
-    fn timestamp(&self) -> f64 {
-        self.timestamp.get::<millisecond>()
-    }
-    #[getter]
-    fn vbus_v(&self) -> f64 {
-        self.vbus.get::<volt>()
-    }
-    #[getter]
-    fn ibus_a(&self) -> f64 {
-        self.ibus.get::<ampere>()
-    }
-    #[getter]
-    fn cc1_v(&self) -> f64 {
-        self.cc1.get::<volt>()
-    }
-    #[getter]
-    fn cc2_v(&self) -> f64 {
-        self.cc2.get::<volt>()
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "PdPreamble(timestamp={}ms, vbus={:.3}V, ibus={:.3}A)",
-            self.timestamp.get::<millisecond>(),
-            self.vbus.get::<volt>(),
-            self.ibus.get::<ampere>()
-        )
-    }
-
-    fn __str__(&self) -> String {
-        self.__repr__()
-    }
-}
-
 /// Event data types that can appear in PD stream
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "python", derive(pyo3::IntoPyObject))]
@@ -189,7 +128,8 @@ pub struct PdEvent {
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "python", pyo3::pyclass(skip_from_py_object, name = "PdEventStream"))]
 pub struct PdEventStream {
-    pub preamble: PdPreamble,
+    /// Measurements captured immediately before the event records.
+    pub preamble: PdStatus,
     pub events: Vec<PdEvent>,
 }
 
@@ -197,21 +137,21 @@ impl PdEventStream {
     /// Parse PD event stream from bytes
     /// Expected format: 12-byte preamble + repeated (6-byte header + wire data) events
     pub fn from_bytes(bytes: Bytes) -> Result<Self, KMError> {
-        if bytes.len() < PD_PREAMBLE_SIZE {
+        if bytes.len() < PD_STATUS_SIZE {
             return Err(KMError::InvalidPacket(format!(
                 "PD event stream too short for preamble: need {}, got {}",
-                PD_PREAMBLE_SIZE,
+                PD_STATUS_SIZE,
                 bytes.len()
             )));
         }
 
         // Parse preamble
-        let preamble_raw = PdPreambleRaw::ref_from_bytes(&bytes[..PD_PREAMBLE_SIZE])
+        let preamble_raw = PdStatusRaw::ref_from_bytes(&bytes[..PD_STATUS_SIZE])
             .map_err(|_| KMError::InvalidPacket("Failed to parse PD preamble".to_string()))?;
-        let preamble = PdPreamble::from(*preamble_raw);
+        let preamble = PdStatus::from(*preamble_raw);
 
         let mut events = Vec::new();
-        let mut offset = PD_PREAMBLE_SIZE;
+        let mut offset = PD_STATUS_SIZE;
 
         // Parse events
         while offset < bytes.len() {
@@ -350,7 +290,7 @@ impl PdEvent {
 #[pyo3::pymethods]
 impl PdEventStream {
     #[getter]
-    fn preamble(&self) -> PdPreamble {
+    fn preamble(&self) -> PdStatus {
         self.preamble
     }
 

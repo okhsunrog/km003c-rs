@@ -15,7 +15,7 @@ fn assert_milliseconds(timestamp: uom::si::f64::Time, expected: f64) {
 
 fn parse_pd_status(frame: &str) -> km003c_lib::PdStatus {
     let raw = RawPacket::try_from(Bytes::from(hex::decode(frame).unwrap())).unwrap();
-    Packet::try_from(raw).unwrap().get_pd_status().unwrap().clone()
+    *Packet::try_from(raw).unwrap().get_pd_status().unwrap()
 }
 
 #[test]
@@ -103,7 +103,7 @@ fn recognizes_current_recorded_connection_event() {
 
 #[test]
 fn rejects_incomplete_event_header() {
-    let mut payload = vec![0; km003c_lib::constants::PD_PREAMBLE_SIZE];
+    let mut payload = vec![0; km003c_lib::constants::PD_STATUS_SIZE];
     payload.push(0x87);
 
     let error = PdEventStream::from_bytes(Bytes::from(payload)).unwrap_err();
@@ -112,7 +112,7 @@ fn rejects_incomplete_event_header() {
 
 #[test]
 fn rejects_event_size_smaller_than_protocol_offset() {
-    let mut payload = vec![0; km003c_lib::constants::PD_PREAMBLE_SIZE];
+    let mut payload = vec![0; km003c_lib::constants::PD_STATUS_SIZE];
     payload.extend_from_slice(&[0x04, 0, 0, 0, 0, 0]);
 
     let error = PdEventStream::from_bytes(Bytes::from(payload)).unwrap_err();
