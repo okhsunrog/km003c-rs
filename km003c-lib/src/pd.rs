@@ -15,12 +15,15 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "python")]
 use uom::si::{electric_current::ampere, electric_potential::volt};
 
-/// PD Status block (12 bytes) - appears in ADC+PD packets
+/// PD status block (12 bytes) - appears in ADC+PD packets.
+///
+/// This uses the same measurement layout as [`PdPreambleRaw`]. Recorded
+/// traffic shows that the first four bytes are a millisecond timestamp in
+/// both standalone PD responses and ADC+PD responses.
 #[derive(Debug, Clone, Copy, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 pub struct PdStatusRaw {
-    pub type_id: u8,
-    pub timestamp24: [u8; 3], // 24-bit little-endian
+    pub timestamp_ms: U32,
     pub vbus_mv: U16,
     pub ibus_ma: I16, // Signed! Negative = power flowing from male to female port
     pub cc1_mv: U16,
@@ -31,9 +34,7 @@ pub struct PdStatusRaw {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "python", pyo3::pyclass(skip_from_py_object))]
 pub struct PdStatus {
-    pub type_id: u8,
-    /// Coarse protocol counter, approximately 40 ms per tick.
-    pub timestamp_ticks: u32,
+    pub timestamp: Time,
     pub vbus: ElectricPotential,
     pub ibus: ElectricCurrent,
     pub cc1: ElectricPotential,
@@ -42,12 +43,8 @@ pub struct PdStatus {
 
 impl From<PdStatusRaw> for PdStatus {
     fn from(raw: PdStatusRaw) -> Self {
-        // Convert 24-bit timestamp to 32-bit
-        let timestamp = u32::from_le_bytes([raw.timestamp24[0], raw.timestamp24[1], raw.timestamp24[2], 0]);
-
         Self {
-            type_id: raw.type_id,
-            timestamp_ticks: timestamp,
+            timestamp: Time::new::<millisecond>(f64::from(raw.timestamp_ms.get())),
             vbus: ElectricPotential::new::<millivolt>(f64::from(raw.vbus_mv.get())),
             ibus: ElectricCurrent::new::<milliampere>(f64::from(raw.ibus_ma.get())),
             cc1: ElectricPotential::new::<millivolt>(f64::from(raw.cc1_mv.get())),
@@ -60,12 +57,8 @@ impl From<PdStatusRaw> for PdStatus {
 #[pyo3::pymethods]
 impl PdStatus {
     #[getter]
-    fn type_id(&self) -> u8 {
-        self.type_id
-    }
-    #[getter]
-    fn timestamp(&self) -> u32 {
-        self.timestamp_ticks
+    fn timestamp(&self) -> f64 {
+        self.timestamp.get::<millisecond>()
     }
     #[getter]
     fn vbus_v(&self) -> f64 {
@@ -86,9 +79,8 @@ impl PdStatus {
 
     fn __repr__(&self) -> String {
         format!(
-            "PdStatus(type_id={}, timestamp={}, vbus={:.3}V, ibus={:.3}A)",
-            self.type_id,
-            self.timestamp_ticks,
+            "PdStatus(timestamp={}ms, vbus={:.3}V, ibus={:.3}A)",
+            self.timestamp.get::<millisecond>(),
             self.vbus.get::<volt>(),
             self.ibus.get::<ampere>()
         )

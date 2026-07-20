@@ -11,6 +11,7 @@ use bytes::Bytes;
 use num_enum::FromPrimitive;
 use uom::si::electric_current::milliampere;
 use uom::si::electric_potential::millivolt;
+use uom::si::time::millisecond;
 use zerocopy::{FromBytes, IntoBytes};
 
 const PD_MONITOR_ENABLED_PARAMETER: u16 = 1;
@@ -277,10 +278,9 @@ impl Packet {
                         }
                         PayloadData::PdStatus(pd_status) => {
                             // Reconstruct PdStatusRaw
-                            let timestamp_bytes = pd_status.timestamp_ticks.to_le_bytes();
                             let mut raw_bytes = Vec::with_capacity(12);
-                            raw_bytes.push(pd_status.type_id);
-                            raw_bytes.extend_from_slice(&timestamp_bytes[..3]); // 24-bit
+                            raw_bytes
+                                .extend_from_slice(&(pd_status.timestamp.get::<millisecond>() as u32).to_le_bytes());
                             raw_bytes.extend_from_slice(&(pd_status.vbus.get::<millivolt>() as u16).to_le_bytes());
                             raw_bytes.extend_from_slice(&(pd_status.ibus.get::<milliampere>() as i16).to_le_bytes());
                             raw_bytes.extend_from_slice(&(pd_status.cc1.get::<millivolt>() as u16).to_le_bytes());
