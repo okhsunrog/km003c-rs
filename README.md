@@ -67,9 +67,11 @@ Command-line tools:
 
 ### `km003c-egui`
 GUI application featuring:
-- Real-time voltage/current/power plots
+- Three independently configurable real-time plots for electrical and USB-line measurements
 - AdcQueue streaming with configurable sample rates
 - Adjustable time window (2s to 5min or all data)
+- Live recording and plot-buffer export to Parquet or CSV
+- Host-integrated charge and energy with explicit missing-sample quality data
 - Device info panel with auth status
 - Connect/disconnect control
 
@@ -137,6 +139,23 @@ cargo run --bin offline-log -- download --index 0 --format csv
 ```bash
 cargo run --bin km003c-egui
 ```
+
+The GUI records the complete AdcQueue sample set, independently of which three
+measurements are currently plotted. Parquet is the default format; CSV is
+available for compatibility. Each row contains device-relative time and
+sequence information, VBUS/current/power, CC1/CC2/D+/D- voltages, and cumulative
+charge and energy. Integer electrical columns use units in their names
+(`*_uv`, `*_ua`, and `*_uw`); `charge_uah` and `energy_uwh` are floating-point
+cumulative values.
+
+Charge and energy use trapezoidal integration over the KM003C sequence clock.
+If samples are missing, the interval is retained as a linear estimate rather
+than invalidating the rest of the recording. The affected row and cumulative
+quality are exposed through `missing_samples`, `gap_duration_us`,
+`interpolated`, `cumulative_missing_samples`, and
+`cumulative_interpolated_duration_us`. The GUI reports completeness as the
+fraction of elapsed time covered by received intervals rather than estimated
+gap intervals.
 
 ## Library Usage
 
