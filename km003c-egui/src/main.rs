@@ -442,6 +442,7 @@ impl eframe::App for PowerMonitorApp {
 
         // Left panel with device info and controls
         egui::Panel::left("info_panel").min_size(220.0).show(ui, |ui| {
+            egui::ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
             ui.heading("Device Info");
             ui.separator();
 
@@ -687,6 +688,7 @@ impl eframe::App for PowerMonitorApp {
                         .send(UsbCommand::Connect(self.selected_rate.to_graph_rate(), self.usb_reset));
                 }
             }
+            });
 
         });
 
