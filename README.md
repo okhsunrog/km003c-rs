@@ -145,8 +145,9 @@ measurements are currently plotted. Parquet is the default format; CSV is
 available for compatibility. Each row contains device-relative time and
 sequence information, VBUS/current/power, CC1/CC2/D+/D- voltages, and cumulative
 charge and energy. Integer electrical columns use units in their names
-(`*_uv`, `*_ua`, and `*_uw`); `charge_uah` and `energy_uwh` are floating-point
-cumulative values.
+(`*_uv`, `*_ua`, and `*_uw`). Signed net accumulation is stored in
+`charge_uah` and `energy_uwh`; positive transferred totals are stored in
+`charge_throughput_uah` and `energy_throughput_uwh`.
 
 Charge and energy use trapezoidal integration over the KM003C sequence clock.
 If samples are missing, the interval is retained as a linear estimate rather

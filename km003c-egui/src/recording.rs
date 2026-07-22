@@ -50,6 +50,8 @@ struct RecordingOrigin {
     elapsed_us: u64,
     charge_uah: f64,
     energy_uwh: f64,
+    charge_throughput_uah: f64,
+    energy_throughput_uwh: f64,
     cumulative_missing_samples: u64,
     cumulative_interpolated_duration_us: u64,
     cumulative_discarded_sequence_samples: u64,
@@ -62,6 +64,8 @@ impl From<Option<MeasurementSample>> for RecordingOrigin {
                 elapsed_us: 0,
                 charge_uah: 0.0,
                 energy_uwh: 0.0,
+                charge_throughput_uah: 0.0,
+                energy_throughput_uwh: 0.0,
                 cumulative_missing_samples: 0,
                 cumulative_interpolated_duration_us: 0,
                 cumulative_discarded_sequence_samples: 0,
@@ -70,6 +74,8 @@ impl From<Option<MeasurementSample>> for RecordingOrigin {
                 elapsed_us: sample.elapsed_us,
                 charge_uah: sample.charge_uah,
                 energy_uwh: sample.energy_uwh,
+                charge_throughput_uah: sample.charge_throughput_uah,
+                energy_throughput_uwh: sample.energy_throughput_uwh,
                 cumulative_missing_samples: sample.cumulative_missing_samples,
                 cumulative_interpolated_duration_us: sample.cumulative_interpolated_duration_us,
                 cumulative_discarded_sequence_samples: sample.cumulative_discarded_sequence_samples,
@@ -97,6 +103,8 @@ struct RecordingRow {
     power_uw: i64,
     charge_uah: f64,
     energy_uwh: f64,
+    charge_throughput_uah: f64,
+    energy_throughput_uwh: f64,
     cc1_uv: i64,
     cc2_uv: i64,
     dp_uv: i64,
@@ -129,6 +137,8 @@ impl RecordingRow {
             power_uw: sample.power_uw,
             charge_uah: sample.charge_uah - origin.charge_uah,
             energy_uwh: sample.energy_uwh - origin.energy_uwh,
+            charge_throughput_uah: sample.charge_throughput_uah - origin.charge_throughput_uah,
+            energy_throughput_uwh: sample.energy_throughput_uwh - origin.energy_throughput_uwh,
             cc1_uv: sample.cc1_uv,
             cc2_uv: sample.cc2_uv,
             dp_uv: sample.dp_uv,
@@ -453,6 +463,8 @@ fn rows_to_dataframe(rows: &[RecordingRow]) -> Result<DataFrame, polars::error::
         "power_uw" => rows.iter().map(|row| row.power_uw).collect::<Vec<_>>(),
         "charge_uah" => rows.iter().map(|row| row.charge_uah).collect::<Vec<_>>(),
         "energy_uwh" => rows.iter().map(|row| row.energy_uwh).collect::<Vec<_>>(),
+        "charge_throughput_uah" => rows.iter().map(|row| row.charge_throughput_uah).collect::<Vec<_>>(),
+        "energy_throughput_uwh" => rows.iter().map(|row| row.energy_throughput_uwh).collect::<Vec<_>>(),
         "cc1_uv" => rows.iter().map(|row| row.cc1_uv).collect::<Vec<_>>(),
         "cc2_uv" => rows.iter().map(|row| row.cc2_uv).collect::<Vec<_>>(),
         "dp_uv" => rows.iter().map(|row| row.dp_uv).collect::<Vec<_>>(),
@@ -506,6 +518,8 @@ mod tests {
             power_uw: -5_000_000,
             charge_uah: -100.0,
             energy_uwh: -500.0,
+            charge_throughput_uah: 100.0,
+            energy_throughput_uwh: 500.0,
             cc1_uv: 1_000_000,
             cc2_uv: 0,
             dp_uv: 600_000,
@@ -544,7 +558,7 @@ mod tests {
         let dataframe = rows_to_dataframe(&[row]).unwrap();
 
         assert_eq!(dataframe.height(), 1);
-        assert_eq!(dataframe.width(), 21);
+        assert_eq!(dataframe.width(), 23);
         assert_eq!(
             dataframe.column("vbus_uv").unwrap().i64().unwrap().get(0),
             Some(5_000_000)
@@ -558,7 +572,7 @@ mod tests {
         let dataframe = ParquetReader::new(File::open(&path).unwrap()).finish().unwrap();
 
         assert_eq!(summary.rows, 2);
-        assert_eq!(dataframe.shape(), (2, 21));
+        assert_eq!(dataframe.shape(), (2, 23));
         assert_eq!(
             dataframe.column("elapsed_us").unwrap().u64().unwrap().get(1),
             Some(20_000)
@@ -573,7 +587,7 @@ mod tests {
         let dataframe = CsvReader::new(File::open(&path).unwrap()).finish().unwrap();
 
         assert_eq!(summary.rows, 2);
-        assert_eq!(dataframe.shape(), (2, 21));
+        assert_eq!(dataframe.shape(), (2, 23));
         assert_eq!(
             dataframe.column("vbus_uv").unwrap().i64().unwrap().get(0),
             Some(5_000_000)
@@ -638,7 +652,7 @@ mod tests {
 
             let dataframe = ParquetReader::new(File::open(&path).unwrap()).finish().unwrap();
             assert_eq!(summary.rows, recorded);
-            assert_eq!(dataframe.shape(), (recorded as usize, 21));
+            assert_eq!(dataframe.shape(), (recorded as usize, 23));
             assert!(dataframe.column("vbus_uv").unwrap().i64().unwrap().min().unwrap() > 0);
             assert_eq!(
                 dataframe.column("sample_rate_hz").unwrap().u32().unwrap().min(),
@@ -657,12 +671,20 @@ mod tests {
             let power = dataframe.column("power_uw").unwrap().i64().unwrap();
             let mut expected_charge_uah = 0.0;
             let mut expected_energy_uwh = 0.0;
+            let mut expected_charge_throughput_uah = 0.0;
+            let mut expected_energy_throughput_uwh = 0.0;
             for index in 1..dataframe.height() {
                 let delta_us = (elapsed.get(index).unwrap() - elapsed.get(index - 1).unwrap()) as f64;
                 expected_charge_uah +=
                     (current.get(index - 1).unwrap() + current.get(index).unwrap()) as f64 * delta_us / 7_200_000_000.0;
                 expected_energy_uwh +=
                     (power.get(index - 1).unwrap() + power.get(index).unwrap()) as f64 * delta_us / 7_200_000_000.0;
+                expected_charge_throughput_uah +=
+                    (current.get(index - 1).unwrap().abs() + current.get(index).unwrap().abs()) as f64 * delta_us
+                        / 7_200_000_000.0;
+                expected_energy_throughput_uwh +=
+                    (power.get(index - 1).unwrap().abs() + power.get(index).unwrap().abs()) as f64 * delta_us
+                        / 7_200_000_000.0;
             }
             let last = dataframe.height() - 1;
             let charge_uah = dataframe
@@ -679,8 +701,24 @@ mod tests {
                 .unwrap()
                 .get(last)
                 .unwrap();
+            let charge_throughput_uah = dataframe
+                .column("charge_throughput_uah")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .get(last)
+                .unwrap();
+            let energy_throughput_uwh = dataframe
+                .column("energy_throughput_uwh")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .get(last)
+                .unwrap();
             assert!((charge_uah - expected_charge_uah).abs() < 1e-9);
             assert!((energy_uwh - expected_energy_uwh).abs() < 1e-9);
+            assert!((charge_throughput_uah - expected_charge_throughput_uah).abs() < 1e-9);
+            assert!((energy_throughput_uwh - expected_energy_throughput_uwh).abs() < 1e-9);
             println!(
                 "recorded={} missing={} discarded={} completeness={:.6}% charge={charge_uah:.6} uAh energy={energy_uwh:.6} uWh",
                 summary.rows,

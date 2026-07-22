@@ -27,6 +27,8 @@ pub(crate) struct MeasurementSample {
     pub(crate) power_uw: i64,
     pub(crate) charge_uah: f64,
     pub(crate) energy_uwh: f64,
+    pub(crate) charge_throughput_uah: f64,
+    pub(crate) energy_throughput_uwh: f64,
     pub(crate) cc1_uv: i64,
     pub(crate) cc2_uv: i64,
     pub(crate) dp_uv: i64,
@@ -49,6 +51,8 @@ pub(crate) struct MeasurementAccumulator {
     pending_discarded_sequence_samples: u32,
     charge_twice_ua_us: i128,
     energy_twice_uw_us: i128,
+    charge_throughput_twice_ua_us: i128,
+    energy_throughput_twice_uw_us: i128,
     previous: Option<PreviousSample>,
 }
 
@@ -86,6 +90,10 @@ impl MeasurementAccumulator {
         if let Some(previous) = self.previous {
             self.charge_twice_ua_us += (i128::from(previous.current_ua) + i128::from(ibus_ua)) * i128::from(delta_us);
             self.energy_twice_uw_us += (i128::from(previous.power_uw) + i128::from(power_uw)) * i128::from(delta_us);
+            self.charge_throughput_twice_ua_us +=
+                (i128::from(previous.current_ua).abs() + i128::from(ibus_ua).abs()) * i128::from(delta_us);
+            self.energy_throughput_twice_uw_us +=
+                (i128::from(previous.power_uw).abs() + i128::from(power_uw).abs()) * i128::from(delta_us);
         }
 
         self.elapsed_us += delta_us;
@@ -110,6 +118,8 @@ impl MeasurementAccumulator {
             power_uw,
             charge_uah: self.charge_twice_ua_us as f64 / (2.0 * MICROSECONDS_PER_HOUR),
             energy_uwh: self.energy_twice_uw_us as f64 / (2.0 * MICROSECONDS_PER_HOUR),
+            charge_throughput_uah: self.charge_throughput_twice_ua_us as f64 / (2.0 * MICROSECONDS_PER_HOUR),
+            energy_throughput_uwh: self.energy_throughput_twice_uw_us as f64 / (2.0 * MICROSECONDS_PER_HOUR),
             cc1_uv: sample.cc1.get::<microvolt>().round() as i64,
             cc2_uv: sample.cc2.get::<microvolt>().round() as i64,
             dp_uv: sample.vdp.get::<microvolt>().round() as i64,
@@ -147,7 +157,9 @@ pub(crate) enum PlotMetric {
     Power,
     SignedPower,
     Charge,
+    SignedCharge,
     Energy,
+    SignedEnergy,
     Cc1,
     Cc2,
     DPlus,
@@ -155,14 +167,16 @@ pub(crate) enum PlotMetric {
 }
 
 impl PlotMetric {
-    pub(crate) const ALL: [Self; 11] = [
+    pub(crate) const ALL: [Self; 13] = [
         Self::Voltage,
         Self::Current,
         Self::SignedCurrent,
         Self::Power,
         Self::SignedPower,
         Self::Charge,
+        Self::SignedCharge,
         Self::Energy,
+        Self::SignedEnergy,
         Self::Cc1,
         Self::Cc2,
         Self::DPlus,
@@ -176,8 +190,10 @@ impl PlotMetric {
             Self::SignedCurrent => "Current (signed)",
             Self::Power => "Power (absolute)",
             Self::SignedPower => "Power (signed)",
-            Self::Charge => "Charge",
-            Self::Energy => "Energy",
+            Self::Charge => "Charge transferred",
+            Self::SignedCharge => "Net charge (signed)",
+            Self::Energy => "Energy transferred",
+            Self::SignedEnergy => "Net energy (signed)",
             Self::Cc1 => "CC1 voltage",
             Self::Cc2 => "CC2 voltage",
             Self::DPlus => "D+ voltage",
@@ -190,8 +206,8 @@ impl PlotMetric {
             Self::Voltage | Self::Cc1 | Self::Cc2 | Self::DPlus | Self::DMinus => "V",
             Self::Current | Self::SignedCurrent => "A",
             Self::Power | Self::SignedPower => "W",
-            Self::Charge => "mAh",
-            Self::Energy => "mWh",
+            Self::Charge | Self::SignedCharge => "mAh",
+            Self::Energy | Self::SignedEnergy => "mWh",
         }
     }
 
@@ -202,8 +218,10 @@ impl PlotMetric {
             Self::SignedCurrent => sample.ibus_ua as f64 / 1_000_000.0,
             Self::Power => (sample.power_uw as f64 / 1_000_000.0).abs(),
             Self::SignedPower => sample.power_uw as f64 / 1_000_000.0,
-            Self::Charge => sample.charge_uah / 1_000.0,
-            Self::Energy => sample.energy_uwh / 1_000.0,
+            Self::Charge => sample.charge_throughput_uah / 1_000.0,
+            Self::SignedCharge => sample.charge_uah / 1_000.0,
+            Self::Energy => sample.energy_throughput_uwh / 1_000.0,
+            Self::SignedEnergy => sample.energy_uwh / 1_000.0,
             Self::Cc1 => sample.cc1_uv as f64 / 1_000_000.0,
             Self::Cc2 => sample.cc2_uv as f64 / 1_000_000.0,
             Self::DPlus => sample.dp_uv as f64 / 1_000_000.0,
@@ -216,8 +234,8 @@ impl PlotMetric {
             Self::Voltage => egui::Color32::GREEN,
             Self::Current | Self::SignedCurrent => egui::Color32::BLUE,
             Self::Power | Self::SignedPower => egui::Color32::from_rgb(255, 165, 0),
-            Self::Charge => egui::Color32::from_rgb(180, 120, 255),
-            Self::Energy => egui::Color32::from_rgb(255, 100, 180),
+            Self::Charge | Self::SignedCharge => egui::Color32::from_rgb(180, 120, 255),
+            Self::Energy | Self::SignedEnergy => egui::Color32::from_rgb(255, 100, 180),
             Self::Cc1 => egui::Color32::from_rgb(100, 200, 255),
             Self::Cc2 => egui::Color32::from_rgb(80, 220, 180),
             Self::DPlus => egui::Color32::from_rgb(255, 120, 120),
@@ -258,6 +276,8 @@ mod tests {
         assert_eq!(second.elapsed_us, 500_000);
         assert!((second.charge_uah - 277.777_777).abs() < 0.000_001);
         assert!((second.energy_uwh - 2_777.777_777).abs() < 0.000_001);
+        assert!((second.charge_throughput_uah - 277.777_777).abs() < 0.000_001);
+        assert!((second.energy_throughput_uwh - 2_777.777_777).abs() < 0.000_001);
         assert_eq!(second.missing_samples, 0);
     }
 
@@ -323,5 +343,19 @@ mod tests {
 
         assert_eq!(after_rollover.elapsed_us, 1_000);
         assert_eq!(after_rollover.cumulative_discarded_sequence_samples, 0);
+    }
+
+    #[test]
+    fn throughput_stays_positive_when_direction_changes() {
+        let mut accumulator = MeasurementAccumulator::default();
+        accumulator
+            .push(sample(0, 5.0, -1.0), GraphSampleRate::Sps1000)
+            .unwrap();
+        let zero_crossing = accumulator.push(sample(1, 5.0, 1.0), GraphSampleRate::Sps1000).unwrap();
+
+        assert_eq!(zero_crossing.charge_uah, 0.0);
+        assert_eq!(zero_crossing.energy_uwh, 0.0);
+        assert!((zero_crossing.charge_throughput_uah - 0.277_777).abs() < 0.000_001);
+        assert!((zero_crossing.energy_throughput_uwh - 1.388_888).abs() < 0.000_001);
     }
 }
