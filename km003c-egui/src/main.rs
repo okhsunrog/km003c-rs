@@ -1,20 +1,22 @@
+mod measurement;
 mod pd_connection;
 mod pd_decoder;
+mod pd_trace_view;
+mod recording;
 
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
-use km003c_lib::uom::si::electric_current::ampere;
 use km003c_lib::uom::si::electric_potential::volt;
-use km003c_lib::uom::si::power::watt;
-use km003c_lib::uom::si::time::second;
 use km003c_lib::{
-    AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C,
+    AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C, PdTrace,
     packet::{Attribute, AttributeSet},
     pd::{PdEvent, PdEventData, PdStatus},
-    sequence_elapsed,
 };
+use measurement::{MeasurementAccumulator, MeasurementSample, PlotMetric};
 use pd_connection::PdConnectionTracker;
 use pd_decoder::{DecodedPdEntry, PdCategory, PdDecoder};
+use pd_trace_view::{PdTraceCategory, PdTraceEntry, decode_trace};
+use recording::{Recorder, RecordingEvent, RecordingFormat, RecordingMetadata, RecordingSummary};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
@@ -34,6 +36,8 @@ enum UsbMessage {
     PdEvents(Vec<PdEvent>),
     /// PD status (CC line voltages)
     PdStatusUpdate(PdStatus),
+    /// Firmware Type-C and protocol-engine trace
+    PdTrace(PdTrace),
     /// Streaming started at given rate
     StreamingStarted(GraphSampleRate),
     /// Streaming stopped
@@ -51,8 +55,41 @@ enum UsbCommand {
     Connect(GraphSampleRate, bool),
     /// Change sample rate (stops current streaming, starts with new rate)
     SetSampleRate(GraphSampleRate),
+    /// Enable or disable firmware PD trace collection
+    SetPdTraceEnabled(bool),
     /// Stop streaming and disconnect
     Disconnect,
+}
+
+enum PdTimelineEntry<'a> {
+    Protocol(&'a DecodedPdEntry),
+    FirmwareTrace(&'a PdTraceEntry),
+}
+
+impl PdTimelineEntry<'_> {
+    fn timestamp_seconds(&self) -> f64 {
+        match self {
+            Self::Protocol(entry) => entry.timestamp_seconds,
+            Self::FirmwareTrace(entry) => entry.timestamp_seconds,
+        }
+    }
+}
+
+fn pd_timeline_entries<'a>(
+    protocol_log: &'a VecDeque<DecodedPdEntry>,
+    trace_log: &'a VecDeque<PdTraceEntry>,
+    show_protocol: bool,
+    show_trace: bool,
+) -> Vec<PdTimelineEntry<'a>> {
+    let mut timeline = Vec::with_capacity(protocol_log.len() + trace_log.len());
+    if show_protocol {
+        timeline.extend(protocol_log.iter().map(PdTimelineEntry::Protocol));
+    }
+    if show_trace {
+        timeline.extend(trace_log.iter().map(PdTimelineEntry::FirmwareTrace));
+    }
+    timeline.sort_by(|left, right| left.timestamp_seconds().total_cmp(&right.timestamp_seconds()));
+    timeline
 }
 
 /// Sample rate options for the UI
@@ -137,8 +174,10 @@ impl TimeWindow {
 }
 
 struct PowerMonitorApp {
-    /// Data points for plotting (timestamp, voltage, current, power)
-    data_points: VecDeque<(f64, f64, f64, f64)>,
+    /// Complete live samples retained for plotting
+    data_points: VecDeque<MeasurementSample>,
+    /// Unwraps device time and integrates charge and energy
+    measurement_accumulator: MeasurementAccumulator,
     /// Receiver for USB messages
     usb_receiver: mpsc::UnboundedReceiver<UsbMessage>,
     /// Sender for commands to USB task
@@ -159,18 +198,24 @@ struct PowerMonitorApp {
     max_points: usize,
     /// Total samples received
     total_samples: u64,
-    /// Last sequence number (for gap detection)
-    last_sequence: Option<u16>,
-    /// Plot timestamp assigned to the last received sample
-    last_sample_timestamp: Option<f64>,
     /// Dropped sample count
     dropped_samples: u64,
+    /// Duplicate, stale, or invalid-sequence samples excluded from measurements
+    discarded_sequence_samples: u64,
     /// Current readings for display
     current_voltage: f64,
     current_current: f64,
     current_power: f64,
-    /// Time offset for plotting (first sample time)
-    time_base: Option<std::time::Instant>,
+    /// Metric selected independently for each plot
+    plot_metrics: [PlotMetric; 3],
+    /// Preferred output format for live capture
+    recording_format: RecordingFormat,
+    /// Active or finalizing background recorder
+    recorder: Option<Recorder>,
+    /// Last recorder status shown to the user
+    recording_status: String,
+    /// Summary of the last completed recording
+    last_recording: Option<RecordingSummary>,
     /// PD protocol decoder
     pd_decoder: PdDecoder,
     /// Decoded PD log entries
@@ -185,6 +230,14 @@ struct PowerMonitorApp {
     pd_auto_scroll: bool,
     /// PD panel visible
     pd_panel_visible: bool,
+    /// Show decoded wire-protocol events in the shared timeline
+    pd_protocol_visible: bool,
+    /// Whether the USB task should drain the firmware PD trace queues
+    pd_trace_enabled: bool,
+    /// Firmware PD trace entries
+    pd_trace_log: VecDeque<PdTraceEntry>,
+    /// Max firmware PD trace entries
+    max_pd_trace_entries: usize,
     /// Whether to perform USB reset on connect
     usb_reset: bool,
 }
@@ -193,6 +246,7 @@ impl PowerMonitorApp {
     fn new(usb_receiver: mpsc::UnboundedReceiver<UsbMessage>, cmd_sender: mpsc::UnboundedSender<UsbCommand>) -> Self {
         Self {
             data_points: VecDeque::new(),
+            measurement_accumulator: MeasurementAccumulator::default(),
             usb_receiver,
             cmd_sender,
             device_state: None,
@@ -203,13 +257,16 @@ impl PowerMonitorApp {
             time_window: TimeWindow::Sec30,
             max_points: 100000, // Safety cap for memory
             total_samples: 0,
-            last_sequence: None,
-            last_sample_timestamp: None,
             dropped_samples: 0,
+            discarded_sequence_samples: 0,
             current_voltage: 0.0,
             current_current: 0.0,
             current_power: 0.0,
-            time_base: None,
+            plot_metrics: [PlotMetric::Voltage, PlotMetric::Current, PlotMetric::Power],
+            recording_format: RecordingFormat::Parquet,
+            recorder: None,
+            recording_status: "Not recording".to_string(),
+            last_recording: None,
             pd_decoder: PdDecoder::new(),
             pd_log: VecDeque::new(),
             max_pd_entries: 1000,
@@ -217,6 +274,10 @@ impl PowerMonitorApp {
             pd_connection: PdConnectionTracker::default(),
             pd_auto_scroll: true,
             pd_panel_visible: true,
+            pd_protocol_visible: true,
+            pd_trace_enabled: false,
+            pd_trace_log: VecDeque::new(),
+            max_pd_trace_entries: 2000,
             usb_reset: !cfg!(target_os = "macos"),
         }
     }
@@ -228,50 +289,30 @@ impl PowerMonitorApp {
                     self.status = format!("Connected: {}", state.model());
                     self.device_state = Some(state);
                     self.pd_connection = PdConnectionTracker::default();
+                    if self.pd_trace_enabled {
+                        let _ = self.cmd_sender.send(UsbCommand::SetPdTraceEnabled(true));
+                    }
                 }
                 UsbMessage::ConnectionFailed(err) => {
                     self.status = format!("Connection failed: {}", err);
                 }
                 UsbMessage::Samples(samples) => {
-                    let Some((first_sample, last_sample)) = samples.first().zip(samples.last()) else {
-                        continue;
-                    };
-                    let batch_duration = sequence_elapsed(first_sample.sequence, last_sample.sequence);
-                    let now = std::time::Instant::now();
-                    if self.time_base.is_none() {
-                        let batch_duration_std = Duration::from_secs_f64(batch_duration.get::<second>());
-                        self.time_base = Some(now.checked_sub(batch_duration_std).unwrap_or(now));
-                    }
-                    let time_base = self.time_base.unwrap();
-                    let arrival_timestamp = time_base.elapsed().as_secs_f64();
-                    let first_timestamp = arrival_timestamp - batch_duration.get::<second>();
-
                     let rate = self.current_rate.to_graph_rate();
-                    for sample in &samples {
-                        let timestamp = match (self.last_sequence, self.last_sample_timestamp) {
-                            (Some(last_sequence), Some(last_timestamp)) => {
-                                last_timestamp + sequence_elapsed(last_sequence, sample.sequence).get::<second>()
-                            }
-                            _ => first_timestamp,
-                        };
+                    let measurements = samples
+                        .into_iter()
+                        .filter_map(|sample| self.measurement_accumulator.push(sample, rate))
+                        .collect::<Vec<_>>();
+                    self.discarded_sequence_samples =
+                        self.measurement_accumulator.cumulative_discarded_sequence_samples();
 
-                        if let Some(last_seq) = self.last_sequence {
-                            self.dropped_samples += rate.missing_samples(last_seq, sample.sequence) as u64;
-                        }
-                        self.last_sequence = Some(sample.sequence);
-                        self.last_sample_timestamp = Some(timestamp);
-
-                        self.data_points.push_back((
-                            timestamp,
-                            sample.vbus.get::<volt>(),
-                            sample.ibus.abs().get::<ampere>(),
-                            sample.power.abs().get::<watt>(),
-                        ));
+                    for measurement in &measurements {
+                        self.data_points.push_back(*measurement);
+                        self.dropped_samples = measurement.cumulative_missing_samples;
 
                         // Update current readings
-                        self.current_voltage = sample.vbus.get::<volt>();
-                        self.current_current = sample.ibus.get::<ampere>();
-                        self.current_power = sample.power.get::<watt>();
+                        self.current_voltage = measurement.vbus_uv as f64 / 1_000_000.0;
+                        self.current_current = measurement.ibus_ua as f64 / 1_000_000.0;
+                        self.current_power = measurement.power_uw as f64 / 1_000_000.0;
 
                         self.total_samples += 1;
 
@@ -280,14 +321,22 @@ impl PowerMonitorApp {
                             self.data_points.pop_front();
                         }
                     }
+
+                    if let Some(recorder) = &mut self.recorder
+                        && let Err(error) = recorder.push(&measurements)
+                    {
+                        self.recording_status = error;
+                        let _ = recorder.request_finish();
+                    }
                 }
                 UsbMessage::StreamingStarted(rate) => {
                     self.streaming = true;
                     self.current_rate = SampleRateOption::from_graph_rate(rate);
                     self.selected_rate = self.current_rate;
                     self.status = format!("Streaming at {}", self.current_rate.label());
-                    // Reset sequence tracking because the expected step changed.
-                    self.last_sequence = None;
+                    // A rate change starts a new continuity segment without
+                    // inventing an interval across StopGraph/StartGraph.
+                    self.measurement_accumulator.reset_continuity();
                 }
                 UsbMessage::PdEvents(events) => {
                     for event in &events {
@@ -314,6 +363,14 @@ impl PowerMonitorApp {
                     self.pd_connection.observe_status(&status, std::time::Instant::now());
                     self.pd_status = Some(status);
                 }
+                UsbMessage::PdTrace(trace) => {
+                    for entry in decode_trace(&trace) {
+                        self.pd_trace_log.push_back(entry);
+                        while self.pd_trace_log.len() > self.max_pd_trace_entries {
+                            self.pd_trace_log.pop_front();
+                        }
+                    }
+                }
                 UsbMessage::StreamingStopped => {
                     self.streaming = false;
                     self.status = "Stopped".to_string();
@@ -327,26 +384,146 @@ impl PowerMonitorApp {
                     self.device_state = None;
                     self.pd_status = None;
                     self.pd_connection = PdConnectionTracker::default();
+                    self.stop_recording();
                 }
             }
         }
 
         self.pd_connection.update(std::time::Instant::now());
+        self.poll_recording();
     }
 
     fn clear_data(&mut self) {
         self.data_points.clear();
         self.total_samples = 0;
         self.dropped_samples = 0;
-        self.last_sequence = None;
-        self.last_sample_timestamp = None;
-        self.time_base = None;
+        self.discarded_sequence_samples = 0;
+        self.measurement_accumulator.reset();
         info!("Data cleared");
     }
 
     fn clear_pd_log(&mut self) {
         self.pd_log.clear();
-        info!("PD log cleared");
+        self.pd_trace_log.clear();
+        info!("PD timeline cleared");
+    }
+
+    fn start_recording(&mut self) {
+        let Some(state) = &self.device_state else {
+            self.recording_status = "Connect the KM003C before starting a recording".to_string();
+            return;
+        };
+        if self.recorder.is_some() {
+            return;
+        }
+
+        let metadata = RecordingMetadata {
+            model: state.info.model.clone(),
+            firmware: state.info.fw_version.clone(),
+            serial: state.info.serial_id.clone(),
+        };
+        let Some(path) = self.select_recording_path("km003c-live", "Save KM003C live recording") else {
+            return;
+        };
+        match Recorder::start(
+            path.clone(),
+            self.recording_format,
+            metadata,
+            self.data_points.back().copied(),
+        ) {
+            Ok(recorder) => {
+                self.recording_status = format!("Recording to {}", path.display());
+                self.last_recording = None;
+                self.recorder = Some(recorder);
+            }
+            Err(error) => self.recording_status = error,
+        }
+    }
+
+    fn export_buffer(&mut self) {
+        let Some(state) = &self.device_state else {
+            self.recording_status = "Connect the KM003C before exporting data".to_string();
+            return;
+        };
+        let Some(first) = self.data_points.front().copied() else {
+            self.recording_status = "The plot buffer is empty".to_string();
+            return;
+        };
+        let metadata = RecordingMetadata {
+            model: state.info.model.clone(),
+            firmware: state.info.fw_version.clone(),
+            serial: state.info.serial_id.clone(),
+        };
+        let Some(path) = self.select_recording_path("km003c-buffer", "Export KM003C plot buffer") else {
+            return;
+        };
+
+        match Recorder::start(path.clone(), self.recording_format, metadata, Some(first)) {
+            Ok(mut recorder) => {
+                let samples = self.data_points.iter().copied().collect::<Vec<_>>();
+                match recorder.push(&samples).and_then(|()| recorder.request_finish()) {
+                    Ok(()) => {
+                        self.recording_status = format!("Exporting {}", path.display());
+                        self.last_recording = None;
+                        self.recorder = Some(recorder);
+                    }
+                    Err(error) => self.recording_status = error,
+                }
+            }
+            Err(error) => self.recording_status = error,
+        }
+    }
+
+    fn select_recording_path(&self, prefix: &str, title: &str) -> Option<std::path::PathBuf> {
+        let unix_seconds = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |duration| duration.as_secs());
+        let filename = format!("{prefix}-{unix_seconds}.{}", self.recording_format.extension());
+        let mut path = rfd::FileDialog::new()
+            .set_title(title)
+            .add_filter(self.recording_format.label(), &[self.recording_format.extension()])
+            .set_file_name(filename)
+            .save_file()?;
+        path.set_extension(self.recording_format.extension());
+        Some(path)
+    }
+
+    fn stop_recording(&mut self) {
+        let Some(recorder) = &mut self.recorder else {
+            return;
+        };
+        if let Err(error) = recorder.request_finish() {
+            self.recording_status = error;
+        } else {
+            self.recording_status = format!("Finalizing {}", recorder.path.display());
+        }
+    }
+
+    fn poll_recording(&mut self) {
+        let event = self.recorder.as_mut().and_then(Recorder::poll_event);
+        match event {
+            Some(RecordingEvent::Finished(summary)) => {
+                self.recording_status = format!(
+                    "Saved {} samples to {} ({:.6}% complete)",
+                    summary.rows,
+                    summary.path.display(),
+                    summary.completeness_percent()
+                );
+                self.last_recording = Some(summary);
+                self.recorder = None;
+            }
+            Some(RecordingEvent::Interrupted(summary, reason)) => {
+                self.recording_status =
+                    format!("{reason}; saved {} samples to {}", summary.rows, summary.path.display());
+                self.last_recording = Some(summary);
+                self.recorder = None;
+            }
+            Some(RecordingEvent::Failed(error)) => {
+                self.recording_status = error;
+                self.recorder = None;
+            }
+            None => {}
+        }
     }
 }
 
@@ -381,6 +558,7 @@ impl eframe::App for PowerMonitorApp {
 
         // Left panel with device info and controls
         egui::Panel::left("info_panel").min_size(220.0).show(ui, |ui| {
+            egui::ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
             ui.heading("Device Info");
             ui.separator();
 
@@ -503,6 +681,38 @@ impl eframe::App for PowerMonitorApp {
 
             ui.add_space(20.0);
             ui.separator();
+            ui.heading("PD Timeline");
+            ui.separator();
+
+            ui.checkbox(&mut self.pd_panel_visible, "Show PD Panel");
+            ui.label("Filters:");
+            ui.checkbox(&mut self.pd_protocol_visible, "Protocol messages");
+            let trace_changed = ui
+                .checkbox(&mut self.pd_trace_enabled, "Firmware trace")
+                .on_hover_text(
+                    "Also drains the diagnostic Type-C and protocol-engine queues reverse engineered from KM003C firmware V1.9.9",
+                )
+                .changed();
+            if trace_changed && self.device_state.is_some() {
+                let _ = self
+                    .cmd_sender
+                    .send(UsbCommand::SetPdTraceEnabled(self.pd_trace_enabled));
+            }
+
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut self.pd_auto_scroll, "Auto-scroll");
+                if ui.button("Clear Timeline").clicked() {
+                    self.clear_pd_log();
+                }
+            });
+            ui.label(format!(
+                "Protocol: {}  |  Trace: {}",
+                self.pd_log.len(),
+                self.pd_trace_log.len()
+            ));
+
+            ui.add_space(20.0);
+            ui.separator();
             ui.heading("Statistics");
             ui.separator();
 
@@ -525,6 +735,17 @@ impl eframe::App for PowerMonitorApp {
                     );
                     ui.end_row();
 
+                    ui.label("Discarded:");
+                    ui.colored_label(
+                        if self.discarded_sequence_samples > 0 {
+                            egui::Color32::YELLOW
+                        } else {
+                            egui::Color32::GREEN
+                        },
+                        format!("{}", self.discarded_sequence_samples),
+                    );
+                    ui.end_row();
+
                     ui.label("Buffer:");
                     ui.label(format!("{} pts", self.data_points.len()));
                     ui.end_row();
@@ -536,24 +757,25 @@ impl eframe::App for PowerMonitorApp {
             ui.separator();
 
             // Sample rate selector
-            ui.horizontal(|ui| {
-                ui.label("Sample Rate:");
-                let prev_rate = self.selected_rate;
-                egui::ComboBox::from_id_salt("sample_rate")
-                    .selected_text(self.selected_rate.label())
-                    .show_ui(ui, |ui| {
-                        for rate in SampleRateOption::all() {
-                            ui.selectable_value(&mut self.selected_rate, *rate, rate.label());
-                        }
-                    });
+            ui.add_enabled_ui(self.recorder.is_none(), |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Sample Rate:");
+                    let prev_rate = self.selected_rate;
+                    egui::ComboBox::from_id_salt("sample_rate")
+                        .selected_text(self.selected_rate.label())
+                        .show_ui(ui, |ui| {
+                            for rate in SampleRateOption::all() {
+                                ui.selectable_value(&mut self.selected_rate, *rate, rate.label());
+                            }
+                        });
 
-                // If rate changed, send command to USB task
-                if self.selected_rate != prev_rate && self.device_state.is_some() {
-                    info!("Sample rate changed to {}", self.selected_rate.label());
-                    let _ = self
-                        .cmd_sender
-                        .send(UsbCommand::SetSampleRate(self.selected_rate.to_graph_rate()));
-                }
+                    if self.selected_rate != prev_rate && self.device_state.is_some() {
+                        info!("Sample rate changed to {}", self.selected_rate.label());
+                        let _ = self
+                            .cmd_sender
+                            .send(UsbCommand::SetSampleRate(self.selected_rate.to_graph_rate()));
+                    }
+                });
             });
 
             ui.add_space(5.0);
@@ -571,12 +793,93 @@ impl eframe::App for PowerMonitorApp {
             });
 
             ui.add_space(10.0);
+            ui.label("Plot metrics:");
+            for (index, metric) in self.plot_metrics.iter_mut().enumerate() {
+                ui.horizontal(|ui| {
+                    ui.label(format!("{}:", index + 1));
+                    egui::ComboBox::from_id_salt(("plot_metric", index))
+                        .selected_text(metric.label())
+                        .show_ui(ui, |ui| {
+                            for option in PlotMetric::ALL {
+                                ui.selectable_value(metric, option, option.label());
+                            }
+                        });
+                });
+            }
+
+            ui.add_space(10.0);
 
             ui.horizontal(|ui| {
-                if ui.button("Clear Data").clicked() {
+                if ui
+                    .add_enabled(self.recorder.is_none(), egui::Button::new("Clear Data"))
+                    .clicked()
+                {
                     self.clear_data();
                 }
             });
+
+            ui.add_space(20.0);
+            ui.separator();
+            ui.heading("Live Capture");
+            ui.separator();
+
+            ui.add_enabled_ui(self.recorder.is_none(), |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Format:");
+                    egui::ComboBox::from_id_salt("recording_format")
+                        .selected_text(self.recording_format.label())
+                        .show_ui(ui, |ui| {
+                            for format in RecordingFormat::ALL {
+                                ui.selectable_value(&mut self.recording_format, format, format.label());
+                            }
+                        });
+                });
+            });
+
+            match &self.recorder {
+                Some(recorder) if recorder.is_finishing() => {
+                    ui.add_enabled(false, egui::Button::new("Finalizing..."));
+                }
+                Some(_) => {
+                    if ui.button("Stop Recording").clicked() {
+                        self.stop_recording();
+                    }
+                }
+                None => {
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_enabled(self.streaming, egui::Button::new("Start Recording"))
+                            .clicked()
+                        {
+                            self.start_recording();
+                        }
+                        if ui
+                            .add_enabled(!self.data_points.is_empty(), egui::Button::new("Export Buffer"))
+                            .clicked()
+                        {
+                            self.export_buffer();
+                        }
+                    });
+                }
+            }
+
+            if let Some(recorder) = &self.recorder {
+                ui.label(format!("Samples: {}", recorder.rows));
+                ui.label(format!("Missing: {}", recorder.missing_samples));
+                ui.label(format!("Discarded: {}", recorder.discarded_sequence_samples));
+                let completeness = if recorder.elapsed_us == 0 {
+                    100.0
+                } else {
+                    (1.0 - recorder.interpolated_duration_us as f64 / recorder.elapsed_us as f64).max(0.0)
+                        * 100.0
+                };
+                ui.label(format!("Completeness: {completeness:.6}%"));
+            } else if let Some(summary) = &self.last_recording {
+                ui.label(format!("Last capture: {} samples", summary.rows));
+                ui.label(format!("Discarded: {}", summary.discarded_sequence_samples));
+                ui.label(format!("Completeness: {:.6}%", summary.completeness_percent()));
+            }
+            ui.small(&self.recording_status);
 
             ui.add_space(5.0);
 
@@ -594,66 +897,81 @@ impl eframe::App for PowerMonitorApp {
                         .send(UsbCommand::Connect(self.selected_rate.to_graph_rate(), self.usb_reset));
                 }
             }
-
-            ui.add_space(20.0);
-            ui.separator();
-            ui.heading("PD Log");
-            ui.separator();
-
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut self.pd_panel_visible, "Show PD Panel");
             });
 
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut self.pd_auto_scroll, "Auto-scroll");
-                if ui.button("Clear PD Log").clicked() {
-                    self.clear_pd_log();
-                }
-            });
-
-            ui.label(format!("PD entries: {}", self.pd_log.len()));
         });
 
-        // Bottom panel with PD log
+        // Bottom panel with the combined PD timeline
         if self.pd_panel_visible {
             egui::Panel::bottom("pd_panel")
                 .resizable(true)
                 .min_size(100.0)
                 .default_size(200.0)
                 .show(ui, |ui| {
-                    ui.heading("USB PD Protocol Log");
+                    ui.heading("USB PD Timeline");
+                    if self.pd_trace_enabled {
+                        ui.small(
+                            "[FW] timestamps have one-second resolution; same-second ordering relative to [WIRE] events is approximate.",
+                        );
+                    }
                     ui.separator();
 
                     let text_style = egui::TextStyle::Monospace;
                     let row_height = ui.text_style_height(&text_style);
+                    let timeline = pd_timeline_entries(
+                        &self.pd_log,
+                        &self.pd_trace_log,
+                        self.pd_protocol_visible,
+                        self.pd_trace_enabled,
+                    );
 
                     egui::ScrollArea::vertical()
                         .auto_shrink([false; 2])
                         .stick_to_bottom(self.pd_auto_scroll)
                         .show(ui, |ui| {
-                            for entry in &self.pd_log {
-                                let color = match entry.category {
-                                    PdCategory::Connect => egui::Color32::GREEN,
-                                    PdCategory::Disconnect => egui::Color32::RED,
-                                    PdCategory::SourceCaps => egui::Color32::from_rgb(100, 149, 237), // Cornflower blue
-                                    PdCategory::Request => egui::Color32::YELLOW,
-                                    PdCategory::Control => egui::Color32::GRAY,
-                                    PdCategory::Extended => egui::Color32::from_rgb(255, 165, 0), // Orange
-                                    PdCategory::Error => egui::Color32::from_rgb(255, 80, 80),    // Light red
-                                };
+                            for timeline_entry in timeline {
+                                match timeline_entry {
+                                    PdTimelineEntry::Protocol(entry) => {
+                                        let color = match entry.category {
+                                            PdCategory::Connect => egui::Color32::GREEN,
+                                            PdCategory::Disconnect => egui::Color32::RED,
+                                            PdCategory::SourceCaps => egui::Color32::from_rgb(100, 149, 237),
+                                            PdCategory::Request => egui::Color32::YELLOW,
+                                            PdCategory::Control => egui::Color32::GRAY,
+                                            PdCategory::Extended => egui::Color32::from_rgb(255, 165, 0),
+                                            PdCategory::Error => egui::Color32::from_rgb(255, 80, 80),
+                                        };
 
-                                ui.colored_label(
-                                    color,
-                                    egui::RichText::new(&entry.summary).monospace().size(row_height),
-                                );
-
-                                for detail in &entry.details {
-                                    ui.colored_label(
-                                        color.gamma_multiply(0.8),
-                                        egui::RichText::new(format!("  {}", detail))
-                                            .monospace()
-                                            .size(row_height),
-                                    );
+                                        ui.colored_label(
+                                            color,
+                                            egui::RichText::new(format!("[WIRE] {}", entry.summary))
+                                                .monospace()
+                                                .size(row_height),
+                                        );
+                                        for detail in &entry.details {
+                                            ui.colored_label(
+                                                color.gamma_multiply(0.8),
+                                                egui::RichText::new(format!("       {detail}"))
+                                                    .monospace()
+                                                    .size(row_height),
+                                            );
+                                        }
+                                    }
+                                    PdTimelineEntry::FirmwareTrace(entry) => {
+                                        let color = match entry.category {
+                                            PdTraceCategory::TypeCState => {
+                                                egui::Color32::from_rgb(100, 200, 255)
+                                            }
+                                            PdTraceCategory::ProtocolEvent => egui::Color32::LIGHT_GREEN,
+                                            PdTraceCategory::Unknown => egui::Color32::YELLOW,
+                                        };
+                                        ui.colored_label(
+                                            color,
+                                            egui::RichText::new(format!("[FW]   {}", entry.summary))
+                                                .monospace()
+                                                .size(row_height),
+                                        );
+                                    }
                                 }
                             }
                         });
@@ -665,93 +983,31 @@ impl eframe::App for PowerMonitorApp {
             let available_height = ui.available_height();
             let plot_height = (available_height - 30.0) / 3.0;
 
-            // Calculate time cutoff for filtering
-            // When streaming, use real elapsed time; when stopped, use last data point time
-            let current_time = if self.streaming {
-                self.time_base.map(|tb| tb.elapsed().as_secs_f64()).unwrap_or(0.0)
-            } else {
-                // Use the last data point's timestamp when not streaming
-                self.data_points.back().map(|(t, _, _, _)| *t).unwrap_or(0.0)
-            };
+            let current_time = self.data_points.back().map_or(0.0, |sample| sample.elapsed_seconds());
             let min_time = self
                 .time_window
                 .seconds()
                 .map(|window| (current_time - window).max(0.0));
 
-            // Filter function for time window
-            let in_window = |t: &f64| -> bool {
-                match min_time {
-                    Some(min) => *t >= min,
-                    None => true, // "All" - show everything
-                }
-            };
-
-            // Voltage plot
-            ui.label("Voltage (V)");
-            Plot::new("voltage_plot")
-                .height(plot_height)
-                .show_axes([true, true])
-                .show_grid(true)
-                .allow_boxed_zoom(true)
-                .allow_drag(true)
-                .allow_scroll(true)
-                .show(ui, |plot_ui| {
-                    if !self.data_points.is_empty() {
+            for (index, metric) in self.plot_metrics.into_iter().enumerate() {
+                ui.label(format!("{} ({})", metric.label(), metric.unit()));
+                Plot::new(("measurement_plot", index))
+                    .height(plot_height)
+                    .show_axes([true, true])
+                    .show_grid(true)
+                    .allow_boxed_zoom(true)
+                    .allow_drag(true)
+                    .allow_scroll(true)
+                    .show(ui, |plot_ui| {
                         let points: PlotPoints = self
                             .data_points
                             .iter()
-                            .filter(|(t, _, _, _)| in_window(t))
-                            .map(|(t, v, _, _)| [*t, *v])
+                            .filter(|sample| min_time.is_none_or(|min| sample.elapsed_seconds() >= min))
+                            .map(|sample| [sample.elapsed_seconds(), metric.value(sample)])
                             .collect();
-                        plot_ui.line(Line::new("Voltage", points).color(egui::Color32::GREEN).width(1.5_f32));
-                    }
-                });
-
-            // Current plot
-            ui.label("Current (A)");
-            Plot::new("current_plot")
-                .height(plot_height)
-                .show_axes([true, true])
-                .show_grid(true)
-                .allow_boxed_zoom(true)
-                .allow_drag(true)
-                .allow_scroll(true)
-                .show(ui, |plot_ui| {
-                    if !self.data_points.is_empty() {
-                        let points: PlotPoints = self
-                            .data_points
-                            .iter()
-                            .filter(|(t, _, _, _)| in_window(t))
-                            .map(|(t, _, i, _)| [*t, *i])
-                            .collect();
-                        plot_ui.line(Line::new("Current", points).color(egui::Color32::BLUE).width(1.5_f32));
-                    }
-                });
-
-            // Power plot
-            ui.label("Power (W)");
-            Plot::new("power_plot")
-                .height(plot_height)
-                .show_axes([true, true])
-                .show_grid(true)
-                .allow_boxed_zoom(true)
-                .allow_drag(true)
-                .allow_scroll(true)
-                .show(ui, |plot_ui| {
-                    if !self.data_points.is_empty() {
-                        let points: PlotPoints = self
-                            .data_points
-                            .iter()
-                            .filter(|(t, _, _, _)| in_window(t))
-                            .map(|(t, _, _, p)| [*t, *p])
-                            .collect();
-                        plot_ui.line(
-                            Line::new("Power", points)
-                                .color(egui::Color32::from_rgb(255, 165, 0)) // Orange
-                                .width(1.5_f32),
-                        );
-                    }
-                });
+                        plot_ui.line(Line::new(metric.label(), points).color(metric.color()).width(1.5_f32));
+                    });
+            }
         });
     }
 }
@@ -775,7 +1031,7 @@ async fn usb_streaming_task(tx: mpsc::UnboundedSender<UsbMessage>, mut cmd_rx: m
                 info!("Connect command received, rate={:?}, reset={}", initial_rate, usb_reset);
                 run_streaming_session(&tx, &mut cmd_rx, initial_rate, usb_reset).await;
             }
-            UsbCommand::SetSampleRate(_) | UsbCommand::Disconnect => {
+            UsbCommand::SetSampleRate(_) | UsbCommand::SetPdTraceEnabled(_) | UsbCommand::Disconnect => {
                 // Ignore these when not connected
                 debug!("Ignoring command while disconnected: {:?}", cmd);
             }
@@ -831,6 +1087,7 @@ async fn run_streaming_session(
 
     // Streaming loop - poll for data and handle commands
     let mut error_count = 0;
+    let mut pd_trace_enabled = false;
     const MAX_ERRORS: u32 = 10;
 
     loop {
@@ -853,6 +1110,13 @@ async fn run_streaming_session(
                     current_rate = new_rate;
                 }
             }
+            Ok(UsbCommand::SetPdTraceEnabled(enabled)) => {
+                pd_trace_enabled = enabled;
+                info!(
+                    "Firmware PD trace collection {}",
+                    if enabled { "enabled" } else { "disabled" }
+                );
+            }
             Ok(UsbCommand::Disconnect) => {
                 info!("Disconnect command received");
                 break;
@@ -870,8 +1134,8 @@ async fn run_streaming_session(
             }
         }
 
-        // Request AdcQueue + PD data using library API
-        let mask = AttributeSet::single(Attribute::AdcQueue).with(Attribute::PdPacket);
+        // Request the regular streams and the opt-in firmware trace.
+        let mask = streaming_attribute_mask(pd_trace_enabled);
         match device.request_data(mask).await {
             Ok(packet) => {
                 error_count = 0;
@@ -892,6 +1156,11 @@ async fn run_streaming_session(
                 }
                 if let Some(status) = packet.get_pd_status() {
                     let _ = tx.send(UsbMessage::PdStatusUpdate(*status));
+                }
+                if let Some(trace) = packet.get_pd_trace()
+                    && (!trace.state_events.is_empty() || !trace.protocol_events.is_empty())
+                {
+                    let _ = tx.send(UsbMessage::PdTrace(trace.clone()));
                 }
             }
             Err(e) => {
@@ -918,6 +1187,15 @@ async fn run_streaming_session(
     info!("Stopping streaming");
     let _ = device.stop_graph_mode().await;
     let _ = tx.send(UsbMessage::Disconnected);
+}
+
+fn streaming_attribute_mask(pd_trace_enabled: bool) -> AttributeSet {
+    let mask = AttributeSet::single(Attribute::AdcQueue).with(Attribute::PdPacket);
+    if pd_trace_enabled {
+        mask.with(Attribute::PdTrace)
+    } else {
+        mask
+    }
 }
 
 async fn start_streaming(
@@ -958,4 +1236,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     eframe::run_native("POWER-Z KM003C Monitor", options, Box::new(|_cc| Ok(Box::new(app))))
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn firmware_trace_is_only_requested_when_enabled() {
+        let disabled = streaming_attribute_mask(false);
+        assert!(disabled.contains(Attribute::AdcQueue));
+        assert!(disabled.contains(Attribute::PdPacket));
+        assert!(!disabled.contains(Attribute::PdTrace));
+
+        let enabled = streaming_attribute_mask(true);
+        assert!(enabled.contains(Attribute::AdcQueue));
+        assert!(enabled.contains(Attribute::PdPacket));
+        assert!(enabled.contains(Attribute::PdTrace));
+    }
+
+    #[test]
+    fn pd_timeline_filters_and_orders_both_sources() {
+        let protocol_log = VecDeque::from([DecodedPdEntry {
+            timestamp_seconds: 12.25,
+            category: PdCategory::Control,
+            summary: "wire".to_string(),
+            details: Vec::new(),
+        }]);
+        let trace_log = VecDeque::from([PdTraceEntry {
+            timestamp_seconds: 11.0,
+            category: PdTraceCategory::TypeCState,
+            summary: "trace".to_string(),
+        }]);
+
+        let combined = pd_timeline_entries(&protocol_log, &trace_log, true, true);
+        assert!(matches!(combined[0], PdTimelineEntry::FirmwareTrace(_)));
+        assert!(matches!(combined[1], PdTimelineEntry::Protocol(_)));
+
+        let protocol_only = pd_timeline_entries(&protocol_log, &trace_log, true, false);
+        assert_eq!(protocol_only.len(), 1);
+        assert!(matches!(protocol_only[0], PdTimelineEntry::Protocol(_)));
+    }
 }
