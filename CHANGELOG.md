@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-22
+
 ### Added
 
 - Shared stateful USB PD decoding, including chunked EPR messages.
@@ -88,5 +90,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validation of memory-read confirmations and streaming-auth failures.
 - Parsing of chained AdcQueue/PD responses and legacy PD connection events.
 
-[Unreleased]: https://github.com/okhsunrog/km003c-rs/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/okhsunrog/km003c-rs/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/okhsunrog/km003c-rs/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/okhsunrog/km003c-rs/releases/tag/v0.2.0
