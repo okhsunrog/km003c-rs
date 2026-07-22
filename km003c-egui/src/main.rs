@@ -1,4 +1,6 @@
 mod measurement;
+mod offline_export;
+mod offline_view;
 mod pd_connection;
 mod pd_decoder;
 mod pd_trace_view;
@@ -6,13 +8,18 @@ mod recording;
 
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
+use km003c_lib::uom::si::electric_charge::milliampere_hour;
 use km003c_lib::uom::si::electric_potential::volt;
+use km003c_lib::uom::si::energy::milliwatt_hour;
+use km003c_lib::uom::si::time::{millisecond, second};
 use km003c_lib::{
-    AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C, PdTrace,
+    AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C, LogMetadata, OfflineLog, PdTrace,
     packet::{Attribute, AttributeSet},
     pd::{PdEvent, PdEventData, PdStatus},
 };
 use measurement::{MeasurementAccumulator, MeasurementSample, PlotMetric};
+use offline_export::{OfflineExportEvent, OfflineExportTask};
+use offline_view::OfflineRecordingView;
 use pd_connection::PdConnectionTracker;
 use pd_decoder::{DecodedPdEntry, PdCategory, PdDecoder};
 use pd_trace_view::{PdTraceCategory, PdTraceEntry, decode_trace};
@@ -38,6 +45,12 @@ enum UsbMessage {
     PdStatusUpdate(PdStatus),
     /// Firmware Type-C and protocol-engine trace
     PdTrace(PdTrace),
+    /// Device offline-recording catalog
+    OfflineCatalog(Vec<LogMetadata>),
+    /// Complete selected offline recording
+    OfflineLogDownloaded(OfflineLog),
+    /// Offline catalog or download operation failed
+    OfflineOperationFailed(String),
     /// Streaming started at given rate
     StreamingStarted(GraphSampleRate),
     /// Streaming stopped
@@ -57,8 +70,18 @@ enum UsbCommand {
     SetSampleRate(GraphSampleRate),
     /// Enable or disable firmware PD trace collection
     SetPdTraceEnabled(bool),
+    /// Fetch the catalog of recordings stored by the device
+    RequestOfflineCatalog,
+    /// Download one catalog entry from device memory
+    DownloadOfflineLog(LogMetadata),
     /// Stop streaming and disconnect
     Disconnect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PlotSource {
+    Live,
+    Offline,
 }
 
 enum PdTimelineEntry<'a> {
@@ -216,6 +239,22 @@ struct PowerMonitorApp {
     recording_status: String,
     /// Summary of the last completed recording
     last_recording: Option<RecordingSummary>,
+    /// Device-side offline recording catalog
+    offline_catalog: Vec<LogMetadata>,
+    /// Selected catalog row
+    offline_selected: Option<usize>,
+    /// Downloaded offline recording and plot data
+    offline_view: Option<Arc<OfflineRecordingView>>,
+    /// Device identity retained with the downloaded recording for export
+    offline_device_metadata: Option<RecordingMetadata>,
+    /// Whether a device catalog or download operation is running
+    offline_busy: bool,
+    /// Offline browser and export status
+    offline_status: String,
+    /// Background export of a downloaded offline recording
+    offline_export: Option<OfflineExportTask>,
+    /// Data source currently rendered by the three plots
+    plot_source: PlotSource,
     /// PD protocol decoder
     pd_decoder: PdDecoder,
     /// Decoded PD log entries
@@ -267,6 +306,14 @@ impl PowerMonitorApp {
             recorder: None,
             recording_status: "Not recording".to_string(),
             last_recording: None,
+            offline_catalog: Vec::new(),
+            offline_selected: None,
+            offline_view: None,
+            offline_device_metadata: None,
+            offline_busy: false,
+            offline_status: "Catalog not loaded".to_string(),
+            offline_export: None,
+            plot_source: PlotSource::Live,
             pd_decoder: PdDecoder::new(),
             pd_log: VecDeque::new(),
             max_pd_entries: 1000,
@@ -288,6 +335,9 @@ impl PowerMonitorApp {
                 UsbMessage::Connected(state) => {
                     self.status = format!("Connected: {}", state.model());
                     self.device_state = Some(state);
+                    self.offline_catalog.clear();
+                    self.offline_selected = None;
+                    self.offline_status = "Catalog not loaded".to_string();
                     self.pd_connection = PdConnectionTracker::default();
                     if self.pd_trace_enabled {
                         let _ = self.cmd_sender.send(UsbCommand::SetPdTraceEnabled(true));
@@ -371,6 +421,39 @@ impl PowerMonitorApp {
                         }
                     }
                 }
+                UsbMessage::OfflineCatalog(catalog) => {
+                    self.offline_busy = false;
+                    self.offline_status = if catalog.is_empty() {
+                        "No offline recordings stored on the device".to_string()
+                    } else {
+                        format!("Loaded {} offline recording(s)", catalog.len())
+                    };
+                    self.offline_selected = (!catalog.is_empty()).then_some(0);
+                    self.offline_catalog = catalog;
+                }
+                UsbMessage::OfflineLogDownloaded(log) => {
+                    let samples = log.samples.len();
+                    let filename = log.metadata.filename_lossy().into_owned();
+                    self.offline_view = Some(Arc::new(OfflineRecordingView::new(log)));
+                    self.offline_device_metadata = self.device_state.as_ref().map(|state| RecordingMetadata {
+                        model: state.info.model.clone(),
+                        firmware: state.info.fw_version.clone(),
+                        serial: state.info.serial_id.clone(),
+                    });
+                    self.offline_busy = false;
+                    self.offline_status = format!("Downloaded {samples} samples from {filename}");
+                    self.plot_source = PlotSource::Offline;
+                    self.time_window = TimeWindow::All;
+                    for metric in &mut self.plot_metrics {
+                        if !metric.supports_offline() {
+                            *metric = PlotMetric::Voltage;
+                        }
+                    }
+                }
+                UsbMessage::OfflineOperationFailed(error) => {
+                    self.offline_busy = false;
+                    self.offline_status = error;
+                }
                 UsbMessage::StreamingStopped => {
                     self.streaming = false;
                     self.status = "Stopped".to_string();
@@ -384,6 +467,7 @@ impl PowerMonitorApp {
                     self.device_state = None;
                     self.pd_status = None;
                     self.pd_connection = PdConnectionTracker::default();
+                    self.offline_busy = false;
                     self.stop_recording();
                 }
             }
@@ -391,6 +475,7 @@ impl PowerMonitorApp {
 
         self.pd_connection.update(std::time::Instant::now());
         self.poll_recording();
+        self.poll_offline_export();
     }
 
     fn clear_data(&mut self) {
@@ -525,6 +610,91 @@ impl PowerMonitorApp {
             None => {}
         }
     }
+
+    fn request_offline_catalog(&mut self) {
+        if self.device_state.is_none() {
+            self.offline_status = "Connect the KM003C before loading its offline catalog".to_string();
+            return;
+        }
+        if self.offline_busy || self.recorder.is_some() || self.offline_export.is_some() {
+            return;
+        }
+        self.offline_busy = true;
+        self.offline_status = "Loading offline recording catalog...".to_string();
+        if self.cmd_sender.send(UsbCommand::RequestOfflineCatalog).is_err() {
+            self.offline_busy = false;
+            self.offline_status = "USB task is not available".to_string();
+        }
+    }
+
+    fn download_selected_offline_log(&mut self) {
+        if self.device_state.is_none() {
+            self.offline_status = "Connect the KM003C before downloading an offline recording".to_string();
+            return;
+        }
+        if self.offline_busy || self.recorder.is_some() || self.offline_export.is_some() {
+            return;
+        }
+        let Some(metadata) = self
+            .offline_selected
+            .and_then(|index| self.offline_catalog.get(index))
+            .cloned()
+        else {
+            self.offline_status = "Select an offline recording first".to_string();
+            return;
+        };
+        self.offline_busy = true;
+        self.offline_status = format!(
+            "Downloading {} samples from {}...",
+            metadata.sample_count,
+            metadata.filename_lossy()
+        );
+        if self.cmd_sender.send(UsbCommand::DownloadOfflineLog(metadata)).is_err() {
+            self.offline_busy = false;
+            self.offline_status = "USB task is not available".to_string();
+        }
+    }
+
+    fn export_offline_log(&mut self) {
+        if self.offline_export.is_some() {
+            return;
+        }
+        let (Some(view), Some(device)) = (&self.offline_view, &self.offline_device_metadata) else {
+            self.offline_status = "Download an offline recording before exporting it".to_string();
+            return;
+        };
+        let device_filename = view.log.metadata.filename_lossy();
+        let prefix = std::path::Path::new(device_filename.as_ref())
+            .file_name()
+            .and_then(|name| name.to_str())
+            .filter(|name| !name.is_empty())
+            .unwrap_or("offline-log");
+        let Some(path) = self.select_recording_path(prefix, "Export KM003C offline recording") else {
+            return;
+        };
+        match OfflineExportTask::start(path.clone(), self.recording_format, device.clone(), Arc::clone(view)) {
+            Ok(task) => {
+                self.offline_status = format!("Exporting to {}", path.display());
+                self.offline_export = Some(task);
+            }
+            Err(error) => self.offline_status = error,
+        }
+    }
+
+    fn poll_offline_export(&mut self) {
+        let event = self.offline_export.as_mut().and_then(OfflineExportTask::poll_event);
+        match event {
+            Some(OfflineExportEvent::Finished { path, rows }) => {
+                self.offline_status = format!("Exported {rows} samples to {}", path.display());
+                self.offline_export = None;
+            }
+            Some(OfflineExportEvent::Failed(error)) => {
+                self.offline_status = error;
+                self.offline_export = None;
+            }
+            None => {}
+        }
+    }
 }
 
 impl eframe::App for PowerMonitorApp {
@@ -532,7 +702,7 @@ impl eframe::App for PowerMonitorApp {
         self.process_messages();
 
         // Request repaints - fast when streaming, slower when idle
-        if self.streaming {
+        if self.streaming && self.plot_source == PlotSource::Live {
             ui.ctx().request_repaint_after(Duration::from_millis(16)); // ~60fps when streaming
         } else {
             ui.ctx().request_repaint_after(Duration::from_millis(100)); // 10fps when idle
@@ -713,7 +883,7 @@ impl eframe::App for PowerMonitorApp {
 
             ui.add_space(20.0);
             ui.separator();
-            ui.heading("Statistics");
+            ui.heading("Live Statistics");
             ui.separator();
 
             egui::Grid::new("stats_grid")
@@ -801,7 +971,9 @@ impl eframe::App for PowerMonitorApp {
                         .selected_text(metric.label())
                         .show_ui(ui, |ui| {
                             for option in PlotMetric::ALL {
-                                ui.selectable_value(metric, option, option.label());
+                                if self.plot_source == PlotSource::Live || option.supports_offline() {
+                                    ui.selectable_value(metric, option, option.label());
+                                }
                             }
                         });
                 });
@@ -811,7 +983,7 @@ impl eframe::App for PowerMonitorApp {
 
             ui.horizontal(|ui| {
                 if ui
-                    .add_enabled(self.recorder.is_none(), egui::Button::new("Clear Data"))
+                    .add_enabled(self.recorder.is_none(), egui::Button::new("Clear Live Data"))
                     .clicked()
                 {
                     self.clear_data();
@@ -880,6 +1052,134 @@ impl eframe::App for PowerMonitorApp {
                 ui.label(format!("Completeness: {:.6}%", summary.completeness_percent()));
             }
             ui.small(&self.recording_status);
+
+            ui.add_space(20.0);
+            ui.separator();
+            ui.heading("Offline Recordings");
+            ui.separator();
+
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(
+                        self.device_state.is_some()
+                            && !self.offline_busy
+                            && self.recorder.is_none()
+                            && self.offline_export.is_none(),
+                        egui::Button::new("Refresh Catalog"),
+                    )
+                    .clicked()
+                {
+                    self.request_offline_catalog();
+                }
+                if self.offline_busy {
+                    ui.spinner();
+                }
+            });
+
+            if !self.offline_catalog.is_empty() {
+                let selected_text = self
+                    .offline_selected
+                    .and_then(|index| self.offline_catalog.get(index))
+                    .map_or_else(|| "Select a recording".to_string(), |metadata| metadata.filename_lossy().into_owned());
+                egui::ComboBox::from_id_salt("offline_recording")
+                    .selected_text(selected_text)
+                    .show_ui(ui, |ui| {
+                        for (index, metadata) in self.offline_catalog.iter().enumerate() {
+                            ui.selectable_value(
+                                &mut self.offline_selected,
+                                Some(index),
+                                format!(
+                                    "#{} {} ({} samples)",
+                                    index,
+                                    metadata.filename_lossy(),
+                                    metadata.sample_count
+                                ),
+                            );
+                        }
+                    });
+
+                if let Some(metadata) = self
+                    .offline_selected
+                    .and_then(|index| self.offline_catalog.get(index))
+                {
+                    egui::Grid::new("offline_metadata_grid")
+                        .num_columns(2)
+                        .spacing([10.0, 4.0])
+                        .show(ui, |ui| {
+                            ui.label("Samples:");
+                            ui.label(metadata.sample_count.to_string());
+                            ui.end_row();
+                            ui.label("Interval:");
+                            ui.label(format!("{} ms", metadata.interval.get::<millisecond>()));
+                            ui.end_row();
+                            ui.label("Duration:");
+                            ui.label(format!("{:.1} s", metadata.recorded_duration.get::<second>()));
+                            ui.end_row();
+                            ui.label("Final charge:");
+                            ui.label(format!("{:.3} mAh", metadata.final_charge.get::<milliampere_hour>()));
+                            ui.end_row();
+                            ui.label("Final energy:");
+                            ui.label(format!("{:.3} mWh", metadata.final_energy.get::<milliwatt_hour>()));
+                            ui.end_row();
+                        });
+                }
+
+                if ui
+                    .add_enabled(
+                        self.device_state.is_some()
+                            && self.offline_selected.is_some()
+                            && !self.offline_busy
+                            && self.recorder.is_none()
+                            && self.offline_export.is_none(),
+                        egui::Button::new("Download and View"),
+                    )
+                    .clicked()
+                {
+                    self.download_selected_offline_log();
+                }
+            }
+
+            if let Some(view) = &self.offline_view {
+                ui.label(format!(
+                    "Loaded: {} ({} samples)",
+                    view.log.metadata.filename_lossy(),
+                    view.samples.len()
+                ));
+                let previous_source = self.plot_source;
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut self.plot_source, PlotSource::Live, "View Live");
+                    ui.selectable_value(&mut self.plot_source, PlotSource::Offline, "View Offline");
+                });
+                if previous_source != self.plot_source && self.plot_source == PlotSource::Offline {
+                    self.time_window = TimeWindow::All;
+                    for metric in &mut self.plot_metrics {
+                        if !metric.supports_offline() {
+                            *metric = PlotMetric::Voltage;
+                        }
+                    }
+                }
+                ui.add_enabled_ui(self.offline_export.is_none() && self.recorder.is_none(), |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Export format:");
+                        egui::ComboBox::from_id_salt("offline_recording_format")
+                            .selected_text(self.recording_format.label())
+                            .show_ui(ui, |ui| {
+                                for format in RecordingFormat::ALL {
+                                    ui.selectable_value(&mut self.recording_format, format, format.label());
+                                }
+                            });
+                    });
+                });
+                if let Some(export) = &self.offline_export {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(format!("Exporting {}", export.path.display()));
+                    });
+                } else if ui.button("Export Downloaded").clicked() {
+                    self.export_offline_log();
+                }
+            }
+            ui.small(&self.offline_status);
 
             ui.add_space(5.0);
 
@@ -980,10 +1280,27 @@ impl eframe::App for PowerMonitorApp {
 
         // Main panel with plots
         egui::CentralPanel::default().show(ui, |ui| {
+            match self.plot_source {
+                PlotSource::Live => ui.small("Plot source: live AdcQueue"),
+                PlotSource::Offline => {
+                    let filename = self
+                        .offline_view
+                        .as_ref()
+                        .map_or_else(|| "not loaded".into(), |view| view.log.metadata.filename_lossy());
+                    ui.small(format!("Plot source: offline recording {filename}"))
+                }
+            };
             let available_height = ui.available_height();
             let plot_height = (available_height - 30.0) / 3.0;
 
-            let current_time = self.data_points.back().map_or(0.0, |sample| sample.elapsed_seconds());
+            let current_time = match self.plot_source {
+                PlotSource::Live => self.data_points.back().map_or(0.0, |sample| sample.elapsed_seconds()),
+                PlotSource::Offline => self
+                    .offline_view
+                    .as_ref()
+                    .and_then(|view| view.samples.last())
+                    .map_or(0.0, |sample| sample.elapsed_seconds()),
+            };
             let min_time = self
                 .time_window
                 .seconds()
@@ -999,12 +1316,25 @@ impl eframe::App for PowerMonitorApp {
                     .allow_drag(true)
                     .allow_scroll(true)
                     .show(ui, |plot_ui| {
-                        let points: PlotPoints = self
-                            .data_points
-                            .iter()
-                            .filter(|sample| min_time.is_none_or(|min| sample.elapsed_seconds() >= min))
-                            .map(|sample| [sample.elapsed_seconds(), metric.value(sample)])
-                            .collect();
+                        let points: PlotPoints = match self.plot_source {
+                            PlotSource::Live => self
+                                .data_points
+                                .iter()
+                                .filter(|sample| min_time.is_none_or(|min| sample.elapsed_seconds() >= min))
+                                .map(|sample| [sample.elapsed_seconds(), metric.value(sample)])
+                                .collect(),
+                            PlotSource::Offline => self
+                                .offline_view
+                                .iter()
+                                .flat_map(|view| &view.samples)
+                                .filter(|sample| min_time.is_none_or(|min| sample.elapsed_seconds() >= min))
+                                .filter_map(|sample| {
+                                    sample
+                                        .metric_value(metric)
+                                        .map(|value| [sample.elapsed_seconds(), value])
+                                })
+                                .collect(),
+                        };
                         plot_ui.line(Line::new(metric.label(), points).color(metric.color()).width(1.5_f32));
                     });
             }
@@ -1031,7 +1361,11 @@ async fn usb_streaming_task(tx: mpsc::UnboundedSender<UsbMessage>, mut cmd_rx: m
                 info!("Connect command received, rate={:?}, reset={}", initial_rate, usb_reset);
                 run_streaming_session(&tx, &mut cmd_rx, initial_rate, usb_reset).await;
             }
-            UsbCommand::SetSampleRate(_) | UsbCommand::SetPdTraceEnabled(_) | UsbCommand::Disconnect => {
+            UsbCommand::SetSampleRate(_)
+            | UsbCommand::SetPdTraceEnabled(_)
+            | UsbCommand::RequestOfflineCatalog
+            | UsbCommand::DownloadOfflineLog(_)
+            | UsbCommand::Disconnect => {
                 // Ignore these when not connected
                 debug!("Ignoring command while disconnected: {:?}", cmd);
             }
@@ -1116,6 +1450,62 @@ async fn run_streaming_session(
                     "Firmware PD trace collection {}",
                     if enabled { "enabled" } else { "disabled" }
                 );
+            }
+            Ok(UsbCommand::RequestOfflineCatalog) => {
+                info!("Loading offline recording catalog");
+                if let Err(error) = device.stop_graph_mode().await {
+                    let _ = tx.send(UsbMessage::OfflineOperationFailed(format!(
+                        "Could not pause streaming for offline catalog access: {error}"
+                    )));
+                    continue;
+                }
+                let _ = tx.send(UsbMessage::StreamingStopped);
+                match device.request_log_metadata().await {
+                    Ok(catalog) => {
+                        let _ = tx.send(UsbMessage::OfflineCatalog(catalog));
+                    }
+                    Err(error) => {
+                        let _ = tx.send(UsbMessage::OfflineOperationFailed(format!(
+                            "Failed to load offline catalog: {error}"
+                        )));
+                    }
+                }
+                if let Err(error) = start_streaming(&mut device, current_rate, tx).await {
+                    let _ = tx.send(UsbMessage::Error(format!(
+                        "Failed to resume streaming after loading offline catalog: {error}"
+                    )));
+                    break;
+                }
+            }
+            Ok(UsbCommand::DownloadOfflineLog(metadata)) => {
+                info!(
+                    filename = %metadata.filename_lossy(),
+                    samples = metadata.sample_count,
+                    "Downloading offline recording"
+                );
+                if let Err(error) = device.stop_graph_mode().await {
+                    let _ = tx.send(UsbMessage::OfflineOperationFailed(format!(
+                        "Could not pause streaming for offline download: {error}"
+                    )));
+                    continue;
+                }
+                let _ = tx.send(UsbMessage::StreamingStopped);
+                match device.download_offline_log(metadata).await {
+                    Ok(log) => {
+                        let _ = tx.send(UsbMessage::OfflineLogDownloaded(log));
+                    }
+                    Err(error) => {
+                        let _ = tx.send(UsbMessage::OfflineOperationFailed(format!(
+                            "Failed to download offline recording: {error}"
+                        )));
+                    }
+                }
+                if let Err(error) = start_streaming(&mut device, current_rate, tx).await {
+                    let _ = tx.send(UsbMessage::Error(format!(
+                        "Failed to resume streaming after offline download: {error}"
+                    )));
+                    break;
+                }
             }
             Ok(UsbCommand::Disconnect) => {
                 info!("Disconnect command received");
@@ -1241,6 +1631,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::offline_view::captured_test_view;
+    use polars::prelude::{CsvReader, ParquetReader, SerReader};
 
     #[test]
     fn firmware_trace_is_only_requested_when_enabled() {
@@ -1276,5 +1668,201 @@ mod tests {
         let protocol_only = pd_timeline_entries(&protocol_log, &trace_log, true, false);
         assert_eq!(protocol_only.len(), 1);
         assert!(matches!(protocol_only[0], PdTimelineEntry::Protocol(_)));
+    }
+
+    #[test]
+    fn downloaded_offline_log_becomes_the_active_plot_source() {
+        let (usb_tx, usb_rx) = mpsc::unbounded_channel();
+        let (cmd_tx, _cmd_rx) = mpsc::unbounded_channel();
+        let mut app = PowerMonitorApp::new(usb_rx, cmd_tx);
+        app.plot_metrics[0] = PlotMetric::Cc1;
+        let fixture = captured_test_view();
+
+        usb_tx
+            .send(UsbMessage::OfflineLogDownloaded(fixture.log.as_ref().clone()))
+            .unwrap();
+        app.process_messages();
+
+        assert_eq!(app.plot_source, PlotSource::Offline);
+        assert_eq!(app.time_window, TimeWindow::All);
+        assert_eq!(app.plot_metrics[0], PlotMetric::Voltage);
+        assert_eq!(app.offline_view.as_ref().unwrap().samples.len(), 3);
+        assert!(!app.offline_busy);
+    }
+
+    #[test]
+    fn empty_offline_catalog_clears_selection() {
+        let (usb_tx, usb_rx) = mpsc::unbounded_channel();
+        let (cmd_tx, _cmd_rx) = mpsc::unbounded_channel();
+        let mut app = PowerMonitorApp::new(usb_rx, cmd_tx);
+        app.offline_selected = Some(2);
+
+        usb_tx.send(UsbMessage::OfflineCatalog(Vec::new())).unwrap();
+        app.process_messages();
+
+        assert!(app.offline_catalog.is_empty());
+        assert_eq!(app.offline_selected, None);
+        assert!(app.offline_status.contains("No offline recordings"));
+    }
+
+    #[test]
+    #[ignore = "requires a connected KM003C"]
+    fn hardware_offline_flow_pauses_and_resumes_streaming() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let (usb_tx, mut usb_rx) = mpsc::unbounded_channel();
+            let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+            let task = tokio::spawn(usb_streaming_task(usb_tx, cmd_rx));
+            cmd_tx.send(UsbCommand::Connect(GraphSampleRate::Sps50, false)).unwrap();
+
+            let startup_deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+            let mut device_state = None;
+            let mut streaming = false;
+            while !(device_state.is_some() && streaming) {
+                let message = tokio::time::timeout_at(startup_deadline, usb_rx.recv())
+                    .await
+                    .expect("device did not connect before the deadline")
+                    .expect("USB task exited during connection");
+                match message {
+                    UsbMessage::Connected(state) => device_state = Some(state),
+                    UsbMessage::StreamingStarted(GraphSampleRate::Sps50) => streaming = true,
+                    _ => {}
+                }
+            }
+
+            cmd_tx.send(UsbCommand::RequestOfflineCatalog).unwrap();
+            let operation_deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+            let mut stopped = false;
+            let catalog = loop {
+                let message = tokio::time::timeout_at(operation_deadline, usb_rx.recv())
+                    .await
+                    .expect("offline catalog request did not finish before the deadline")
+                    .expect("USB task exited during offline catalog request");
+                match message {
+                    UsbMessage::StreamingStopped => stopped = true,
+                    UsbMessage::OfflineCatalog(catalog) => {
+                        assert!(stopped, "catalog arrived before streaming was paused");
+                        break catalog;
+                    }
+                    UsbMessage::OfflineOperationFailed(error) => panic!("offline catalog failed: {error}"),
+                    _ => {}
+                }
+            };
+            loop {
+                let message = tokio::time::timeout_at(operation_deadline, usb_rx.recv())
+                    .await
+                    .expect("streaming did not resume after catalog request")
+                    .expect("USB task exited before streaming resumed");
+                if matches!(message, UsbMessage::StreamingStarted(GraphSampleRate::Sps50)) {
+                    break;
+                }
+            }
+
+            let mut downloaded_log = None;
+            if let Some(metadata) = catalog.first().cloned() {
+                cmd_tx.send(UsbCommand::DownloadOfflineLog(metadata.clone())).unwrap();
+                let download_deadline = tokio::time::Instant::now() + Duration::from_secs(20);
+                let mut stopped = false;
+                let mut downloaded = false;
+                let mut resumed = false;
+                while !(downloaded && resumed) {
+                    let message = tokio::time::timeout_at(download_deadline, usb_rx.recv())
+                        .await
+                        .expect("offline download did not finish before the deadline")
+                        .expect("USB task exited during offline download");
+                    match message {
+                        UsbMessage::StreamingStopped => stopped = true,
+                        UsbMessage::OfflineLogDownloaded(log) => {
+                            assert!(stopped, "offline log arrived before streaming was paused");
+                            assert_eq!(log.metadata, metadata);
+                            assert_eq!(log.samples.len(), usize::from(metadata.sample_count));
+                            downloaded_log = Some(log);
+                            downloaded = true;
+                        }
+                        UsbMessage::StreamingStarted(GraphSampleRate::Sps50) => resumed = true,
+                        UsbMessage::OfflineOperationFailed(error) => panic!("offline download failed: {error}"),
+                        _ => {}
+                    }
+                }
+            }
+
+            cmd_tx.send(UsbCommand::Disconnect).unwrap();
+            drop(cmd_tx);
+            let _ = tokio::time::timeout(Duration::from_secs(5), task)
+                .await
+                .expect("USB task did not stop after disconnect");
+
+            if let Some(log) = downloaded_log {
+                let device_state = device_state.expect("connected device state was not retained");
+                let recording_metadata = RecordingMetadata {
+                    model: device_state.info.model.clone(),
+                    firmware: device_state.info.fw_version.clone(),
+                    serial: device_state.info.serial_id.clone(),
+                };
+                let expected_rows = log.samples.len();
+                let expected_charge_uah = log
+                    .metadata
+                    .final_charge
+                    .get::<km003c_lib::uom::si::electric_charge::microampere_hour>();
+                let expected_energy_uwh = log
+                    .metadata
+                    .final_energy
+                    .get::<km003c_lib::uom::si::energy::microwatt_hour>();
+                let view = Arc::new(OfflineRecordingView::new(log));
+                assert_eq!(view.samples.last().unwrap().charge_uah, expected_charge_uah);
+                assert_eq!(view.samples.last().unwrap().energy_uwh, expected_energy_uwh);
+
+                for format in RecordingFormat::ALL {
+                    let path = std::env::temp_dir().join(format!(
+                        "km003c-egui-hardware-offline-{}.{}",
+                        std::process::id(),
+                        format.extension()
+                    ));
+                    let mut export =
+                        OfflineExportTask::start(path.clone(), format, recording_metadata.clone(), Arc::clone(&view))
+                            .unwrap();
+                    let export_deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+                    let rows = loop {
+                        match export.poll_event() {
+                            Some(OfflineExportEvent::Finished { rows, .. }) => break rows,
+                            Some(OfflineExportEvent::Failed(error)) => panic!("offline export failed: {error}"),
+                            None => {
+                                assert!(
+                                    tokio::time::Instant::now() < export_deadline,
+                                    "offline export did not finish before the deadline"
+                                );
+                                tokio::time::sleep(Duration::from_millis(10)).await;
+                            }
+                        }
+                    };
+                    assert_eq!(rows, expected_rows);
+                    let dataframe = match format {
+                        RecordingFormat::Parquet => ParquetReader::new(std::fs::File::open(&path).unwrap())
+                            .finish()
+                            .unwrap(),
+                        RecordingFormat::Csv => CsvReader::new(std::fs::File::open(&path).unwrap()).finish().unwrap(),
+                    };
+                    assert_eq!(dataframe.shape(), (expected_rows, 23));
+                    assert_eq!(
+                        dataframe
+                            .column("charge_uah")
+                            .unwrap()
+                            .f64()
+                            .unwrap()
+                            .get(expected_rows - 1),
+                        Some(expected_charge_uah)
+                    );
+                    assert_eq!(
+                        dataframe
+                            .column("energy_uwh")
+                            .unwrap()
+                            .f64()
+                            .unwrap()
+                            .get(expected_rows - 1),
+                        Some(expected_energy_uwh)
+                    );
+                    std::fs::remove_file(path).unwrap();
+                }
+            }
+        });
     }
 }

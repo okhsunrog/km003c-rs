@@ -71,6 +71,7 @@ GUI application featuring:
 - AdcQueue streaming with configurable sample rates
 - Adjustable time window (2s to 5min or all data)
 - Live recording and plot-buffer export to Parquet or CSV
+- Device-stored offline recording catalog, download, plotting, and Parquet/CSV export
 - Host-integrated charge and energy with explicit missing-sample quality data
 - Device info panel with auth status
 - Connect/disconnect control
@@ -159,6 +160,15 @@ samples are excluded from plots and integration and counted by
 `discarded_sequence_samples` and `cumulative_discarded_sequence_samples`. The
 GUI reports completeness as the fraction of elapsed time covered by received
 intervals rather than estimated gap intervals.
+
+The **Offline Recordings** section loads the catalog stored by the KM003C,
+downloads a selected entry, and switches the same three plots between live and
+offline data. Offline exports use the same 23-column Parquet/CSV schema as live
+captures. Fields that the device does not store in offline samples—sequence,
+marker, sample rate, gap quality, CC1/CC2, and D+/D-—are null rather than
+fabricated as zero. Signed charge and energy preserve the device accumulators;
+positive throughput is derived from the absolute changes between successive
+device accumulator values.
 
 ## Library Usage
 

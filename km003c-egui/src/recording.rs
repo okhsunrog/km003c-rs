@@ -9,8 +9,7 @@ use polars::df;
 use polars::prelude::{CsvWriter, DataFrame, KeyValueMetadata, ParquetWriter, SerWriter};
 
 use crate::measurement::MeasurementSample;
-
-const RECORDING_SCHEMA_VERSION: &str = "1";
+pub(crate) const RECORDING_SCHEMA_VERSION: &str = "1";
 const ROW_GROUP_SIZE: usize = 8_192;
 const CHANNEL_CAPACITY: usize = 32;
 
