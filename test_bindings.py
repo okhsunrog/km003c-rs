@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from importlib.metadata import version
+
 import km003c
 import pytest
 
@@ -10,7 +12,7 @@ def test_constants():
     print(f"PID: {hex(km003c.PID)}")
     assert km003c.VID == 0x5FC9
     assert km003c.PID == 0x0063
-    assert km003c.__version__ == "0.2.0"
+    assert km003c.__version__ == version("km003c")
     print("✓ Constants test passed")
 
 

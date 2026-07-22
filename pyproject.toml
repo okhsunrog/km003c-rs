@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "km003c"
 description = "Python bindings for KM003C USB power meter - parsing and data structures"
-version = "0.2.0"
+dynamic = ["version"]
 authors = [
     {name = "Danila Gornushko", email = "me@okhsunrog.dev"},
 ]
