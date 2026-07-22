@@ -39,6 +39,7 @@ values in the Rust API are type-safe [`uom`](https://docs.rs/uom) quantities.
 - Full PD message parsing using the `usbpd` crate
 - Support for SPR and EPR source capabilities
 - Chunked message reassembly for EPR
+- Typed firmware Type-C and protocol-engine state traces
 
 ### Device Information
 - Model, firmware version, hardware version
@@ -57,6 +58,7 @@ Core library providing:
 - Offline recording catalog and encrypted log downloads
 - USB PD event parsing
 - Optional stateful USB PD semantic decoding through the `usbpd` feature
+- Typed firmware PD state-trace parsing
 
 ### `km003c-cli`
 Command-line tools:
@@ -67,12 +69,13 @@ Command-line tools:
 
 ### `km003c-egui`
 GUI application featuring:
-- Three independently configurable real-time plots for electrical and USB-line measurements
+- Three independently configurable plots for live or device-stored measurements
 - AdcQueue streaming with configurable sample rates
 - Adjustable time window (2s to 5min or all data)
 - Live recording and plot-buffer export to Parquet or CSV
 - Device-stored offline recording catalog, download, plotting, and Parquet/CSV export
 - Host-integrated charge and energy with explicit missing-sample quality data
+- Combined wire-message and firmware-state USB PD timeline with source filters
 - Device info panel with auth status
 - Connect/disconnect control
 

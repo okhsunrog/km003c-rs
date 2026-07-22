@@ -24,6 +24,10 @@ settings writes.
 Enable the optional `usbpd` feature to turn captured PD wire frames into typed
 USB PD messages. `PdSessionDecoder` retains Source Capabilities state for
 subsequent Request messages and reassembles chunked EPR Source Capabilities.
+Firmware Type-C and protocol-engine traces are available separately as a typed
+`PdTrace` containing `PdTraceStateEvent` and `PdTraceProtocolEvent` values.
+Unknown codes remain available losslessly for firmware variants that have not
+yet been reverse engineered.
 
 ```rust,no_run
 use km003c_lib::uom::si::electric_potential::volt;

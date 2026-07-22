@@ -21,6 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `HardwareId`.
 - Lossless, CRC-validated, read-only Settings parsing with typed accessors for
   firmware-confirmed fields and `KM003C::request_settings()`.
+- Typed firmware PD state traces, including confirmed Type-C and
+  protocol-engine events.
+- Configurable GUI plots for voltage, signed and absolute current/power,
+  charge, energy, CC1/CC2, and D+/D-.
+- GUI recording and plot-buffer export to Parquet or CSV, with missing-sample
+  quality data and separate signed net and positive-throughput accumulators.
+- A combined GUI timeline for wire-level USB PD messages and firmware state
+  traces, with independent filters for both sources.
+- GUI browsing, download, plotting, and Parquet/CSV export for recordings
+  stored on the KM003C.
 
 ### Changed
 
@@ -37,6 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `KM003C::read_memory_block()` returns exactly the requested number of bytes
   instead of exposing AES block padding.
 - The Python package version is derived from the Rust crate version.
+- PD status and event measurements share one representation, and the stateful
+  decoder resets negotiation state on connection changes.
+- The GUI distinguishes signed charge/energy from positive transferred totals
+  and excludes duplicate, stale, and invalid-sequence samples from integration.
 
 ### Fixed
 
@@ -47,6 +61,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - StartGraph validation when StreamingAuth does not grant AdcQueue access.
 - StreamingAuth response decoding now preserves firmware auth levels 0, 1,
   and 2 instead of treating the level field as a Boolean flag.
+- Parsing of populated zero-count firmware trace responses.
+- Debounced GUI Type-C connection state during attach and detach transitions.
 
 ### Removed
 
