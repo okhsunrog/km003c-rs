@@ -6,6 +6,7 @@ use km003c_lib::{AdcQueueSample, GraphSampleRate};
 
 const MICROSECONDS_PER_MILLISECOND: u64 = 1_000;
 const MICROSECONDS_PER_HOUR: f64 = 3_600_000_000.0;
+const MAX_FORWARD_SEQUENCE_TICKS: u16 = i16::MAX as u16;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct MeasurementSample {
@@ -19,6 +20,8 @@ pub(crate) struct MeasurementSample {
     pub(crate) interpolated: bool,
     pub(crate) cumulative_missing_samples: u64,
     pub(crate) cumulative_interpolated_duration_us: u64,
+    pub(crate) discarded_sequence_samples: u32,
+    pub(crate) cumulative_discarded_sequence_samples: u64,
     pub(crate) vbus_uv: i64,
     pub(crate) ibus_ua: i64,
     pub(crate) power_uw: i64,
@@ -42,6 +45,8 @@ pub(crate) struct MeasurementAccumulator {
     sample_index: u64,
     cumulative_missing_samples: u64,
     cumulative_interpolated_duration_us: u64,
+    cumulative_discarded_sequence_samples: u64,
+    pending_discarded_sequence_samples: u32,
     charge_twice_ua_us: i128,
     energy_twice_uw_us: i128,
     previous: Option<PreviousSample>,
@@ -55,7 +60,7 @@ struct PreviousSample {
 }
 
 impl MeasurementAccumulator {
-    pub(crate) fn push(&mut self, sample: AdcQueueSample, rate: GraphSampleRate) -> MeasurementSample {
+    pub(crate) fn push(&mut self, sample: AdcQueueSample, rate: GraphSampleRate) -> Option<MeasurementSample> {
         let vbus_uv = sample.vbus.get::<microvolt>().round() as i64;
         let ibus_ua = sample.ibus.get::<microampere>().round() as i64;
         let power_uw = sample.power.get::<microwatt>().round() as i64;
@@ -66,6 +71,16 @@ impl MeasurementAccumulator {
             let missing = rate.missing_samples(previous.sequence, sample.sequence);
             (missing, delta_ticks * MICROSECONDS_PER_MILLISECOND)
         });
+
+        if let Some(previous) = self.previous {
+            let delta_ticks = sample.sequence.wrapping_sub(previous.sequence);
+            if delta_ticks == 0 || delta_ticks > MAX_FORWARD_SEQUENCE_TICKS || delta_ticks % rate.sequence_step() != 0 {
+                self.cumulative_discarded_sequence_samples =
+                    self.cumulative_discarded_sequence_samples.saturating_add(1);
+                self.pending_discarded_sequence_samples = self.pending_discarded_sequence_samples.saturating_add(1);
+                return None;
+            }
+        }
         let gap_duration_us = u64::from(missing_samples) * expected_ticks * MICROSECONDS_PER_MILLISECOND;
 
         if let Some(previous) = self.previous {
@@ -88,6 +103,8 @@ impl MeasurementAccumulator {
             interpolated: missing_samples > 0,
             cumulative_missing_samples: self.cumulative_missing_samples,
             cumulative_interpolated_duration_us: self.cumulative_interpolated_duration_us,
+            discarded_sequence_samples: self.pending_discarded_sequence_samples,
+            cumulative_discarded_sequence_samples: self.cumulative_discarded_sequence_samples,
             vbus_uv,
             ibus_ua,
             power_uw,
@@ -105,7 +122,8 @@ impl MeasurementAccumulator {
             power_uw,
         });
         self.sample_index += 1;
-        decoded
+        self.pending_discarded_sequence_samples = 0;
+        Some(decoded)
     }
 
     pub(crate) fn reset_continuity(&mut self) {
@@ -114,6 +132,10 @@ impl MeasurementAccumulator {
 
     pub(crate) fn reset(&mut self) {
         *self = Self::default();
+    }
+
+    pub(crate) const fn cumulative_discarded_sequence_samples(&self) -> u64 {
+        self.cumulative_discarded_sequence_samples
     }
 }
 
@@ -230,8 +252,8 @@ mod tests {
     #[test]
     fn integrates_charge_and_energy_from_device_time() {
         let mut accumulator = MeasurementAccumulator::default();
-        accumulator.push(sample(0, 10.0, 2.0), GraphSampleRate::Sps2);
-        let second = accumulator.push(sample(500, 10.0, 2.0), GraphSampleRate::Sps2);
+        accumulator.push(sample(0, 10.0, 2.0), GraphSampleRate::Sps2).unwrap();
+        let second = accumulator.push(sample(500, 10.0, 2.0), GraphSampleRate::Sps2).unwrap();
 
         assert_eq!(second.elapsed_us, 500_000);
         assert!((second.charge_uah - 277.777_777).abs() < 0.000_001);
@@ -242,8 +264,8 @@ mod tests {
     #[test]
     fn interpolates_across_gaps_and_records_their_quality() {
         let mut accumulator = MeasurementAccumulator::default();
-        accumulator.push(sample(0, 10.0, 1.0), GraphSampleRate::Sps50);
-        let after_gap = accumulator.push(sample(60, 10.0, 3.0), GraphSampleRate::Sps50);
+        accumulator.push(sample(0, 10.0, 1.0), GraphSampleRate::Sps50).unwrap();
+        let after_gap = accumulator.push(sample(60, 10.0, 3.0), GraphSampleRate::Sps50).unwrap();
 
         assert_eq!(after_gap.missing_samples, 2);
         assert_eq!(after_gap.gap_duration_us, 40_000);
@@ -256,11 +278,50 @@ mod tests {
     #[test]
     fn signed_and_absolute_metrics_are_distinct() {
         let mut accumulator = MeasurementAccumulator::default();
-        let measurement = accumulator.push(sample(0, 5.0, -2.0), GraphSampleRate::Sps10);
+        let measurement = accumulator.push(sample(0, 5.0, -2.0), GraphSampleRate::Sps10).unwrap();
 
         assert_eq!(PlotMetric::Current.value(&measurement), 2.0);
         assert_eq!(PlotMetric::SignedCurrent.value(&measurement), -2.0);
         assert_eq!(PlotMetric::Power.value(&measurement), 10.0);
         assert_eq!(PlotMetric::SignedPower.value(&measurement), -10.0);
+    }
+
+    #[test]
+    fn discards_duplicate_and_out_of_order_sequence_samples() {
+        let mut accumulator = MeasurementAccumulator::default();
+        accumulator
+            .push(sample(1_000, 5.0, 1.0), GraphSampleRate::Sps1000)
+            .unwrap();
+
+        assert!(
+            accumulator
+                .push(sample(1_000, 50.0, 10.0), GraphSampleRate::Sps1000)
+                .is_none()
+        );
+        assert!(
+            accumulator
+                .push(sample(990, 50.0, 10.0), GraphSampleRate::Sps1000)
+                .is_none()
+        );
+
+        let next = accumulator
+            .push(sample(1_001, 5.0, 1.0), GraphSampleRate::Sps1000)
+            .unwrap();
+        assert_eq!(next.elapsed_us, 1_000);
+        assert_eq!(next.discarded_sequence_samples, 2);
+        assert_eq!(next.cumulative_discarded_sequence_samples, 2);
+        assert!((next.charge_uah - 0.277_777).abs() < 0.000_001);
+    }
+
+    #[test]
+    fn accepts_sequence_counter_rollover() {
+        let mut accumulator = MeasurementAccumulator::default();
+        accumulator
+            .push(sample(u16::MAX, 5.0, 1.0), GraphSampleRate::Sps1000)
+            .unwrap();
+        let after_rollover = accumulator.push(sample(0, 5.0, 1.0), GraphSampleRate::Sps1000).unwrap();
+
+        assert_eq!(after_rollover.elapsed_us, 1_000);
+        assert_eq!(after_rollover.cumulative_discarded_sequence_samples, 0);
     }
 }

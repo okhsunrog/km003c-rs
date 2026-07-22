@@ -153,9 +153,11 @@ If samples are missing, the interval is retained as a linear estimate rather
 than invalidating the rest of the recording. The affected row and cumulative
 quality are exposed through `missing_samples`, `gap_duration_us`,
 `interpolated`, `cumulative_missing_samples`, and
-`cumulative_interpolated_duration_us`. The GUI reports completeness as the
-fraction of elapsed time covered by received intervals rather than estimated
-gap intervals.
+`cumulative_interpolated_duration_us`. Duplicate, stale, and invalid-sequence
+samples are excluded from plots and integration and counted by
+`discarded_sequence_samples` and `cumulative_discarded_sequence_samples`. The
+GUI reports completeness as the fraction of elapsed time covered by received
+intervals rather than estimated gap intervals.
 
 ## Library Usage
 

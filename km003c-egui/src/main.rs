@@ -200,6 +200,8 @@ struct PowerMonitorApp {
     total_samples: u64,
     /// Dropped sample count
     dropped_samples: u64,
+    /// Duplicate, stale, or invalid-sequence samples excluded from measurements
+    discarded_sequence_samples: u64,
     /// Current readings for display
     current_voltage: f64,
     current_current: f64,
@@ -256,6 +258,7 @@ impl PowerMonitorApp {
             max_points: 100000, // Safety cap for memory
             total_samples: 0,
             dropped_samples: 0,
+            discarded_sequence_samples: 0,
             current_voltage: 0.0,
             current_current: 0.0,
             current_power: 0.0,
@@ -297,8 +300,10 @@ impl PowerMonitorApp {
                     let rate = self.current_rate.to_graph_rate();
                     let measurements = samples
                         .into_iter()
-                        .map(|sample| self.measurement_accumulator.push(sample, rate))
+                        .filter_map(|sample| self.measurement_accumulator.push(sample, rate))
                         .collect::<Vec<_>>();
+                    self.discarded_sequence_samples =
+                        self.measurement_accumulator.cumulative_discarded_sequence_samples();
 
                     for measurement in &measurements {
                         self.data_points.push_back(*measurement);
@@ -392,6 +397,7 @@ impl PowerMonitorApp {
         self.data_points.clear();
         self.total_samples = 0;
         self.dropped_samples = 0;
+        self.discarded_sequence_samples = 0;
         self.measurement_accumulator.reset();
         info!("Data cleared");
     }
@@ -729,6 +735,17 @@ impl eframe::App for PowerMonitorApp {
                     );
                     ui.end_row();
 
+                    ui.label("Discarded:");
+                    ui.colored_label(
+                        if self.discarded_sequence_samples > 0 {
+                            egui::Color32::YELLOW
+                        } else {
+                            egui::Color32::GREEN
+                        },
+                        format!("{}", self.discarded_sequence_samples),
+                    );
+                    ui.end_row();
+
                     ui.label("Buffer:");
                     ui.label(format!("{} pts", self.data_points.len()));
                     ui.end_row();
@@ -849,6 +866,7 @@ impl eframe::App for PowerMonitorApp {
             if let Some(recorder) = &self.recorder {
                 ui.label(format!("Samples: {}", recorder.rows));
                 ui.label(format!("Missing: {}", recorder.missing_samples));
+                ui.label(format!("Discarded: {}", recorder.discarded_sequence_samples));
                 let completeness = if recorder.elapsed_us == 0 {
                     100.0
                 } else {
@@ -858,6 +876,7 @@ impl eframe::App for PowerMonitorApp {
                 ui.label(format!("Completeness: {completeness:.6}%"));
             } else if let Some(summary) = &self.last_recording {
                 ui.label(format!("Last capture: {} samples", summary.rows));
+                ui.label(format!("Discarded: {}", summary.discarded_sequence_samples));
                 ui.label(format!("Completeness: {:.6}%", summary.completeness_percent()));
             }
             ui.small(&self.recording_status);

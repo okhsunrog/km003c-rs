@@ -52,6 +52,7 @@ struct RecordingOrigin {
     energy_uwh: f64,
     cumulative_missing_samples: u64,
     cumulative_interpolated_duration_us: u64,
+    cumulative_discarded_sequence_samples: u64,
 }
 
 impl From<Option<MeasurementSample>> for RecordingOrigin {
@@ -63,6 +64,7 @@ impl From<Option<MeasurementSample>> for RecordingOrigin {
                 energy_uwh: 0.0,
                 cumulative_missing_samples: 0,
                 cumulative_interpolated_duration_us: 0,
+                cumulative_discarded_sequence_samples: 0,
             },
             |sample| Self {
                 elapsed_us: sample.elapsed_us,
@@ -70,6 +72,7 @@ impl From<Option<MeasurementSample>> for RecordingOrigin {
                 energy_uwh: sample.energy_uwh,
                 cumulative_missing_samples: sample.cumulative_missing_samples,
                 cumulative_interpolated_duration_us: sample.cumulative_interpolated_duration_us,
+                cumulative_discarded_sequence_samples: sample.cumulative_discarded_sequence_samples,
             },
         )
     }
@@ -87,6 +90,8 @@ struct RecordingRow {
     interpolated: bool,
     cumulative_missing_samples: u64,
     cumulative_interpolated_duration_us: u64,
+    discarded_sequence_samples: u32,
+    cumulative_discarded_sequence_samples: u64,
     vbus_uv: i64,
     ibus_ua: i64,
     power_uw: i64,
@@ -115,6 +120,10 @@ impl RecordingRow {
             cumulative_interpolated_duration_us: sample
                 .cumulative_interpolated_duration_us
                 .saturating_sub(origin.cumulative_interpolated_duration_us),
+            discarded_sequence_samples: sample.discarded_sequence_samples,
+            cumulative_discarded_sequence_samples: sample
+                .cumulative_discarded_sequence_samples
+                .saturating_sub(origin.cumulative_discarded_sequence_samples),
             vbus_uv: sample.vbus_uv,
             ibus_ua: sample.ibus_ua,
             power_uw: sample.power_uw,
@@ -147,6 +156,7 @@ pub(crate) struct RecordingSummary {
     pub(crate) elapsed_us: u64,
     pub(crate) missing_samples: u64,
     pub(crate) interpolated_duration_us: u64,
+    pub(crate) discarded_sequence_samples: u64,
 }
 
 impl RecordingSummary {
@@ -172,6 +182,7 @@ pub(crate) struct Recorder {
     pub(crate) elapsed_us: u64,
     pub(crate) missing_samples: u64,
     pub(crate) interpolated_duration_us: u64,
+    pub(crate) discarded_sequence_samples: u64,
 }
 
 impl Recorder {
@@ -224,6 +235,7 @@ impl Recorder {
             elapsed_us: 0,
             missing_samples: 0,
             interpolated_duration_us: 0,
+            discarded_sequence_samples: 0,
         })
     }
 
@@ -249,6 +261,7 @@ impl Recorder {
                     self.elapsed_us = last.elapsed_us;
                     self.missing_samples = last.cumulative_missing_samples;
                     self.interpolated_duration_us = last.cumulative_interpolated_duration_us;
+                    self.discarded_sequence_samples = last.cumulative_discarded_sequence_samples;
                 }
                 Ok(())
             }
@@ -392,6 +405,7 @@ where
         elapsed_us: 0,
         missing_samples: 0,
         interpolated_duration_us: 0,
+        discarded_sequence_samples: 0,
     };
 
     loop {
@@ -402,6 +416,7 @@ where
                     summary.elapsed_us = last.elapsed_us;
                     summary.missing_samples = last.cumulative_missing_samples;
                     summary.interpolated_duration_us = last.cumulative_interpolated_duration_us;
+                    summary.discarded_sequence_samples = last.cumulative_discarded_sequence_samples;
                 }
                 buffered.append(&mut rows);
                 if buffered.len() >= ROW_GROUP_SIZE {
@@ -431,6 +446,8 @@ fn rows_to_dataframe(rows: &[RecordingRow]) -> Result<DataFrame, polars::error::
         "interpolated" => rows.iter().map(|row| row.interpolated).collect::<Vec<_>>(),
         "cumulative_missing_samples" => rows.iter().map(|row| row.cumulative_missing_samples).collect::<Vec<_>>(),
         "cumulative_interpolated_duration_us" => rows.iter().map(|row| row.cumulative_interpolated_duration_us).collect::<Vec<_>>(),
+        "discarded_sequence_samples" => rows.iter().map(|row| row.discarded_sequence_samples).collect::<Vec<_>>(),
+        "cumulative_discarded_sequence_samples" => rows.iter().map(|row| row.cumulative_discarded_sequence_samples).collect::<Vec<_>>(),
         "vbus_uv" => rows.iter().map(|row| row.vbus_uv).collect::<Vec<_>>(),
         "ibus_ua" => rows.iter().map(|row| row.ibus_ua).collect::<Vec<_>>(),
         "power_uw" => rows.iter().map(|row| row.power_uw).collect::<Vec<_>>(),
@@ -459,8 +476,14 @@ fn replace_file(partial: &Path, final_path: &Path) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use polars::prelude::{CsvReader, ParquetReader, SerReader};
+    use crate::measurement::MeasurementAccumulator;
+    use km003c_lib::{
+        DeviceConfig, GraphSampleRate, KM003C,
+        packet::{Attribute, AttributeSet},
+    };
+    use polars::prelude::{ChunkAgg, CsvReader, ParquetReader, SerReader};
     use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{Duration, Instant};
 
     static NEXT_TEST_FILE: AtomicU64 = AtomicU64::new(0);
 
@@ -476,6 +499,8 @@ mod tests {
             interpolated: missing > 0,
             cumulative_missing_samples: missing,
             cumulative_interpolated_duration_us: interpolated_us,
+            discarded_sequence_samples: 0,
+            cumulative_discarded_sequence_samples: 0,
             vbus_uv: 5_000_000,
             ibus_ua: -1_000_000,
             power_uw: -5_000_000,
@@ -508,6 +533,7 @@ mod tests {
             elapsed_us: 1_000_000,
             missing_samples: 2,
             interpolated_duration_us: 10_000,
+            discarded_sequence_samples: 0,
         };
         assert_eq!(summary.completeness_percent(), 99.0);
     }
@@ -518,7 +544,7 @@ mod tests {
         let dataframe = rows_to_dataframe(&[row]).unwrap();
 
         assert_eq!(dataframe.height(), 1);
-        assert_eq!(dataframe.width(), 19);
+        assert_eq!(dataframe.width(), 21);
         assert_eq!(
             dataframe.column("vbus_uv").unwrap().i64().unwrap().get(0),
             Some(5_000_000)
@@ -532,7 +558,7 @@ mod tests {
         let dataframe = ParquetReader::new(File::open(&path).unwrap()).finish().unwrap();
 
         assert_eq!(summary.rows, 2);
-        assert_eq!(dataframe.shape(), (2, 19));
+        assert_eq!(dataframe.shape(), (2, 21));
         assert_eq!(
             dataframe.column("elapsed_us").unwrap().u64().unwrap().get(1),
             Some(20_000)
@@ -547,12 +573,123 @@ mod tests {
         let dataframe = CsvReader::new(File::open(&path).unwrap()).finish().unwrap();
 
         assert_eq!(summary.rows, 2);
-        assert_eq!(dataframe.shape(), (2, 19));
+        assert_eq!(dataframe.shape(), (2, 21));
         assert_eq!(
             dataframe.column("vbus_uv").unwrap().i64().unwrap().get(0),
             Some(5_000_000)
         );
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    #[ignore = "requires a connected KM003C"]
+    fn records_live_adcqueue_to_parquet() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let mut device = KM003C::new(DeviceConfig::vendor()).await.unwrap();
+            let state = device.state().unwrap();
+            let metadata = RecordingMetadata {
+                model: state.info.model.clone(),
+                firmware: state.info.fw_version.clone(),
+                serial: state.info.serial_id.clone(),
+            };
+            let path = test_path("hardware.parquet");
+            let mut recorder = Recorder::start(path.clone(), RecordingFormat::Parquet, metadata, None).unwrap();
+            let rate = GraphSampleRate::Sps1000;
+            let mut accumulator = MeasurementAccumulator::default();
+            let mut recorded = 0_u64;
+
+            device.start_graph_mode(rate).await.unwrap();
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while recorded < 1_500 && Instant::now() < deadline {
+                let packet = device
+                    .request_data(AttributeSet::single(Attribute::AdcQueue))
+                    .await
+                    .unwrap();
+                let Some(queue) = packet.get_adc_queue() else {
+                    continue;
+                };
+                let measurements = queue
+                    .samples
+                    .iter()
+                    .copied()
+                    .filter_map(|sample| accumulator.push(sample, rate))
+                    .collect::<Vec<_>>();
+                recorder.push(&measurements).unwrap();
+                recorded += measurements.len() as u64;
+            }
+            device.stop_graph_mode().await.unwrap();
+            assert!(
+                recorded >= 1_500,
+                "received only {recorded} samples before the deadline"
+            );
+
+            recorder.request_finish().unwrap();
+            let summary = loop {
+                match recorder.poll_event() {
+                    Some(RecordingEvent::Finished(summary)) => break summary,
+                    Some(event) => panic!("recording failed: {event:?}"),
+                    None if Instant::now() < deadline + Duration::from_secs(5) => {
+                        tokio::time::sleep(Duration::from_millis(10)).await;
+                    }
+                    None => panic!("recording did not finish before the deadline"),
+                }
+            };
+
+            let dataframe = ParquetReader::new(File::open(&path).unwrap()).finish().unwrap();
+            assert_eq!(summary.rows, recorded);
+            assert_eq!(dataframe.shape(), (recorded as usize, 21));
+            assert!(dataframe.column("vbus_uv").unwrap().i64().unwrap().min().unwrap() > 0);
+            assert_eq!(
+                dataframe.column("sample_rate_hz").unwrap().u32().unwrap().min(),
+                Some(1_000)
+            );
+            for column in ["vbus_uv", "ibus_ua", "power_uw", "cc1_uv", "cc2_uv", "dp_uv", "dm_uv"] {
+                assert_eq!(
+                    dataframe.column(column).unwrap().null_count(),
+                    0,
+                    "{column} contains nulls"
+                );
+            }
+
+            let elapsed = dataframe.column("elapsed_us").unwrap().u64().unwrap();
+            let current = dataframe.column("ibus_ua").unwrap().i64().unwrap();
+            let power = dataframe.column("power_uw").unwrap().i64().unwrap();
+            let mut expected_charge_uah = 0.0;
+            let mut expected_energy_uwh = 0.0;
+            for index in 1..dataframe.height() {
+                let delta_us = (elapsed.get(index).unwrap() - elapsed.get(index - 1).unwrap()) as f64;
+                expected_charge_uah +=
+                    (current.get(index - 1).unwrap() + current.get(index).unwrap()) as f64 * delta_us / 7_200_000_000.0;
+                expected_energy_uwh +=
+                    (power.get(index - 1).unwrap() + power.get(index).unwrap()) as f64 * delta_us / 7_200_000_000.0;
+            }
+            let last = dataframe.height() - 1;
+            let charge_uah = dataframe
+                .column("charge_uah")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .get(last)
+                .unwrap();
+            let energy_uwh = dataframe
+                .column("energy_uwh")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .get(last)
+                .unwrap();
+            assert!((charge_uah - expected_charge_uah).abs() < 1e-9);
+            assert!((energy_uwh - expected_energy_uwh).abs() < 1e-9);
+            println!(
+                "recorded={} missing={} discarded={} completeness={:.6}% charge={charge_uah:.6} uAh energy={energy_uwh:.6} uWh",
+                summary.rows,
+                summary.missing_samples,
+                summary.discarded_sequence_samples,
+                summary.completeness_percent()
+            );
+            std::fs::remove_file(path).unwrap();
+        });
     }
 
     fn write_test_recording(path: &Path, format: RecordingFormat) -> RecordingSummary {
