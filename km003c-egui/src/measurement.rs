@@ -201,6 +201,10 @@ impl PlotMetric {
         }
     }
 
+    pub(crate) const fn supports_offline(self) -> bool {
+        !matches!(self, Self::Cc1 | Self::Cc2 | Self::DPlus | Self::DMinus)
+    }
+
     pub(crate) const fn unit(self) -> &'static str {
         match self {
             Self::Voltage | Self::Cc1 | Self::Cc2 | Self::DPlus | Self::DMinus => "V",

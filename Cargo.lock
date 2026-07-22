@@ -2505,6 +2505,7 @@ version = "0.2.0"
 dependencies = [
  "eframe",
  "egui_plot",
+ "hex",
  "km003c-lib",
  "polars",
  "rfd",
