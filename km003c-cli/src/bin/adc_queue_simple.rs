@@ -1,5 +1,5 @@
 use clap::Parser;
-use km003c_lib::uom::si::electric_current::ampere;
+use km003c_lib::uom::si::electric_current::milliampere;
 use km003c_lib::uom::si::electric_potential::volt;
 use km003c_lib::uom::si::f64::Frequency;
 use km003c_lib::uom::si::frequency::hertz;
@@ -128,7 +128,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     );
     println!(
         "{:>6} {:>10} {:>10} {:>10} {:>8} {:>8} {:>8} {:>8}",
-        "", "(V)", "(A)", "(W)", "(V)", "(V)", "(V)", "(V)"
+        "", "(V)", "(mA)", "(W)", "(V)", "(V)", "(V)", "(V)"
     );
     println!("{}", "=".repeat(90));
 
@@ -183,10 +183,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         // Print interval based on rate
+        // Print every sample. The decimated view hides transients -- a USB
+        // enumeration inrush is over in well under one printed row at 50:1.
         let print_interval = match rate {
             GraphSampleRate::Sps2 | GraphSampleRate::Sps10 => 1,
-            GraphSampleRate::Sps50 => 5,
-            GraphSampleRate::Sps1000 => 50,
+            GraphSampleRate::Sps50 => 1,
+            GraphSampleRate::Sps1000 => 1,
         };
 
         for sample in &queue_data.samples {
@@ -206,7 +208,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     "{:>6} {:>10.3} {:>10.3} {:>10.3} {:>8.3} {:>8.3} {:>8.3} {:>8.3}",
                     sample.sequence,
                     sample.vbus.get::<volt>(),
-                    sample.ibus.get::<ampere>(),
+                    sample.ibus.get::<milliampere>(),
                     sample.power.get::<watt>(),
                     sample.cc1.get::<volt>(),
                     sample.cc2.get::<volt>(),
