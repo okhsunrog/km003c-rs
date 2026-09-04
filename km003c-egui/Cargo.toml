@@ -17,7 +17,7 @@ path = "src/main.rs"
 km003c-lib = { workspace = true, features = ["usbpd"] }
 eframe = "0.35.0"
 egui_plot = "0.36.0"
-polars = { version = "0.54.4", default-features = false, features = ["csv", "parquet"] }
+polars = { version = "0.55.1", default-features = false, features = ["csv", "parquet"] }
 rfd = "0.17.2"
 tokio.workspace = true
 tracing.workspace = true
