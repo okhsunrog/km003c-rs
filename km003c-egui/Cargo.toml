@@ -15,7 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 km003c-lib = { workspace = true, features = ["usbpd"] }
-eframe = "0.35.0"
+eframe = "0.36.1"
 egui_plot = "0.36.0"
 polars = { version = "0.55.1", default-features = false, features = ["csv", "parquet"] }
 rfd = "0.17.2"
