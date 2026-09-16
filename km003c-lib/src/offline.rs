@@ -261,7 +261,9 @@ impl OfflineLog {
         }
 
         let samples = bytes
-            .chunks_exact(OFFLINE_LOG_SAMPLE_SIZE)
+            .as_chunks::<OFFLINE_LOG_SAMPLE_SIZE>()
+            .0
+            .iter()
             .map(|bytes| {
                 OfflineLogSampleWire::ref_from_bytes(bytes)
                     .map(|wire| OfflineLogSampleRaw::from(*wire).decode())

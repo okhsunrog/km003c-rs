@@ -459,7 +459,7 @@ fn aes_ecb_encrypt(plaintext: &[u8; 32], key: &[u8; 16]) -> [u8; 32] {
     let cipher = Aes128::new(key.into());
     let mut output = *plaintext;
 
-    for block in output.chunks_exact_mut(AES_BLOCK_SIZE) {
+    for block in output.as_chunks_mut::<AES_BLOCK_SIZE>().0 {
         encrypt_aes_block(&cipher, block);
     }
 
@@ -493,7 +493,7 @@ fn aes_ecb_decrypt(ciphertext: &[u8; 32], key: &[u8; 16]) -> [u8; 32] {
     let cipher = Aes128::new(key.into());
     let mut output = *ciphertext;
 
-    for block in output.chunks_exact_mut(AES_BLOCK_SIZE) {
+    for block in output.as_chunks_mut::<AES_BLOCK_SIZE>().0 {
         decrypt_aes_block(&cipher, block);
     }
 
@@ -539,7 +539,7 @@ pub fn aes_ecb_decrypt_blocks(ciphertext: &[u8], key: &[u8; 16]) -> Result<Vec<u
     let cipher = Aes128::new(key.into());
     let mut output = ciphertext.to_vec();
 
-    for block in output.chunks_exact_mut(AES_BLOCK_SIZE) {
+    for block in output.as_chunks_mut::<AES_BLOCK_SIZE>().0 {
         decrypt_aes_block(&cipher, block);
     }
 

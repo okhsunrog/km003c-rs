@@ -209,7 +209,9 @@ impl AdcQueueRawData {
         }
 
         let samples = bytes
-            .chunks_exact(Self::SAMPLE_SIZE)
+            .as_chunks::<{ Self::SAMPLE_SIZE }>()
+            .0
+            .iter()
             .map(|sample| {
                 AdcQueueSampleWire::ref_from_bytes(sample)
                     .map(|wire| AdcQueueSampleRaw::from(*wire))

@@ -311,8 +311,10 @@ impl Packet {
                                 }
                                 let entries = lp
                                     .payload
-                                    .chunks_exact(crate::offline::LOG_METADATA_SIZE)
-                                    .map(LogMetadata::from_bytes)
+                                    .as_chunks::<{ crate::offline::LOG_METADATA_SIZE }>()
+                                    .0
+                                    .iter()
+                                    .map(|chunk| LogMetadata::from_bytes(chunk))
                                     .collect::<Result<Vec<_>, _>>()?;
                                 PayloadData::LogMetadata(LogMetadataResponse::Available(entries))
                             }

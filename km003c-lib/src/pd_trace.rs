@@ -206,7 +206,9 @@ fn parse_queue(bytes: &[u8], offset: usize, name: &str) -> Result<(Vec<TraceReco
     let start = offset + 1;
     let end = start + size;
     let events = bytes[start..end]
-        .chunks_exact(TRACE_RECORD_SIZE)
+        .as_chunks::<TRACE_RECORD_SIZE>()
+        .0
+        .iter()
         .map(|record| TraceRecord {
             code: record[0],
             timestamp: Time::new::<second>(f64::from(u32::from_le_bytes([
