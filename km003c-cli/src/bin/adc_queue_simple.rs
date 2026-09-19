@@ -23,6 +23,10 @@ struct Args {
     #[arg(short, long, default_value = "10")]
     duration: u64,
 
+    /// Print every N-th sample; 1 prints all. Defaults: 1 at 2/10 SPS, 5 at 50 SPS, 50 at 1000 SPS
+    #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
+    every: Option<u64>,
+
     /// Verbose logging
     #[arg(short, long)]
     verbose: bool,
@@ -88,6 +92,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "1000" => GraphSampleRate::Sps1000,
         _ => unreachable!(),
     };
+
+    let print_interval = args.every.unwrap_or(match rate {
+        GraphSampleRate::Sps2 | GraphSampleRate::Sps10 => 1,
+        GraphSampleRate::Sps50 => 5,
+        GraphSampleRate::Sps1000 => 50,
+    });
 
     // AdcQueue requires vendor interface (Full mode)
     let mut config = DeviceConfig::vendor();
@@ -181,13 +191,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 last
             );
         }
-
-        // Print interval based on rate
-        let print_interval = match rate {
-            GraphSampleRate::Sps2 | GraphSampleRate::Sps10 => 1,
-            GraphSampleRate::Sps50 => 5,
-            GraphSampleRate::Sps1000 => 50,
-        };
 
         for sample in &queue_data.samples {
             let previous = sequence_statistics.previous;
