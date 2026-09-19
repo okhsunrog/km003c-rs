@@ -22,6 +22,8 @@ rfd = "0.17.2"
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+nusb = { version = "0.2.7", features = ["tokio"] }
+futures-util = "0.3.34"
 
 [dev-dependencies]
 hex = "0.4.3"

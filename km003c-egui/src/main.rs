@@ -8,6 +8,7 @@ mod recording;
 
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
+use futures_util::StreamExt;
 use km003c_lib::uom::si::electric_charge::milliampere_hour;
 use km003c_lib::uom::si::electric_potential::volt;
 use km003c_lib::uom::si::energy::milliwatt_hour;
@@ -26,17 +27,19 @@ use pd_trace_view::{PdTraceCategory, PdTraceEntry, decode_trace};
 use recording::{Recorder, RecordingEvent, RecordingFormat, RecordingMetadata, RecordingSummary};
 use std::collections::VecDeque;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 /// Message from USB task to UI
 #[derive(Debug, Clone)]
 enum UsbMessage {
+    /// Discovery is waiting for a USB hotplug event.
+    WaitingForDevice,
     /// Device connected and initialized
     Connected(Arc<DeviceState>),
     /// Connection failed
-    ConnectionFailed(String),
+    ConnectionFailed { error: String, retry_when_present: bool },
     /// New AdcQueue samples received
     Samples(Vec<AdcQueueSample>),
     /// PD events received from device
@@ -57,8 +60,8 @@ enum UsbMessage {
     StreamingStopped,
     /// Error during streaming
     Error(String),
-    /// Disconnected
-    Disconnected,
+    /// Streaming ended. Reconnect only after an unexpected transport loss.
+    Disconnected { retry_when_present: bool },
 }
 
 /// Command from UI to USB task
@@ -279,9 +282,17 @@ struct PowerMonitorApp {
     max_pd_trace_entries: usize,
     /// Whether to perform USB reset on connect
     usb_reset: bool,
+    /// An attempted connection has not yet produced a result.
+    connection_attempt_in_flight: bool,
+    /// User intent, retained while a connection or disconnect is in progress.
+    auto_connect_enabled: bool,
+    /// Time of the next automatic probe while the KM003C is absent.
+    reconnect_at: Option<Instant>,
 }
 
 impl PowerMonitorApp {
+    const RECONNECT_DELAY: Duration = Duration::from_secs(1);
+
     fn new(usb_receiver: mpsc::UnboundedReceiver<UsbMessage>, cmd_sender: mpsc::UnboundedSender<UsbCommand>) -> Self {
         Self {
             data_points: VecDeque::new(),
@@ -326,13 +337,43 @@ impl PowerMonitorApp {
             pd_trace_log: VecDeque::new(),
             max_pd_trace_entries: 2000,
             usb_reset: !cfg!(target_os = "macos"),
+            connection_attempt_in_flight: true,
+            auto_connect_enabled: true,
+            reconnect_at: None,
+        }
+    }
+
+    fn request_connection(&mut self, show_connecting: bool) {
+        if self.connection_attempt_in_flight || self.device_state.is_some() {
+            return;
+        }
+
+        self.connection_attempt_in_flight = true;
+        self.reconnect_at = None;
+        if show_connecting {
+            self.auto_connect_enabled = true;
+            self.status = "Connecting...".to_string();
+        }
+        let _ = self
+            .cmd_sender
+            .send(UsbCommand::Connect(self.selected_rate.to_graph_rate(), self.usb_reset));
+    }
+
+    fn retry_connection_if_due(&mut self, now: Instant) {
+        if self.reconnect_at.is_some_and(|retry_at| now >= retry_at) {
+            self.request_connection(false);
         }
     }
 
     fn process_messages(&mut self) {
         while let Ok(msg) = self.usb_receiver.try_recv() {
             match msg {
+                UsbMessage::WaitingForDevice => {
+                    self.status = "Waiting for POWER-Z KM003C...".to_string();
+                }
                 UsbMessage::Connected(state) => {
+                    self.connection_attempt_in_flight = false;
+                    self.reconnect_at = None;
                     self.status = format!("Connected: {}", state.model());
                     self.device_state = Some(state);
                     self.offline_catalog.clear();
@@ -343,8 +384,18 @@ impl PowerMonitorApp {
                         let _ = self.cmd_sender.send(UsbCommand::SetPdTraceEnabled(true));
                     }
                 }
-                UsbMessage::ConnectionFailed(err) => {
-                    self.status = format!("Connection failed: {}", err);
+                UsbMessage::ConnectionFailed {
+                    error,
+                    retry_when_present,
+                } => {
+                    self.connection_attempt_in_flight = false;
+                    self.reconnect_at = None;
+                    if retry_when_present && self.auto_connect_enabled {
+                        self.reconnect_at = Some(Instant::now() + Self::RECONNECT_DELAY);
+                        self.status = "Waiting for POWER-Z KM003C...".to_string();
+                    } else {
+                        self.status = format!("Connection failed: {}", error);
+                    }
                 }
                 UsbMessage::Samples(samples) => {
                     let rate = self.current_rate.to_graph_rate();
@@ -461,8 +512,15 @@ impl PowerMonitorApp {
                 UsbMessage::Error(err) => {
                     self.status = format!("Error: {}", err);
                 }
-                UsbMessage::Disconnected => {
-                    self.status = "Disconnected".to_string();
+                UsbMessage::Disconnected { retry_when_present } => {
+                    self.connection_attempt_in_flight = false;
+                    self.status = if retry_when_present && self.auto_connect_enabled {
+                        self.reconnect_at = Some(Instant::now() + Self::RECONNECT_DELAY);
+                        "Waiting for POWER-Z KM003C...".to_string()
+                    } else {
+                        self.reconnect_at = None;
+                        "Disconnected".to_string()
+                    };
                     self.streaming = false;
                     self.device_state = None;
                     self.pd_status = None;
@@ -473,6 +531,7 @@ impl PowerMonitorApp {
             }
         }
 
+        self.retry_connection_if_due(Instant::now());
         self.pd_connection.update(std::time::Instant::now());
         self.poll_recording();
         self.poll_offline_export();
@@ -1183,18 +1242,18 @@ impl eframe::App for PowerMonitorApp {
 
             ui.add_space(5.0);
 
-            if self.streaming {
+            if self.streaming || self.connection_attempt_in_flight || self.reconnect_at.is_some() {
                 if ui.button("Disconnect").clicked() {
                     info!("Disconnect requested");
+                    self.auto_connect_enabled = false;
+                    self.reconnect_at = None;
                     let _ = self.cmd_sender.send(UsbCommand::Disconnect);
                 }
             } else if self.device_state.is_none() {
                 ui.checkbox(&mut self.usb_reset, "USB reset on connect");
                 if ui.button("Connect").clicked() {
                     info!("Connect requested");
-                    let _ = self
-                        .cmd_sender
-                        .send(UsbCommand::Connect(self.selected_rate.to_graph_rate(), self.usb_reset));
+                    self.request_connection(true);
                 }
             }
             });
@@ -1358,16 +1417,56 @@ async fn usb_streaming_task(tx: mpsc::UnboundedSender<UsbMessage>, mut cmd_rx: m
 
         match cmd {
             UsbCommand::Connect(initial_rate, usb_reset) => {
-                info!("Connect command received, rate={:?}, reset={}", initial_rate, usb_reset);
+                debug!("Connect command received, rate={:?}, reset={}", initial_rate, usb_reset);
                 run_streaming_session(&tx, &mut cmd_rx, initial_rate, usb_reset).await;
+            }
+            UsbCommand::Disconnect => {
+                let _ = tx.send(UsbMessage::Disconnected {
+                    retry_when_present: false,
+                });
             }
             UsbCommand::SetSampleRate(_)
             | UsbCommand::SetPdTraceEnabled(_)
             | UsbCommand::RequestOfflineCatalog
-            | UsbCommand::DownloadOfflineLog(_)
-            | UsbCommand::Disconnect => {
+            | UsbCommand::DownloadOfflineLog(_) => {
                 // Ignore these when not connected
                 debug!("Ignoring command while disconnected: {:?}", cmd);
+            }
+        }
+    }
+}
+
+/// Subscribe before enumerating so an attachment cannot fall between the two.
+/// No device handles are opened and no periodic probes run while waiting.
+async fn wait_for_device(tx: &mpsc::UnboundedSender<UsbMessage>) -> Result<(), km003c_lib::error::KMError> {
+    let mut watch = nusb::watch_devices()?;
+    let mut announced = false;
+    loop {
+        if nusb::list_devices().await?.any(|device| {
+            device.vendor_id() == km003c_lib::device::VID && device.product_id() == km003c_lib::device::PID
+        }) {
+            return Ok(());
+        }
+        if !announced {
+            let _ = tx.send(UsbMessage::WaitingForDevice);
+            announced = true;
+        }
+        loop {
+            match watch.next().await {
+                Some(nusb::hotplug::HotplugEvent::Connected(device))
+                    if device.vendor_id() == km003c_lib::device::VID
+                        && device.product_id() == km003c_lib::device::PID =>
+                {
+                    // Let interface creation and device permissions settle.
+                    tokio::time::sleep(Duration::from_millis(300)).await;
+                    break;
+                }
+                Some(_) => {}
+                None => {
+                    return Err(km003c_lib::error::KMError::Protocol(
+                        "USB hotplug watcher closed".to_string(),
+                    ));
+                }
             }
         }
     }
@@ -1376,9 +1475,38 @@ async fn usb_streaming_task(tx: mpsc::UnboundedSender<UsbMessage>, mut cmd_rx: m
 async fn run_streaming_session(
     tx: &mpsc::UnboundedSender<UsbMessage>,
     cmd_rx: &mut mpsc::UnboundedReceiver<UsbCommand>,
-    initial_rate: GraphSampleRate,
-    usb_reset: bool,
+    mut initial_rate: GraphSampleRate,
+    mut usb_reset: bool,
 ) {
+    loop {
+        tokio::select! {
+            biased;
+            command = cmd_rx.recv() => match command {
+                Some(UsbCommand::Disconnect) | None => {
+                    let _ = tx.send(UsbMessage::Disconnected { retry_when_present: false });
+                    return;
+                }
+                Some(UsbCommand::Connect(rate, reset)) => {
+                    initial_rate = rate;
+                    usb_reset = reset;
+                }
+                Some(UsbCommand::SetSampleRate(rate)) => initial_rate = rate,
+                Some(_) => {}
+            },
+            _ = tx.closed() => return,
+            result = wait_for_device(tx) => {
+                if let Err(error) = result {
+                    error!("USB discovery failed: {error}");
+                    let _ = tx.send(UsbMessage::ConnectionFailed {
+                        error: error.to_string(),
+                        retry_when_present: false,
+                    });
+                    return;
+                }
+                break;
+            }
+        }
+    }
     // Connect to device with vendor interface (Full mode for AdcQueue)
     let config = if usb_reset {
         DeviceConfig::vendor()
@@ -1388,8 +1516,15 @@ async fn run_streaming_session(
     let mut device = match KM003C::new(config).await {
         Ok(dev) => dev,
         Err(e) => {
-            error!("Failed to connect: {}", e);
-            let _ = tx.send(UsbMessage::ConnectionFailed(e.to_string()));
+            if matches!(e, km003c_lib::error::KMError::DeviceNotFound) {
+                debug!("Device removed during connection: {e}");
+            } else {
+                error!("Failed to connect: {e}");
+            }
+            let _ = tx.send(UsbMessage::ConnectionFailed {
+                retry_when_present: matches!(e, km003c_lib::error::KMError::DeviceNotFound),
+                error: e.to_string(),
+            });
             return;
         }
     };
@@ -1400,7 +1535,10 @@ async fn run_streaming_session(
 
     if !state.adcqueue_enabled {
         error!("AdcQueue not enabled - authentication may have failed");
-        let _ = tx.send(UsbMessage::ConnectionFailed("AdcQueue not enabled".to_string()));
+        let _ = tx.send(UsbMessage::ConnectionFailed {
+            error: "AdcQueue not enabled".to_string(),
+            retry_when_present: false,
+        });
         return;
     }
 
@@ -1415,13 +1553,16 @@ async fn run_streaming_session(
     if let Err(e) = start_streaming(&mut device, current_rate, tx).await {
         error!("Failed to start streaming: {}", e);
         let _ = tx.send(UsbMessage::Error(format!("Start failed: {}", e)));
-        let _ = tx.send(UsbMessage::Disconnected);
+        let _ = tx.send(UsbMessage::Disconnected {
+            retry_when_present: true,
+        });
         return;
     }
 
     // Streaming loop - poll for data and handle commands
     let mut error_count = 0;
     let mut pd_trace_enabled = false;
+    let mut reconnect_when_present = true;
     const MAX_ERRORS: u32 = 10;
 
     loop {
@@ -1509,6 +1650,7 @@ async fn run_streaming_session(
             }
             Ok(UsbCommand::Disconnect) => {
                 info!("Disconnect command received");
+                reconnect_when_present = false;
                 break;
             }
             Ok(UsbCommand::Connect(..)) => {
@@ -1520,6 +1662,7 @@ async fn run_streaming_session(
             }
             Err(mpsc::error::TryRecvError::Disconnected) => {
                 warn!("Command channel disconnected");
+                reconnect_when_present = false;
                 break;
             }
         }
@@ -1576,7 +1719,9 @@ async fn run_streaming_session(
     // Stop streaming and disconnect
     info!("Stopping streaming");
     let _ = device.stop_graph_mode().await;
-    let _ = tx.send(UsbMessage::Disconnected);
+    let _ = tx.send(UsbMessage::Disconnected {
+        retry_when_present: reconnect_when_present,
+    });
 }
 
 fn streaming_attribute_mask(pd_trace_enabled: bool) -> AttributeSet {
