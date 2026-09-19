@@ -45,6 +45,9 @@ features = ["python"]
 
 [dependency-groups]
 dev = [
-    "maturin>=1.14.1",
-    "pytest>=7.0.0",
+    "maturin>=1.15.0",
+    "pytest>=9.1.1",
 ]
+
+[tool.uv.dependency-groups]
+dev = {requires-python = ">=3.10"}

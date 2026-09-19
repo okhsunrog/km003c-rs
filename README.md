@@ -123,6 +123,9 @@ cargo run --bin adc_simple
 
 ```bash
 cargo run --bin adc_queue_simple -- --rate 50 --duration 10
+
+# Print every sample; current remains in amperes across the CLI tools.
+cargo run --bin adc_queue_simple -- --rate 1000 --duration 10 --every 1
 ```
 
 #### USB PD Capture
@@ -314,6 +317,9 @@ through the meter. AdcQueue sequence timing was checked at 2, 10, 50, and
 measurements.
 
 ## Development
+
+The Python development tools require Python 3.10 or newer. The package itself
+continues to support Python 3.8 or newer.
 
 Common tasks are available through [`just`](https://just.systems):
 
