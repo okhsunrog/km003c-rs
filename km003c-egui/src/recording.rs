@@ -148,7 +148,6 @@ impl RecordingRow {
 
 enum WriterCommand {
     Rows(Vec<RecordingRow>),
-    Finish,
 }
 
 #[derive(Debug)]
@@ -179,7 +178,7 @@ impl RecordingSummary {
 }
 
 pub(crate) struct Recorder {
-    command_tx: SyncSender<WriterCommand>,
+    command_tx: Option<SyncSender<WriterCommand>>,
     event_rx: Receiver<RecordingEvent>,
     handle: Option<JoinHandle<()>>,
     origin: RecordingOrigin,
@@ -232,7 +231,7 @@ impl Recorder {
             .map_err(|error| format!("failed to start recording thread: {error}"))?;
 
         Ok(Self {
-            command_tx,
+            command_tx: Some(command_tx),
             event_rx,
             handle: Some(handle),
             origin: origin.into(),
@@ -261,7 +260,10 @@ impl Recorder {
             .map(|(offset, sample)| RecordingRow::from_sample(sample, self.origin, first_sample_index + offset as u64))
             .collect::<Vec<_>>();
 
-        match self.command_tx.try_send(WriterCommand::Rows(rows)) {
+        let Some(command_tx) = &self.command_tx else {
+            return Ok(());
+        };
+        match command_tx.try_send(WriterCommand::Rows(rows)) {
             Ok(()) => {
                 self.next_sample_index += samples.len() as u64;
                 if let Some(last) = samples.last() {
@@ -289,9 +291,9 @@ impl Recorder {
 
     pub(crate) fn request_finish(&mut self) -> Result<(), String> {
         if !self.finishing {
-            self.command_tx
-                .send(WriterCommand::Finish)
-                .map_err(|_| "recording writer stopped unexpectedly".to_string())?;
+            // Closing the sender lets the worker drain queued rows and finalize
+            // without blocking the UI on a full queue.
+            self.command_tx.take();
             self.finishing = true;
         }
         Ok(())
@@ -322,9 +324,7 @@ impl Recorder {
 
 impl Drop for Recorder {
     fn drop(&mut self) {
-        if !self.finishing {
-            let _ = self.command_tx.send(WriterCommand::Finish);
-        }
+        self.command_tx.take();
         if let Some(handle) = self.handle.take() {
             let _ = handle.join();
         }
@@ -417,8 +417,8 @@ where
         discarded_sequence_samples: 0,
     };
 
-    loop {
-        match command_rx.recv()? {
+    while let Ok(command) = command_rx.recv() {
+        match command {
             WriterCommand::Rows(mut rows) => {
                 if let Some(last) = rows.last() {
                     summary.rows = last.sample_index + 1;
@@ -433,14 +433,12 @@ where
                     buffered.clear();
                 }
             }
-            WriterCommand::Finish => {
-                if !buffered.is_empty() {
-                    write(&buffered)?;
-                }
-                return Ok(summary);
-            }
         }
     }
+    if !buffered.is_empty() {
+        write(&buffered)?;
+    }
+    Ok(summary)
 }
 
 fn rows_to_dataframe(rows: &[RecordingRow]) -> Result<DataFrame, polars::error::PolarsError> {
@@ -736,7 +734,7 @@ mod tests {
             RecordingRow::from_sample(sample(20_000, 1, 20_000), RecordingOrigin::from(None), 1),
         ];
         command_tx.send(WriterCommand::Rows(rows)).unwrap();
-        command_tx.send(WriterCommand::Finish).unwrap();
+        drop(command_tx);
 
         run_writer(
             path,

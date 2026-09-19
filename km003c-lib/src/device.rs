@@ -567,6 +567,10 @@ impl KM003C {
     fn next_transaction_id(&mut self) -> u8 {
         let id = self.transaction_id;
         self.transaction_id = self.transaction_id.wrapping_add(1);
+        // A buffered response predates this new request, even if its eight-bit
+        // transaction ID happens to match after rollover.
+        self.pending_responses
+            .retain(|response| !parse_framed_response(response).is_some_and(|packet| packet.id() == id));
         id
     }
 

@@ -380,6 +380,7 @@ impl PowerMonitorApp {
                     self.offline_selected = None;
                     self.offline_status = "Catalog not loaded".to_string();
                     self.pd_connection = PdConnectionTracker::default();
+                    self.pd_decoder = PdDecoder::new();
                     if self.pd_trace_enabled {
                         let _ = self.cmd_sender.send(UsbCommand::SetPdTraceEnabled(true));
                     }
@@ -525,6 +526,7 @@ impl PowerMonitorApp {
                     self.device_state = None;
                     self.pd_status = None;
                     self.pd_connection = PdConnectionTracker::default();
+                    self.pd_decoder = PdDecoder::new();
                     self.offline_busy = false;
                     self.stop_recording();
                 }
@@ -998,7 +1000,8 @@ impl eframe::App for PowerMonitorApp {
                             }
                         });
 
-                    if self.selected_rate != prev_rate && self.device_state.is_some() {
+                    if self.selected_rate != prev_rate
+                        && (self.device_state.is_some() || self.connection_attempt_in_flight) {
                         info!("Sample rate changed to {}", self.selected_rate.label());
                         let _ = self
                             .cmd_sender
@@ -1242,7 +1245,7 @@ impl eframe::App for PowerMonitorApp {
 
             ui.add_space(5.0);
 
-            if self.streaming || self.connection_attempt_in_flight || self.reconnect_at.is_some() {
+            if self.device_state.is_some() || self.connection_attempt_in_flight || self.reconnect_at.is_some() {
                 if ui.button("Disconnect").clicked() {
                     info!("Disconnect requested");
                     self.auto_connect_enabled = false;
@@ -1472,6 +1475,19 @@ async fn wait_for_device(tx: &mpsc::UnboundedSender<UsbMessage>) -> Result<(), k
     }
 }
 
+fn is_device_disconnect(error: &km003c_lib::error::KMError) -> bool {
+    use km003c_lib::error::KMError;
+    match error {
+        KMError::DeviceNotFound => true,
+        KMError::Usb(error) => error.kind() == nusb::ErrorKind::Disconnected,
+        KMError::Io(error) => matches!(
+            error.kind(),
+            std::io::ErrorKind::NotConnected | std::io::ErrorKind::ConnectionAborted
+        ),
+        _ => false,
+    }
+}
+
 async fn run_streaming_session(
     tx: &mpsc::UnboundedSender<UsbMessage>,
     cmd_rx: &mut mpsc::UnboundedReceiver<UsbCommand>,
@@ -1516,13 +1532,13 @@ async fn run_streaming_session(
     let mut device = match KM003C::new(config).await {
         Ok(dev) => dev,
         Err(e) => {
-            if matches!(e, km003c_lib::error::KMError::DeviceNotFound) {
+            if is_device_disconnect(&e) {
                 debug!("Device removed during connection: {e}");
             } else {
                 error!("Failed to connect: {e}");
             }
             let _ = tx.send(UsbMessage::ConnectionFailed {
-                retry_when_present: matches!(e, km003c_lib::error::KMError::DeviceNotFound),
+                retry_when_present: is_device_disconnect(&e),
                 error: e.to_string(),
             });
             return;
@@ -1552,17 +1568,20 @@ async fn run_streaming_session(
     let mut current_rate = initial_rate;
     if let Err(e) = start_streaming(&mut device, current_rate, tx).await {
         error!("Failed to start streaming: {}", e);
-        let _ = tx.send(UsbMessage::Error(format!("Start failed: {}", e)));
         let _ = tx.send(UsbMessage::Disconnected {
-            retry_when_present: true,
+            retry_when_present: is_device_disconnect(&e),
         });
+        if !is_device_disconnect(&e) {
+            let _ = tx.send(UsbMessage::Error(format!("Start failed: {e}")));
+        }
         return;
     }
 
     // Streaming loop - poll for data and handle commands
     let mut error_count = 0;
     let mut pd_trace_enabled = false;
-    let mut reconnect_when_present = true;
+    let mut reconnect_when_present = false;
+    let mut terminal_error = None;
     const MAX_ERRORS: u32 = 10;
 
     loop {
@@ -1573,14 +1592,19 @@ async fn run_streaming_session(
                     info!("Changing sample rate to {:?}", new_rate);
 
                     // Stop current streaming
-                    let _ = device.stop_graph_mode().await;
+                    if let Err(error) = device.stop_graph_mode().await {
+                        reconnect_when_present = is_device_disconnect(&error);
+                        terminal_error = Some(format!("Failed to stop streaming for rate change: {error}"));
+                        break;
+                    }
                     let _ = tx.send(UsbMessage::StreamingStopped);
 
                     // Start with new rate
                     if let Err(e) = start_streaming(&mut device, new_rate, tx).await {
                         error!("Failed to restart streaming: {}", e);
-                        let _ = tx.send(UsbMessage::Error(format!("Restart failed: {}", e)));
-                        continue;
+                        reconnect_when_present = is_device_disconnect(&e);
+                        terminal_error = Some(format!("Restart failed: {e}"));
+                        break;
                     }
                     current_rate = new_rate;
                 }
@@ -1612,9 +1636,10 @@ async fn run_streaming_session(
                     }
                 }
                 if let Err(error) = start_streaming(&mut device, current_rate, tx).await {
-                    let _ = tx.send(UsbMessage::Error(format!(
+                    reconnect_when_present = is_device_disconnect(&error);
+                    terminal_error = Some(format!(
                         "Failed to resume streaming after loading offline catalog: {error}"
-                    )));
+                    ));
                     break;
                 }
             }
@@ -1642,9 +1667,8 @@ async fn run_streaming_session(
                     }
                 }
                 if let Err(error) = start_streaming(&mut device, current_rate, tx).await {
-                    let _ = tx.send(UsbMessage::Error(format!(
-                        "Failed to resume streaming after offline download: {error}"
-                    )));
+                    reconnect_when_present = is_device_disconnect(&error);
+                    terminal_error = Some(format!("Failed to resume streaming after offline download: {error}"));
                     break;
                 }
             }
@@ -1699,8 +1723,12 @@ async fn run_streaming_session(
             Err(e) => {
                 error_count += 1;
                 debug!("Request error: {}", e);
+                if is_device_disconnect(&e) {
+                    reconnect_when_present = true;
+                    break;
+                }
                 if error_count >= MAX_ERRORS {
-                    let _ = tx.send(UsbMessage::Error("Too many errors".to_string()));
+                    terminal_error = Some(format!("Streaming failed after {MAX_ERRORS} errors: {e}"));
                     break;
                 }
             }
@@ -1722,6 +1750,9 @@ async fn run_streaming_session(
     let _ = tx.send(UsbMessage::Disconnected {
         retry_when_present: reconnect_when_present,
     });
+    if !reconnect_when_present && let Some(error) = terminal_error {
+        let _ = tx.send(UsbMessage::Error(error));
+    }
 }
 
 fn streaming_attribute_mask(pd_trace_enabled: bool) -> AttributeSet {
