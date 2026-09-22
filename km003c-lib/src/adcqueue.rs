@@ -249,11 +249,11 @@ impl AdcQueueRawData {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.samples
-            .iter()
-            .copied()
-            .flat_map(|sample| AdcQueueSampleWire::from(sample).as_bytes().to_vec())
-            .collect()
+        let mut bytes = Vec::with_capacity(self.samples.len() * Self::SAMPLE_SIZE);
+        for sample in self.samples.iter().copied() {
+            bytes.extend_from_slice(AdcQueueSampleWire::from(sample).as_bytes());
+        }
+        bytes
     }
 }
 

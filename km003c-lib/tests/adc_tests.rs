@@ -74,7 +74,7 @@ fn test_adc_data_packet() {
 fn test_adc_request_generation() {
     // Test that GetData with ADC attribute generates the correct request bytes
     let packet = Packet::GetData {
-        attribute_mask: AttributeSet::single(Attribute::Adc).raw(),
+        attributes: AttributeSet::single(Attribute::Adc),
     };
     let raw_packet = packet.to_raw_packet(0).unwrap();
 
@@ -216,7 +216,7 @@ fn test_adc_response_parsing_real_data() {
 fn test_adc_request_generation_with_new_trait() {
     // Enhanced version of test_adc_request_generation using the new trait
     let packet = Packet::GetData {
-        attribute_mask: AttributeSet::single(Attribute::Adc).raw(),
+        attributes: AttributeSet::single(Attribute::Adc),
     };
     let raw_packet = packet.to_raw_packet(0).unwrap();
 

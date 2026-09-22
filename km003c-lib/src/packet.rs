@@ -100,6 +100,37 @@ impl PacketType {
     }
 }
 
+/// Identity of a framed packet, read without parsing its body.
+///
+/// Correlating a response to a request only needs the first two header bytes.
+/// Going through [`RawPacket::try_from`] for that would copy the whole transfer
+/// and allocate a `Vec` per logical packet, which is wasteful in a polling
+/// loop that runs hundreds of times per second.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PacketPeek {
+    pub packet_type: PacketType,
+    pub id: u8,
+}
+
+impl PacketPeek {
+    /// Read the packet type and transaction ID from a framed transfer.
+    ///
+    /// Returns `None` when the transfer is too short to contain a header.
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        let header: &[u8; MAIN_HEADER_SIZE] = bytes.first_chunk()?;
+        Some(Self {
+            // The top bit of byte 0 is the reserved flag, not part of the type.
+            packet_type: PacketType::from_primitive(header[0] & 0x7F),
+            id: header[1],
+        })
+    }
+
+    /// Whether this transfer uses the control header layout.
+    pub fn is_ctrl(&self) -> bool {
+        self.packet_type.is_ctrl_type()
+    }
+}
+
 // Python support for PacketType
 #[cfg(feature = "python")]
 impl<'py> pyo3::IntoPyObject<'py> for PacketType {
@@ -161,12 +192,21 @@ pub struct AttributeSet {
 }
 
 impl AttributeSet {
+    /// Bits actually carried by the 15-bit wire attribute field.
+    const WIRE_MASK: u16 = 0x7FFF;
+
     pub const fn empty() -> Self {
         Self { mask: 0 }
     }
 
+    /// Build a set from a raw wire mask.
+    ///
+    /// The header field is 15 bits wide, so bit 15 is dropped rather than
+    /// silently lost later during serialization.
     pub const fn from_raw(mask: u16) -> Self {
-        Self { mask }
+        Self {
+            mask: mask & Self::WIRE_MASK,
+        }
     }
 
     pub fn single(attr: Attribute) -> Self {
@@ -223,8 +263,10 @@ impl AttributeSet {
     }
 
     /// Iterate over all attributes in the set
+    ///
+    /// The wire field is 15 bits wide, so bit 15 is never part of a set.
     pub fn iter(&self) -> impl Iterator<Item = Attribute> + '_ {
-        (0..16).filter_map(move |bit| {
+        (0..15).filter_map(move |bit| {
             let value = 1u16 << bit;
             if self.mask & value != 0 {
                 Some(Attribute::from_primitive(value))
@@ -340,11 +382,9 @@ impl RawPacket {
     ///
     /// Returns Ok(()) if all response attributes were requested in the mask,
     /// or Err if there's a mismatch.
-    pub fn validate_correlation(&self, request_mask: u16) -> Result<(), KMError> {
+    pub fn validate_correlation(&self, request_set: AttributeSet) -> Result<(), KMError> {
         match self {
             RawPacket::Data { logical_packets, .. } => {
-                let request_set = AttributeSet::from_raw(request_mask);
-
                 // Check each logical packet's attribute
                 for lp in logical_packets {
                     if !request_set.contains(lp.attribute) {

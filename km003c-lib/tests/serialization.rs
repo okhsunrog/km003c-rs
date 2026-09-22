@@ -63,6 +63,46 @@ fn auth_requests_use_their_special_wire_headers() {
 }
 
 #[test]
+fn pd_monitor_commands_round_trip_through_the_parser() {
+    // Regression: these two commands serialized but parsed back as Generic,
+    // so captures of the library's own traffic were left unclassified.
+    for (command, bytes) in [
+        (Packet::EnablePdMonitor, [0x10, 0x03, 0x02, 0x00]),
+        (Packet::DisablePdMonitor, [0x11, 0x04, 0x00, 0x00]),
+    ] {
+        let parsed = Packet::try_from(RawPacket::try_from(Bytes::from(bytes.to_vec())).unwrap()).unwrap();
+        assert_eq!(parsed, command, "{bytes:02x?} must parse back into {command:?}");
+    }
+}
+
+#[test]
+fn start_graph_round_trips_every_documented_rate() {
+    for rate in [
+        GraphSampleRate::Sps2,
+        GraphSampleRate::Sps10,
+        GraphSampleRate::Sps50,
+        GraphSampleRate::Sps1000,
+    ] {
+        let bytes = Bytes::from(Packet::StartGraph { rate }.to_raw_packet(7).unwrap());
+        let parsed = Packet::try_from(RawPacket::try_from(bytes).unwrap()).unwrap();
+
+        assert_eq!(parsed, Packet::StartGraph { rate });
+    }
+}
+
+#[test]
+fn start_graph_with_an_unknown_rate_index_stays_generic() {
+    // Byte 2 holds the rate index shifted left by one unused bit, so 0x40
+    // decodes to index 32, which is not one of the four documented rates.
+    let parsed = Packet::try_from(RawPacket::try_from(Bytes::from(vec![0x0e, 0x07, 0x40, 0x00])).unwrap()).unwrap();
+
+    assert!(
+        matches!(parsed, Packet::Generic(_)),
+        "an unknown rate index must be preserved verbatim, got {parsed:?}"
+    );
+}
+
+#[test]
 fn test_unsupported_semantic_payload_is_not_silently_dropped() {
     let packet = Packet::DataResponse {
         payloads: vec![PayloadData::AdcQueue(AdcQueueData {

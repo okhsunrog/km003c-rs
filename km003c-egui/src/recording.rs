@@ -146,9 +146,8 @@ impl RecordingRow {
     }
 }
 
-enum WriterCommand {
-    Rows(Vec<RecordingRow>),
-}
+/// One batch of rows handed to the writer thread.
+type WriterCommand = Vec<RecordingRow>;
 
 #[derive(Debug)]
 pub(crate) enum RecordingEvent {
@@ -263,7 +262,7 @@ impl Recorder {
         let Some(command_tx) = &self.command_tx else {
             return Ok(());
         };
-        match command_tx.try_send(WriterCommand::Rows(rows)) {
+        match command_tx.try_send(rows) {
             Ok(()) => {
                 self.next_sample_index += samples.len() as u64;
                 if let Some(last) = samples.last() {
@@ -289,14 +288,13 @@ impl Recorder {
         }
     }
 
-    pub(crate) fn request_finish(&mut self) -> Result<(), String> {
+    pub(crate) fn request_finish(&mut self) {
         if !self.finishing {
             // Closing the sender lets the worker drain queued rows and finalize
             // without blocking the UI on a full queue.
             self.command_tx.take();
             self.finishing = true;
         }
-        Ok(())
     }
 
     pub(crate) const fn is_finishing(&self) -> bool {
@@ -417,22 +415,18 @@ where
         discarded_sequence_samples: 0,
     };
 
-    while let Ok(command) = command_rx.recv() {
-        match command {
-            WriterCommand::Rows(mut rows) => {
-                if let Some(last) = rows.last() {
-                    summary.rows = last.sample_index + 1;
-                    summary.elapsed_us = last.elapsed_us;
-                    summary.missing_samples = last.cumulative_missing_samples;
-                    summary.interpolated_duration_us = last.cumulative_interpolated_duration_us;
-                    summary.discarded_sequence_samples = last.cumulative_discarded_sequence_samples;
-                }
-                buffered.append(&mut rows);
-                if buffered.len() >= ROW_GROUP_SIZE {
-                    write(&buffered)?;
-                    buffered.clear();
-                }
-            }
+    while let Ok(mut rows) = command_rx.recv() {
+        if let Some(last) = rows.last() {
+            summary.rows = last.sample_index + 1;
+            summary.elapsed_us = last.elapsed_us;
+            summary.missing_samples = last.cumulative_missing_samples;
+            summary.interpolated_duration_us = last.cumulative_interpolated_duration_us;
+            summary.discarded_sequence_samples = last.cumulative_discarded_sequence_samples;
+        }
+        buffered.append(&mut rows);
+        if buffered.len() >= ROW_GROUP_SIZE {
+            write(&buffered)?;
+            buffered.clear();
         }
     }
     if !buffered.is_empty() {
@@ -635,7 +629,7 @@ mod tests {
                 "received only {recorded} samples before the deadline"
             );
 
-            recorder.request_finish().unwrap();
+            recorder.request_finish();
             let summary = loop {
                 match recorder.poll_event() {
                     Some(RecordingEvent::Finished(summary)) => break summary,
@@ -733,7 +727,7 @@ mod tests {
             RecordingRow::from_sample(sample(0, 0, 0), RecordingOrigin::from(None), 0),
             RecordingRow::from_sample(sample(20_000, 1, 20_000), RecordingOrigin::from(None), 1),
         ];
-        command_tx.send(WriterCommand::Rows(rows)).unwrap();
+        command_tx.send(rows).unwrap();
         drop(command_tx);
 
         run_writer(

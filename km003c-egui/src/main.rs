@@ -428,7 +428,7 @@ impl PowerMonitorApp {
                         && let Err(error) = recorder.push(&measurements)
                     {
                         self.recording_status = error;
-                        let _ = recorder.request_finish();
+                        recorder.request_finish();
                     }
                 }
                 UsbMessage::StreamingStarted(rate) => {
@@ -443,10 +443,10 @@ impl PowerMonitorApp {
                 UsbMessage::PdEvents(events) => {
                     for event in &events {
                         match &event.data {
-                            PdEventData::Connect(()) => {
+                            PdEventData::Connect => {
                                 self.pd_connection.observe_event(true, std::time::Instant::now());
                             }
-                            PdEventData::Disconnect(()) => {
+                            PdEventData::Disconnect => {
                                 self.pd_connection.observe_event(false, std::time::Instant::now());
                             }
                             PdEventData::PdMessage { .. } => {}
@@ -607,8 +607,9 @@ impl PowerMonitorApp {
         match Recorder::start(path.clone(), self.recording_format, metadata, Some(first)) {
             Ok(mut recorder) => {
                 let samples = self.data_points.iter().copied().collect::<Vec<_>>();
-                match recorder.push(&samples).and_then(|()| recorder.request_finish()) {
+                match recorder.push(&samples) {
                     Ok(()) => {
+                        recorder.request_finish();
                         self.recording_status = format!("Exporting {}", path.display());
                         self.last_recording = None;
                         self.recorder = Some(recorder);
@@ -638,11 +639,8 @@ impl PowerMonitorApp {
         let Some(recorder) = &mut self.recorder else {
             return;
         };
-        if let Err(error) = recorder.request_finish() {
-            self.recording_status = error;
-        } else {
-            self.recording_status = format!("Finalizing {}", recorder.path.display());
-        }
+        recorder.request_finish();
+        self.recording_status = format!("Finalizing {}", recorder.path.display());
     }
 
     fn poll_recording(&mut self) {
@@ -758,41 +756,46 @@ impl PowerMonitorApp {
     }
 }
 
-impl eframe::App for PowerMonitorApp {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        self.process_messages();
-
-        // Request repaints - fast when streaming, slower when idle
-        if self.streaming && self.plot_source == PlotSource::Live {
-            ui.ctx().request_repaint_after(Duration::from_millis(16)); // ~60fps when streaming
-        } else {
-            ui.ctx().request_repaint_after(Duration::from_millis(100)); // 10fps when idle
-        }
-
-        // Top panel with device info
-        egui::Panel::top("header").show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.heading("POWER-Z KM003C Monitor");
-                ui.separator();
-
-                // Status indicator
-                let status_color = if self.streaming {
-                    egui::Color32::GREEN
-                } else if self.device_state.is_some() {
-                    egui::Color32::YELLOW
-                } else {
-                    egui::Color32::RED
-                };
-                ui.colored_label(status_color, &self.status);
-            });
-        });
-
-        // Left panel with device info and controls
-        egui::Panel::left("info_panel").min_size(220.0).show(ui, |ui| {
-            egui::ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
-            ui.heading("Device Info");
+/// Rendering of the individual panels and side-panel sections.
+///
+/// `eframe::App::ui` below owns only the window layout; each section here owns
+/// one block of the side panel, so neither grows into a single unreadable
+/// function.
+impl PowerMonitorApp {
+    fn header_bar(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.heading("POWER-Z KM003C Monitor");
             ui.separator();
 
+            let status_color = if self.streaming {
+                egui::Color32::GREEN
+            } else if self.device_state.is_some() {
+                egui::Color32::YELLOW
+            } else {
+                egui::Color32::RED
+            };
+            ui.colored_label(status_color, &self.status);
+        });
+    }
+
+    /// Every side-panel section, in display order.
+    fn side_panel(&mut self, ui: &mut egui::Ui) {
+        self.device_info_section(ui);
+        self.current_readings_section(ui);
+        self.pd_status_section(ui);
+        self.pd_timeline_controls_section(ui);
+        self.live_statistics_section(ui);
+        self.controls_section(ui);
+        self.live_capture_section(ui);
+        self.offline_recordings_section(ui);
+        self.connection_section(ui);
+    }
+
+    fn device_info_section(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Device Info");
+        ui.separator();
+
+        {
             if let Some(state) = &self.device_state {
                 egui::Grid::new("device_info_grid")
                     .num_columns(2)
@@ -844,7 +847,11 @@ impl eframe::App for PowerMonitorApp {
             } else {
                 ui.label("Not connected");
             }
+        }
+    }
 
+    fn current_readings_section(&mut self, ui: &mut egui::Ui) {
+        {
             ui.add_space(20.0);
             ui.separator();
             ui.heading("Current Readings");
@@ -866,7 +873,11 @@ impl eframe::App for PowerMonitorApp {
                     ui.label(format!("{:.3} W", self.current_power.abs()));
                     ui.end_row();
                 });
+        }
+    }
 
+    fn pd_status_section(&mut self, ui: &mut egui::Ui) {
+        {
             ui.add_space(20.0);
             ui.separator();
             ui.heading("PD Status");
@@ -909,7 +920,11 @@ impl eframe::App for PowerMonitorApp {
             } else {
                 ui.label("No PD data");
             }
+        }
+    }
 
+    fn pd_timeline_controls_section(&mut self, ui: &mut egui::Ui) {
+        {
             ui.add_space(20.0);
             ui.separator();
             ui.heading("PD Timeline");
@@ -941,7 +956,11 @@ impl eframe::App for PowerMonitorApp {
                 self.pd_log.len(),
                 self.pd_trace_log.len()
             ));
+        }
+    }
 
+    fn live_statistics_section(&mut self, ui: &mut egui::Ui) {
+        {
             ui.add_space(20.0);
             ui.separator();
             ui.heading("Live Statistics");
@@ -981,7 +1000,11 @@ impl eframe::App for PowerMonitorApp {
                     ui.label(format!("{} pts", self.data_points.len()));
                     ui.end_row();
                 });
+        }
+    }
 
+    fn controls_section(&mut self, ui: &mut egui::Ui) {
+        {
             ui.add_space(20.0);
             ui.separator();
             ui.heading("Controls");
@@ -1001,7 +1024,8 @@ impl eframe::App for PowerMonitorApp {
                         });
 
                     if self.selected_rate != prev_rate
-                        && (self.device_state.is_some() || self.connection_attempt_in_flight) {
+                        && (self.device_state.is_some() || self.connection_attempt_in_flight)
+                    {
                         info!("Sample rate changed to {}", self.selected_rate.label());
                         let _ = self
                             .cmd_sender
@@ -1051,7 +1075,11 @@ impl eframe::App for PowerMonitorApp {
                     self.clear_data();
                 }
             });
+        }
+    }
 
+    fn live_capture_section(&mut self, ui: &mut egui::Ui) {
+        {
             ui.add_space(20.0);
             ui.separator();
             ui.heading("Live Capture");
@@ -1104,8 +1132,7 @@ impl eframe::App for PowerMonitorApp {
                 let completeness = if recorder.elapsed_us == 0 {
                     100.0
                 } else {
-                    (1.0 - recorder.interpolated_duration_us as f64 / recorder.elapsed_us as f64).max(0.0)
-                        * 100.0
+                    (1.0 - recorder.interpolated_duration_us as f64 / recorder.elapsed_us as f64).max(0.0) * 100.0
                 };
                 ui.label(format!("Completeness: {completeness:.6}%"));
             } else if let Some(summary) = &self.last_recording {
@@ -1114,7 +1141,11 @@ impl eframe::App for PowerMonitorApp {
                 ui.label(format!("Completeness: {:.6}%", summary.completeness_percent()));
             }
             ui.small(&self.recording_status);
+        }
+    }
 
+    fn offline_recordings_section(&mut self, ui: &mut egui::Ui) {
+        {
             ui.add_space(20.0);
             ui.separator();
             ui.heading("Offline Recordings");
@@ -1142,7 +1173,10 @@ impl eframe::App for PowerMonitorApp {
                 let selected_text = self
                     .offline_selected
                     .and_then(|index| self.offline_catalog.get(index))
-                    .map_or_else(|| "Select a recording".to_string(), |metadata| metadata.filename_lossy().into_owned());
+                    .map_or_else(
+                        || "Select a recording".to_string(),
+                        |metadata| metadata.filename_lossy().into_owned(),
+                    );
                 egui::ComboBox::from_id_salt("offline_recording")
                     .selected_text(selected_text)
                     .show_ui(ui, |ui| {
@@ -1160,10 +1194,7 @@ impl eframe::App for PowerMonitorApp {
                         }
                     });
 
-                if let Some(metadata) = self
-                    .offline_selected
-                    .and_then(|index| self.offline_catalog.get(index))
-                {
+                if let Some(metadata) = self.offline_selected.and_then(|index| self.offline_catalog.get(index)) {
                     egui::Grid::new("offline_metadata_grid")
                         .num_columns(2)
                         .spacing([10.0, 4.0])
@@ -1242,7 +1273,11 @@ impl eframe::App for PowerMonitorApp {
                 }
             }
             ui.small(&self.offline_status);
+        }
+    }
 
+    fn connection_section(&mut self, ui: &mut egui::Ui) {
+        {
             ui.add_space(5.0);
 
             if self.device_state.is_some() || self.connection_attempt_in_flight || self.reconnect_at.is_some() {
@@ -1259,17 +1294,13 @@ impl eframe::App for PowerMonitorApp {
                     self.request_connection(true);
                 }
             }
-            });
+        }
+    }
 
-        });
-
-        // Bottom panel with the combined PD timeline
-        if self.pd_panel_visible {
-            egui::Panel::bottom("pd_panel")
-                .resizable(true)
-                .min_size(100.0)
-                .default_size(200.0)
-                .show(ui, |ui| {
+    fn pd_timeline_panel(&mut self, ui: &mut egui::Ui) {
+        {
+            {
+                {
                     ui.heading("USB PD Timeline");
                     if self.pd_trace_enabled {
                         ui.small(
@@ -1321,9 +1352,7 @@ impl eframe::App for PowerMonitorApp {
                                     }
                                     PdTimelineEntry::FirmwareTrace(entry) => {
                                         let color = match entry.category {
-                                            PdTraceCategory::TypeCState => {
-                                                egui::Color32::from_rgb(100, 200, 255)
-                                            }
+                                            PdTraceCategory::TypeCState => egui::Color32::from_rgb(100, 200, 255),
                                             PdTraceCategory::ProtocolEvent => egui::Color32::LIGHT_GREEN,
                                             PdTraceCategory::Unknown => egui::Color32::YELLOW,
                                         };
@@ -1337,11 +1366,13 @@ impl eframe::App for PowerMonitorApp {
                                 }
                             }
                         });
-                });
+                }
+            }
         }
+    }
 
-        // Main panel with plots
-        egui::CentralPanel::default().show(ui, |ui| {
+    fn plots_panel(&mut self, ui: &mut egui::Ui) {
+        {
             match self.plot_source {
                 PlotSource::Live => ui.small("Plot source: live AdcQueue"),
                 PlotSource::Offline => {
@@ -1400,7 +1431,38 @@ impl eframe::App for PowerMonitorApp {
                         plot_ui.line(Line::new(metric.label(), points).color(metric.color()).width(1.5_f32));
                     });
             }
+        }
+    }
+}
+
+impl eframe::App for PowerMonitorApp {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.process_messages();
+
+        // Request repaints - fast when streaming, slower when idle
+        if self.streaming && self.plot_source == PlotSource::Live {
+            ui.ctx().request_repaint_after(Duration::from_millis(16)); // ~60fps when streaming
+        } else {
+            ui.ctx().request_repaint_after(Duration::from_millis(100)); // 10fps when idle
+        }
+
+        egui::Panel::top("header").show(ui, |ui| self.header_bar(ui));
+
+        egui::Panel::left("info_panel").min_size(220.0).show(ui, |ui| {
+            egui::ScrollArea::vertical()
+                .auto_shrink([false; 2])
+                .show(ui, |ui| self.side_panel(ui));
         });
+
+        if self.pd_panel_visible {
+            egui::Panel::bottom("pd_panel")
+                .resizable(true)
+                .min_size(100.0)
+                .default_size(200.0)
+                .show(ui, |ui| self.pd_timeline_panel(ui));
+        }
+
+        egui::CentralPanel::default().show(ui, |ui| self.plots_panel(ui));
     }
 }
 

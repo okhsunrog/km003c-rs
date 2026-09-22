@@ -51,7 +51,7 @@ use crate::auth::{
 use crate::error::KMError;
 use crate::message::Packet;
 use crate::offline::{LogMetadata, LogMetadataResponse, OfflineLog};
-use crate::packet::{Attribute, AttributeSet, PacketType, RawPacket};
+use crate::packet::{Attribute, AttributeSet, PacketPeek, PacketType, RawPacket};
 use crate::pd::{PdEventStream, PdStatus};
 use crate::settings::Settings;
 use bytes::Bytes;
@@ -157,30 +157,31 @@ const INTERRUPT_TRANSFER_SIZE: usize = 64;
 const MAX_PENDING_RESPONSES: usize = 256;
 const AES_BLOCK_SIZE: usize = 16;
 
-fn parse_framed_response(bytes: &[u8]) -> Option<RawPacket> {
-    RawPacket::try_from(Bytes::copy_from_slice(bytes)).ok()
+/// Find one attached KM003C matching `selector`.
+async fn find_device(selector: &DeviceSelector) -> Result<nusb::DeviceInfo, KMError> {
+    nusb::list_devices()
+        .await?
+        .find(|device| device.vendor_id() == VID && device.product_id() == PID && selector.matches(device))
+        .ok_or(KMError::DeviceNotFound)
 }
 
 fn response_matches(bytes: &[u8], id: u8, packet_type: PacketType) -> bool {
-    parse_framed_response(bytes).is_some_and(|packet| packet.id() == id && packet.packet_type() == packet_type)
+    PacketPeek::from_bytes(bytes).is_some_and(|peek| peek.id == id && peek.packet_type == packet_type)
 }
 
 fn response_type_matches(bytes: &[u8], packet_type: PacketType) -> bool {
-    parse_framed_response(bytes).is_some_and(|packet| packet.packet_type() == packet_type)
+    PacketPeek::from_bytes(bytes).is_some_and(|peek| peek.packet_type == packet_type)
 }
 
 fn control_response_matches(bytes: &[u8], id: u8) -> bool {
-    matches!(
-        parse_framed_response(bytes),
-        Some(RawPacket::Ctrl { header, .. }) if header.id() == id
-    )
+    PacketPeek::from_bytes(bytes).is_some_and(|peek| peek.is_ctrl() && peek.id == id)
 }
 
 fn memory_confirmation_matches(bytes: &[u8], id: u8) -> bool {
-    parse_framed_response(bytes).is_some_and(|packet| {
-        packet.id() == id
+    PacketPeek::from_bytes(bytes).is_some_and(|peek| {
+        peek.id == id
             && matches!(
-                packet.packet_type(),
+                peek.packet_type,
                 PacketType::MemoryRead | PacketType::Rejected | PacketType::NotReadable
             )
     })
@@ -240,32 +241,33 @@ fn validate_memory_read_confirmation(
             "MemoryRead confirmation does not match the request".to_string(),
         ));
     }
-    if payload.len() != 16 {
+    if payload.len() != crate::auth::MEMORY_READ_CONFIRMATION_SIZE {
         return Err(KMError::Protocol(format!(
-            "MemoryRead confirmation must contain 16 bytes, got {}",
+            "MemoryRead confirmation must contain {} bytes, got {}",
+            crate::auth::MEMORY_READ_CONFIRMATION_SIZE,
             payload.len()
         )));
     }
 
-    let address = u32::from_le_bytes(payload[0..4].try_into()?);
-    let size = u32::from_le_bytes(payload[4..8].try_into()?);
-    let magic = u32::from_le_bytes(payload[8..12].try_into()?);
-    let crc = u32::from_le_bytes(payload[12..16].try_into()?);
-    let expected_crc = crc32fast::hash(&payload[..12]);
+    let confirmation = crate::auth::MemoryReadConfirmation::from_bytes(payload)
+        .ok_or_else(|| KMError::Protocol("MemoryRead confirmation body is truncated".to_string()))?;
 
-    if address != expected_address || size != expected_size {
+    if confirmation.address != expected_address || confirmation.size != expected_size {
         return Err(KMError::Protocol(format!(
-            "MemoryRead confirmation echoed address 0x{address:08X} and size {size}, expected 0x{expected_address:08X} and {expected_size}"
+            "MemoryRead confirmation echoed address 0x{:08X} and size {}, expected 0x{expected_address:08X} and {expected_size}",
+            confirmation.address, confirmation.size
         )));
     }
-    if magic != u32::MAX {
+    if confirmation.magic != u32::MAX {
         return Err(KMError::Protocol(format!(
-            "MemoryRead confirmation has invalid magic 0x{magic:08X}"
+            "MemoryRead confirmation has invalid magic 0x{:08X}",
+            confirmation.magic
         )));
     }
-    if crc != expected_crc {
+    if confirmation.checksum != confirmation.expected_checksum {
         return Err(KMError::Protocol(format!(
-            "MemoryRead confirmation CRC mismatch: expected 0x{expected_crc:08X}, got 0x{crc:08X}"
+            "MemoryRead confirmation CRC mismatch: expected 0x{:08X}, got 0x{:08X}",
+            confirmation.expected_checksum, confirmation.checksum
         )));
     }
 
@@ -326,7 +328,7 @@ fn ensure_adcqueue_available(mode: &ConnectionMode) -> Result<(), KMError> {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct DeviceConfig {
     /// USB interface number (0 or 3)
     interface: u8,
@@ -338,6 +340,47 @@ pub struct DeviceConfig {
     transfer_type: TransferType,
     /// Skip initial USB reset
     skip_reset: bool,
+    /// Which attached KM003C to open
+    selector: DeviceSelector,
+}
+
+/// Which KM003C to open when several are attached.
+///
+/// A USB reset re-enumerates the device, so the selector is also what makes the
+/// post-reset reopen land on the same unit rather than on whichever KM003C the
+/// OS happens to list first.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum DeviceSelector {
+    /// Open the first KM003C the OS reports.
+    #[default]
+    First,
+    /// Open the KM003C with this USB serial number string.
+    SerialNumber(String),
+    /// Open the KM003C at this bus and device address.
+    ///
+    /// The address changes across a USB reset, so prefer
+    /// [`DeviceSelector::SerialNumber`] together with `skip_reset()`.
+    BusAddress { bus_id: String, device_address: u8 },
+}
+
+impl DeviceSelector {
+    fn matches(&self, device: &nusb::DeviceInfo) -> bool {
+        match self {
+            Self::First => true,
+            Self::SerialNumber(serial) => device.serial_number() == Some(serial.as_str()),
+            Self::BusAddress { bus_id, device_address } => {
+                device.bus_id() == bus_id && device.device_address() == *device_address
+            }
+        }
+    }
+
+    fn describe(&self) -> String {
+        match self {
+            Self::First => "the first attached KM003C".to_string(),
+            Self::SerialNumber(serial) => format!("KM003C with serial {serial}"),
+            Self::BusAddress { bus_id, device_address } => format!("KM003C at bus {bus_id} address {device_address}"),
+        }
+    }
 }
 
 impl DeviceConfig {
@@ -361,6 +404,7 @@ impl DeviceConfig {
             endpoint_in: ENDPOINT_IN_VENDOR,
             transfer_type: TransferType::Bulk,
             skip_reset: false,
+            selector: DeviceSelector::First,
         }
     }
 
@@ -386,6 +430,7 @@ impl DeviceConfig {
             endpoint_in: ENDPOINT_IN_HID,
             transfer_type: TransferType::Interrupt,
             skip_reset: false,
+            selector: DeviceSelector::First,
         }
     }
 
@@ -396,6 +441,31 @@ impl DeviceConfig {
     pub fn skip_reset(mut self) -> Self {
         self.skip_reset = true;
         self
+    }
+
+    /// Open a specific KM003C instead of the first one found.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use km003c_lib::{DeviceConfig, DeviceSelector, KM003C};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let config = DeviceConfig::vendor()
+    ///     .select(DeviceSelector::SerialNumber("007965".to_string()))
+    ///     .skip_reset();
+    /// let device = KM003C::new(config).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn select(mut self, selector: DeviceSelector) -> Self {
+        self.selector = selector;
+        self
+    }
+
+    /// Which KM003C this config opens.
+    pub fn selector(&self) -> &DeviceSelector {
+        &self.selector
     }
 
     /// Check if this config uses vendor interface (full mode)
@@ -463,9 +533,10 @@ impl KM003C {
     /// # }
     /// ```
     pub async fn new(config: DeviceConfig) -> Result<Self, KMError> {
+        let is_vendor = config.is_vendor();
         let mut device = Self::connect(config).await?;
 
-        if config.is_vendor() {
+        if is_vendor {
             // Full mode: run init sequence
             device.run_init().await?;
         }
@@ -476,17 +547,25 @@ impl KM003C {
 
     /// Internal: Connect to USB device without initialization
     async fn connect(config: DeviceConfig) -> Result<Self, KMError> {
-        info!("Searching for POWER-Z KM003C...");
-        let device_info = nusb::list_devices()
-            .await?
-            .find(|d| d.vendor_id() == VID && d.product_id() == PID)
-            .ok_or(KMError::DeviceNotFound)?;
+        info!("Searching for {}...", config.selector.describe());
+        let device_info = find_device(&config.selector).await?;
 
         info!(
             "Found device on bus {} addr {}",
             device_info.bus_id(),
             device_info.device_address()
         );
+
+        // A reset re-enumerates the device, so reopening must target the same
+        // unit. Addresses are not stable across a reset, so fall back to the
+        // serial number of the device that was just reset.
+        let reopen_selector = match &config.selector {
+            DeviceSelector::SerialNumber(_) => config.selector.clone(),
+            _ => device_info
+                .serial_number()
+                .map(|serial| DeviceSelector::SerialNumber(serial.to_string()))
+                .unwrap_or(DeviceSelector::First),
+        };
 
         let mut device = device_info.open().await?;
 
@@ -498,11 +577,7 @@ impl KM003C {
             // (validated through protocol research - 100ms is insufficient for AdcQueue)
             tokio::time::sleep(Duration::from_millis(1500)).await;
             // Re-enumerate and reopen after reset (old handle may be invalid).
-            let device_info = nusb::list_devices()
-                .await?
-                .find(|d| d.vendor_id() == VID && d.product_id() == PID)
-                .ok_or(KMError::DeviceNotFound)?;
-            device = device_info.open().await?;
+            device = find_device(&reopen_selector).await?.open().await?;
         } else {
             debug!("Skipping USB reset (skip_reset=true)");
         }
@@ -570,7 +645,7 @@ impl KM003C {
         // A buffered response predates this new request, even if its eight-bit
         // transaction ID happens to match after rollover.
         self.pending_responses
-            .retain(|response| !parse_framed_response(response).is_some_and(|packet| packet.id() == id));
+            .retain(|response| !PacketPeek::from_bytes(response).is_some_and(|peek| peek.id == id));
         id
     }
 
@@ -593,27 +668,12 @@ impl KM003C {
     }
 
     /// Send a high-level packet and return the transaction ID placed on the wire.
+    ///
+    /// `MemoryRead` and `StreamingAuth` need no special casing here: their
+    /// vendor header layout is produced by `Packet::to_raw_packet` like every
+    /// other command.
     async fn send_tracked(&mut self, packet: Packet) -> Result<u8, KMError> {
-        use crate::auth;
-
         let id = self.next_transaction_id();
-
-        // Special handling for auth packets that need custom wire format
-        // (MemoryRead and StreamingAuth use a different header layout than standard packets)
-        match &packet {
-            Packet::MemoryRead { address, size } => {
-                let raw = auth::build_memory_read_packet(*address, *size, id);
-                self.send_raw(&raw).await?;
-                return Ok(id);
-            }
-            Packet::StreamingAuth { credential } => {
-                let raw = auth::build_streaming_auth_packet(credential, id);
-                self.send_raw(&raw).await?;
-                return Ok(id);
-            }
-            _ => {}
-        }
-
         let raw_packet = packet.to_raw_packet(id)?;
         self.send_raw_packet(raw_packet).await?;
         Ok(id)
@@ -733,11 +793,11 @@ impl KM003C {
                 return Ok(response);
             }
 
-            if let Some(packet) = parse_framed_response(&response) {
+            if let Some(peek) = PacketPeek::from_bytes(&response) {
                 debug!(
                     "Queueing unmatched response: type={:?}, id={}, len={}",
-                    packet.packet_type(),
-                    packet.id(),
+                    peek.packet_type,
+                    peek.id,
                     response.len()
                 );
             } else {
@@ -798,6 +858,11 @@ impl KM003C {
         }
     }
 
+    /// Read the unframed ciphertext that follows a MemoryRead confirmation.
+    ///
+    /// These transfers carry no header and AES ciphertext is indistinguishable
+    /// from a protocol frame, so nothing else may be in flight while they are
+    /// read. [`Self::read_memory_block`] enforces that precondition.
     async fn receive_memory_read_data_exact(&mut self, requested_size: u32) -> Result<Vec<u8>, KMError> {
         let expected_size = memory_response_size(requested_size);
         if expected_size == 0 {
@@ -817,16 +882,12 @@ impl KM003C {
 
     /// Request data with a specific attribute set
     pub async fn request_data(&mut self, mask: AttributeSet) -> Result<Packet, KMError> {
-        let id = self
-            .send_tracked(Packet::GetData {
-                attribute_mask: mask.raw(),
-            })
-            .await?;
+        let id = self.send_tracked(Packet::GetData { attributes: mask }).await?;
         let raw_bytes = self
             .receive_matching_raw(|bytes| response_matches(bytes, id, PacketType::PutData))
             .await?;
         let raw_packet = RawPacket::try_from(Bytes::from(raw_bytes))?;
-        raw_packet.validate_correlation(mask.raw())?;
+        raw_packet.validate_correlation(mask)?;
         if let Some(rate) = self.graph_sample_rate {
             Packet::from_raw_with_graph_rate(raw_packet, rate)
         } else {
@@ -977,22 +1038,24 @@ impl KM003C {
         }
 
         let info = self.read_device_info_blocks().await;
-        let mut hardware_id_bytes = [0u8; HARDWARE_ID_SIZE];
 
-        // 5. Read HardwareID
-        let hardware_id = if let Ok(data) = self
+        // 5. Read HardwareID. A short read must fail rather than authenticate
+        // with a zero-filled credential.
+        let data = self
             .read_memory_block(HARDWARE_ID_ADDRESS, HARDWARE_ID_SIZE as u32)
             .await
-        {
-            if data.len() >= HARDWARE_ID_SIZE {
-                hardware_id_bytes.copy_from_slice(&data[..HARDWARE_ID_SIZE]);
-            }
-            HardwareId::from_bytes(hardware_id_bytes)
-        } else {
-            return Err(KMError::Protocol(
-                "Failed to read HardwareID - required for authentication".to_string(),
-            ));
-        };
+            .map_err(|error| {
+                KMError::Protocol(format!(
+                    "Failed to read HardwareID - required for authentication: {error}"
+                ))
+            })?;
+        let hardware_id_bytes: [u8; HARDWARE_ID_SIZE] = data.as_slice().try_into().map_err(|_| {
+            KMError::Protocol(format!(
+                "HardwareID read returned {} bytes, expected {HARDWARE_ID_SIZE}",
+                data.len()
+            ))
+        })?;
+        let hardware_id = HardwareId::from_bytes(hardware_id_bytes);
 
         // 6. StreamingAuth
         let auth = self.perform_streaming_auth(AuthCredential::from(&hardware_id)).await?;
@@ -1121,7 +1184,22 @@ impl KM003C {
     /// Sends a MemoryRead request, receives the confirmation, then receives
     /// and decrypts the actual data. Returns exactly `size` decrypted bytes;
     /// AES block padding received from the device is removed.
+    ///
+    /// # Errors
+    ///
+    /// The encrypted payload arrives unframed, so a response still in flight
+    /// from another request would be consumed as ciphertext. AdcQueue
+    /// streaming must therefore be stopped first; calling this while graph
+    /// mode is active returns an error instead of corrupting the read.
     pub async fn read_memory_block(&mut self, address: u32, size: u32) -> Result<Vec<u8>, KMError> {
+        if self.graph_sample_rate.is_some() {
+            return Err(KMError::Protocol(
+                "Device memory cannot be read while AdcQueue streaming is active; \
+                 call stop_graph_mode() first"
+                    .to_string(),
+            ));
+        }
+
         let id = self.send_tracked(Packet::MemoryRead { address, size }).await?;
         let confirmation = self
             .receive_matching_raw(|bytes| memory_confirmation_matches(bytes, id))
@@ -1241,12 +1319,7 @@ impl KM003C {
     pub async fn start_graph_mode(&mut self, rate: GraphSampleRate) -> Result<(), KMError> {
         ensure_adcqueue_available(&self.mode)?;
 
-        // Device expects rate index directly: 0=2SPS, 1=10SPS, 2=50SPS, 3=1000SPS
-        let id = self
-            .send_tracked(Packet::StartGraph {
-                rate_index: rate as u16,
-            })
-            .await?;
+        let id = self.send_tracked(Packet::StartGraph { rate }).await?;
         self.expect_accept(id, "StartGraph").await?;
         self.graph_sample_rate = Some(rate);
         Ok(())

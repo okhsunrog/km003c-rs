@@ -37,12 +37,14 @@ pub enum Packet {
     /// Data response with parsed payload data
     DataResponse { payloads: Vec<PayloadData> },
     /// Request data with attribute set
-    GetData { attribute_mask: u16 },
-    /// Start AdcQueue graph mode with sample rate
-    /// Logical rate index: 0=2SPS, 1=10SPS, 2=50SPS, 3=1000SPS.
-    /// `CtrlHeader` places this attribute in the wire header, producing byte 2
-    /// values 0, 2, 4, and 6 respectively.
-    StartGraph { rate_index: u16 },
+    GetData { attributes: AttributeSet },
+    /// Start AdcQueue graph mode with sample rate.
+    ///
+    /// `CtrlHeader` places the logical rate index (0=2SPS, 1=10SPS, 2=50SPS,
+    /// 3=1000SPS) in the wire header, producing byte 2 values 0, 2, 4, and 6
+    /// respectively. A header carrying an index outside that range parses as
+    /// [`Packet::Generic`] rather than being coerced into a known rate.
+    StartGraph { rate: GraphSampleRate },
     /// Stop AdcQueue graph mode
     StopGraph,
     /// Accept response
@@ -77,94 +79,63 @@ pub enum Packet {
     Generic(RawPacket),
 }
 
+/// Define a `Packet` accessor that returns the first payload of one variant.
+macro_rules! payload_accessor {
+    ($(#[$doc:meta])* $name:ident -> $target:ty, $variant:ident) => {
+        $(#[$doc])*
+        pub fn $name(&self) -> Option<&$target> {
+            self.find_payload(|payload| match payload {
+                PayloadData::$variant(inner) => Some(inner),
+                _ => None,
+            })
+        }
+    };
+}
+
 impl Packet {
-    /// Get ADC data from the packet, if present
-    pub fn get_adc(&self) -> Option<&AdcDataSimple> {
+    /// Return the first payload for which `select` yields a value.
+    ///
+    /// Only [`Packet::DataResponse`] carries payloads; every other variant
+    /// yields `None`.
+    pub fn find_payload<'a, T: ?Sized>(&'a self, select: impl Fn(&'a PayloadData) -> Option<&'a T>) -> Option<&'a T> {
         match self {
-            Self::DataResponse { payloads } => payloads.iter().find_map(|p| match p {
-                PayloadData::Adc(adc) => Some(adc),
-                _ => None,
-            }),
+            Self::DataResponse { payloads } => payloads.iter().find_map(select),
             _ => None,
         }
     }
 
-    /// Get AdcQueue data from the packet, if present
-    pub fn get_adc_queue(&self) -> Option<&AdcQueueData> {
-        match self {
-            Self::DataResponse { payloads } => payloads.iter().find_map(|p| match p {
-                PayloadData::AdcQueue(queue) => Some(queue),
-                _ => None,
-            }),
-            _ => None,
-        }
-    }
-
-    /// Get losslessly parsed AdcQueue data whose graph rate is unknown.
-    pub fn get_adc_queue_raw(&self) -> Option<&AdcQueueRawData> {
-        match self {
-            Self::DataResponse { payloads } => payloads.iter().find_map(|p| match p {
-                PayloadData::AdcQueueRaw(queue) => Some(queue),
-                _ => None,
-            }),
-            _ => None,
-        }
-    }
-
-    /// Get PD status from the packet, if present
-    pub fn get_pd_status(&self) -> Option<&PdStatus> {
-        match self {
-            Self::DataResponse { payloads } => payloads.iter().find_map(|p| match p {
-                PayloadData::PdStatus(pd) => Some(pd),
-                _ => None,
-            }),
-            _ => None,
-        }
-    }
-
-    /// Get PD events from the packet, if present
-    pub fn get_pd_events(&self) -> Option<&PdEventStream> {
-        match self {
-            Self::DataResponse { payloads } => payloads.iter().find_map(|p| match p {
-                PayloadData::PdEvents(events) => Some(events),
-                _ => None,
-            }),
-            _ => None,
-        }
-    }
-
-    /// Get the internal PD state-machine trace, if present.
-    pub fn get_pd_trace(&self) -> Option<&PdTrace> {
-        match self {
-            Self::DataResponse { payloads } => payloads.iter().find_map(|payload| match payload {
-                PayloadData::PdTrace(trace) => Some(trace),
-                _ => None,
-            }),
-            _ => None,
-        }
-    }
-
-    /// Get the read-only settings payload, if present.
-    pub fn get_settings(&self) -> Option<&Settings> {
-        match self {
-            Self::DataResponse { payloads } => payloads.iter().find_map(|payload| match payload {
-                PayloadData::Settings(settings) => Some(settings),
-                _ => None,
-            }),
-            _ => None,
-        }
-    }
-
-    /// Get the response to a LogMetadata request, if present.
-    pub fn get_log_metadata(&self) -> Option<&LogMetadataResponse> {
-        match self {
-            Self::DataResponse { payloads } => payloads.iter().find_map(|payload| match payload {
-                PayloadData::LogMetadata(metadata) => Some(metadata),
-                _ => None,
-            }),
-            _ => None,
-        }
-    }
+    payload_accessor!(
+        /// Get ADC data from the packet, if present.
+        get_adc -> AdcDataSimple, Adc
+    );
+    payload_accessor!(
+        /// Get AdcQueue data from the packet, if present.
+        get_adc_queue -> AdcQueueData, AdcQueue
+    );
+    payload_accessor!(
+        /// Get losslessly parsed AdcQueue data whose graph rate is unknown.
+        get_adc_queue_raw -> AdcQueueRawData, AdcQueueRaw
+    );
+    payload_accessor!(
+        /// Get PD status from the packet, if present.
+        get_pd_status -> PdStatus, PdStatus
+    );
+    payload_accessor!(
+        /// Get PD events from the packet, if present.
+        get_pd_events -> PdEventStream, PdEvents
+    );
+    payload_accessor!(
+        /// Get the internal PD state-machine trace, if present.
+        get_pd_trace -> PdTrace, PdTrace
+    );
+    payload_accessor!(
+        /// Get the read-only settings payload, if present.
+        get_settings -> Settings, Settings
+    );
+    payload_accessor!(
+        /// Get the response to a LogMetadata request, if present.
+        get_log_metadata -> LogMetadataResponse, LogMetadata
+    );
 
     /// Check if packet has a specific payload type
     pub fn has_payload(&self, attr: Attribute) -> bool {
@@ -209,17 +180,22 @@ impl Packet {
 
                 match packet_type {
                     PacketType::GetData => Ok(Packet::GetData {
-                        attribute_mask: attribute_set.raw(),
+                        attributes: attribute_set,
                     }),
-                    PacketType::StartGraph => Ok(Packet::StartGraph {
-                        rate_index: attribute_set.raw(),
-                    }),
+                    // An unknown rate index is preserved verbatim as a generic
+                    // packet rather than coerced into one of the four rates.
+                    PacketType::StartGraph => match GraphSampleRate::try_from(attribute_set.raw()) {
+                        Ok(rate) => Ok(Packet::StartGraph { rate }),
+                        Err(_) => Ok(Packet::Generic(RawPacket::Ctrl { header, payload })),
+                    },
                     PacketType::StopGraph => Ok(Packet::StopGraph),
                     PacketType::Accept => Ok(Packet::Accept { id: header.id() }),
                     PacketType::Rejected => Ok(Packet::Reject { id: header.id() }),
                     PacketType::NotReadable => Ok(Packet::NotReadable { id: header.id() }),
                     PacketType::Connect => Ok(Packet::Connect),
                     PacketType::Disconnect => Ok(Packet::Disconnect),
+                    PacketType::EnablePdMonitor => Ok(Packet::EnablePdMonitor),
+                    PacketType::DisablePdMonitor => Ok(Packet::DisablePdMonitor),
                     _ => Ok(Packet::Generic(RawPacket::Ctrl { header, payload })),
                 }
             }
@@ -457,20 +433,20 @@ impl Packet {
                     logical_packets,
                 }
             }
-            Packet::GetData { attribute_mask } => RawPacket::Ctrl {
+            Packet::GetData { attributes } => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::GetData.into())
                     .with_reserved_flag(false)
                     .with_id(id)
-                    .with_attribute(attribute_mask),
+                    .with_attribute(attributes.raw()),
                 payload: Vec::new(),
             },
-            Packet::StartGraph { rate_index } => RawPacket::Ctrl {
+            Packet::StartGraph { rate } => RawPacket::Ctrl {
                 header: CtrlHeader::new()
                     .with_packet_type(PacketType::StartGraph.into())
                     .with_reserved_flag(false)
                     .with_id(id)
-                    .with_attribute(rate_index),
+                    .with_attribute(rate as u16),
                 payload: Vec::new(),
             },
             Packet::StopGraph => RawPacket::Ctrl {
@@ -590,14 +566,14 @@ impl<'py> pyo3::IntoPyObject<'py> for Packet {
                 inner.set_item("payloads", payloads.into_pyobject(py)?)?;
                 dict.set_item("DataResponse", inner)?;
             }
-            Packet::GetData { attribute_mask } => {
+            Packet::GetData { attributes } => {
                 let inner = PyDict::new(py);
-                inner.set_item("attribute_mask", attribute_mask)?;
+                inner.set_item("attribute_mask", attributes.raw())?;
                 dict.set_item("GetData", inner)?;
             }
-            Packet::StartGraph { rate_index } => {
+            Packet::StartGraph { rate } => {
                 let inner = PyDict::new(py);
-                inner.set_item("rate_index", rate_index)?;
+                inner.set_item("rate_index", rate as u16)?;
                 dict.set_item("StartGraph", inner)?;
             }
             Packet::StopGraph => {

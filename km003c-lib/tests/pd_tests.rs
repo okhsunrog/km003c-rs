@@ -98,9 +98,9 @@ fn recognizes_legacy_recorded_connection_events() {
     let disconnect = parse_pd_events("413bc20010008004eb0d1300f1130000a80c7f0045cc0d130012");
 
     assert_milliseconds(connect.events[0].timestamp, 1_243_348.0);
-    assert_eq!(connect.events[0].data, PdEventData::Connect(()));
+    assert_eq!(connect.events[0].data, PdEventData::Connect);
     assert_milliseconds(disconnect.events[0].timestamp, 1_248_716.0);
-    assert_eq!(disconnect.events[0].data, PdEventData::Disconnect(()));
+    assert_eq!(disconnect.events[0].data, PdEventData::Disconnect);
 }
 
 #[test]
@@ -109,7 +109,7 @@ fn recognizes_current_recorded_connection_event() {
     let connect = parse_pd_events("4194c20010008004fba90100030000000000200645efa9010021");
 
     assert_milliseconds(connect.events[0].timestamp, 109_039.0);
-    assert_eq!(connect.events[0].data, PdEventData::Connect(()));
+    assert_eq!(connect.events[0].data, PdEventData::Connect);
 }
 
 #[test]
@@ -171,7 +171,7 @@ fn connection_events_reset_semantic_decoder_state() {
 
     let connect = PdEvent {
         timestamp: uom::si::f64::Time::new::<millisecond>(1_250_000.0),
-        data: PdEventData::Connect(()),
+        data: PdEventData::Connect,
     };
     assert!(matches!(decoder.decode_event(&connect), DecodedPdEvent::Connect { .. }));
     assert!(decoder.source_capabilities().is_none());
@@ -180,7 +180,7 @@ fn connection_events_reset_semantic_decoder_state() {
     assert!(decoder.source_capabilities().is_some());
     let disconnect = PdEvent {
         timestamp: uom::si::f64::Time::new::<millisecond>(1_250_001.0),
-        data: PdEventData::Disconnect(()),
+        data: PdEventData::Disconnect,
     };
     assert!(matches!(
         decoder.decode_event(&disconnect),

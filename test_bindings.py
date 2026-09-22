@@ -68,6 +68,73 @@ def test_adcqueue_helpers_use_rate_index():
         km003c.parse_packet_with_graph_rate(raw, 99)
 
 
+def test_pd_monitor_commands_are_classified():
+    # Regression: 0x10/0x11 serialized but parsed back as Generic, leaving the
+    # library's own traffic unclassified in captures.
+    assert km003c.parse_packet(b"\x10\x03\x02\x00") == {"EnablePdMonitor": None}
+    assert km003c.parse_packet(b"\x11\x04\x00\x00") == {"DisablePdMonitor": None}
+
+
+def test_memory_read_helpers_replace_hand_rolled_crypto():
+    packet = km003c.build_memory_read_packet(km003c.ADDR_HARDWARE_ID, km003c.HARDWARE_ID_SIZE, 2)
+    assert len(packet) == 36
+    assert packet[:4] == bytes([km003c.CMD_MEMORY_READ, 2, 0x01, 0x01])
+
+    # The encrypted body decrypts back to the address/size the caller asked for.
+    plaintext = km003c.decrypt_memory_payload(packet[4:])
+    assert int.from_bytes(plaintext[0:4], "little") == km003c.ADDR_HARDWARE_ID
+    assert int.from_bytes(plaintext[4:8], "little") == km003c.HARDWARE_ID_SIZE
+
+    with pytest.raises(ValueError, match="multiple of 16"):
+        km003c.decrypt_memory_payload(b"\x00" * 5)
+
+
+def test_memory_read_confirmation_is_validated():
+    # Source: usb_master_dataset.parquet, orig_adc_1000hz.6, frame 264.
+    confirmation = bytes.fromhex("c40201012004000040000000ffffffff1b8c1b24")
+    assert km003c.parse_memory_read_confirmation(confirmation) == (0x420, 64)
+
+    corrupted = bytearray(confirmation)
+    corrupted[8] ^= 1
+    assert km003c.parse_memory_read_confirmation(bytes(corrupted)) is None
+
+
+def test_streaming_auth_packet_uses_the_documented_header():
+    packet = km003c.build_streaming_auth_packet(bytes(range(12)), 6)
+    assert len(packet) == 36
+    assert packet[:4] == bytes([km003c.CMD_STREAMING_AUTH, 6, 0x00, 0x02])
+
+    with pytest.raises(ValueError, match="exactly 12 bytes"):
+        km003c.build_streaming_auth_packet(b"short", 6)
+
+
+def test_offline_catalog_entries_expose_their_fields():
+    metadata = km003c.parse_log_metadata(
+        bytes.fromhex(
+            "4130312e640000000000000000000000"
+            "450a09021027000050140000"
+            "a1a2f3ffe04da8ff000000000000000000000000"
+        )
+    )
+
+    assert metadata.filename == "A01.d"
+    assert metadata.sample_count == 521
+    assert metadata.interval_ms == 10_000.0
+    assert metadata.data_size == 8_336
+    assert metadata.data_address == km003c.ADDR_OFFLINE_LOG
+    assert metadata.final_charge_uah == -810_335
+
+    samples = km003c.parse_offline_log_samples(bytes.fromhex("81494c0021f0e2ff56ebffffb998ffff"))
+    assert samples == [
+        {
+            "voltage_uv": 4_999_553,
+            "current_ua": -1_904_607,
+            "charge_uah": -5_290,
+            "energy_uwh": -26_439,
+        }
+    ]
+
+
 def test_raw_adc_parsing():
     print("\nTesting raw ADC data parsing...")
     # Create some dummy ADC data (44 bytes total)
@@ -134,6 +201,11 @@ def main():
     test_sample_rates()
     test_packet_api_shapes()
     test_adcqueue_helpers_use_rate_index()
+    test_pd_monitor_commands_are_classified()
+    test_memory_read_helpers_replace_hand_rolled_crypto()
+    test_memory_read_confirmation_is_validated()
+    test_streaming_auth_packet_uses_the_documented_header()
+    test_offline_catalog_entries_expose_their_fields()
     test_raw_adc_parsing()
 
     print("\n🎉 All tests passed!")
