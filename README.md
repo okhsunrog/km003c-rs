@@ -245,7 +245,16 @@ if let Some(metadata) = catalog.into_iter().next() {
 
 ### Python bindings
 
-Build and test the extension in the project environment:
+Install the published wheels:
+
+```bash
+pip install km003c
+```
+
+Wheels are built against the stable ABI, so one wheel per platform covers
+CPython 3.8 and newer.
+
+To build and test the extension from a checkout instead:
 
 ```bash
 uv sync --locked
