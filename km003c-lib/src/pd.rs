@@ -54,12 +54,14 @@ impl From<PdStatusRaw> for PdStatus {
 
 impl From<PdStatus> for PdStatusRaw {
     fn from(status: PdStatus) -> Self {
+        // Rounding, not truncation, so a value that survived a float round trip
+        // re-encodes to the integer it came from.
         Self {
-            timestamp_ms: U32::new(status.timestamp.get::<millisecond>() as u32),
-            vbus_mv: U16::new(status.vbus.get::<millivolt>() as u16),
-            ibus_ma: I16::new(status.ibus.get::<milliampere>() as i16),
-            cc1_mv: U16::new(status.cc1.get::<millivolt>() as u16),
-            cc2_mv: U16::new(status.cc2.get::<millivolt>() as u16),
+            timestamp_ms: U32::new(status.timestamp.get::<millisecond>().round() as u32),
+            vbus_mv: U16::new(status.vbus.get::<millivolt>().round() as u16),
+            ibus_ma: I16::new(status.ibus.get::<milliampere>().round() as i16),
+            cc1_mv: U16::new(status.cc1.get::<millivolt>().round() as u16),
+            cc2_mv: U16::new(status.cc2.get::<millivolt>().round() as u16),
         }
     }
 }
@@ -104,16 +106,34 @@ impl PdStatus {
 
 /// Event data types that can appear in PD stream
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "python", derive(pyo3::IntoPyObject))]
 pub enum PdEventData {
-    #[cfg_attr(feature = "python", pyo3(transparent))]
-    Connect(()),
-    #[cfg_attr(feature = "python", pyo3(transparent))]
-    Disconnect(()),
-    PdMessage {
-        sop: u8,
-        wire_data: Vec<u8>,
-    },
+    Connect,
+    Disconnect,
+    PdMessage { sop: u8, wire_data: Vec<u8> },
+}
+
+#[cfg(feature = "python")]
+impl<'py> pyo3::IntoPyObject<'py> for PdEventData {
+    type Target = pyo3::types::PyDict;
+    type Output = pyo3::Bound<'py, Self::Target>;
+    type Error = pyo3::PyErr;
+
+    fn into_pyobject(self, py: pyo3::Python<'py>) -> Result<Self::Output, Self::Error> {
+        use pyo3::types::{PyDict, PyDictMethods};
+
+        let dict = PyDict::new(py);
+        match self {
+            Self::Connect => dict.set_item("Connect", py.None())?,
+            Self::Disconnect => dict.set_item("Disconnect", py.None())?,
+            Self::PdMessage { sop, wire_data } => {
+                let inner = PyDict::new(py);
+                inner.set_item("sop", sop)?;
+                inner.set_item("wire_data", wire_data)?;
+                dict.set_item("PdMessage", inner)?;
+            }
+        }
+        Ok(dict)
+    }
 }
 
 /// Timestamped PD event
@@ -171,8 +191,8 @@ impl PdEventStream {
                 let ts24 = u32::from_le_bytes([bytes[offset + 1], bytes[offset + 2], bytes[offset + 3], 0]);
                 let event_code = bytes[offset + 5];
                 let data = match event_code {
-                    PD_CONNECTION_CONNECT | PD_CONNECTION_CONNECT_LEGACY => PdEventData::Connect(()),
-                    PD_CONNECTION_DISCONNECT | PD_CONNECTION_DISCONNECT_LEGACY => PdEventData::Disconnect(()),
+                    PD_CONNECTION_CONNECT | PD_CONNECTION_CONNECT_LEGACY => PdEventData::Connect,
+                    PD_CONNECTION_DISCONNECT | PD_CONNECTION_DISCONNECT_LEGACY => PdEventData::Disconnect,
                     _ => PdEventData::PdMessage {
                         sop: event_code,
                         wire_data: Vec::new(),
@@ -232,9 +252,9 @@ impl PdEventStream {
     }
 
     /// Helper: get all PD messages, ignoring connection events
-    pub fn pd_messages(&self) -> impl Iterator<Item = (&Time, u8, &Vec<u8>)> {
+    pub fn pd_messages(&self) -> impl Iterator<Item = (&Time, u8, &[u8])> {
         self.events.iter().filter_map(|e| match &e.data {
-            PdEventData::PdMessage { sop, wire_data } => Some((&e.timestamp, *sop, wire_data)),
+            PdEventData::PdMessage { sop, wire_data } => Some((&e.timestamp, *sop, wire_data.as_slice())),
             _ => None,
         })
     }
@@ -242,8 +262,8 @@ impl PdEventStream {
     /// Helper: get connection state changes
     pub fn connection_events(&self) -> impl Iterator<Item = (&Time, bool)> {
         self.events.iter().filter_map(|e| match &e.data {
-            PdEventData::Connect(()) => Some((&e.timestamp, true)),
-            PdEventData::Disconnect(()) => Some((&e.timestamp, false)),
+            PdEventData::Connect => Some((&e.timestamp, true)),
+            PdEventData::Disconnect => Some((&e.timestamp, false)),
             _ => None,
         })
     }
@@ -264,11 +284,11 @@ impl PdEvent {
 
     fn __repr__(&self) -> String {
         match &self.data {
-            PdEventData::Connect(()) => format!(
+            PdEventData::Connect => format!(
                 "PdEvent(timestamp={}ms, type=connect)",
                 self.timestamp.get::<millisecond>()
             ),
-            PdEventData::Disconnect(()) => format!(
+            PdEventData::Disconnect => format!(
                 "PdEvent(timestamp={}ms, type=disconnect)",
                 self.timestamp.get::<millisecond>()
             ),

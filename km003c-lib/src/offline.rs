@@ -145,6 +145,94 @@ impl LogMetadata {
     }
 }
 
+#[cfg(feature = "python")]
+#[pyo3::pymethods]
+impl LogMetadata {
+    #[getter(filename)]
+    fn py_filename(&self) -> String {
+        self.filename_lossy().into_owned()
+    }
+
+    #[getter]
+    fn filename_raw(&self) -> Vec<u8> {
+        self.filename_raw.to_vec()
+    }
+
+    #[getter]
+    fn unknown_0x10(&self) -> u16 {
+        self.unknown_0x10
+    }
+
+    #[getter]
+    fn sample_count(&self) -> u16 {
+        self.sample_count
+    }
+
+    #[getter]
+    fn interval_ms(&self) -> f64 {
+        self.interval.get::<millisecond>()
+    }
+
+    #[getter]
+    fn flags(&self) -> u16 {
+        self.flags
+    }
+
+    #[getter]
+    fn recorded_duration_s(&self) -> f64 {
+        self.recorded_duration.get::<second>()
+    }
+
+    #[getter]
+    fn calculated_duration_s(&self) -> f64 {
+        self.calculated_duration().get::<second>()
+    }
+
+    #[getter]
+    fn final_charge_uah(&self) -> i32 {
+        self.final_charge_raw_uah()
+    }
+
+    #[getter]
+    fn final_energy_uwh(&self) -> i32 {
+        self.final_energy_raw_uwh()
+    }
+
+    #[getter]
+    fn data_offset(&self) -> u32 {
+        self.data_offset
+    }
+
+    #[getter(data_size)]
+    fn py_data_size(&self) -> u32 {
+        self.data_size()
+    }
+
+    #[getter(data_address)]
+    fn py_data_address(&self) -> pyo3::PyResult<u32> {
+        self.data_address()
+            .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))
+    }
+
+    #[getter]
+    fn reserved_tail(&self) -> Vec<u8> {
+        self.reserved_tail.to_vec()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "LogMetadata(filename={:?}, samples={}, interval={}ms)",
+            self.filename_lossy(),
+            self.sample_count,
+            self.interval.get::<millisecond>()
+        )
+    }
+
+    fn __str__(&self) -> String {
+        self.__repr__()
+    }
+}
+
 /// Response to a `LogMetadata` request.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -188,6 +276,13 @@ pub struct OfflineLogSampleRaw {
 }
 
 impl OfflineLogSampleRaw {
+    /// Decode one 16-byte wire sample.
+    pub fn from_wire_bytes(bytes: &[u8]) -> Result<Self, KMError> {
+        OfflineLogSampleWire::ref_from_bytes(bytes)
+            .map(|wire| Self::from(*wire))
+            .map_err(|_| KMError::InvalidPacket("Failed to parse offline log sample".to_string()))
+    }
+
     pub fn decode(self) -> OfflineLogSample {
         let voltage = ElectricPotential::new::<microvolt>(f64::from(self.voltage_uv));
         let current = ElectricCurrent::new::<microampere>(f64::from(self.current_ua));
@@ -264,11 +359,7 @@ impl OfflineLog {
             .as_chunks::<OFFLINE_LOG_SAMPLE_SIZE>()
             .0
             .iter()
-            .map(|bytes| {
-                OfflineLogSampleWire::ref_from_bytes(bytes)
-                    .map(|wire| OfflineLogSampleRaw::from(*wire).decode())
-                    .map_err(|_| KMError::InvalidPacket("Failed to parse offline log sample".to_string()))
-            })
+            .map(|bytes| OfflineLogSampleRaw::from_wire_bytes(bytes).map(OfflineLogSampleRaw::decode))
             .collect::<Result<Vec<_>, _>>()?;
 
         if let Some(last) = samples.last() {
@@ -288,10 +379,11 @@ impl OfflineLog {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.samples
-            .iter()
-            .flat_map(|sample| OfflineLogSampleWire::from(sample.raw()).as_bytes().to_vec())
-            .collect()
+        let mut bytes = Vec::with_capacity(self.samples.len() * OFFLINE_LOG_SAMPLE_SIZE);
+        for sample in &self.samples {
+            bytes.extend_from_slice(OfflineLogSampleWire::from(sample.raw()).as_bytes());
+        }
+        bytes
     }
 }
 

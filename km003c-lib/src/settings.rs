@@ -61,8 +61,32 @@ use fields::{SettingsAFields, SettingsBFields};
 /// [`Self::settings_b_raw`]. Only fields whose meanings are corroborated by
 /// KM003C V1.9.9 firmware consumers have semantic accessors.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Settings {
+    #[cfg_attr(feature = "serde", serde(with = "serde_big_array"))]
     bytes: [u8; SETTINGS_SIZE],
+}
+
+#[cfg(feature = "serde")]
+mod serde_big_array {
+    //! `[u8; 180]` predates const-generic serde impls, so it needs a shim.
+
+    use super::SETTINGS_SIZE;
+    use serde::{Deserialize, Deserializer, Serializer, de::Error as _};
+
+    pub(super) fn serialize<S: Serializer>(bytes: &[u8; SETTINGS_SIZE], serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(bytes)
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<[u8; SETTINGS_SIZE], D::Error> {
+        let bytes = Vec::<u8>::deserialize(deserializer)?;
+        bytes.try_into().map_err(|bytes: Vec<u8>| {
+            D::Error::custom(format!(
+                "settings payload must be exactly {SETTINGS_SIZE} bytes, got {}",
+                bytes.len()
+            ))
+        })
+    }
 }
 
 impl Settings {

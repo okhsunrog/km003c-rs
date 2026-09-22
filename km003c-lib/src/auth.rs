@@ -80,7 +80,7 @@ pub const STREAMING_AUTH_CREDENTIAL_SIZE: usize = 12;
 /// - Bytes 10-11: Padding (typically 0xFF 0xFF)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HardwareId {
-    pub bytes: [u8; HARDWARE_ID_SIZE],
+    bytes: [u8; HARDWARE_ID_SIZE],
 }
 
 impl HardwareId {
@@ -316,7 +316,58 @@ pub fn parse_memory_read_payload(ciphertext: &[u8]) -> Option<(u32, u32)> {
     Some((address, size))
 }
 
+/// Size of the confirmation body the device echoes for a MemoryRead request.
+pub const MEMORY_READ_CONFIRMATION_SIZE: usize = 16;
+
+/// Fields echoed by the device in a MemoryRead confirmation body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MemoryReadConfirmation {
+    pub address: u32,
+    pub size: u32,
+    pub magic: u32,
+    pub checksum: u32,
+    /// CRC-32 recomputed over the first 12 bytes of the body.
+    pub expected_checksum: u32,
+}
+
+impl MemoryReadConfirmation {
+    /// Decode the 16-byte confirmation body that follows the packet header.
+    pub fn from_bytes(body: &[u8]) -> Option<Self> {
+        let body: &[u8; MEMORY_READ_CONFIRMATION_SIZE] = body.first_chunk()?;
+        let word = |range: std::ops::Range<usize>| {
+            u32::from_le_bytes(body[range].try_into().expect("fixed-size confirmation field"))
+        };
+
+        Some(Self {
+            address: word(0..4),
+            size: word(4..8),
+            magic: word(8..12),
+            checksum: word(12..16),
+            expected_checksum: crc32fast::hash(&body[..12]),
+        })
+    }
+
+    /// Whether the magic word and the CRC-32 both match.
+    pub fn is_intact(&self) -> bool {
+        self.magic == u32::MAX && self.checksum == self.expected_checksum
+    }
+}
+
+/// Decode a MemoryRead confirmation body into its echoed address and size.
+///
+/// Returns `None` when the body is truncated, the magic word is wrong, or the
+/// CRC-32 does not match.
+pub fn parse_memory_read_confirmation(body: &[u8]) -> Option<(u32, u32)> {
+    let confirmation = MemoryReadConfirmation::from_bytes(body)?;
+    confirmation
+        .is_intact()
+        .then_some((confirmation.address, confirmation.size))
+}
+
 /// Build a MemoryRead (0x44) request packet
+///
+/// The wire layout lives in [`crate::message::Packet::to_raw_packet`]; this is
+/// a convenience wrapper for callers that want the finished bytes.
 ///
 /// # Arguments
 /// * `address` - Memory address to read from
@@ -326,17 +377,7 @@ pub fn parse_memory_read_payload(ciphertext: &[u8]) -> Option<(u32, u32)> {
 /// # Returns
 /// 36-byte packet: 4-byte header + 32-byte AES-encrypted payload
 pub fn build_memory_read_packet(address: u32, size: u32, tid: u8) -> Vec<u8> {
-    let ciphertext = build_memory_read_payload(address, size);
-
-    // Build packet: header + encrypted payload
-    let mut packet = Vec::with_capacity(36);
-    packet.push(0x44); // Packet type: MemoryRead
-    packet.push(tid); // Transaction ID
-    packet.push(0x01); // Attribute low byte
-    packet.push(0x01); // Attribute high byte (0x0101)
-    packet.extend_from_slice(&ciphertext);
-
-    packet
+    serialize_infallible(crate::message::Packet::MemoryRead { address, size }, tid)
 }
 
 /// Build StreamingAuth encrypted payload (32 bytes)
@@ -388,6 +429,9 @@ pub fn encrypt_streaming_auth_response_payload(plaintext: &[u8; 32]) -> [u8; 32]
 
 /// Build a StreamingAuth (0x4C) request packet
 ///
+/// The wire layout lives in [`crate::message::Packet::to_raw_packet`]; this is
+/// a convenience wrapper for callers that want the finished bytes.
+///
 /// # Arguments
 /// * `credential` - 12-byte device or calibration credential
 /// * `tid` - Transaction ID
@@ -395,17 +439,20 @@ pub fn encrypt_streaming_auth_response_payload(plaintext: &[u8; 32]) -> [u8; 32]
 /// # Returns
 /// 36-byte packet: 4-byte header + 32-byte AES-encrypted payload
 pub fn build_streaming_auth_packet(credential: &AuthCredential, tid: u8) -> Vec<u8> {
-    let ciphertext = build_streaming_auth_payload(credential);
+    serialize_infallible(
+        crate::message::Packet::StreamingAuth {
+            credential: credential.clone(),
+        },
+        tid,
+    )
+}
 
-    // Build packet: header + encrypted payload
-    let mut packet = Vec::with_capacity(36);
-    packet.push(0x4C); // Packet type: StreamingAuth
-    packet.push(tid); // Transaction ID
-    packet.push(0x00); // Attribute low byte
-    packet.push(0x02); // Attribute high byte (0x0002)
-    packet.extend_from_slice(&ciphertext);
-
-    packet
+/// Serialize a packet whose `to_raw_packet` conversion cannot fail.
+fn serialize_infallible(packet: crate::message::Packet, tid: u8) -> Vec<u8> {
+    let raw = packet
+        .to_raw_packet(tid)
+        .expect("auth command packets are always serializable");
+    bytes::Bytes::from(raw).to_vec()
 }
 
 /// Parse StreamingAuth (0x4C) response from full packet

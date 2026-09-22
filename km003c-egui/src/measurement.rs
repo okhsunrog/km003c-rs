@@ -6,7 +6,25 @@ use km003c_lib::{AdcQueueSample, GraphSampleRate};
 
 const MICROSECONDS_PER_MILLISECOND: u64 = 1_000;
 const MICROSECONDS_PER_HOUR: f64 = 3_600_000_000.0;
-const MAX_FORWARD_SEQUENCE_TICKS: u16 = i16::MAX as u16;
+
+/// How many consecutive rejected samples end a continuity run.
+///
+/// The device sequence counter is a 16-bit 1 kHz tick, so it wraps every 65.5
+/// seconds regardless of the sample rate. A long enough stall is therefore
+/// indistinguishable from an out-of-order sample; rather than rejecting every
+/// following sample forever, the accumulator restarts its continuity run.
+const MAX_CONSECUTIVE_REJECTED_SAMPLES: u32 = 8;
+
+/// Largest forward sequence delta accepted as a real gap at a given rate.
+///
+/// Half of the counter range is the theoretical limit, but a gap can only ever
+/// be a whole number of samples, so the bound is expressed in samples and
+/// converted back to ticks. Keeping it rate-relative stops a 33-second stall at
+/// 2 SPS from being misread as an out-of-order sample.
+fn max_forward_sequence_ticks(rate: GraphSampleRate) -> u16 {
+    let step = rate.sequence_step();
+    (u16::MAX / 2 / step) * step
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct MeasurementSample {
@@ -49,6 +67,7 @@ pub(crate) struct MeasurementAccumulator {
     cumulative_interpolated_duration_us: u64,
     cumulative_discarded_sequence_samples: u64,
     pending_discarded_sequence_samples: u32,
+    consecutive_rejected_samples: u32,
     charge_twice_ua_us: i128,
     energy_twice_uw_us: i128,
     charge_throughput_twice_ua_us: i128,
@@ -70,21 +89,39 @@ impl MeasurementAccumulator {
         let power_uw = sample.power.get::<microwatt>().round() as i64;
         let expected_ticks = u64::from(rate.sequence_step());
 
-        let (missing_samples, delta_us) = self.previous.map_or((0, 0), |previous| {
-            let delta_ticks = u64::from(sample.sequence.wrapping_sub(previous.sequence));
-            let missing = rate.missing_samples(previous.sequence, sample.sequence);
-            (missing, delta_ticks * MICROSECONDS_PER_MILLISECOND)
-        });
+        // A single pass over `previous`: reject implausible steps, then use the
+        // accepted delta both for the gap accounting and the integrators.
+        let (missing_samples, delta_us) = match self.previous {
+            None => (0, 0),
+            Some(previous) => {
+                let delta_ticks = sample.sequence.wrapping_sub(previous.sequence);
+                let plausible = delta_ticks != 0
+                    && delta_ticks <= max_forward_sequence_ticks(rate)
+                    && delta_ticks.is_multiple_of(rate.sequence_step());
 
-        if let Some(previous) = self.previous {
-            let delta_ticks = sample.sequence.wrapping_sub(previous.sequence);
-            if delta_ticks == 0 || delta_ticks > MAX_FORWARD_SEQUENCE_TICKS || delta_ticks % rate.sequence_step() != 0 {
-                self.cumulative_discarded_sequence_samples =
-                    self.cumulative_discarded_sequence_samples.saturating_add(1);
-                self.pending_discarded_sequence_samples = self.pending_discarded_sequence_samples.saturating_add(1);
-                return None;
+                if !plausible {
+                    self.cumulative_discarded_sequence_samples =
+                        self.cumulative_discarded_sequence_samples.saturating_add(1);
+                    self.pending_discarded_sequence_samples = self.pending_discarded_sequence_samples.saturating_add(1);
+                    self.consecutive_rejected_samples = self.consecutive_rejected_samples.saturating_add(1);
+
+                    // The counter wraps every 65.5 s, so a long stall looks
+                    // exactly like an out-of-order sample. Restart continuity
+                    // instead of rejecting every sample from here on.
+                    if self.consecutive_rejected_samples >= MAX_CONSECUTIVE_REJECTED_SAMPLES {
+                        self.previous = None;
+                        self.consecutive_rejected_samples = 0;
+                    }
+                    return None;
+                }
+
+                (
+                    rate.missing_samples(previous.sequence, sample.sequence),
+                    u64::from(delta_ticks) * MICROSECONDS_PER_MILLISECOND,
+                )
             }
-        }
+        };
+        self.consecutive_rejected_samples = 0;
         let gap_duration_us = u64::from(missing_samples) * expected_ticks * MICROSECONDS_PER_MILLISECOND;
 
         if let Some(previous) = self.previous {
@@ -138,6 +175,7 @@ impl MeasurementAccumulator {
 
     pub(crate) fn reset_continuity(&mut self) {
         self.previous = None;
+        self.consecutive_rejected_samples = 0;
     }
 
     pub(crate) fn reset(&mut self) {
@@ -347,6 +385,50 @@ mod tests {
 
         assert_eq!(after_rollover.elapsed_us, 1_000);
         assert_eq!(after_rollover.cumulative_discarded_sequence_samples, 0);
+    }
+
+    #[test]
+    fn a_long_gap_at_the_slowest_rate_is_still_a_gap() {
+        // Regression: the accept window used to be a fixed 32767 ticks, so at
+        // 2 SPS any stall past ~33 s was misread as an out-of-order sample.
+        let mut accumulator = MeasurementAccumulator::default();
+        accumulator.push(sample(0, 5.0, 1.0), GraphSampleRate::Sps2).unwrap();
+
+        let after_gap = accumulator
+            .push(sample(32_500, 5.0, 1.0), GraphSampleRate::Sps2)
+            .unwrap();
+
+        assert_eq!(after_gap.elapsed_us, 32_500_000);
+        assert_eq!(after_gap.missing_samples, 64);
+        assert_eq!(after_gap.cumulative_discarded_sequence_samples, 0);
+    }
+
+    #[test]
+    fn continuity_restarts_after_a_run_of_rejected_samples() {
+        // Past half the counter range the direction of a step is ambiguous.
+        // Without a restart the accumulator rejected every later sample until
+        // the counter happened to wrap back into the accept window.
+        let mut accumulator = MeasurementAccumulator::default();
+        accumulator.push(sample(0, 5.0, 1.0), GraphSampleRate::Sps1000).unwrap();
+
+        for step in 1..=MAX_CONSECUTIVE_REJECTED_SAMPLES {
+            assert!(
+                accumulator
+                    .push(sample(40_000 + step as u16, 5.0, 1.0), GraphSampleRate::Sps1000)
+                    .is_none(),
+                "ambiguous step {step} must be rejected"
+            );
+        }
+
+        let resumed = accumulator
+            .push(sample(50_000, 5.0, 1.0), GraphSampleRate::Sps1000)
+            .unwrap();
+        assert_eq!(resumed.missing_samples, 0, "a restarted run reports no false gap");
+        assert_eq!(
+            accumulator.cumulative_discarded_sequence_samples(),
+            u64::from(MAX_CONSECUTIVE_REJECTED_SAMPLES),
+            "rejected samples stay visible in the quality counters"
+        );
     }
 
     #[test]

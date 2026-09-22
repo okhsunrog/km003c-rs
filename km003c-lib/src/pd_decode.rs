@@ -107,13 +107,13 @@ impl PdSessionDecoder {
     /// Decode one KM003C PD event.
     pub fn decode_event(&mut self, event: &PdEvent) -> DecodedPdEvent {
         match &event.data {
-            PdEventData::Connect(()) => {
+            PdEventData::Connect => {
                 self.reset();
                 DecodedPdEvent::Connect {
                     timestamp: event.timestamp,
                 }
             }
-            PdEventData::Disconnect(()) => {
+            PdEventData::Disconnect => {
                 self.reset();
                 DecodedPdEvent::Disconnect {
                     timestamp: event.timestamp,

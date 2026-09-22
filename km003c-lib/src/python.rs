@@ -19,9 +19,12 @@
 
 use crate::adc::{AdcDataRaw, AdcDataSimple, SampleRate};
 use crate::adcqueue::{AdcQueueData, AdcQueueRawData, AdcQueueSample, AdcQueueSampleRaw, GraphSampleRate};
+use crate::auth;
 use crate::message::Packet;
+use crate::offline::LogMetadata;
 use crate::packet::{CtrlHeader, LogicalPacket, RawPacket};
 use crate::pd::{PdEvent, PdEventStream, PdStatus};
+use crate::pd_trace::{PdTrace, PdTraceProtocolEvent, PdTraceStateEvent};
 use bytes::Bytes;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -179,6 +182,167 @@ pub fn get_sample_rates() -> Vec<SampleRate> {
     ]
 }
 
+/// Build a complete MemoryRead (0x44) request packet.
+///
+/// Returns the 36 bytes to write to the OUT endpoint: a 4-byte header followed
+/// by the AES-128-ECB encrypted request body. Use this instead of
+/// re-implementing the AES key, CRC and padding layout in Python.
+///
+/// Args:
+///     address: Memory address to read from
+///     size: Number of bytes to read
+///     transaction_id: Transaction ID for correlating the response
+///
+/// Returns:
+///     bytes: 36-byte packet ready to send
+#[pyfunction]
+pub fn build_memory_read_packet(py: Python<'_>, address: u32, size: u32, transaction_id: u8) -> Bound<'_, PyBytes> {
+    PyBytes::new(py, &auth::build_memory_read_packet(address, size, transaction_id))
+}
+
+/// Decrypt a MemoryRead confirmation or data payload.
+///
+/// The device answers a MemoryRead with an unframed AES-128-ECB ciphertext
+/// whose length is a multiple of 16.
+///
+/// Args:
+///     ciphertext: Encrypted bytes, length must be a non-zero multiple of 16
+///
+/// Returns:
+///     bytes: Decrypted plaintext of the same length
+///
+/// Raises:
+///     ValueError: If the ciphertext length is not AES-aligned
+#[pyfunction]
+pub fn decrypt_memory_payload<'py>(py: Python<'py>, ciphertext: &[u8]) -> PyResult<Bound<'py, PyBytes>> {
+    let plaintext = auth::decrypt_memory_read_response(ciphertext).ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "Ciphertext length must be a non-zero multiple of 16, got {}",
+            ciphertext.len()
+        ))
+    })?;
+    Ok(PyBytes::new(py, &plaintext))
+}
+
+/// Decode a MemoryRead confirmation packet.
+///
+/// Validates the echoed address/size, the magic word and the CRC-32, exactly
+/// as the Rust device layer does.
+///
+/// Args:
+///     packet: Full confirmation packet (4-byte header + 16-byte body)
+///
+/// Returns:
+///     tuple[int, int] | None: (address, size) when the confirmation is valid
+#[pyfunction]
+pub fn parse_memory_read_confirmation(packet: &[u8]) -> Option<(u32, u32)> {
+    let body = packet.get(crate::constants::MAIN_HEADER_SIZE..)?;
+    auth::parse_memory_read_confirmation(body)
+}
+
+/// Build a complete StreamingAuth (0x4C) request packet.
+///
+/// Args:
+///     credential: 12-byte HardwareID (level 1) or calibration record (level 2)
+///     transaction_id: Transaction ID
+///
+/// Returns:
+///     bytes: 36-byte packet ready to send
+///
+/// Raises:
+///     ValueError: If the credential is not exactly 12 bytes
+#[pyfunction]
+pub fn build_streaming_auth_packet<'py>(
+    py: Python<'py>,
+    credential: &[u8],
+    transaction_id: u8,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let credential: [u8; auth::STREAMING_AUTH_CREDENTIAL_SIZE] = credential.try_into().map_err(|_| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "Credential must be exactly {} bytes, got {}",
+            auth::STREAMING_AUTH_CREDENTIAL_SIZE,
+            credential.len()
+        ))
+    })?;
+    let packet = auth::build_streaming_auth_packet(&auth::AuthCredential::from_bytes(credential), transaction_id);
+    Ok(PyBytes::new(py, &packet))
+}
+
+/// Parse a StreamingAuth (0x4C) response packet.
+///
+/// Args:
+///     response: Full response packet (4-byte header + 32-byte body)
+///
+/// Returns:
+///     dict | None: `success`, `auth_level`, `attribute` and `decrypted_payload`
+#[pyfunction]
+pub fn parse_streaming_auth_response<'py>(py: Python<'py>, response: &[u8]) -> Option<Bound<'py, PyAny>> {
+    use pyo3::types::{PyDict, PyDictMethods};
+
+    let result = auth::parse_streaming_auth_response(response)?;
+    let dict = PyDict::new(py);
+    dict.set_item("success", result.success).ok()?;
+    dict.set_item("auth_level", result.auth_level).ok()?;
+    dict.set_item("attribute", result.attribute).ok()?;
+    dict.set_item("decrypted_payload", PyBytes::new(py, &result.decrypted_payload))
+        .ok()?;
+    Some(dict.into_any())
+}
+
+/// Parse one 48-byte offline recording catalog entry.
+///
+/// Args:
+///     data: Exactly 48 bytes of `LogMetadata` payload
+///
+/// Returns:
+///     LogMetadata: Typed catalog entry
+///
+/// Raises:
+///     ValueError: If the payload is not exactly 48 bytes
+#[pyfunction]
+pub fn parse_log_metadata(data: &[u8]) -> PyResult<LogMetadata> {
+    LogMetadata::from_bytes(data).map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))
+}
+
+/// Parse a downloaded offline recording into its samples.
+///
+/// Args:
+///     data: Raw sample bytes, a multiple of 16
+///
+/// Returns:
+///     `list[dict]`: One dict per sample with `voltage_uv`, `current_ua`,
+///     `charge_uah` and `energy_uwh`
+///
+/// Raises:
+///     ValueError: If the length is not a multiple of 16
+#[pyfunction]
+pub fn parse_offline_log_samples(py: Python<'_>, data: &[u8]) -> PyResult<Vec<Py<PyAny>>> {
+    use crate::offline::OFFLINE_LOG_SAMPLE_SIZE;
+    use pyo3::types::{PyDict, PyDictMethods};
+
+    if !data.len().is_multiple_of(OFFLINE_LOG_SAMPLE_SIZE) {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Offline log length must be a multiple of {OFFLINE_LOG_SAMPLE_SIZE}, got {}",
+            data.len()
+        )));
+    }
+
+    data.as_chunks::<OFFLINE_LOG_SAMPLE_SIZE>()
+        .0
+        .iter()
+        .map(|chunk| {
+            let raw = crate::offline::OfflineLogSampleRaw::from_wire_bytes(chunk)
+                .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))?;
+            let dict = PyDict::new(py);
+            dict.set_item("voltage_uv", raw.voltage_uv)?;
+            dict.set_item("current_ua", raw.current_ua)?;
+            dict.set_item("charge_uah", raw.charge_uah)?;
+            dict.set_item("energy_uwh", raw.energy_uwh)?;
+            Ok(dict.into_any().unbind())
+        })
+        .collect()
+}
+
 /// Create a protocol packet as bytes ready to send over USB.
 ///
 /// This is a universal packet creation function that handles all packet types.
@@ -224,6 +388,10 @@ fn km003c_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PdEvent>()?;
     m.add_class::<PdEventStream>()?;
     m.add_class::<LogicalPacket>()?;
+    m.add_class::<PdTrace>()?;
+    m.add_class::<PdTraceStateEvent>()?;
+    m.add_class::<PdTraceProtocolEvent>()?;
+    m.add_class::<LogMetadata>()?;
 
     // Parsing functions
     m.add_function(wrap_pyfunction!(parse_raw_adc_data, m)?)?;
@@ -235,9 +403,39 @@ fn km003c_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Packet creation function
     m.add_function(wrap_pyfunction!(create_packet, m)?)?;
 
+    // Authenticated command helpers. These exist so host tooling never has to
+    // re-implement the AES keys, CRC layout or header framing in Python.
+    m.add_function(wrap_pyfunction!(build_memory_read_packet, m)?)?;
+    m.add_function(wrap_pyfunction!(decrypt_memory_payload, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_memory_read_confirmation, m)?)?;
+    m.add_function(wrap_pyfunction!(build_streaming_auth_packet, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_streaming_auth_response, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_log_metadata, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_offline_log_samples, m)?)?;
+
     // USB device identification constants
     m.add("VID", crate::device::VID)?;
     m.add("PID", crate::device::PID)?;
+
+    // USB endpoints, so host scripts do not hardcode them
+    m.add("INTERFACE_VENDOR", crate::device::INTERFACE_VENDOR)?;
+    m.add("ENDPOINT_OUT_VENDOR", crate::device::ENDPOINT_OUT_VENDOR)?;
+    m.add("ENDPOINT_IN_VENDOR", crate::device::ENDPOINT_IN_VENDOR)?;
+    m.add("INTERFACE_HID", crate::device::INTERFACE_HID)?;
+    m.add("ENDPOINT_OUT_HID", crate::device::ENDPOINT_OUT_HID)?;
+    m.add("ENDPOINT_IN_HID", crate::device::ENDPOINT_IN_HID)?;
+
+    // Documented device memory map
+    m.add("ADDR_DEVICE_INFO", auth::DEVICE_INFO_ADDRESS)?;
+    m.add("ADDR_FIRMWARE_INFO", auth::FIRMWARE_INFO_ADDRESS)?;
+    m.add("ADDR_CALIBRATION", auth::CALIBRATION_ADDRESS)?;
+    m.add("ADDR_PREFERRED_CALIBRATION", auth::PREFERRED_CALIBRATION_ADDRESS)?;
+    m.add("ADDR_HARDWARE_ID", auth::HARDWARE_ID_ADDRESS)?;
+    m.add("ADDR_OFFLINE_LOG", crate::offline::OFFLINE_LOG_ADDRESS)?;
+    m.add("INFO_BLOCK_SIZE", auth::INFO_BLOCK_SIZE)?;
+    m.add("HARDWARE_ID_SIZE", auth::HARDWARE_ID_SIZE)?;
+    m.add("LOG_METADATA_SIZE", crate::offline::LOG_METADATA_SIZE)?;
+    m.add("OFFLINE_LOG_SAMPLE_SIZE", crate::offline::OFFLINE_LOG_SAMPLE_SIZE)?;
 
     // PacketType constants (use Into trait for enums with catch_all)
     m.add("CMD_SYNC", u8::from(crate::packet::PacketType::Sync))?;
@@ -248,6 +446,16 @@ fn km003c_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("CMD_GET_DATA", u8::from(crate::packet::PacketType::GetData))?;
     m.add("CMD_START_GRAPH", u8::from(crate::packet::PacketType::StartGraph))?;
     m.add("CMD_STOP_GRAPH", u8::from(crate::packet::PacketType::StopGraph))?;
+    m.add(
+        "CMD_ENABLE_PD_MONITOR",
+        u8::from(crate::packet::PacketType::EnablePdMonitor),
+    )?;
+    m.add(
+        "CMD_DISABLE_PD_MONITOR",
+        u8::from(crate::packet::PacketType::DisablePdMonitor),
+    )?;
+    m.add("CMD_MEMORY_READ", u8::from(crate::packet::PacketType::MemoryRead))?;
+    m.add("CMD_STREAMING_AUTH", u8::from(crate::packet::PacketType::StreamingAuth))?;
 
     // Attribute constants (use Into trait)
     m.add("ATT_ADC", u16::from(crate::packet::Attribute::Adc))?;
@@ -255,6 +463,8 @@ fn km003c_lib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ATT_ADC_QUEUE_10K", u16::from(crate::packet::Attribute::AdcQueue10k))?;
     m.add("ATT_SETTINGS", u16::from(crate::packet::Attribute::Settings))?;
     m.add("ATT_PD_PACKET", u16::from(crate::packet::Attribute::PdPacket))?;
+    m.add("ATT_PD_TRACE", u16::from(crate::packet::Attribute::PdTrace))?;
+    m.add("ATT_LOG_METADATA", u16::from(crate::packet::Attribute::LogMetadata))?;
 
     // GraphSampleRate constants
     m.add("RATE_2_SPS", crate::adcqueue::GraphSampleRate::Sps2 as u16)?;
