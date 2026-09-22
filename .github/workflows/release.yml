@@ -1,15 +1,22 @@
 name: Release
 
 # Tag push (v*) builds km003c-egui for every supported desktop platform and
-# attaches the archives to a GitHub Release. workflow_dispatch performs the
-# same builds for verification without publishing a release.
+# attaches the archives to a GitHub Release, and publishes the km003c Python
+# wheels to PyPI. workflow_dispatch performs the same builds for verification
+# without publishing a release; set publish-pypi to also upload the wheels,
+# which is how a version whose tag predates this workflow reaches PyPI.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      publish-pypi:
+        description: "Upload the built wheels to PyPI"
+        type: boolean
+        default: false
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -125,6 +132,91 @@ jobs:
           path: dist/*.${{ matrix.archive }}
           if-no-files-found: error
 
+  wheels:
+    name: Wheel ${{ matrix.platform }}
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x86_64
+            target: x86_64
+          - os: ubuntu-latest
+            platform: linux-aarch64
+            target: aarch64
+          - os: macos-latest
+            platform: macos-x86_64
+            target: x86_64
+          - os: macos-latest
+            platform: macos-aarch64
+            target: aarch64
+          - os: windows-latest
+            platform: windows-x86_64
+            target: x64
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # pyo3 is built with abi3-py38, so one wheel per platform covers every
+      # CPython from 3.8 up and new interpreter releases need no rebuild.
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          manylinux: auto
+          sccache: "true"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheels-${{ matrix.platform }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  sdist:
+    name: Source distribution
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheels-sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  pypi:
+    name: Publish to PyPI
+    # Tags publish automatically. A manual run only publishes when asked, so
+    # the same workflow can be used to verify the build without uploading.
+    if: startsWith(github.ref, 'refs/tags/') || inputs.publish-pypi
+    needs:
+      - wheels
+      - sdist
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      # Trusted publishing mints a short-lived OIDC token, so no PyPI secret
+      # is stored in this repository.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          pattern: wheels-*
+          merge-multiple: true
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/')
@@ -132,6 +224,8 @@ jobs:
       - validate
       - build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v8
         with:

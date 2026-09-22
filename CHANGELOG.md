@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The release workflow builds `km003c` wheels for Linux, macOS and Windows on
+  both x86-64 and arm64 plus a source distribution, and uploads them to PyPI
+  through trusted publishing, so `pip install km003c` no longer requires a Rust
+  toolchain. A manual run publishes only when asked for.
+
+### Changed
+
+- The Python extension is built against the stable ABI (`abi3-py38`). One wheel
+  per platform now covers every CPython from 3.8 up, and a new interpreter
+  release needs no rebuild.
+
 ## [0.4.0] - 2026-09-22
 
 ### Added
