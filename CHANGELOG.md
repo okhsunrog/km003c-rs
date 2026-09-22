@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per platform now covers every CPython from 3.8 up, and a new interpreter
   release needs no rebuild.
 
+### Fixed
+
+- The source distribution now contains the two license files it names in its
+  metadata. PyPI rejects an sdist whose `License-File` entries are missing from
+  the archive, which is why 0.4.0 reached PyPI as wheels only.
+
 ## [0.4.0] - 2026-09-22
 
 ### Added
