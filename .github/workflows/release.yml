@@ -216,6 +216,10 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
+          # A version is uploaded file by file, so a run that fails partway
+          # leaves some files already published. Skipping those lets a rerun
+          # deliver the rest instead of failing on the first duplicate.
+          skip-existing: true
 
   release:
     name: Publish release

@@ -42,6 +42,10 @@ python-source = "python"
 module-name = "km003c.km003c_lib"
 manifest-path = "km003c-lib/Cargo.toml"
 features = ["python"]
+# maturin records both license files in the metadata because they sit next to
+# this file, but it only packs them into the wheel. PyPI rejects an sdist whose
+# License-File entries are missing from the archive, so name them explicitly.
+include = ["LICENSE-APACHE", "LICENSE-MIT"]
 
 [dependency-groups]
 dev = [
