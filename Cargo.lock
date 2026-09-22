@@ -5769,7 +5769,8 @@ dependencies = [
 [[package]]
 name = "usbpd"
 version = "2.0.0"
-source = "git+https://github.com/okhsunrog/usbpd?rev=b5dd12e#b5dd12efce584b77df5c78ea9fdfba0d0a2fff5a"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "817683ac3151c898c301cee052b44806909e471be5a3e6b763a940edab892ed5"
 dependencies = [
  "byteorder",
  "embassy-futures",
@@ -5782,8 +5783,9 @@ dependencies = [
 
 [[package]]
 name = "usbpd-traits"
-version = "1.1.0"
-source = "git+https://github.com/okhsunrog/usbpd?rev=b5dd12e#b5dd12efce584b77df5c78ea9fdfba0d0a2fff5a"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb833a30f3065623f4f7150f61dceb698b8a5f3b93ccfe7b7c69ed479f63bcd6"
 
 [[package]]
 name = "utf8_iter"

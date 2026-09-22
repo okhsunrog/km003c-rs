@@ -231,7 +231,7 @@ fn print_request(request: &data::request::PowerSource, source_caps: Option<&Sour
             request.output_voltage().get::<volt>(),
             request.operating_current().get::<ampere>()
         ),
-        PowerSource::EprRequest { rdo, pdo } => print_epr_request(*rdo, pdo),
+        PowerSource::EprRequest(request) => print_epr_request(request.rdo, &request.pdo),
         PowerSource::Unknown(raw) => {
             let position = raw.object_position();
             if let Some(pdo) = source_caps.and_then(|caps| caps.pdos().get(position as usize - 1)) {

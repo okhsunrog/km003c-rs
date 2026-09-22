@@ -227,9 +227,10 @@ fn format_request(request: &data::request::PowerSource, source_caps: Option<&Sou
             request.output_voltage().get::<volt>(),
             request.operating_current().get::<ampere>()
         )],
-        PowerSource::EprRequest { rdo, pdo } => {
+        PowerSource::EprRequest(request) => {
             use data::request::{Avs as RdoAvs, FixedVariableSupply as RdoFixed, RawDataObject};
 
+            let (rdo, pdo) = (&request.rdo, &request.pdo);
             let position = RawDataObject(*rdo).object_position();
             match pdo {
                 PowerDataObject::FixedSupply(fixed) => {

@@ -56,6 +56,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `usbpd` comes from its 2.0.0 crates.io release instead of a git revision of a
+  fork. The EPR and chunked-message work that revision carried was upstreamed
+  and released, so the fork only held a pre-review snapshot of it. Published
+  builds of `km003c-lib` already resolved `usbpd` from the registry, so this
+  also removes a difference between what CI tested and what users got.
 - **Breaking:** `Packet::GetData` carries an `attributes: AttributeSet` instead
   of `attribute_mask: u16`, and `Packet::StartGraph` carries a typed
   `rate: GraphSampleRate` instead of `rate_index: u16`. A `StartGraph` header
