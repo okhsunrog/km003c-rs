@@ -1,13 +1,13 @@
 import { ListView } from "std-widgets.slint";
 import {
     FilterChip,
+    IconButton,
     MaterialPalette,
     MaterialText,
     MaterialTypography,
     MaterialWindow,
     NavigationBar,
     SegmentedButton,
-    SmallAppBar,
     TextButton,
 } from "@material";
 import { PlotWidget } from "@slint-realtime-plot/plot.slint";
@@ -241,29 +241,46 @@ export component App inherits MaterialWindow {
         width: root.width - root.safe-area-insets.right - root.safe-area-insets.left;
         height: root.height - root.safe-area-insets.bottom - root.safe-area-insets.top;
 
-        // Without a leading button the app bar puts its title flush against
-        // the screen edge.
+        // Compact top bar: the status lines take the place of an app title,
+        // which saves a row of vertical space on a phone.
         HorizontalLayout {
-            padding-left: 12px;
-            SmallAppBar {
-                title: "KM003C";
-                trailing_buttons: [
-                    {
-                        icon: root.paused ? AppIcons.play : AppIcons.pause,
-                        tooltip: root.paused ? "Resume" : "Pause",
-                        enabled: true,
-                    },
-                    { icon: AppIcons.refresh, tooltip: "Reconnect", enabled: true },
-                ];
-                trailing_button_clicked(index) => {
-                    if (index == 0) {
-                        root.paused = !root.paused;
-                        if (!root.paused) {
-                            root.view-offset = 0;
-                        }
-                    } else {
-                        root.reconnect();
+            padding-left: 16px;
+            padding-right: 4px;
+            padding-top: 4px;
+            padding-bottom: 4px;
+            spacing: 4px;
+
+            VerticalLayout {
+                alignment: center;
+                horizontal-stretch: 1;
+                MaterialText {
+                    text: root.status;
+                    style: MaterialTypography.title_medium;
+                }
+
+                MaterialText {
+                    text: root.device;
+                    style: MaterialTypography.body_small;
+                    color: MaterialPalette.on_surface_variant;
+                }
+            }
+
+            IconButton {
+                icon: root.paused ? AppIcons.play : AppIcons.pause;
+                tooltip: root.paused ? "Resume" : "Pause";
+                clicked => {
+                    root.paused = !root.paused;
+                    if (!root.paused) {
+                        root.view-offset = 0;
                     }
+                }
+            }
+
+            IconButton {
+                icon: AppIcons.refresh;
+                tooltip: "Reconnect";
+                clicked => {
+                    root.reconnect();
                 }
             }
         }
@@ -273,19 +290,6 @@ export component App inherits MaterialWindow {
             padding-right: 16px;
             padding-bottom: 8px;
             spacing: 10px;
-
-            VerticalLayout {
-                MaterialText {
-                    text: root.status;
-                    style: MaterialTypography.title_small;
-                }
-
-                MaterialText {
-                    text: root.device;
-                    style: MaterialTypography.body_small;
-                    color: MaterialPalette.on_surface_variant;
-                }
-            }
 
             HorizontalLayout {
                 spacing: 8px;
