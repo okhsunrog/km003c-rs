@@ -368,9 +368,13 @@ impl DeviceSelector {
         match self {
             Self::First => true,
             Self::SerialNumber(serial) => device.serial_number() == Some(serial.as_str()),
+            #[cfg(not(target_os = "android"))]
             Self::BusAddress { bus_id, device_address } => {
                 device.bus_id() == bus_id && device.device_address() == *device_address
             }
+            // Android's USB API exposes no bus topology.
+            #[cfg(target_os = "android")]
+            Self::BusAddress { .. } => false,
         }
     }
 
@@ -550,11 +554,14 @@ impl KM003C {
         info!("Searching for {}...", config.selector.describe());
         let device_info = find_device(&config.selector).await?;
 
+        #[cfg(not(target_os = "android"))]
         info!(
             "Found device on bus {} addr {}",
             device_info.bus_id(),
             device_info.device_address()
         );
+        #[cfg(target_os = "android")]
+        info!("Found device {:?}", device_info.id());
 
         // A reset re-enumerates the device, so reopening must target the same
         // unit. Addresses are not stable across a reset, so fall back to the
