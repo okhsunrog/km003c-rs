@@ -220,7 +220,9 @@ export component PlotWidget inherits Rectangle {
                             let fx = clamp(self.center.x / plot-area.width, 0.0, 1.0);
                             let old-vis = self.start-window * root.sample-rate;
                             let new-vis = new-window * root.sample-rate;
-                            root.view-offset = max(0, self.start-offset + round((1.0 - fx) * (old-vis - new-vis)));
+                            // Live, the view stays on the newest sample; anchoring the
+                            // gesture centre would leave the live edge off screen.
+                            root.view-offset = !root.paused ? 0 : max(0, self.start-offset + round((1.0 - fx) * (old-vis - new-vis)));
                             root.time-window = new-window;
                         }
 
@@ -292,9 +294,10 @@ export component PlotWidget inherits Rectangle {
                                 let new-vis = new-window * root.sample-rate;
 
                                 // Shift view-offset so the sample under cursor stays put
-                                // Cursor is at (1-fx) from the right edge (live edge)
+                                // Cursor is at (1-fx) from the right edge (live edge).
+                                // Live, the view stays on the newest sample instead.
                                 let shift = round((1.0 - fx) * (old-vis - new-vis));
-                                root.view-offset = max(0, root.effective-view-offset + shift);
+                                root.view-offset = !root.paused ? 0 : max(0, root.effective-view-offset + shift);
 
                                 root.time-window = new-window;
                                 return accept;
@@ -416,7 +419,9 @@ export component PlotWidget inherits Rectangle {
                         property <float> magnitude: abs(self.abs-time);
                         // Samples newer than the pause moment read as "+".
                         property <string> sign: self.abs-time < 0 ? "+" : "-";
-                        x: i * (parent.width / root.x-divisions) - self.width / 2;
+                        // Centred on its grid line, but kept inside the right edge:
+                        // the last label used to be cut off ("-968m").
+                        x: min(i * (parent.width / root.x-divisions) - self.width / 2, parent.width - self.width);
                         y: 1px;
                         text: self.magnitude == 0 ? "0s"
                             : self.magnitude < 0.01 ? "\{self.sign}\{Math.round(self.magnitude * 10000) / 10}ms"
