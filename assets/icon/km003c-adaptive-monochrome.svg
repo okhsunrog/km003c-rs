@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
+  <!-- The 512 px logo's mark, mapped onto the 72 dp visible area (18..90). -->
+  <g transform="translate(18 18) scale(0.140625)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M136 250A120 120 0 0 1 333.1 158.1" stroke="#FFFFFF" stroke-width="22"/>
+    <path d="M353.1 179.5A120 120 0 0 1 376 250" stroke="#FFFFFF" stroke-width="22"/>
+    <path d="M256 250L317.3 198.6" stroke="#FFFFFF" stroke-width="18"/>
+    <rect x="146" y="292" width="220" height="86" rx="43" stroke="#FFFFFF" stroke-width="22"/>
+    <path d="M196 335H316" stroke="#FFFFFF" stroke-width="18"/>
+    <circle cx="256" cy="250" r="17" fill="#FFFFFF" stroke="none"/>
+  </g>
+</svg>

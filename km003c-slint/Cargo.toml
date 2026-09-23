@@ -73,6 +73,8 @@ target_sdk_version = 34
 
 [package.metadata.android.application]
 label = "KM003C"
+# Adaptive on Android 8.0 and later; see res/mipmap*/.
+icon = "@mipmap/ic_launcher"
 # Light or dark system bar icons to match the system theme; see res/values*/.
 theme = "@style/Theme.KM003C"
 

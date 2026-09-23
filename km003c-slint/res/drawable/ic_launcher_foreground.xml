@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Foreground of the adaptive launcher icon: assets/km003c-logo.svg's mark,
+     drawn in the logo's 512 px coordinates and mapped onto the 72 dp visible
+     area (18..90) of the 108 dp canvas. It stays inside the 66 dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="18"
+        android:translateY="18"
+        android:scaleX="0.140625"
+        android:scaleY="0.140625">
+        <!-- Gauge arc, its orange high range, and the needle. -->
+        <path
+            android:pathData="M136,250A120,120 0,0 1,333.1,158.1"
+            android:strokeColor="#FFF9F1"
+            android:strokeWidth="22"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M353.1,179.5A120,120 0,0 1,376,250"
+            android:strokeColor="#F59E0B"
+            android:strokeWidth="22"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M256,250L317.3,198.6"
+            android:strokeColor="#FFF9F1"
+            android:strokeWidth="18"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M239,250a17,17 0,1 0,34,0a17,17 0,1 0,-34,0z"
+            android:fillColor="#FFF9F1" />
+        <!-- USB-C port and its tongue. -->
+        <path
+            android:pathData="M189,292H323A43,43 0,0 1,323,378H189A43,43 0,0 1,189,292Z"
+            android:strokeColor="#FFF9F1"
+            android:strokeWidth="22" />
+        <path
+            android:pathData="M196,335H316"
+            android:strokeColor="#FFF9F1"
+            android:strokeWidth="18"
+            android:strokeLineCap="round" />
+    </group>
+</vector>
