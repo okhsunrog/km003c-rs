@@ -204,10 +204,15 @@ export component PlotWidget inherits Rectangle {
                     pinch := ScaleRotateGestureHandler {
                         property <float> start-window;
                         property <int> start-offset;
+                        // Set while the touches since the last first-finger-down
+                        // formed a pinch; its finger lifts are not taps.
+                        property <bool> pinched;
 
                         started => {
                             self.start-window = root.time-window;
                             self.start-offset = root.effective-view-offset;
+                            self.pinched = true;
+                            tap-timer.running = false;
                         }
                         updated => {
                             let new-window = clamp(self.start-window / self.scale, root.min-window, root.window-limit);
@@ -228,9 +233,10 @@ export component PlotWidget inherits Rectangle {
                             // Double tap or double click: toggle pause. `double-clicked`
                             // does not fire for touch input on Android, so pair two
                             // clicks within the timer window instead. A drag is a pan,
-                            // not a tap, so it does not count.
+                            // not a tap, and neither is lifting the fingers of a pinch:
+                            // two lifts within the window used to read as a double tap.
                             clicked => {
-                                if (abs(self.mouse-x - self.pressed-x) > 12px || abs(self.mouse-y - self.pressed-y) > 12px) {
+                                if (pinch.pinched || abs(self.mouse-x - self.pressed-x) > 12px || abs(self.mouse-y - self.pressed-y) > 12px) {
                                     tap-timer.running = false;
                                 } else if (tap-timer.running) {
                                     tap-timer.running = false;
@@ -253,6 +259,9 @@ export component PlotWidget inherits Rectangle {
                             pointer-event(event) => {
                                 if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
                                     self.drag-start-offset = root.effective-view-offset;
+                                    // A new touch sequence; a pinch sets this again
+                                    // once it is recognised.
+                                    pinch.pinched = false;
                                 }
                             }
 

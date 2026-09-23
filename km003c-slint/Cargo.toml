@@ -54,6 +54,7 @@ nusb = { git = "https://github.com/uglyoldbob/nusb", rev = "694ed760" }
 [package.metadata.android]
 package = "dev.okhsunrog.km003c"
 build_targets = ["aarch64-linux-android"]
+resources = "res"
 
 [[package.metadata.android.uses_feature]]
 name = "android.hardware.usb.host"
@@ -71,6 +72,9 @@ label = "KM003C"
 [[package.metadata.android.application.activity]]
 name = "android.app.NativeActivity"
 exported = true
+# An attach intent reaches the running activity instead of starting a second
+# one, which would open the device a second time.
+launch_mode = "singleTask"
 
 [[package.metadata.android.application.activity.meta_data]]
 name = "android.app.lib_name"
@@ -79,3 +83,14 @@ value = "km003c_slint"
 [[package.metadata.android.application.activity.intent_filter]]
 actions = ["android.intent.action.MAIN"]
 categories = ["android.intent.category.LAUNCHER"]
+
+# A permission granted through UsbManager.requestPermission lasts only until the
+# device is unplugged. Declaring the device here makes Android offer to open
+# the app when the KM003C is attached; with "Always" ticked it grants access on
+# every attach without asking again.
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.hardware.usb.action.USB_DEVICE_ATTACHED"]
+
+[[package.metadata.android.application.activity.meta_data]]
+name = "android.hardware.usb.action.USB_DEVICE_ATTACHED"
+resource = "@xml/device_filter"
