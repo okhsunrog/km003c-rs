@@ -1,7 +1,10 @@
+//! Whether a sink is attached to the KM003C's source-facing port.
+
 use std::time::{Duration, Instant};
 
-use km003c_lib::pd::PdStatus;
-use km003c_lib::uom::si::electric_potential::volt;
+use uom::si::electric_potential::volt;
+
+use crate::pd::PdStatus;
 
 // On the KM003C's downstream/source-facing CC pins, an attached sink's Rd
 // pulls the active line into the Type-C detection range. An open source CC

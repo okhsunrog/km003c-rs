@@ -1,0 +1,155 @@
+import { Button, ComboBox, HorizontalBox, VerticalBox } from "std-widgets.slint";
+import { PlotWidget } from "@slint-realtime-plot/plot.slint";
+
+// One chart per quantity: they differ in units and range, so each has its own
+// auto-ranged Y axis. Time window, pause and pan are shared.
+component Chart inherits PlotWidget {
+    min-height: 120px;
+    vertical-stretch: 1;
+    x-divisions: 5;
+}
+
+export component App inherits Window {
+    // Per-chart render targets, read by Rust before each frame.
+    out property <int> voltage-texture-width: voltage.requested-texture-width / 1phx;
+    out property <int> voltage-texture-height: voltage.requested-texture-height / 1phx;
+    out property <int> current-texture-width: current.requested-texture-width / 1phx;
+    out property <int> current-texture-height: current.requested-texture-height / 1phx;
+    out property <int> power-texture-width: power.requested-texture-width / 1phx;
+    out property <int> power-texture-height: power.requested-texture-height / 1phx;
+
+    in property <image> voltage-texture <=> voltage.texture;
+    in property <image> current-texture <=> current.texture;
+    in property <image> power-texture <=> power.texture;
+    in property <float> voltage-y-min <=> voltage.y-min;
+    in property <float> voltage-y-max <=> voltage.y-max;
+    in property <int> voltage-y-divisions <=> voltage.y-divisions;
+    in property <float> current-y-min <=> current.y-min;
+    in property <float> current-y-max <=> current.y-max;
+    in property <int> current-y-divisions <=> current.y-divisions;
+    in property <float> power-y-min <=> power.y-min;
+    in property <float> power-y-max <=> power.y-max;
+    in property <int> power-y-divisions <=> power.y-divisions;
+
+    in-out property <float> time-window: 10.0;
+    in-out property <bool> paused: false;
+    in-out property <int> view-offset: 0;
+    in property <int> paused-shift: 0;
+    in property <float> sample-rate: 50.0;
+    in property <int> capacity: 262144;
+    in property <int> available-samples: 0;
+    out property <int> visible-samples: voltage.visible-samples;
+    out property <int> effective-view-offset: voltage.effective-view-offset;
+
+    in property <string> status: "Starting...";
+    in property <string> device: "";
+    in property <string> voltage-text: "—";
+    in property <string> current-text: "—";
+    in property <string> power-text: "—";
+    in property <string> quality-text: "";
+
+    // Index into the rate list: 2, 10, 50, 1000 SPS.
+    in-out property <int> rate-index: 2;
+    callback rate-selected(int);
+    callback reconnect();
+
+    title: "POWER-Z KM003C";
+    preferred-width: 900px;
+    preferred-height: 800px;
+
+    VerticalBox {
+        x: root.safe-area-insets.left;
+        y: root.safe-area-insets.top;
+        width: root.width - root.safe-area-insets.right - root.safe-area-insets.left;
+        height: root.height - root.safe-area-insets.bottom - root.safe-area-insets.top;
+
+        VerticalLayout {
+            Text {
+                text: root.status;
+                font-weight: 600;
+            }
+            Text {
+                text: root.device;
+                opacity: 0.7;
+            }
+        }
+
+        // Controls get their own row so they fit a phone in portrait.
+        HorizontalBox {
+            padding: 0;
+            ComboBox {
+                horizontal-stretch: 1;
+                model: ["2 SPS", "10 SPS", "50 SPS", "1000 SPS"];
+                current-index <=> root.rate-index;
+                selected => { root.rate-selected(self.current-index); }
+            }
+            Button {
+                text: root.paused ? "Resume" : "Pause";
+                clicked => {
+                    root.paused = !root.paused;
+                    if (!root.paused) {
+                        root.view-offset = 0;
+                    }
+                }
+            }
+            Button {
+                text: "Reconnect";
+                clicked => { root.reconnect(); }
+            }
+        }
+
+        HorizontalBox {
+            padding: 0;
+            alignment: space-around;
+            Text { text: root.voltage-text; font-size: 22px; color: #22c55e; }
+            Text { text: root.current-text; font-size: 22px; color: #3b82f6; }
+            Text { text: root.power-text; font-size: 22px; color: #f59e0b; }
+        }
+
+        voltage := Chart {
+            title: "Voltage (V)";
+            legend-labels: ["VBUS"];
+            legend-colors: [#22c55e];
+            time-window <=> root.time-window;
+            paused <=> root.paused;
+            view-offset <=> root.view-offset;
+            paused-shift: root.paused-shift;
+            sample-rate: root.sample-rate;
+            capacity: root.capacity;
+            max-time-window: root.capacity / root.sample-rate;
+            available-samples: root.available-samples;
+        }
+        current := Chart {
+            title: "Current (A)";
+            legend-labels: ["IBUS"];
+            legend-colors: [#3b82f6];
+            time-window <=> root.time-window;
+            paused <=> root.paused;
+            view-offset <=> root.view-offset;
+            paused-shift: root.paused-shift;
+            sample-rate: root.sample-rate;
+            capacity: root.capacity;
+            max-time-window: root.capacity / root.sample-rate;
+            available-samples: root.available-samples;
+        }
+        power := Chart {
+            title: "Power (W)";
+            legend-labels: ["Power"];
+            legend-colors: [#f59e0b];
+            time-window <=> root.time-window;
+            paused <=> root.paused;
+            view-offset <=> root.view-offset;
+            paused-shift: root.paused-shift;
+            sample-rate: root.sample-rate;
+            capacity: root.capacity;
+            max-time-window: root.capacity / root.sample-rate;
+            available-samples: root.available-samples;
+        }
+
+        Text {
+            text: root.quality-text;
+            opacity: 0.6;
+            font-size: 11px;
+        }
+    }
+}

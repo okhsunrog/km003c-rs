@@ -1,0 +1,98 @@
+[package]
+name = "km003c-slint"
+version = "0.1.0"
+edition = "2024"
+description = "Experimental Slint monitor for the ChargerLAB POWER-Z KM003C"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# Kept out of the main workspace while it is an experiment, so Slint and wgpu
+# stay out of the shared lock file and CI.
+[workspace]
+members = ["slint-realtime-plot"]
+
+# Slint is pinned for its unstable wgpu 30 integration; wgpu's major version
+# must match it.
+[workspace.dependencies]
+bytemuck = { version = "1.25.0", features = ["derive"] }
+png = "0.18.1"
+slint = { version = "=1.18.1", default-features = false, features = ["std", "unstable-wgpu-30", "compat-1-2"] }
+wgpu = { version = "30", features = ["wgsl"] }
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[[bin]]
+name = "km003c-slint"
+path = "src/main.rs"
+
+[features]
+default = ["desktop"]
+desktop = ["slint/backend-winit", "slint/renderer-skia"]
+android = ["slint/backend-android-activity-06"]
+
+[dependencies]
+km003c-lib = { version = "0.4.0", path = "../km003c-lib" }
+slint = { workspace = true, features = ["accessibility"] }
+slint-realtime-plot = { path = "slint-realtime-plot" }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "time", "sync", "macros"] }
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+
+[build-dependencies]
+slint-build = "=1.18.1"
+
+[target.'cfg(target_os = "android")'.dependencies]
+paranoid-android = "0.2.2"
+
+# nusb 0.2 has no device enumeration, hotplug or permission requests on
+# Android. kevinmehall/nusb#150 adds them through JNI; until it is merged, use
+# its branch. Only this experimental workspace is patched.
+[patch.crates-io]
+nusb = { git = "https://github.com/uglyoldbob/nusb", rev = "694ed760" }
+
+[package.metadata.android]
+package = "dev.okhsunrog.km003c"
+build_targets = ["aarch64-linux-android"]
+resources = "res"
+
+[[package.metadata.android.uses_feature]]
+name = "android.hardware.usb.host"
+required = true
+
+[package.metadata.android.sdk]
+min_sdk_version = 23
+target_sdk_version = 33
+
+[package.metadata.android.application]
+label = "KM003C"
+# Light or dark system bar icons to match the system theme; see res/values*/.
+theme = "@style/Theme.KM003C"
+
+# Slint's backend-android-activity-06 runs inside NativeActivity; without an
+# explicit activity + LAUNCHER intent filter the app installs but has no icon.
+[[package.metadata.android.application.activity]]
+name = "android.app.NativeActivity"
+exported = true
+# An attach intent reaches the running activity instead of starting a second
+# one, which would open the device a second time.
+launch_mode = "singleTask"
+
+[[package.metadata.android.application.activity.meta_data]]
+name = "android.app.lib_name"
+value = "km003c_slint"
+
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.MAIN"]
+categories = ["android.intent.category.LAUNCHER"]
+
+# A permission granted through UsbManager.requestPermission lasts only until the
+# device is unplugged. Declaring the device here makes Android offer to open
+# the app when the KM003C is attached; with "Always" ticked it grants access on
+# every attach without asking again.
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.hardware.usb.action.USB_DEVICE_ATTACHED"]
+
+[[package.metadata.android.application.activity.meta_data]]
+name = "android.hardware.usb.action.USB_DEVICE_ATTACHED"
+resource = "@xml/device_filter"

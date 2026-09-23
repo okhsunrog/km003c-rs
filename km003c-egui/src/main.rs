@@ -1,27 +1,24 @@
-mod measurement;
+mod metric_color;
 mod offline_export;
 mod offline_view;
-mod pd_connection;
 mod pd_decoder;
 mod pd_trace_view;
 mod recording;
 
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
-use futures_util::StreamExt;
 use km003c_lib::uom::si::electric_charge::milliampere_hour;
 use km003c_lib::uom::si::electric_potential::volt;
 use km003c_lib::uom::si::energy::milliwatt_hour;
 use km003c_lib::uom::si::time::{millisecond, second};
 use km003c_lib::{
-    AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C, LogMetadata, OfflineLog, PdTrace,
-    packet::{Attribute, AttributeSet},
-    pd::{PdEvent, PdEventData, PdStatus},
+    DeviceState, GraphSampleRate, LogMetadata, MeasurementAccumulator, MeasurementSample, Metric, PdConnectionTracker,
+    Session, SessionEvent,
+    pd::{PdEventData, PdStatus},
 };
-use measurement::{MeasurementAccumulator, MeasurementSample, PlotMetric};
+use metric_color::MetricColor;
 use offline_export::{OfflineExportEvent, OfflineExportTask};
 use offline_view::OfflineRecordingView;
-use pd_connection::PdConnectionTracker;
 use pd_decoder::{DecodedPdEntry, PdCategory, PdDecoder};
 use pd_trace_view::{PdTraceCategory, PdTraceEntry, decode_trace};
 use recording::{Recorder, RecordingEvent, RecordingFormat, RecordingMetadata, RecordingSummary};
@@ -29,57 +26,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
-use tracing::{debug, error, info, warn};
-
-/// Message from USB task to UI
-#[derive(Debug, Clone)]
-enum UsbMessage {
-    /// Discovery is waiting for a USB hotplug event.
-    WaitingForDevice,
-    /// Device connected and initialized
-    Connected(Arc<DeviceState>),
-    /// Connection failed
-    ConnectionFailed { error: String, retry_when_present: bool },
-    /// New AdcQueue samples received
-    Samples(Vec<AdcQueueSample>),
-    /// PD events received from device
-    PdEvents(Vec<PdEvent>),
-    /// PD status (CC line voltages)
-    PdStatusUpdate(PdStatus),
-    /// Firmware Type-C and protocol-engine trace
-    PdTrace(PdTrace),
-    /// Device offline-recording catalog
-    OfflineCatalog(Vec<LogMetadata>),
-    /// Complete selected offline recording
-    OfflineLogDownloaded(OfflineLog),
-    /// Offline catalog or download operation failed
-    OfflineOperationFailed(String),
-    /// Streaming started at given rate
-    StreamingStarted(GraphSampleRate),
-    /// Streaming stopped
-    StreamingStopped,
-    /// Error during streaming
-    Error(String),
-    /// Streaming ended. Reconnect only after an unexpected transport loss.
-    Disconnected { retry_when_present: bool },
-}
-
-/// Command from UI to USB task
-#[derive(Debug, Clone)]
-enum UsbCommand {
-    /// Connect to device and start streaming
-    Connect(GraphSampleRate, bool),
-    /// Change sample rate (stops current streaming, starts with new rate)
-    SetSampleRate(GraphSampleRate),
-    /// Enable or disable firmware PD trace collection
-    SetPdTraceEnabled(bool),
-    /// Fetch the catalog of recordings stored by the device
-    RequestOfflineCatalog,
-    /// Download one catalog entry from device memory
-    DownloadOfflineLog(LogMetadata),
-    /// Stop streaming and disconnect
-    Disconnect,
-}
+use tracing::info;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PlotSource {
@@ -204,10 +151,10 @@ struct PowerMonitorApp {
     data_points: VecDeque<MeasurementSample>,
     /// Unwraps device time and integrates charge and energy
     measurement_accumulator: MeasurementAccumulator,
-    /// Receiver for USB messages
-    usb_receiver: mpsc::UnboundedReceiver<UsbMessage>,
-    /// Sender for commands to USB task
-    cmd_sender: mpsc::UnboundedSender<UsbCommand>,
+    /// Events from the device session
+    session_events: mpsc::UnboundedReceiver<SessionEvent>,
+    /// Command handle of the device session
+    session: Session,
     /// Device state (available after connection)
     device_state: Option<Arc<DeviceState>>,
     /// Connection status string
@@ -233,7 +180,7 @@ struct PowerMonitorApp {
     current_current: f64,
     current_power: f64,
     /// Metric selected independently for each plot
-    plot_metrics: [PlotMetric; 3],
+    plot_metrics: [Metric; 3],
     /// Preferred output format for live capture
     recording_format: RecordingFormat,
     /// Active or finalizing background recorder
@@ -293,12 +240,12 @@ struct PowerMonitorApp {
 impl PowerMonitorApp {
     const RECONNECT_DELAY: Duration = Duration::from_secs(1);
 
-    fn new(usb_receiver: mpsc::UnboundedReceiver<UsbMessage>, cmd_sender: mpsc::UnboundedSender<UsbCommand>) -> Self {
+    fn new(session: Session, session_events: mpsc::UnboundedReceiver<SessionEvent>) -> Self {
         Self {
             data_points: VecDeque::new(),
             measurement_accumulator: MeasurementAccumulator::default(),
-            usb_receiver,
-            cmd_sender,
+            session_events,
+            session,
             device_state: None,
             status: "Connecting...".to_string(),
             streaming: false,
@@ -312,7 +259,7 @@ impl PowerMonitorApp {
             current_voltage: 0.0,
             current_current: 0.0,
             current_power: 0.0,
-            plot_metrics: [PlotMetric::Voltage, PlotMetric::Current, PlotMetric::Power],
+            plot_metrics: [Metric::Voltage, Metric::Current, Metric::Power],
             recording_format: RecordingFormat::Parquet,
             recorder: None,
             recording_status: "Not recording".to_string(),
@@ -354,9 +301,7 @@ impl PowerMonitorApp {
             self.auto_connect_enabled = true;
             self.status = "Connecting...".to_string();
         }
-        let _ = self
-            .cmd_sender
-            .send(UsbCommand::Connect(self.selected_rate.to_graph_rate(), self.usb_reset));
+        let _ = self.session.connect(self.selected_rate.to_graph_rate(), self.usb_reset);
     }
 
     fn retry_connection_if_due(&mut self, now: Instant) {
@@ -366,12 +311,12 @@ impl PowerMonitorApp {
     }
 
     fn process_messages(&mut self) {
-        while let Ok(msg) = self.usb_receiver.try_recv() {
+        while let Ok(msg) = self.session_events.try_recv() {
             match msg {
-                UsbMessage::WaitingForDevice => {
+                SessionEvent::WaitingForDevice => {
                     self.status = "Waiting for POWER-Z KM003C...".to_string();
                 }
-                UsbMessage::Connected(state) => {
+                SessionEvent::Connected(state) => {
                     self.connection_attempt_in_flight = false;
                     self.reconnect_at = None;
                     self.status = format!("Connected: {}", state.model());
@@ -382,10 +327,10 @@ impl PowerMonitorApp {
                     self.pd_connection = PdConnectionTracker::default();
                     self.pd_decoder = PdDecoder::new();
                     if self.pd_trace_enabled {
-                        let _ = self.cmd_sender.send(UsbCommand::SetPdTraceEnabled(true));
+                        let _ = self.session.set_pd_trace_enabled(true);
                     }
                 }
-                UsbMessage::ConnectionFailed {
+                SessionEvent::ConnectionFailed {
                     error,
                     retry_when_present,
                 } => {
@@ -398,7 +343,7 @@ impl PowerMonitorApp {
                         self.status = format!("Connection failed: {}", error);
                     }
                 }
-                UsbMessage::Samples(samples) => {
+                SessionEvent::Samples(samples) => {
                     let rate = self.current_rate.to_graph_rate();
                     let measurements = samples
                         .into_iter()
@@ -431,7 +376,7 @@ impl PowerMonitorApp {
                         recorder.request_finish();
                     }
                 }
-                UsbMessage::StreamingStarted(rate) => {
+                SessionEvent::StreamingStarted(rate) => {
                     self.streaming = true;
                     self.current_rate = SampleRateOption::from_graph_rate(rate);
                     self.selected_rate = self.current_rate;
@@ -440,7 +385,7 @@ impl PowerMonitorApp {
                     // inventing an interval across StopGraph/StartGraph.
                     self.measurement_accumulator.reset_continuity();
                 }
-                UsbMessage::PdEvents(events) => {
+                SessionEvent::PdEvents(events) => {
                     for event in &events {
                         match &event.data {
                             PdEventData::Connect => {
@@ -461,11 +406,11 @@ impl PowerMonitorApp {
                         }
                     }
                 }
-                UsbMessage::PdStatusUpdate(status) => {
+                SessionEvent::PdStatusUpdate(status) => {
                     self.pd_connection.observe_status(&status, std::time::Instant::now());
                     self.pd_status = Some(status);
                 }
-                UsbMessage::PdTrace(trace) => {
+                SessionEvent::PdTrace(trace) => {
                     for entry in decode_trace(&trace) {
                         self.pd_trace_log.push_back(entry);
                         while self.pd_trace_log.len() > self.max_pd_trace_entries {
@@ -473,7 +418,7 @@ impl PowerMonitorApp {
                         }
                     }
                 }
-                UsbMessage::OfflineCatalog(catalog) => {
+                SessionEvent::OfflineCatalog(catalog) => {
                     self.offline_busy = false;
                     self.offline_status = if catalog.is_empty() {
                         "No offline recordings stored on the device".to_string()
@@ -483,7 +428,7 @@ impl PowerMonitorApp {
                     self.offline_selected = (!catalog.is_empty()).then_some(0);
                     self.offline_catalog = catalog;
                 }
-                UsbMessage::OfflineLogDownloaded(log) => {
+                SessionEvent::OfflineLogDownloaded(log) => {
                     let samples = log.samples.len();
                     let filename = log.metadata.filename_lossy().into_owned();
                     self.offline_view = Some(Arc::new(OfflineRecordingView::new(log)));
@@ -498,22 +443,22 @@ impl PowerMonitorApp {
                     self.time_window = TimeWindow::All;
                     for metric in &mut self.plot_metrics {
                         if !metric.supports_offline() {
-                            *metric = PlotMetric::Voltage;
+                            *metric = Metric::Voltage;
                         }
                     }
                 }
-                UsbMessage::OfflineOperationFailed(error) => {
+                SessionEvent::OfflineOperationFailed(error) => {
                     self.offline_busy = false;
                     self.offline_status = error;
                 }
-                UsbMessage::StreamingStopped => {
+                SessionEvent::StreamingStopped => {
                     self.streaming = false;
                     self.status = "Stopped".to_string();
                 }
-                UsbMessage::Error(err) => {
+                SessionEvent::Error(err) => {
                     self.status = format!("Error: {}", err);
                 }
-                UsbMessage::Disconnected { retry_when_present } => {
+                SessionEvent::Disconnected { retry_when_present } => {
                     self.connection_attempt_in_flight = false;
                     self.status = if retry_when_present && self.auto_connect_enabled {
                         self.reconnect_at = Some(Instant::now() + Self::RECONNECT_DELAY);
@@ -530,6 +475,7 @@ impl PowerMonitorApp {
                     self.offline_busy = false;
                     self.stop_recording();
                 }
+                _ => {}
             }
         }
 
@@ -680,7 +626,7 @@ impl PowerMonitorApp {
         }
         self.offline_busy = true;
         self.offline_status = "Loading offline recording catalog...".to_string();
-        if self.cmd_sender.send(UsbCommand::RequestOfflineCatalog).is_err() {
+        if self.session.request_offline_catalog().is_err() {
             self.offline_busy = false;
             self.offline_status = "USB task is not available".to_string();
         }
@@ -708,7 +654,7 @@ impl PowerMonitorApp {
             metadata.sample_count,
             metadata.filename_lossy()
         );
-        if self.cmd_sender.send(UsbCommand::DownloadOfflineLog(metadata)).is_err() {
+        if self.session.download_offline_log(metadata).is_err() {
             self.offline_busy = false;
             self.offline_status = "USB task is not available".to_string();
         }
@@ -940,9 +886,7 @@ impl PowerMonitorApp {
                 )
                 .changed();
             if trace_changed && self.device_state.is_some() {
-                let _ = self
-                    .cmd_sender
-                    .send(UsbCommand::SetPdTraceEnabled(self.pd_trace_enabled));
+                let _ = self.session.set_pd_trace_enabled(self.pd_trace_enabled);
             }
 
             ui.horizontal(|ui| {
@@ -1027,9 +971,7 @@ impl PowerMonitorApp {
                         && (self.device_state.is_some() || self.connection_attempt_in_flight)
                     {
                         info!("Sample rate changed to {}", self.selected_rate.label());
-                        let _ = self
-                            .cmd_sender
-                            .send(UsbCommand::SetSampleRate(self.selected_rate.to_graph_rate()));
+                        let _ = self.session.set_sample_rate(self.selected_rate.to_graph_rate());
                     }
                 });
             });
@@ -1056,7 +998,7 @@ impl PowerMonitorApp {
                     egui::ComboBox::from_id_salt(("plot_metric", index))
                         .selected_text(metric.label())
                         .show_ui(ui, |ui| {
-                            for option in PlotMetric::ALL {
+                            for option in Metric::ALL {
                                 if self.plot_source == PlotSource::Live || option.supports_offline() {
                                     ui.selectable_value(metric, option, option.label());
                                 }
@@ -1247,7 +1189,7 @@ impl PowerMonitorApp {
                     self.time_window = TimeWindow::All;
                     for metric in &mut self.plot_metrics {
                         if !metric.supports_offline() {
-                            *metric = PlotMetric::Voltage;
+                            *metric = Metric::Voltage;
                         }
                     }
                 }
@@ -1285,7 +1227,7 @@ impl PowerMonitorApp {
                     info!("Disconnect requested");
                     self.auto_connect_enabled = false;
                     self.reconnect_at = None;
-                    let _ = self.cmd_sender.send(UsbCommand::Disconnect);
+                    let _ = self.session.disconnect();
                 }
             } else if self.device_state.is_none() {
                 ui.checkbox(&mut self.usb_reset, "USB reset on connect");
@@ -1466,391 +1408,15 @@ impl eframe::App for PowerMonitorApp {
     }
 }
 
-async fn usb_streaming_task(tx: mpsc::UnboundedSender<UsbMessage>, mut cmd_rx: mpsc::UnboundedReceiver<UsbCommand>) {
-    info!("USB task started, waiting for Connect command");
-
-    // Main loop - wait for commands
-    loop {
-        // Wait for a command (blocking)
-        let cmd = match cmd_rx.recv().await {
-            Some(cmd) => cmd,
-            None => {
-                warn!("Command channel closed");
-                break;
-            }
-        };
-
-        match cmd {
-            UsbCommand::Connect(initial_rate, usb_reset) => {
-                debug!("Connect command received, rate={:?}, reset={}", initial_rate, usb_reset);
-                run_streaming_session(&tx, &mut cmd_rx, initial_rate, usb_reset).await;
-            }
-            UsbCommand::Disconnect => {
-                let _ = tx.send(UsbMessage::Disconnected {
-                    retry_when_present: false,
-                });
-            }
-            UsbCommand::SetSampleRate(_)
-            | UsbCommand::SetPdTraceEnabled(_)
-            | UsbCommand::RequestOfflineCatalog
-            | UsbCommand::DownloadOfflineLog(_) => {
-                // Ignore these when not connected
-                debug!("Ignoring command while disconnected: {:?}", cmd);
-            }
-        }
-    }
-}
-
-/// Subscribe before enumerating so an attachment cannot fall between the two.
-/// No device handles are opened and no periodic probes run while waiting.
-async fn wait_for_device(tx: &mpsc::UnboundedSender<UsbMessage>) -> Result<(), km003c_lib::error::KMError> {
-    let mut watch = nusb::watch_devices()?;
-    let mut announced = false;
-    loop {
-        if nusb::list_devices().await?.any(|device| {
-            device.vendor_id() == km003c_lib::device::VID && device.product_id() == km003c_lib::device::PID
-        }) {
-            return Ok(());
-        }
-        if !announced {
-            let _ = tx.send(UsbMessage::WaitingForDevice);
-            announced = true;
-        }
-        loop {
-            match watch.next().await {
-                Some(nusb::hotplug::HotplugEvent::Connected(device))
-                    if device.vendor_id() == km003c_lib::device::VID
-                        && device.product_id() == km003c_lib::device::PID =>
-                {
-                    // Let interface creation and device permissions settle.
-                    tokio::time::sleep(Duration::from_millis(300)).await;
-                    break;
-                }
-                Some(_) => {}
-                None => {
-                    return Err(km003c_lib::error::KMError::Protocol(
-                        "USB hotplug watcher closed".to_string(),
-                    ));
-                }
-            }
-        }
-    }
-}
-
-fn is_device_disconnect(error: &km003c_lib::error::KMError) -> bool {
-    use km003c_lib::error::KMError;
-    match error {
-        KMError::DeviceNotFound => true,
-        KMError::Usb(error) => error.kind() == nusb::ErrorKind::Disconnected,
-        KMError::Io(error) => matches!(
-            error.kind(),
-            std::io::ErrorKind::NotConnected | std::io::ErrorKind::ConnectionAborted
-        ),
-        _ => false,
-    }
-}
-
-async fn run_streaming_session(
-    tx: &mpsc::UnboundedSender<UsbMessage>,
-    cmd_rx: &mut mpsc::UnboundedReceiver<UsbCommand>,
-    mut initial_rate: GraphSampleRate,
-    mut usb_reset: bool,
-) {
-    loop {
-        tokio::select! {
-            biased;
-            command = cmd_rx.recv() => match command {
-                Some(UsbCommand::Disconnect) | None => {
-                    let _ = tx.send(UsbMessage::Disconnected { retry_when_present: false });
-                    return;
-                }
-                Some(UsbCommand::Connect(rate, reset)) => {
-                    initial_rate = rate;
-                    usb_reset = reset;
-                }
-                Some(UsbCommand::SetSampleRate(rate)) => initial_rate = rate,
-                Some(_) => {}
-            },
-            _ = tx.closed() => return,
-            result = wait_for_device(tx) => {
-                if let Err(error) = result {
-                    error!("USB discovery failed: {error}");
-                    let _ = tx.send(UsbMessage::ConnectionFailed {
-                        error: error.to_string(),
-                        retry_when_present: false,
-                    });
-                    return;
-                }
-                break;
-            }
-        }
-    }
-    // Connect to device with vendor interface (Full mode for AdcQueue)
-    let config = if usb_reset {
-        DeviceConfig::vendor()
-    } else {
-        DeviceConfig::vendor().skip_reset()
-    };
-    let mut device = match KM003C::new(config).await {
-        Ok(dev) => dev,
-        Err(e) => {
-            if is_device_disconnect(&e) {
-                debug!("Device removed during connection: {e}");
-            } else {
-                error!("Failed to connect: {e}");
-            }
-            let _ = tx.send(UsbMessage::ConnectionFailed {
-                retry_when_present: is_device_disconnect(&e),
-                error: e.to_string(),
-            });
-            return;
-        }
-    };
-
-    // Send device state to UI (always available in Full mode)
-    let state = device.state().expect("device in Full mode");
-    info!("Connected to {} (FW {})", state.model(), state.firmware_version());
-
-    if !state.adcqueue_enabled {
-        error!("AdcQueue not enabled - authentication may have failed");
-        let _ = tx.send(UsbMessage::ConnectionFailed {
-            error: "AdcQueue not enabled".to_string(),
-            retry_when_present: false,
-        });
-        return;
-    }
-
-    let _ = tx.send(UsbMessage::Connected(Arc::new(state.clone())));
-
-    // Initial StopGraph to ensure clean state
-    info!("Sending initial StopGraph to ensure clean state");
-    let _ = device.stop_graph_mode().await;
-
-    // Start streaming
-    let mut current_rate = initial_rate;
-    if let Err(e) = start_streaming(&mut device, current_rate, tx).await {
-        error!("Failed to start streaming: {}", e);
-        let _ = tx.send(UsbMessage::Disconnected {
-            retry_when_present: is_device_disconnect(&e),
-        });
-        if !is_device_disconnect(&e) {
-            let _ = tx.send(UsbMessage::Error(format!("Start failed: {e}")));
-        }
-        return;
-    }
-
-    // Streaming loop - poll for data and handle commands
-    let mut error_count = 0;
-    let mut pd_trace_enabled = false;
-    let mut reconnect_when_present = false;
-    let mut terminal_error = None;
-    const MAX_ERRORS: u32 = 10;
-
-    loop {
-        // Check for commands from UI (non-blocking)
-        match cmd_rx.try_recv() {
-            Ok(UsbCommand::SetSampleRate(new_rate)) => {
-                if new_rate != current_rate {
-                    info!("Changing sample rate to {:?}", new_rate);
-
-                    // Stop current streaming
-                    if let Err(error) = device.stop_graph_mode().await {
-                        reconnect_when_present = is_device_disconnect(&error);
-                        terminal_error = Some(format!("Failed to stop streaming for rate change: {error}"));
-                        break;
-                    }
-                    let _ = tx.send(UsbMessage::StreamingStopped);
-
-                    // Start with new rate
-                    if let Err(e) = start_streaming(&mut device, new_rate, tx).await {
-                        error!("Failed to restart streaming: {}", e);
-                        reconnect_when_present = is_device_disconnect(&e);
-                        terminal_error = Some(format!("Restart failed: {e}"));
-                        break;
-                    }
-                    current_rate = new_rate;
-                }
-            }
-            Ok(UsbCommand::SetPdTraceEnabled(enabled)) => {
-                pd_trace_enabled = enabled;
-                info!(
-                    "Firmware PD trace collection {}",
-                    if enabled { "enabled" } else { "disabled" }
-                );
-            }
-            Ok(UsbCommand::RequestOfflineCatalog) => {
-                info!("Loading offline recording catalog");
-                if let Err(error) = device.stop_graph_mode().await {
-                    let _ = tx.send(UsbMessage::OfflineOperationFailed(format!(
-                        "Could not pause streaming for offline catalog access: {error}"
-                    )));
-                    continue;
-                }
-                let _ = tx.send(UsbMessage::StreamingStopped);
-                match device.request_log_metadata().await {
-                    Ok(catalog) => {
-                        let _ = tx.send(UsbMessage::OfflineCatalog(catalog));
-                    }
-                    Err(error) => {
-                        let _ = tx.send(UsbMessage::OfflineOperationFailed(format!(
-                            "Failed to load offline catalog: {error}"
-                        )));
-                    }
-                }
-                if let Err(error) = start_streaming(&mut device, current_rate, tx).await {
-                    reconnect_when_present = is_device_disconnect(&error);
-                    terminal_error = Some(format!(
-                        "Failed to resume streaming after loading offline catalog: {error}"
-                    ));
-                    break;
-                }
-            }
-            Ok(UsbCommand::DownloadOfflineLog(metadata)) => {
-                info!(
-                    filename = %metadata.filename_lossy(),
-                    samples = metadata.sample_count,
-                    "Downloading offline recording"
-                );
-                if let Err(error) = device.stop_graph_mode().await {
-                    let _ = tx.send(UsbMessage::OfflineOperationFailed(format!(
-                        "Could not pause streaming for offline download: {error}"
-                    )));
-                    continue;
-                }
-                let _ = tx.send(UsbMessage::StreamingStopped);
-                match device.download_offline_log(metadata).await {
-                    Ok(log) => {
-                        let _ = tx.send(UsbMessage::OfflineLogDownloaded(log));
-                    }
-                    Err(error) => {
-                        let _ = tx.send(UsbMessage::OfflineOperationFailed(format!(
-                            "Failed to download offline recording: {error}"
-                        )));
-                    }
-                }
-                if let Err(error) = start_streaming(&mut device, current_rate, tx).await {
-                    reconnect_when_present = is_device_disconnect(&error);
-                    terminal_error = Some(format!("Failed to resume streaming after offline download: {error}"));
-                    break;
-                }
-            }
-            Ok(UsbCommand::Disconnect) => {
-                info!("Disconnect command received");
-                reconnect_when_present = false;
-                break;
-            }
-            Ok(UsbCommand::Connect(..)) => {
-                // Ignore connect while already connected
-                debug!("Ignoring Connect while already streaming");
-            }
-            Err(mpsc::error::TryRecvError::Empty) => {
-                // No command, continue polling
-            }
-            Err(mpsc::error::TryRecvError::Disconnected) => {
-                warn!("Command channel disconnected");
-                reconnect_when_present = false;
-                break;
-            }
-        }
-
-        // Request the regular streams and the opt-in firmware trace.
-        let mask = streaming_attribute_mask(pd_trace_enabled);
-        match device.request_data(mask).await {
-            Ok(packet) => {
-                error_count = 0;
-
-                if let Some(queue_data) = packet.get_adc_queue()
-                    && !queue_data.samples.is_empty()
-                {
-                    debug!("Received {} samples", queue_data.samples.len());
-                    if tx.send(UsbMessage::Samples(queue_data.samples.clone())).is_err() {
-                        warn!("UI closed, stopping");
-                        break;
-                    }
-                }
-
-                if let Some(stream) = packet.get_pd_events() {
-                    let _ = tx.send(UsbMessage::PdStatusUpdate(stream.preamble));
-                    let _ = tx.send(UsbMessage::PdEvents(stream.events.clone()));
-                }
-                if let Some(status) = packet.get_pd_status() {
-                    let _ = tx.send(UsbMessage::PdStatusUpdate(*status));
-                }
-                if let Some(trace) = packet.get_pd_trace()
-                    && (!trace.state_events.is_empty() || !trace.protocol_events.is_empty())
-                {
-                    let _ = tx.send(UsbMessage::PdTrace(trace.clone()));
-                }
-            }
-            Err(e) => {
-                error_count += 1;
-                debug!("Request error: {}", e);
-                if is_device_disconnect(&e) {
-                    reconnect_when_present = true;
-                    break;
-                }
-                if error_count >= MAX_ERRORS {
-                    terminal_error = Some(format!("Streaming failed after {MAX_ERRORS} errors: {e}"));
-                    break;
-                }
-            }
-        }
-
-        // Small delay between requests - adjust based on sample rate
-        let delay_ms = match current_rate {
-            GraphSampleRate::Sps2 => 200,  // 5 requests/sec for 2 SPS
-            GraphSampleRate::Sps10 => 50,  // 20 requests/sec for 10 SPS
-            GraphSampleRate::Sps50 => 20,  // 50 requests/sec for 50 SPS
-            GraphSampleRate::Sps1000 => 5, // 200 requests/sec for 1000 SPS
-        };
-        tokio::time::sleep(Duration::from_millis(delay_ms)).await;
-    }
-
-    // Stop streaming and disconnect
-    info!("Stopping streaming");
-    let _ = device.stop_graph_mode().await;
-    let _ = tx.send(UsbMessage::Disconnected {
-        retry_when_present: reconnect_when_present,
-    });
-    if !reconnect_when_present && let Some(error) = terminal_error {
-        let _ = tx.send(UsbMessage::Error(error));
-    }
-}
-
-fn streaming_attribute_mask(pd_trace_enabled: bool) -> AttributeSet {
-    let mask = AttributeSet::single(Attribute::AdcQueue).with(Attribute::PdPacket);
-    if pd_trace_enabled {
-        mask.with(Attribute::PdTrace)
-    } else {
-        mask
-    }
-}
-
-async fn start_streaming(
-    device: &mut KM003C,
-    rate: GraphSampleRate,
-    tx: &mpsc::UnboundedSender<UsbMessage>,
-) -> Result<(), km003c_lib::error::KMError> {
-    info!("Starting AdcQueue streaming at {:?}", rate);
-    device.start_graph_mode(rate).await?;
-    let _ = tx.send(UsbMessage::StreamingStarted(rate));
-    Ok(())
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
     info!("Starting POWER-Z KM003C GUI application");
 
-    // Create channels for communication
-    let (usb_tx, usb_rx) = mpsc::unbounded_channel();
-    let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-
-    // Spawn USB streaming task
-    tokio::spawn(usb_streaming_task(usb_tx, cmd_rx));
+    let (session, session_events) = Session::spawn();
 
     // Auto-connect on startup
-    let _ = cmd_tx.send(UsbCommand::Connect(GraphSampleRate::Sps50, !cfg!(target_os = "macos")));
+    let _ = session.connect(GraphSampleRate::Sps50, !cfg!(target_os = "macos"));
 
     // Run egui application
     let options = eframe::NativeOptions {
@@ -1860,7 +1426,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
 
-    let app = PowerMonitorApp::new(usb_rx, cmd_tx);
+    let app = PowerMonitorApp::new(session, session_events);
 
     eframe::run_native("POWER-Z KM003C Monitor", options, Box::new(|_cc| Ok(Box::new(app))))
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
@@ -1872,17 +1438,11 @@ mod tests {
     use crate::offline_view::captured_test_view;
     use polars::prelude::{CsvReader, ParquetReader, SerReader};
 
-    #[test]
-    fn firmware_trace_is_only_requested_when_enabled() {
-        let disabled = streaming_attribute_mask(false);
-        assert!(disabled.contains(Attribute::AdcQueue));
-        assert!(disabled.contains(Attribute::PdPacket));
-        assert!(!disabled.contains(Attribute::PdTrace));
-
-        let enabled = streaming_attribute_mask(true);
-        assert!(enabled.contains(Attribute::AdcQueue));
-        assert!(enabled.contains(Attribute::PdPacket));
-        assert!(enabled.contains(Attribute::PdTrace));
+    /// An app whose session has no device task behind it.
+    fn test_app() -> (PowerMonitorApp, mpsc::UnboundedSender<SessionEvent>) {
+        let (event_tx, event_rx) = mpsc::unbounded_channel();
+        let (session, _commands) = Session::detached();
+        (PowerMonitorApp::new(session, event_rx), event_tx)
     }
 
     #[test]
@@ -1910,32 +1470,28 @@ mod tests {
 
     #[test]
     fn downloaded_offline_log_becomes_the_active_plot_source() {
-        let (usb_tx, usb_rx) = mpsc::unbounded_channel();
-        let (cmd_tx, _cmd_rx) = mpsc::unbounded_channel();
-        let mut app = PowerMonitorApp::new(usb_rx, cmd_tx);
-        app.plot_metrics[0] = PlotMetric::Cc1;
+        let (mut app, usb_tx) = test_app();
+        app.plot_metrics[0] = Metric::Cc1;
         let fixture = captured_test_view();
 
         usb_tx
-            .send(UsbMessage::OfflineLogDownloaded(fixture.log.as_ref().clone()))
+            .send(SessionEvent::OfflineLogDownloaded(fixture.log.as_ref().clone()))
             .unwrap();
         app.process_messages();
 
         assert_eq!(app.plot_source, PlotSource::Offline);
         assert_eq!(app.time_window, TimeWindow::All);
-        assert_eq!(app.plot_metrics[0], PlotMetric::Voltage);
+        assert_eq!(app.plot_metrics[0], Metric::Voltage);
         assert_eq!(app.offline_view.as_ref().unwrap().samples.len(), 3);
         assert!(!app.offline_busy);
     }
 
     #[test]
     fn empty_offline_catalog_clears_selection() {
-        let (usb_tx, usb_rx) = mpsc::unbounded_channel();
-        let (cmd_tx, _cmd_rx) = mpsc::unbounded_channel();
-        let mut app = PowerMonitorApp::new(usb_rx, cmd_tx);
+        let (mut app, usb_tx) = test_app();
         app.offline_selected = Some(2);
 
-        usb_tx.send(UsbMessage::OfflineCatalog(Vec::new())).unwrap();
+        usb_tx.send(SessionEvent::OfflineCatalog(Vec::new())).unwrap();
         app.process_messages();
 
         assert!(app.offline_catalog.is_empty());
@@ -1947,10 +1503,8 @@ mod tests {
     #[ignore = "requires a connected KM003C"]
     fn hardware_offline_flow_pauses_and_resumes_streaming() {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let (usb_tx, mut usb_rx) = mpsc::unbounded_channel();
-            let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-            let task = tokio::spawn(usb_streaming_task(usb_tx, cmd_rx));
-            cmd_tx.send(UsbCommand::Connect(GraphSampleRate::Sps50, false)).unwrap();
+            let (session, mut usb_rx) = Session::spawn();
+            session.connect(GraphSampleRate::Sps50, false).unwrap();
 
             let startup_deadline = tokio::time::Instant::now() + Duration::from_secs(10);
             let mut device_state = None;
@@ -1961,13 +1515,13 @@ mod tests {
                     .expect("device did not connect before the deadline")
                     .expect("USB task exited during connection");
                 match message {
-                    UsbMessage::Connected(state) => device_state = Some(state),
-                    UsbMessage::StreamingStarted(GraphSampleRate::Sps50) => streaming = true,
+                    SessionEvent::Connected(state) => device_state = Some(state),
+                    SessionEvent::StreamingStarted(GraphSampleRate::Sps50) => streaming = true,
                     _ => {}
                 }
             }
 
-            cmd_tx.send(UsbCommand::RequestOfflineCatalog).unwrap();
+            session.request_offline_catalog().unwrap();
             let operation_deadline = tokio::time::Instant::now() + Duration::from_secs(10);
             let mut stopped = false;
             let catalog = loop {
@@ -1976,12 +1530,12 @@ mod tests {
                     .expect("offline catalog request did not finish before the deadline")
                     .expect("USB task exited during offline catalog request");
                 match message {
-                    UsbMessage::StreamingStopped => stopped = true,
-                    UsbMessage::OfflineCatalog(catalog) => {
+                    SessionEvent::StreamingStopped => stopped = true,
+                    SessionEvent::OfflineCatalog(catalog) => {
                         assert!(stopped, "catalog arrived before streaming was paused");
                         break catalog;
                     }
-                    UsbMessage::OfflineOperationFailed(error) => panic!("offline catalog failed: {error}"),
+                    SessionEvent::OfflineOperationFailed(error) => panic!("offline catalog failed: {error}"),
                     _ => {}
                 }
             };
@@ -1990,14 +1544,14 @@ mod tests {
                     .await
                     .expect("streaming did not resume after catalog request")
                     .expect("USB task exited before streaming resumed");
-                if matches!(message, UsbMessage::StreamingStarted(GraphSampleRate::Sps50)) {
+                if matches!(message, SessionEvent::StreamingStarted(GraphSampleRate::Sps50)) {
                     break;
                 }
             }
 
             let mut downloaded_log = None;
             if let Some(metadata) = catalog.first().cloned() {
-                cmd_tx.send(UsbCommand::DownloadOfflineLog(metadata.clone())).unwrap();
+                session.download_offline_log(metadata.clone()).unwrap();
                 let download_deadline = tokio::time::Instant::now() + Duration::from_secs(20);
                 let mut stopped = false;
                 let mut downloaded = false;
@@ -2008,24 +1562,25 @@ mod tests {
                         .expect("offline download did not finish before the deadline")
                         .expect("USB task exited during offline download");
                     match message {
-                        UsbMessage::StreamingStopped => stopped = true,
-                        UsbMessage::OfflineLogDownloaded(log) => {
+                        SessionEvent::StreamingStopped => stopped = true,
+                        SessionEvent::OfflineLogDownloaded(log) => {
                             assert!(stopped, "offline log arrived before streaming was paused");
                             assert_eq!(log.metadata, metadata);
                             assert_eq!(log.samples.len(), usize::from(metadata.sample_count));
                             downloaded_log = Some(log);
                             downloaded = true;
                         }
-                        UsbMessage::StreamingStarted(GraphSampleRate::Sps50) => resumed = true,
-                        UsbMessage::OfflineOperationFailed(error) => panic!("offline download failed: {error}"),
+                        SessionEvent::StreamingStarted(GraphSampleRate::Sps50) => resumed = true,
+                        SessionEvent::OfflineOperationFailed(error) => panic!("offline download failed: {error}"),
                         _ => {}
                     }
                 }
             }
 
-            cmd_tx.send(UsbCommand::Disconnect).unwrap();
-            drop(cmd_tx);
-            let _ = tokio::time::timeout(Duration::from_secs(5), task)
+            session.disconnect().unwrap();
+            drop(session);
+            // The event channel closes once the session task has exited.
+            tokio::time::timeout(Duration::from_secs(5), async { while usb_rx.recv().await.is_some() {} })
                 .await
                 .expect("USB task did not stop after disconnect");
 

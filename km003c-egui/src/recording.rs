@@ -8,7 +8,7 @@ use std::thread::{self, JoinHandle};
 use polars::df;
 use polars::prelude::{CsvWriter, DataFrame, KeyValueMetadata, ParquetWriter, SerWriter};
 
-use crate::measurement::MeasurementSample;
+use km003c_lib::MeasurementSample;
 pub(crate) const RECORDING_SCHEMA_VERSION: &str = "1";
 const ROW_GROUP_SIZE: usize = 8_192;
 const CHANNEL_CAPACITY: usize = 32;
@@ -479,7 +479,7 @@ fn replace_file(partial: &Path, final_path: &Path) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::measurement::MeasurementAccumulator;
+    use km003c_lib::MeasurementAccumulator;
     use km003c_lib::{
         DeviceConfig, GraphSampleRate, KM003C,
         packet::{Attribute, AttributeSet},

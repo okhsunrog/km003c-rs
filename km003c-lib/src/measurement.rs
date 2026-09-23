@@ -1,8 +1,16 @@
-use eframe::egui;
-use km003c_lib::uom::si::electric_current::microampere;
-use km003c_lib::uom::si::electric_potential::microvolt;
-use km003c_lib::uom::si::power::microwatt;
-use km003c_lib::{AdcQueueSample, GraphSampleRate};
+//! Continuous measurement stream reconstructed from AdcQueue samples.
+//!
+//! The device timestamps AdcQueue samples with a 16-bit 1 kHz sequence counter.
+//! [`MeasurementAccumulator`] turns those samples into a monotonic device-time
+//! series: it rejects duplicate and out-of-order samples, reports gaps, and
+//! integrates charge and energy over device time rather than host time.
+
+use uom::si::electric_current::microampere;
+use uom::si::electric_potential::microvolt;
+use uom::si::frequency::hertz;
+use uom::si::power::microwatt;
+
+use crate::{AdcQueueSample, GraphSampleRate};
 
 const MICROSECONDS_PER_MILLISECOND: u64 = 1_000;
 const MICROSECONDS_PER_HOUR: f64 = 3_600_000_000.0;
@@ -26,41 +34,52 @@ fn max_forward_sequence_ticks(rate: GraphSampleRate) -> u16 {
     (u16::MAX / 2 / step) * step
 }
 
+/// One accepted AdcQueue sample placed on the device timeline.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct MeasurementSample {
-    pub(crate) elapsed_us: u64,
-    pub(crate) sample_index: u64,
-    pub(crate) sequence: u16,
-    pub(crate) marker: u16,
-    pub(crate) sample_rate_hz: u16,
-    pub(crate) missing_samples: u16,
-    pub(crate) gap_duration_us: u64,
-    pub(crate) interpolated: bool,
-    pub(crate) cumulative_missing_samples: u64,
-    pub(crate) cumulative_interpolated_duration_us: u64,
-    pub(crate) discarded_sequence_samples: u32,
-    pub(crate) cumulative_discarded_sequence_samples: u64,
-    pub(crate) vbus_uv: i64,
-    pub(crate) ibus_ua: i64,
-    pub(crate) power_uw: i64,
-    pub(crate) charge_uah: f64,
-    pub(crate) energy_uwh: f64,
-    pub(crate) charge_throughput_uah: f64,
-    pub(crate) energy_throughput_uwh: f64,
-    pub(crate) cc1_uv: i64,
-    pub(crate) cc2_uv: i64,
-    pub(crate) dp_uv: i64,
-    pub(crate) dm_uv: i64,
+pub struct MeasurementSample {
+    /// Device time since the start of the stream.
+    pub elapsed_us: u64,
+    /// Index among accepted samples.
+    pub sample_index: u64,
+    pub sequence: u16,
+    pub marker: u16,
+    pub sample_rate_hz: u16,
+    /// Samples the device skipped just before this one.
+    pub missing_samples: u16,
+    /// Duration of that gap, bridged by linear interpolation in the integrals.
+    pub gap_duration_us: u64,
+    pub interpolated: bool,
+    pub cumulative_missing_samples: u64,
+    pub cumulative_interpolated_duration_us: u64,
+    /// Samples rejected as duplicate or out of order since the previous one.
+    pub discarded_sequence_samples: u32,
+    pub cumulative_discarded_sequence_samples: u64,
+    pub vbus_uv: i64,
+    pub ibus_ua: i64,
+    pub power_uw: i64,
+    /// Net charge; negative when current flows in reverse.
+    pub charge_uah: f64,
+    /// Net energy; negative when power flows in reverse.
+    pub energy_uwh: f64,
+    /// Charge transferred in either direction.
+    pub charge_throughput_uah: f64,
+    /// Energy transferred in either direction.
+    pub energy_throughput_uwh: f64,
+    pub cc1_uv: i64,
+    pub cc2_uv: i64,
+    pub dp_uv: i64,
+    pub dm_uv: i64,
 }
 
 impl MeasurementSample {
-    pub(crate) fn elapsed_seconds(self) -> f64 {
+    pub fn elapsed_seconds(self) -> f64 {
         self.elapsed_us as f64 / 1_000_000.0
     }
 }
 
+/// Builds a [`MeasurementSample`] stream from AdcQueue samples.
 #[derive(Debug, Default)]
-pub(crate) struct MeasurementAccumulator {
+pub struct MeasurementAccumulator {
     elapsed_us: u64,
     sample_index: u64,
     cumulative_missing_samples: u64,
@@ -83,7 +102,9 @@ struct PreviousSample {
 }
 
 impl MeasurementAccumulator {
-    pub(crate) fn push(&mut self, sample: AdcQueueSample, rate: GraphSampleRate) -> Option<MeasurementSample> {
+    /// Accept the next sample, or return `None` if its sequence number is a
+    /// duplicate or out of order.
+    pub fn push(&mut self, sample: AdcQueueSample, rate: GraphSampleRate) -> Option<MeasurementSample> {
         let vbus_uv = sample.vbus.get::<microvolt>().round() as i64;
         let ibus_ua = sample.ibus.get::<microampere>().round() as i64;
         let power_uw = sample.power.get::<microwatt>().round() as i64;
@@ -142,7 +163,7 @@ impl MeasurementAccumulator {
             sample_index: self.sample_index,
             sequence: sample.sequence,
             marker: sample.marker,
-            sample_rate_hz: rate.frequency().get::<km003c_lib::uom::si::frequency::hertz>() as u16,
+            sample_rate_hz: rate.frequency().get::<hertz>() as u16,
             missing_samples,
             gap_duration_us,
             interpolated: missing_samples > 0,
@@ -173,22 +194,27 @@ impl MeasurementAccumulator {
         Some(decoded)
     }
 
-    pub(crate) fn reset_continuity(&mut self) {
+    /// Start a new continuity run, keeping the elapsed time and the integrals.
+    ///
+    /// Call this when streaming restarts, for example after a rate change: the
+    /// sequence counter of the new stream is unrelated to the old one.
+    pub fn reset_continuity(&mut self) {
         self.previous = None;
         self.consecutive_rejected_samples = 0;
     }
 
-    pub(crate) fn reset(&mut self) {
+    pub fn reset(&mut self) {
         *self = Self::default();
     }
 
-    pub(crate) const fn cumulative_discarded_sequence_samples(&self) -> u64 {
+    pub const fn cumulative_discarded_sequence_samples(&self) -> u64 {
         self.cumulative_discarded_sequence_samples
     }
 }
 
+/// A quantity derived from a [`MeasurementSample`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PlotMetric {
+pub enum Metric {
     Voltage,
     Current,
     SignedCurrent,
@@ -204,8 +230,8 @@ pub(crate) enum PlotMetric {
     DMinus,
 }
 
-impl PlotMetric {
-    pub(crate) const ALL: [Self; 13] = [
+impl Metric {
+    pub const ALL: [Self; 13] = [
         Self::Voltage,
         Self::Current,
         Self::SignedCurrent,
@@ -221,7 +247,7 @@ impl PlotMetric {
         Self::DMinus,
     ];
 
-    pub(crate) const fn label(self) -> &'static str {
+    pub const fn label(self) -> &'static str {
         match self {
             Self::Voltage => "Voltage",
             Self::Current => "Current (absolute)",
@@ -239,11 +265,13 @@ impl PlotMetric {
         }
     }
 
-    pub(crate) const fn supports_offline(self) -> bool {
+    /// Whether offline logs record this quantity. They do not store the CC and
+    /// D+/D- lines.
+    pub const fn supports_offline(self) -> bool {
         !matches!(self, Self::Cc1 | Self::Cc2 | Self::DPlus | Self::DMinus)
     }
 
-    pub(crate) const fn unit(self) -> &'static str {
+    pub const fn unit(self) -> &'static str {
         match self {
             Self::Voltage | Self::Cc1 | Self::Cc2 | Self::DPlus | Self::DMinus => "V",
             Self::Current | Self::SignedCurrent => "A",
@@ -253,7 +281,8 @@ impl PlotMetric {
         }
     }
 
-    pub(crate) fn value(self, sample: &MeasurementSample) -> f64 {
+    /// The value in [`Self::unit`].
+    pub fn value(self, sample: &MeasurementSample) -> f64 {
         match self {
             Self::Voltage => sample.vbus_uv as f64 / 1_000_000.0,
             Self::Current => (sample.ibus_ua as f64 / 1_000_000.0).abs(),
@@ -270,28 +299,14 @@ impl PlotMetric {
             Self::DMinus => sample.dm_uv as f64 / 1_000_000.0,
         }
     }
-
-    pub(crate) const fn color(self) -> egui::Color32 {
-        match self {
-            Self::Voltage => egui::Color32::GREEN,
-            Self::Current | Self::SignedCurrent => egui::Color32::BLUE,
-            Self::Power | Self::SignedPower => egui::Color32::from_rgb(255, 165, 0),
-            Self::Charge | Self::SignedCharge => egui::Color32::from_rgb(180, 120, 255),
-            Self::Energy | Self::SignedEnergy => egui::Color32::from_rgb(255, 100, 180),
-            Self::Cc1 => egui::Color32::from_rgb(100, 200, 255),
-            Self::Cc2 => egui::Color32::from_rgb(80, 220, 180),
-            Self::DPlus => egui::Color32::from_rgb(255, 120, 120),
-            Self::DMinus => egui::Color32::from_rgb(120, 160, 255),
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use km003c_lib::uom::si::electric_current::ampere;
-    use km003c_lib::uom::si::electric_potential::volt;
-    use km003c_lib::uom::si::f64::{ElectricCurrent, ElectricPotential};
+    use uom::si::electric_current::ampere;
+    use uom::si::electric_potential::volt;
+    use uom::si::f64::{ElectricCurrent, ElectricPotential};
 
     fn sample(sequence: u16, voltage_v: f64, current_a: f64) -> AdcQueueSample {
         let vbus = ElectricPotential::new::<volt>(voltage_v);
@@ -342,10 +357,10 @@ mod tests {
         let mut accumulator = MeasurementAccumulator::default();
         let measurement = accumulator.push(sample(0, 5.0, -2.0), GraphSampleRate::Sps10).unwrap();
 
-        assert_eq!(PlotMetric::Current.value(&measurement), 2.0);
-        assert_eq!(PlotMetric::SignedCurrent.value(&measurement), -2.0);
-        assert_eq!(PlotMetric::Power.value(&measurement), 10.0);
-        assert_eq!(PlotMetric::SignedPower.value(&measurement), -10.0);
+        assert_eq!(Metric::Current.value(&measurement), 2.0);
+        assert_eq!(Metric::SignedCurrent.value(&measurement), -2.0);
+        assert_eq!(Metric::Power.value(&measurement), 10.0);
+        assert_eq!(Metric::SignedPower.value(&measurement), -10.0);
     }
 
     #[test]

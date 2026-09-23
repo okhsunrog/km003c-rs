@@ -1,0 +1,15 @@
+[package]
+name = "slint-realtime-plot"
+version = "0.1.0"
+edition = "2024"
+description = "GPU-accelerated real-time plotting for Slint via WGPU"
+license = "MIT"
+
+[dependencies]
+bytemuck = { workspace = true }
+png = { workspace = true }
+slint = { workspace = true }
+wgpu = { workspace = true }
+
+[dev-dependencies]
+pollster = "1.0.1"

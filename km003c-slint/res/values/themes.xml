@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Slint draws under the system bars but does not tell Android whether its
+     background is light, so the bar icons stayed white on a light theme. The
+     night variant in values-night/ switches them back to light icons. -->
+<resources>
+    <style name="Theme.KM003C" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

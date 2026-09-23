@@ -368,9 +368,13 @@ impl DeviceSelector {
         match self {
             Self::First => true,
             Self::SerialNumber(serial) => device.serial_number() == Some(serial.as_str()),
+            #[cfg(not(target_os = "android"))]
             Self::BusAddress { bus_id, device_address } => {
                 device.bus_id() == bus_id && device.device_address() == *device_address
             }
+            // Android's USB API exposes no bus topology.
+            #[cfg(target_os = "android")]
+            Self::BusAddress { .. } => false,
         }
     }
 
@@ -550,11 +554,14 @@ impl KM003C {
         info!("Searching for {}...", config.selector.describe());
         let device_info = find_device(&config.selector).await?;
 
+        #[cfg(not(target_os = "android"))]
         info!(
             "Found device on bus {} addr {}",
             device_info.bus_id(),
             device_info.device_address()
         );
+        #[cfg(target_os = "android")]
+        info!("Found device {:?}", device_info.id());
 
         // A reset re-enumerates the device, so reopening must target the same
         // unit. Addresses are not stable across a reset, so fall back to the
@@ -582,6 +589,26 @@ impl KM003C {
             debug!("Skipping USB reset (skip_reset=true)");
         }
 
+        Self::attach(device, &config).await
+    }
+
+    /// Initialize a device the caller has already opened.
+    ///
+    /// This is the entry point where enumeration is unavailable, such as on
+    /// Android: open the device through `UsbManager`, then wrap its file
+    /// descriptor with [`nusb::Device::from_fd`]. The device is not reset and
+    /// [`DeviceConfig::select`] is ignored.
+    pub async fn from_device(device: nusb::Device, config: DeviceConfig) -> Result<Self, KMError> {
+        let is_vendor = config.is_vendor();
+        let mut device = Self::attach(device, &config).await?;
+        if is_vendor {
+            device.run_init().await?;
+        }
+        Ok(device)
+    }
+
+    /// Internal: claim the configured interface of an open device.
+    async fn attach(device: nusb::Device, config: &DeviceConfig) -> Result<Self, KMError> {
         // Detach kernel drivers from ALL interfaces
         // All 4 interfaces have kernel drivers on Linux:
         //   Interface 0: powerz (hwmon)
