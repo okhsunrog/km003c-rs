@@ -66,6 +66,8 @@ target_sdk_version = 33
 
 [package.metadata.android.application]
 label = "KM003C"
+# Light or dark system bar icons to match the system theme; see res/values*/.
+theme = "@style/Theme.KM003C"
 
 # Slint's backend-android-activity-06 runs inside NativeActivity; without an
 # explicit activity + LAUNCHER intent filter the app installs but has no icon.
