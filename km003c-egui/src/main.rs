@@ -1,7 +1,6 @@
 mod metric_color;
 mod offline_export;
 mod offline_view;
-mod pd_decoder;
 mod pd_trace_view;
 mod recording;
 
@@ -13,13 +12,12 @@ use km003c_lib::uom::si::energy::milliwatt_hour;
 use km003c_lib::uom::si::time::{millisecond, second};
 use km003c_lib::{
     DeviceState, GraphSampleRate, LogMetadata, MeasurementAccumulator, MeasurementSample, Metric, PdConnectionTracker,
-    Session, SessionEvent,
+    PdLogCategory, PdLogEntry, PdLogger, Session, SessionEvent,
     pd::{PdEventData, PdStatus},
 };
 use metric_color::MetricColor;
 use offline_export::{OfflineExportEvent, OfflineExportTask};
 use offline_view::OfflineRecordingView;
-use pd_decoder::{DecodedPdEntry, PdCategory, PdDecoder};
 use pd_trace_view::{PdTraceCategory, PdTraceEntry, decode_trace};
 use recording::{Recorder, RecordingEvent, RecordingFormat, RecordingMetadata, RecordingSummary};
 use std::collections::VecDeque;
@@ -35,7 +33,7 @@ enum PlotSource {
 }
 
 enum PdTimelineEntry<'a> {
-    Protocol(&'a DecodedPdEntry),
+    Protocol(&'a PdLogEntry),
     FirmwareTrace(&'a PdTraceEntry),
 }
 
@@ -49,7 +47,7 @@ impl PdTimelineEntry<'_> {
 }
 
 fn pd_timeline_entries<'a>(
-    protocol_log: &'a VecDeque<DecodedPdEntry>,
+    protocol_log: &'a VecDeque<PdLogEntry>,
     trace_log: &'a VecDeque<PdTraceEntry>,
     show_protocol: bool,
     show_trace: bool,
@@ -206,9 +204,9 @@ struct PowerMonitorApp {
     /// Data source currently rendered by the three plots
     plot_source: PlotSource,
     /// PD protocol decoder
-    pd_decoder: PdDecoder,
+    pd_decoder: PdLogger,
     /// Decoded PD log entries
-    pd_log: VecDeque<DecodedPdEntry>,
+    pd_log: VecDeque<PdLogEntry>,
     /// Max PD log entries
     max_pd_entries: usize,
     /// Current PD status
@@ -272,7 +270,7 @@ impl PowerMonitorApp {
             offline_status: "Catalog not loaded".to_string(),
             offline_export: None,
             plot_source: PlotSource::Live,
-            pd_decoder: PdDecoder::new(),
+            pd_decoder: PdLogger::new(),
             pd_log: VecDeque::new(),
             max_pd_entries: 1000,
             pd_status: None,
@@ -325,7 +323,7 @@ impl PowerMonitorApp {
                     self.offline_selected = None;
                     self.offline_status = "Catalog not loaded".to_string();
                     self.pd_connection = PdConnectionTracker::default();
-                    self.pd_decoder = PdDecoder::new();
+                    self.pd_decoder = PdLogger::new();
                     if self.pd_trace_enabled {
                         let _ = self.session.set_pd_trace_enabled(true);
                     }
@@ -397,12 +395,9 @@ impl PowerMonitorApp {
                             PdEventData::PdMessage { .. } => {}
                         }
 
-                        let entries = self.pd_decoder.decode_event(event);
-                        for entry in entries {
-                            self.pd_log.push_back(entry);
-                            while self.pd_log.len() > self.max_pd_entries {
-                                self.pd_log.pop_front();
-                            }
+                        self.pd_log.push_back(self.pd_decoder.log_event(event));
+                        while self.pd_log.len() > self.max_pd_entries {
+                            self.pd_log.pop_front();
                         }
                     }
                 }
@@ -471,7 +466,7 @@ impl PowerMonitorApp {
                     self.device_state = None;
                     self.pd_status = None;
                     self.pd_connection = PdConnectionTracker::default();
-                    self.pd_decoder = PdDecoder::new();
+                    self.pd_decoder = PdLogger::new();
                     self.offline_busy = false;
                     self.stop_recording();
                 }
@@ -1268,18 +1263,18 @@ impl PowerMonitorApp {
                                 match timeline_entry {
                                     PdTimelineEntry::Protocol(entry) => {
                                         let color = match entry.category {
-                                            PdCategory::Connect => egui::Color32::GREEN,
-                                            PdCategory::Disconnect => egui::Color32::RED,
-                                            PdCategory::SourceCaps => egui::Color32::from_rgb(100, 149, 237),
-                                            PdCategory::Request => egui::Color32::YELLOW,
-                                            PdCategory::Control => egui::Color32::GRAY,
-                                            PdCategory::Extended => egui::Color32::from_rgb(255, 165, 0),
-                                            PdCategory::Error => egui::Color32::from_rgb(255, 80, 80),
+                                            PdLogCategory::Connect => egui::Color32::GREEN,
+                                            PdLogCategory::Disconnect => egui::Color32::RED,
+                                            PdLogCategory::SourceCaps => egui::Color32::from_rgb(100, 149, 237),
+                                            PdLogCategory::Request => egui::Color32::YELLOW,
+                                            PdLogCategory::Control => egui::Color32::GRAY,
+                                            PdLogCategory::Extended => egui::Color32::from_rgb(255, 165, 0),
+                                            PdLogCategory::Error => egui::Color32::from_rgb(255, 80, 80),
                                         };
 
                                         ui.colored_label(
                                             color,
-                                            egui::RichText::new(format!("[WIRE] {}", entry.summary))
+                                            egui::RichText::new(format!("[WIRE] {}", entry.summary()))
                                                 .monospace()
                                                 .size(row_height),
                                         );
@@ -1447,10 +1442,12 @@ mod tests {
 
     #[test]
     fn pd_timeline_filters_and_orders_both_sources() {
-        let protocol_log = VecDeque::from([DecodedPdEntry {
+        let protocol_log = VecDeque::from([PdLogEntry {
             timestamp_seconds: 12.25,
-            category: PdCategory::Control,
-            summary: "wire".to_string(),
+            category: PdLogCategory::Control,
+            sop: Some(0),
+            title: "wire".to_string(),
+            header: None,
             details: Vec::new(),
         }]);
         let trace_log = VecDeque::from([PdTraceEntry {
