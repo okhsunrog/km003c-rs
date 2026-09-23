@@ -139,10 +139,16 @@ export component PlotWidget inherits Rectangle {
                     // 0.005 step needs three, where a fixed two repeated labels.
                     property <float> y-step: (root.y-max - root.y-min) / max(1, root.y-divisions);
                     property <int> y-decimals: clamp(ceil(-Math.log(self.y-step, 10)), 0, 4);
+                    // The axis can have a dozen divisions; on a short chart
+                    // their labels overlap. Label every n-th line so labels
+                    // stay at least 22px apart; the grid keeps every line.
+                    property <length> line-spacing: self.height / max(1, root.y-divisions);
+                    property <int> label-every: max(1, ceil(22px / max(1px, self.line-spacing)));
 
                     for i in (root.y-divisions + 1): Text {
                         property <float> y-val: root.y-max - i * (root.y-max - root.y-min) / root.y-divisions;
                         property <float> y-frac: i / root.y-divisions;
+                        visible: Math.mod(i, parent.label-every) == 0;
                         x: 0;
                         y: y-frac <= 0.0 ? 0px
                          : y-frac >= 1.0 ? parent.height - self.height

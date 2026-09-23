@@ -1,13 +1,25 @@
+import { ListView } from "std-widgets.slint";
 import {
-    Button,
-    CheckBox,
-    ComboBox,
-    HorizontalBox,
-    ListView,
-    Palette,
-    VerticalBox,
-} from "std-widgets.slint";
+    FilterChip,
+    MaterialPalette,
+    MaterialText,
+    MaterialTypography,
+    MaterialWindow,
+    NavigationBar,
+    SegmentedButton,
+    SmallAppBar,
+    TextButton,
+} from "@material";
 import { PlotWidget } from "@slint-realtime-plot/plot.slint";
+
+// Icons the Material library does not ship; see icons/README.md.
+global AppIcons {
+    out property <image> chart: @image-url("icons/show_chart.svg");
+    out property <image> bolt: @image-url("icons/bolt.svg");
+    out property <image> pause: @image-url("icons/pause.svg");
+    out property <image> play: @image-url("icons/play_arrow.svg");
+    out property <image> refresh: @image-url("icons/refresh.svg");
+}
 
 // One chart per quantity: they differ in units and range, so each has its own
 // auto-ranged Y axis. Time window, pause and pan are shared.
@@ -15,6 +27,38 @@ component Chart inherits PlotWidget {
     min-height: 120px;
     vertical-stretch: 1;
     x-divisions: 5;
+}
+
+// A Material surface that sizes to its content; the library's cards fill
+// their parent instead.
+component Surface inherits Rectangle {
+    background: MaterialPalette.surface_container_high;
+    border-radius: 12px;
+}
+
+// One live reading: a label over a large coloured value.
+component Readout inherits Surface {
+    in property <string> label;
+    in property <string> value;
+    in property <color> accent;
+
+    horizontal-stretch: 1;
+
+    VerticalLayout {
+        padding: 10px;
+        spacing: 2px;
+        MaterialText {
+            text: root.label;
+            style: MaterialTypography.label_medium;
+            color: MaterialPalette.on_surface_variant;
+        }
+
+        MaterialText {
+            text: root.value;
+            style: MaterialTypography.title_large;
+            color: root.accent;
+        }
+    }
 }
 
 // One PD log entry, as produced by km003c_lib::PdLogger.
@@ -53,59 +97,61 @@ component PdRowView inherits Rectangle {
     layout := HorizontalLayout {
         width: parent.width;
         height: parent.height;
-        padding-top: 4px;
-        padding-bottom: 4px;
-        spacing: 6px;
+        padding-top: 6px;
+        padding-bottom: 6px;
+        spacing: 8px;
 
         Rectangle {
             width: 4px;
+            border-radius: 2px;
             background: PdColors.category(root.entry.category);
         }
 
         VerticalLayout {
-            spacing: 1px;
+            spacing: 2px;
             HorizontalLayout {
                 spacing: 8px;
-                Text {
+                MaterialText {
                     text: root.entry.time;
-                    font-size: 11px;
-                    opacity: 0.6;
+                    style: MaterialTypography.label_small;
+                    color: MaterialPalette.on_surface_variant;
                     vertical-alignment: center;
                 }
                 // Fixed width so titles line up whether or not there is a SOP.
-                Text {
+                MaterialText {
                     text: root.entry.sop;
                     width: 36px;
-                    font-size: 11px;
-                    opacity: 0.6;
+                    style: MaterialTypography.label_small;
+                    color: MaterialPalette.on_surface_variant;
                     vertical-alignment: center;
                 }
 
-                Text {
+                MaterialText {
                     text: root.entry.title;
-                    font-weight: 600;
+                    style: MaterialTypography.title_small;
+                    color: MaterialPalette.on_surface;
                     horizontal-stretch: 1;
-                    overflow: elide;
                 }
                 // Drawn rather than typed: phone fonts lack the arrow glyphs.
                 if root.entry.details != "": Path {
                     width: 10px;
                     height: 10px;
                     commands: root.entry.expanded ? "M 0 2 L 10 2 L 5 9 Z" : "M 2 0 L 9 5 L 2 10 Z";
-                    fill: Palette.foreground;
-                    opacity: 0.5;
+                    fill: MaterialPalette.on_surface_variant;
                 }
             }
 
-            if root.entry.header != "": Text {
+            if root.entry.header != "": MaterialText {
                 text: root.entry.header;
-                font-size: 11px;
-                opacity: 0.6;
+                style: MaterialTypography.label_small;
+                color: MaterialPalette.on_surface_variant;
             }
-            if root.entry.expanded && root.entry.details != "": Text {
+            if root.entry.expanded && root.entry.details != "": MaterialText {
                 text: root.entry.details;
-                font-size: 12px;
+                style: MaterialTypography.body_small;
+                color: MaterialPalette.on_surface;
                 wrap: word-wrap;
+                overflow: clip;
             }
         }
     }
@@ -114,65 +160,17 @@ component PdRowView inherits Rectangle {
     Rectangle {
         y: parent.height - 1px;
         height: 1px;
-        background: Palette.border;
+        background: MaterialPalette.outline_variant;
     }
 
     TouchArea {
-        clicked => { root.toggled(); }
-    }
-}
-
-// One segment of the tab switcher.
-component Segment inherits Rectangle {
-    in property <string> text;
-    in property <bool> selected;
-    callback clicked();
-
-    border-radius: 7px;
-    background: root.selected ? Palette.accent-background : touch.pressed ? Palette.border : transparent;
-    animate background { duration: 120ms; }
-
-    Text {
-        text: root.text;
-        font-size: 15px;
-        font-weight: 600;
-        color: root.selected ? Palette.accent-foreground : Palette.foreground;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-        width: parent.width;
-        height: parent.height;
-    }
-
-    touch := TouchArea {
-        clicked => { root.clicked(); }
-    }
-}
-
-// Segmented tab switcher. Every segment sits on a shared framed track, so the
-// unselected one reads as a button too; the stock TabWidget left it looking
-// like plain text on light themes.
-component TabSwitcher inherits Rectangle {
-    in-out property <int> current;
-    in property <[string]> labels;
-
-    height: 42px;
-    border-radius: 10px;
-    border-width: 1px;
-    border-color: Palette.border;
-    background: Palette.alternate-background;
-
-    HorizontalLayout {
-        padding: 3px;
-        spacing: 3px;
-        for label[index] in root.labels: Segment {
-            text: label;
-            selected: root.current == index;
-            clicked => { root.current = index; }
+        clicked => {
+            root.toggled();
         }
     }
 }
 
-export component App inherits Window {
+export component App inherits MaterialWindow {
     // Per-chart render targets, read by Rust before each frame.
     out property <int> voltage-texture-width: voltage.requested-texture-width / 1phx;
     out property <int> voltage-texture-height: voltage.requested-texture-height / 1phx;
@@ -233,75 +231,90 @@ export component App inherits Window {
     preferred-width: 900px;
     preferred-height: 800px;
 
-    VerticalBox {
+    changed pd-hide-good-crc => {
+        root.pd-filter-changed(root.pd-hide-good-crc);
+    }
+
+    VerticalLayout {
         x: root.safe-area-insets.left;
         y: root.safe-area-insets.top;
         width: root.width - root.safe-area-insets.right - root.safe-area-insets.left;
         height: root.height - root.safe-area-insets.bottom - root.safe-area-insets.top;
 
-        VerticalLayout {
-            Text {
-                text: root.status;
-                font-weight: 600;
-            }
-
-            Text {
-                text: root.device;
-                opacity: 0.7;
-            }
-        }
-
-        // Controls get their own row so they fit a phone in portrait.
-        HorizontalBox {
-            padding: 0;
-            ComboBox {
-                horizontal-stretch: 1;
-                model: ["2 SPS", "10 SPS", "50 SPS", "1000 SPS"];
-                current-index <=> root.rate-index;
-                selected => { root.rate-selected(self.current-index); }
-            }
-
-            Button {
-                text: root.paused ? "Resume" : "Pause";
-                clicked => {
-                    root.paused = !root.paused;
-                    if (!root.paused) {
-                        root.view-offset = 0;
+        // Without a leading button the app bar puts its title flush against
+        // the screen edge.
+        HorizontalLayout {
+            padding-left: 12px;
+            SmallAppBar {
+                title: "KM003C";
+                trailing_buttons: [
+                    {
+                        icon: root.paused ? AppIcons.play : AppIcons.pause,
+                        tooltip: root.paused ? "Resume" : "Pause",
+                        enabled: true,
+                    },
+                    { icon: AppIcons.refresh, tooltip: "Reconnect", enabled: true },
+                ];
+                trailing_button_clicked(index) => {
+                    if (index == 0) {
+                        root.paused = !root.paused;
+                        if (!root.paused) {
+                            root.view-offset = 0;
+                        }
+                    } else {
+                        root.reconnect();
                     }
                 }
             }
-
-            Button {
-                text: "Reconnect";
-                clicked => { root.reconnect(); }
-            }
         }
 
-        HorizontalBox {
-            padding: 0;
-            alignment: space-around;
-            Text {
-                text: root.voltage-text;
-                font-size: 22px;
-                color: #22c55e;
+        VerticalLayout {
+            padding-left: 16px;
+            padding-right: 16px;
+            padding-bottom: 8px;
+            spacing: 10px;
+
+            VerticalLayout {
+                MaterialText {
+                    text: root.status;
+                    style: MaterialTypography.title_small;
+                }
+
+                MaterialText {
+                    text: root.device;
+                    style: MaterialTypography.body_small;
+                    color: MaterialPalette.on_surface_variant;
+                }
             }
 
-            Text {
-                text: root.current-text;
-                font-size: 22px;
-                color: #3b82f6;
+            HorizontalLayout {
+                spacing: 8px;
+                Readout {
+                    label: "Voltage";
+                    value: root.voltage-text;
+                    accent: #16a34a;
+                }
+
+                Readout {
+                    label: "Current";
+                    value: root.current-text;
+                    accent: #2563eb;
+                }
+
+                Readout {
+                    label: "Power";
+                    value: root.power-text;
+                    accent: #d97706;
+                }
             }
 
-            Text {
-                text: root.power-text;
-                font-size: 22px;
-                color: #f59e0b;
+            SegmentedButton {
+                items: [{ text: "2 SPS" }, { text: "10 SPS" }, { text: "50 SPS" }, { text: "1k SPS" }];
+                current_index <=> root.rate-index;
+                index_changed(index) => {
+                    root.rate-selected(index);
+                }
             }
-        }
-
-        TabSwitcher {
-            labels: ["Charts", "PD"];
-            current <=> root.tab;
         }
 
         // Both pages stay laid out, so the charts keep their texture size
@@ -313,6 +326,8 @@ export component App inherits Window {
                 visible: root.tab == 0;
                 width: parent.width;
                 height: parent.height;
+                padding-left: 8px;
+                padding-right: 8px;
                 spacing: 6px;
 
                 voltage := Chart {
@@ -357,10 +372,10 @@ export component App inherits Window {
                     available-samples: root.available-samples;
                 }
 
-                Text {
+                MaterialText {
                     text: root.quality-text;
-                    opacity: 0.6;
-                    font-size: 11px;
+                    style: MaterialTypography.label_small;
+                    color: MaterialPalette.on_surface_variant;
                 }
             }
 
@@ -368,38 +383,47 @@ export component App inherits Window {
                 visible: root.tab == 1;
                 width: parent.width;
                 height: parent.height;
-                spacing: 4px;
+                padding-left: 16px;
+                padding-right: 16px;
+                spacing: 8px;
 
-                Text {
-                    text: root.pd-sink;
-                    font-weight: 600;
-                }
+                Surface {
+                    VerticalLayout {
+                        padding: 12px;
+                        spacing: 4px;
+                        MaterialText {
+                            text: root.pd-sink;
+                            style: MaterialTypography.title_medium;
+                        }
 
-                Text {
-                    text: root.pd-lines;
-                    opacity: 0.8;
-                }
+                        MaterialText {
+                            text: root.pd-lines;
+                            style: MaterialTypography.body_small;
+                            color: MaterialPalette.on_surface_variant;
+                        }
 
-                Text {
-                    text: "Contract: " + root.pd-contract;
-                    wrap: word-wrap;
+                        MaterialText {
+                            text: "Contract: " + root.pd-contract;
+                            style: MaterialTypography.body_medium;
+                            wrap: word-wrap;
+                            overflow: clip;
+                        }
+                    }
                 }
 
                 HorizontalLayout {
                     spacing: 8px;
-                    CheckBox {
+                    alignment: space-between;
+                    FilterChip {
                         text: "Hide GoodCRC";
                         checked <=> root.pd-hide-good-crc;
-                        toggled => { root.pd-filter-changed(self.checked); }
                     }
 
-                    Rectangle {
-                        horizontal-stretch: 1;
-                    }
-
-                    Button {
+                    TextButton {
                         text: "Clear";
-                        clicked => { root.pd-clear(); }
+                        clicked => {
+                            root.pd-clear();
+                        }
                     }
                 }
 
@@ -421,10 +445,20 @@ export component App inherits Window {
 
                     for row[index] in root.pd-rows: PdRowView {
                         entry: row;
-                        toggled => { root.pd-row-toggled(index); }
+                        toggled => {
+                            root.pd-row-toggled(index);
+                        }
                     }
                 }
             }
+        }
+
+        NavigationBar {
+            items: [
+                { icon: AppIcons.chart, selected_icon: AppIcons.chart, text: "Charts" },
+                { icon: AppIcons.bolt, selected_icon: AppIcons.bolt, text: "PD" },
+            ];
+            current_index <=> root.tab;
         }
     }
 }
