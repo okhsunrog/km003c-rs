@@ -56,19 +56,26 @@ that branch at a fixed revision. The rest of the stack is unchanged: the
 session finds the device, opens it and reconnects as on desktop, without a
 USB reset, which would need a fresh permission grant.
 
-Build with [cargo-apk2](https://crates.io/crates/cargo-apk2):
+Build with [cargo-rapk](https://github.com/mlm-games/cargo-rapk), which unlike
+cargo-apk compiles the Java in `java/` into the APK. It reads the system's
+dynamic colours there, in one JNI call, with names `javac` checks against the
+SDK. Upstream cannot yet write a `meta-data` element with a `resource`, which
+the USB device filter needs, so install it from the fork until that lands:
 
 ```bash
 rustup target add aarch64-linux-android
-cargo install cargo-apk2
+cargo install --git https://github.com/okhsunrog/cargo-rapk --branch meta-data-resource cargo-rapk
 
 export ANDROID_HOME="$HOME/Android/Sdk"
 export ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/<version>"
+# Slint's Android backend compiles its Java helper with -source 8, which JDKs
+# after 21 reject.
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk
 
 cd km003c-slint
-CARGO_APK_RELEASE_KEYSTORE=$HOME/.android/debug.keystore \
-CARGO_APK_RELEASE_KEYSTORE_PASSWORD=android \
-cargo apk2 build --release --lib --no-default-features --features android
+CARGO_RAPK_RELEASE_KEYSTORE=$HOME/.android/debug.keystore \
+CARGO_RAPK_RELEASE_KEYSTORE_PASSWORD=android \
+cargo rapk build --release --lib --no-default-features --features android
 
 adb install -r target/release/apk/km003c-slint.apk
 ```
@@ -76,6 +83,9 @@ adb install -r target/release/apk/km003c-slint.apk
 If `~/.cargo/config.toml` sets `build.build-dir`, prefix the build with
 `CARGO_BUILD_BUILD_DIR=$PWD/target`; otherwise packaging fails with a bare
 `No such file or directory`.
+
+On Android 14 and later the Material palette follows the system's dynamic
+(wallpaper) colours; earlier releases keep the library's default palette.
 
 On first attach Android asks whether to open the app for the KM003C. Tick
 "Always": a permission requested at runtime lasts only until the device is

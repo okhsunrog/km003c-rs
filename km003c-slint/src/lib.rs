@@ -6,6 +6,7 @@
 
 slint::include_modules!();
 
+mod dynamic_colors;
 mod pd;
 
 use std::cell::Cell;
@@ -69,6 +70,11 @@ fn rate_hz(rate: GraphSampleRate) -> f32 {
 }
 
 pub fn main() {
+    run(|_| {});
+}
+
+/// Run the app; `customize` adjusts the window before it is shown.
+fn run(customize: impl FnOnce(&App)) {
     #[cfg(not(target_os = "android"))]
     tracing_subscriber::fmt::init();
 
@@ -84,6 +90,7 @@ pub fn main() {
         .expect("Unable to create Slint backend with WGPU renderer");
 
     let app = App::new().expect("failed to create the window");
+    customize(&app);
     app.set_capacity(CAPACITY as i32);
     app.set_rate_index(INITIAL_RATE_INDEX as i32);
     app.set_sample_rate(rate_hz(RATES[INITIAL_RATE_INDEX]));
@@ -491,6 +498,6 @@ fn android_main(app: slint::android::AndroidApp) {
     use slint::android::android_activity::WindowManagerFlags;
     app.set_window_flags(WindowManagerFlags::KEEP_SCREEN_ON, WindowManagerFlags::empty());
 
-    slint::android::init(app).expect("failed to initialize the Slint Android backend");
-    main();
+    slint::android::init(app.clone()).expect("failed to initialize the Slint Android backend");
+    run(|ui| dynamic_colors::apply(ui, &app));
 }

@@ -12,6 +12,9 @@ import {
 } from "@material";
 import { PlotWidget } from "@slint-realtime-plot/plot.slint";
 
+// Re-exported so Rust can install the system's dynamic colours on Android.
+export { MaterialPalette, MaterialScheme, MaterialSchemes } from "@material";
+
 // Icons the Material library does not ship; see icons/README.md.
 global AppIcons {
     out property <image> chart: @image-url("icons/show_chart.svg");

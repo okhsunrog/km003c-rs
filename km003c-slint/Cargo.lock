@@ -2669,6 +2669,7 @@ dependencies = [
 name = "km003c-slint"
 version = "0.1.0"
 dependencies = [
+ "jni 0.22.4",
  "km003c-lib",
  "paranoid-android",
  "slint",

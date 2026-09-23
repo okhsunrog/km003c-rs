@@ -7,7 +7,10 @@ fn main() {
     // component set.
     let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let library_paths = HashMap::from([
-        ("slint-realtime-plot".to_string(), manifest.join("slint-realtime-plot/ui")),
+        (
+            "slint-realtime-plot".to_string(),
+            manifest.join("slint-realtime-plot/ui"),
+        ),
         ("material".to_string(), manifest.join("material/material.slint")),
     ]);
     slint_build::compile_with_config(
