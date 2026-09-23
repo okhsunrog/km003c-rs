@@ -47,6 +47,18 @@ features = ["python"]
 # License-File entries are missing from the archive, so name them explicitly.
 include = ["LICENSE-APACHE", "LICENSE-MIT"]
 
+[tool.uv]
+# uv reinstalls this project from its build cache on every `uv run`, and by
+# default only pyproject.toml invalidates that cache. Without the Rust sources
+# listed here, `uv run pytest` silently tests a stale build of the extension.
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "Cargo.lock" },
+    { file = "km003c-lib/Cargo.toml" },
+    { file = "km003c-lib/src/**/*.rs" },
+]
+
 [dependency-groups]
 dev = [
     "maturin>=1.15.0",
