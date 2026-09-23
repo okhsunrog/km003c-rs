@@ -9,7 +9,7 @@
 //! yourself and hand it over with [`Session::connect_device`].
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures_util::StreamExt;
 use thiserror::Error;
@@ -24,6 +24,12 @@ use crate::{AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C, 
 
 /// Consecutive request failures that end a streaming session.
 const MAX_ERRORS: u32 = 10;
+
+/// How long streaming may go without AdcQueue samples before it is restarted.
+/// The firmware stops streaming on its own when it is not polled for a while,
+/// such as while a phone sleeps, yet keeps answering PD requests. At the
+/// slowest rate a sample is due every 0.5 s.
+const STALL_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// What the session task reports to the front end.
 #[derive(Debug, Clone)]
@@ -341,6 +347,7 @@ async fn stream(
     let mut pd_trace_enabled = false;
     let mut reconnect_when_present = false;
     let mut terminal_error = None;
+    let mut last_samples = Instant::now();
 
     loop {
         // Check for commands from the UI (non-blocking)
@@ -349,20 +356,14 @@ async fn stream(
                 if new_rate != current_rate {
                     info!("Changing sample rate to {:?}", new_rate);
 
-                    if let Err(error) = device.stop_graph_mode().await {
-                        reconnect_when_present = is_device_disconnect(&error);
-                        terminal_error = Some(format!("Failed to stop streaming for rate change: {error}"));
-                        break;
-                    }
-                    let _ = tx.send(SessionEvent::StreamingStopped);
-
-                    if let Err(e) = start_streaming(&mut device, new_rate, tx).await {
+                    if let Err(e) = restart_streaming(&mut device, new_rate, tx).await {
                         error!("Failed to restart streaming: {}", e);
                         reconnect_when_present = is_device_disconnect(&e);
                         terminal_error = Some(format!("Restart failed: {e}"));
                         break;
                     }
                     current_rate = new_rate;
+                    last_samples = Instant::now();
                 }
             }
             Ok(SessionCommand::SetPdTraceEnabled(enabled)) => {
@@ -398,6 +399,7 @@ async fn stream(
                     ));
                     break;
                 }
+                last_samples = Instant::now();
             }
             Ok(SessionCommand::DownloadOfflineLog(metadata)) => {
                 info!(
@@ -427,6 +429,7 @@ async fn stream(
                     terminal_error = Some(format!("Failed to resume streaming after offline download: {error}"));
                     break;
                 }
+                last_samples = Instant::now();
             }
             Ok(SessionCommand::Disconnect) => {
                 info!("Disconnect command received");
@@ -454,10 +457,24 @@ async fn stream(
                     && !queue_data.samples.is_empty()
                 {
                     debug!("Received {} samples", queue_data.samples.len());
+                    last_samples = Instant::now();
                     if tx.send(SessionEvent::Samples(queue_data.samples.clone())).is_err() {
                         warn!("UI closed, stopping");
                         break;
                     }
+                } else if last_samples.elapsed() >= STALL_TIMEOUT {
+                    warn!(
+                        "No AdcQueue samples for {:.1} s, restarting streaming",
+                        last_samples.elapsed().as_secs_f32()
+                    );
+                    if let Err(e) = restart_streaming(&mut device, current_rate, tx).await {
+                        // After a phone sleep the firmware rejects StartGraph
+                        // too; a fresh connection authenticates again.
+                        warn!("Failed to restart stalled streaming, reconnecting: {e}");
+                        reconnect_when_present = true;
+                        break;
+                    }
+                    last_samples = Instant::now();
                 }
 
                 if let Some(stream) = packet.get_pd_events() {
@@ -525,6 +542,16 @@ async fn start_streaming(
     device.start_graph_mode(rate).await?;
     let _ = tx.send(SessionEvent::StreamingStarted(rate));
     Ok(())
+}
+
+async fn restart_streaming(
+    device: &mut KM003C,
+    rate: GraphSampleRate,
+    tx: &mpsc::UnboundedSender<SessionEvent>,
+) -> Result<(), KMError> {
+    device.stop_graph_mode().await?;
+    let _ = tx.send(SessionEvent::StreamingStopped);
+    start_streaming(device, rate, tx).await
 }
 
 #[cfg(test)]

@@ -1357,6 +1357,10 @@ impl KM003C {
     /// **Requires Full mode** (vendor interface). Will return error in Basic mode.
     ///
     /// Returns device to normal ADC polling mode.
+    ///
+    /// The firmware rejects StopGraph when it is not streaming, for example
+    /// after it stopped on its own because nobody polled it. That rejection is
+    /// treated as already stopped.
     pub async fn stop_graph_mode(&mut self) -> Result<(), KMError> {
         if self.is_basic_mode() {
             return Err(KMError::Protocol(
@@ -1365,7 +1369,15 @@ impl KM003C {
         }
 
         let id = self.send_tracked(Packet::StopGraph).await?;
-        self.expect_accept(id, "StopGraph").await?;
+        match self.receive_control_response(id).await? {
+            Packet::Accept { .. } => {}
+            Packet::Reject { .. } => debug!("StopGraph rejected, the device was not streaming"),
+            other => {
+                return Err(KMError::Protocol(format!(
+                    "Expected Accept for StopGraph, got {other:?}"
+                )));
+            }
+        }
         self.graph_sample_rate = None;
         Ok(())
     }
