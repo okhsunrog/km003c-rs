@@ -2475,10 +2475,8 @@ version = "0.4.0"
 dependencies = [
  "eframe",
  "egui_plot",
- "futures-util",
  "hex",
  "km003c-lib",
- "nusb",
  "polars",
  "rfd",
  "tokio",
