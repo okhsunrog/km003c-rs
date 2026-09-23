@@ -299,16 +299,16 @@ thread_local! {
     static PD_ROWS: Cell<Option<Rc<VecModel<PdRow>>>> = const { Cell::new(None) };
 }
 
-/// Add new PD rows at the top of the log.
+/// Append new PD rows to the log, dropping the oldest past the limit.
 fn apply_pd_update(app: &slint::Weak<App>, update: pd::PdUpdate) {
     let _ = app.upgrade_in_event_loop(move |app| {
         let rows = PD_ROWS.take();
         if let Some(model) = &rows {
             for row in update.rows {
-                model.insert(0, row);
+                model.push(row);
             }
             while model.row_count() > pd::MAX_ROWS {
-                model.remove(model.row_count() - 1);
+                model.remove(0);
             }
         }
         PD_ROWS.set(rows);
@@ -486,6 +486,11 @@ fn android_main(app: slint::android::AndroidApp) {
             .with(paranoid_android::layer("km003c").with_ansi(false).with_filter(filter))
             .init();
     });
+    // A meter is watched rather than touched, so keep the screen on while the
+    // app is in front. The flag only affects this window.
+    use slint::android::android_activity::WindowManagerFlags;
+    app.set_window_flags(WindowManagerFlags::KEEP_SCREEN_ON, WindowManagerFlags::empty());
+
     slint::android::init(app).expect("failed to initialize the Slint Android backend");
     main();
 }

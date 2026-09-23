@@ -10,7 +10,7 @@ use km003c_lib::{PdConnectionTracker, PdLogCategory, PdLogEntry, PdLogger};
 
 use crate::PdRow;
 
-/// Rows kept in the log; older ones drop off the end.
+/// Rows kept in the log; the oldest drop off the start.
 pub const MAX_ROWS: usize = 500;
 
 /// What a batch of PD events changes in the UI.

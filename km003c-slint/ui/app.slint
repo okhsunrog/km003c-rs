@@ -219,7 +219,7 @@ export component App inherits Window {
     // 0: charts, 1: PD.
     in-out property <int> tab: 0;
 
-    // PD tab. Rows are newest first, already filtered by pd-hide-good-crc.
+    // PD tab. Rows are oldest first, already filtered by pd-hide-good-crc.
     in property <[PdRow]> pd-rows;
     in-out property <bool> pd-hide-good-crc: true;
     callback pd-filter-changed(bool);
@@ -404,7 +404,21 @@ export component App inherits Window {
                 }
 
                 ListView {
+                    // Follow new rows while scrolled to the end; stay put
+                    // while reading older ones.
+                    property <bool> follow: true;
+                    property <length> end-y: min(0px, self.visible-height - self.content-height);
+
                     vertical-stretch: 1;
+                    changed content-y => {
+                        self.follow = self.content-y <= self.end-y + 24px;
+                    }
+                    changed content-height => {
+                        if (self.follow) {
+                            self.content-y = self.end-y;
+                        }
+                    }
+
                     for row[index] in root.pd-rows: PdRowView {
                         entry: row;
                         toggled => { root.pd-row-toggled(index); }
