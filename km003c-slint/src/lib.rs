@@ -33,7 +33,8 @@ const READOUT_INTERVAL: Duration = Duration::from_millis(100);
 const USB_RESET: bool = !cfg!(any(target_os = "android", target_os = "macos"));
 
 /// Charts in display order: voltage, current, power.
-const CHART_METRICS: [Metric; 3] = [Metric::Voltage, Metric::SignedCurrent, Metric::SignedPower];
+/// Current and power are absolute, as in the egui app's default plots.
+const CHART_METRICS: [Metric; 3] = [Metric::Voltage, Metric::Current, Metric::Power];
 const CHART_COLORS: [[f32; 4]; 3] = [
     [0.133, 0.773, 0.369, 1.0], // #22c55e
     [0.231, 0.510, 0.965, 1.0], // #3b82f6
@@ -239,9 +240,10 @@ fn update_ui(app: &slint::Weak<App>, readout: Readout) {
             app.set_view_offset(0);
         }
         if let Some(sample) = readout.measurement {
-            app.set_voltage_text(format!("{:.3} V", Metric::Voltage.value(&sample)).into());
-            app.set_current_text(format!("{:.3} A", Metric::SignedCurrent.value(&sample)).into());
-            app.set_power_text(format!("{:.3} W", Metric::SignedPower.value(&sample)).into());
+            let [voltage, current, power] = CHART_METRICS.map(|metric| metric.value(&sample));
+            app.set_voltage_text(format!("{voltage:.3} V").into());
+            app.set_current_text(format!("{current:.3} A").into());
+            app.set_power_text(format!("{power:.3} W").into());
             app.set_quality_text(
                 format!(
                     "{:.1} s · {} samples · {} missing · {} discarded",
@@ -382,7 +384,21 @@ fn android_main(app: slint::android::AndroidApp) {
     // switch, calling android_main again in the same process. The tracing
     // subscriber is process-global and panics if installed twice.
     static LOGGING: std::sync::Once = std::sync::Once::new();
-    LOGGING.call_once(|| paranoid_android::init("km003c"));
+    LOGGING.call_once(|| {
+        use tracing_subscriber::layer::SubscriberExt as _;
+        use tracing_subscriber::util::SubscriberInitExt as _;
+        use tracing_subscriber::{Layer as _, filter::LevelFilter, filter::Targets};
+
+        // Debug and trace log every USB packet, hundreds per second at 1000 SPS.
+        // nusb warns on every connection that Android refuses zero-copy
+        // buffers, then falls back to ordinary ones.
+        let filter = Targets::new()
+            .with_default(LevelFilter::INFO)
+            .with_target("nusb", LevelFilter::ERROR);
+        tracing_subscriber::registry()
+            .with(paranoid_android::layer("km003c").with_ansi(false).with_filter(filter))
+            .init();
+    });
     slint::android::init(app).expect("failed to initialize the Slint Android backend");
     main();
 }
