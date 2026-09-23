@@ -3,7 +3,7 @@ use std::sync::Arc;
 use km003c_lib::uom::si::power::microwatt;
 use km003c_lib::{OfflineLog, OfflineLogSample};
 
-use crate::measurement::PlotMetric;
+use km003c_lib::Metric;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct OfflineViewSample {
@@ -23,18 +23,18 @@ impl OfflineViewSample {
         self.elapsed_us as f64 / 1_000_000.0
     }
 
-    pub(crate) fn metric_value(self, metric: PlotMetric) -> Option<f64> {
+    pub(crate) fn metric_value(self, metric: Metric) -> Option<f64> {
         match metric {
-            PlotMetric::Voltage => Some(self.vbus_uv as f64 / 1_000_000.0),
-            PlotMetric::Current => Some((self.ibus_ua as f64 / 1_000_000.0).abs()),
-            PlotMetric::SignedCurrent => Some(self.ibus_ua as f64 / 1_000_000.0),
-            PlotMetric::Power => Some((self.power_uw as f64 / 1_000_000.0).abs()),
-            PlotMetric::SignedPower => Some(self.power_uw as f64 / 1_000_000.0),
-            PlotMetric::Charge => Some(self.charge_throughput_uah / 1_000.0),
-            PlotMetric::SignedCharge => Some(self.charge_uah / 1_000.0),
-            PlotMetric::Energy => Some(self.energy_throughput_uwh / 1_000.0),
-            PlotMetric::SignedEnergy => Some(self.energy_uwh / 1_000.0),
-            PlotMetric::Cc1 | PlotMetric::Cc2 | PlotMetric::DPlus | PlotMetric::DMinus => None,
+            Metric::Voltage => Some(self.vbus_uv as f64 / 1_000_000.0),
+            Metric::Current => Some((self.ibus_ua as f64 / 1_000_000.0).abs()),
+            Metric::SignedCurrent => Some(self.ibus_ua as f64 / 1_000_000.0),
+            Metric::Power => Some((self.power_uw as f64 / 1_000_000.0).abs()),
+            Metric::SignedPower => Some(self.power_uw as f64 / 1_000_000.0),
+            Metric::Charge => Some(self.charge_throughput_uah / 1_000.0),
+            Metric::SignedCharge => Some(self.charge_uah / 1_000.0),
+            Metric::Energy => Some(self.energy_throughput_uwh / 1_000.0),
+            Metric::SignedEnergy => Some(self.energy_uwh / 1_000.0),
+            Metric::Cc1 | Metric::Cc2 | Metric::DPlus | Metric::DMinus => None,
         }
     }
 }
@@ -145,7 +145,7 @@ mod tests {
         assert_eq!(view.samples[0].ibus_ua, -1_904_607);
         assert_eq!(view.samples[0].charge_throughput_uah, 5_290.0);
         assert_eq!(view.samples[2].charge_throughput_uah, 810_335.0);
-        assert!(view.samples[0].metric_value(PlotMetric::Cc1).is_none());
+        assert!(view.samples[0].metric_value(Metric::Cc1).is_none());
     }
 
     #[test]
@@ -154,7 +154,7 @@ mod tests {
 
         assert_eq!(view.samples[0].energy_throughput_uwh, 26_439.0);
         assert_eq!(view.samples[2].energy_throughput_uwh, 5_747_232.0);
-        assert_eq!(view.samples[2].metric_value(PlotMetric::Energy), Some(5_747.232));
-        assert_eq!(view.samples[2].metric_value(PlotMetric::SignedEnergy), Some(-5_747.232));
+        assert_eq!(view.samples[2].metric_value(Metric::Energy), Some(5_747.232));
+        assert_eq!(view.samples[2].metric_value(Metric::SignedEnergy), Some(-5_747.232));
     }
 }

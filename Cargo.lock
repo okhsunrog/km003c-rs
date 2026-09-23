@@ -2493,6 +2493,7 @@ dependencies = [
  "aes",
  "bytes",
  "crc32fast",
+ "futures-util",
  "hex",
  "modular-bitfield",
  "num_enum",
