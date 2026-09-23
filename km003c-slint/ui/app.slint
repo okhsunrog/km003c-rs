@@ -239,7 +239,8 @@ export component App inherits MaterialWindow {
         x: root.safe-area-insets.left;
         y: root.safe-area-insets.top;
         width: root.width - root.safe-area-insets.right - root.safe-area-insets.left;
-        height: root.height - root.safe-area-insets.bottom - root.safe-area-insets.top;
+        // Runs to the bottom edge; a strip below the bottom bar fills the inset.
+        height: root.height - root.safe-area-insets.top;
 
         // Compact top bar: the status lines take the place of an app title,
         // which saves a row of vertical space on a phone.
@@ -463,6 +464,13 @@ export component App inherits MaterialWindow {
                 { icon: AppIcons.bolt, selected_icon: AppIcons.bolt, text: "PD" },
             ];
             current_index <=> root.tab;
+        }
+
+        // Edge to edge: the bar's surface continues under the system
+        // navigation, in the bar's own colour.
+        Rectangle {
+            height: root.safe-area-insets.bottom;
+            background: MaterialPalette.surface_container;
         }
     }
 }
