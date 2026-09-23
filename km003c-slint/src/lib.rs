@@ -6,12 +6,17 @@
 
 slint::include_modules!();
 
+mod pd;
+
+use std::cell::Cell;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use km003c_lib::{GraphSampleRate, MeasurementAccumulator, MeasurementSample, Metric, Session, SessionEvent};
 use slint::wgpu_30::WGPUConfiguration;
+use slint::{FilterModel, Model, VecModel};
 use slint_realtime_plot::{PlotBuffer, PlotConfig, PlotRenderer, required_wgpu_settings};
 use tokio::sync::mpsc;
 use tracing::{info, warn};
@@ -27,6 +32,8 @@ const RATES: [GraphSampleRate; 4] = [
 const INITIAL_RATE_INDEX: usize = 2;
 const RECONNECT_DELAY: Duration = Duration::from_secs(1);
 const READOUT_INTERVAL: Duration = Duration::from_millis(100);
+/// PD status arrives with every poll; the CC readout does not need that rate.
+const PD_STATUS_INTERVAL: Duration = Duration::from_millis(250);
 
 /// A USB reset re-enumerates the device. On Android that would need a new
 /// permission grant, and macOS handles it badly, so only reset elsewhere.
@@ -108,6 +115,34 @@ pub fn main() {
             let _ = session.connect(RATES[INITIAL_RATE_INDEX], USB_RESET);
         });
     }
+
+    // Every row is kept; the view filters out GoodCRC while the box is ticked.
+    let pd_rows = Rc::new(VecModel::<PdRow>::default());
+    PD_ROWS.set(Some(pd_rows.clone()));
+    let hide_good_crc = Rc::new(Cell::new(app.get_pd_hide_good_crc()));
+    let visible_rows = Rc::new(FilterModel::new(pd_rows.clone(), {
+        let hide_good_crc = hide_good_crc.clone();
+        move |row: &PdRow| !(hide_good_crc.get() && row.good_crc)
+    }));
+    app.set_pd_rows(visible_rows.clone().into());
+    {
+        let visible_rows = visible_rows.clone();
+        app.on_pd_filter_changed(move |hide| {
+            hide_good_crc.set(hide);
+            visible_rows.reset();
+        });
+    }
+    {
+        let pd_rows = pd_rows.clone();
+        app.on_pd_clear(move || pd_rows.set_vec(Vec::new()));
+    }
+    app.on_pd_row_toggled(move |index| {
+        let source = visible_rows.unfiltered_row(index as usize);
+        if let Some(mut row) = pd_rows.row_data(source) {
+            row.expanded = !row.expanded;
+            pd_rows.set_row_data(source, row);
+        }
+    });
 
     install_renderer(&app, buffers);
     app.run().expect("event loop failed");
@@ -259,6 +294,37 @@ fn update_ui(app: &slint::Weak<App>, readout: Readout) {
     });
 }
 
+thread_local! {
+    /// The unfiltered PD log, owned by the UI thread.
+    static PD_ROWS: Cell<Option<Rc<VecModel<PdRow>>>> = const { Cell::new(None) };
+}
+
+/// Append new PD rows to the log, dropping the oldest past the limit.
+fn apply_pd_update(app: &slint::Weak<App>, update: pd::PdUpdate) {
+    let _ = app.upgrade_in_event_loop(move |app| {
+        let rows = PD_ROWS.take();
+        if let Some(model) = &rows {
+            for row in update.rows {
+                model.push(row);
+            }
+            while model.row_count() > pd::MAX_ROWS {
+                model.remove(0);
+            }
+        }
+        PD_ROWS.set(rows);
+        if let Some(contract) = update.contract {
+            app.set_pd_contract(contract.into());
+        }
+    });
+}
+
+fn set_pd_status(app: &slint::Weak<App>, sink: String, lines: String) {
+    let _ = app.upgrade_in_event_loop(move |app| {
+        app.set_pd_sink(sink.into());
+        app.set_pd_lines(lines.into());
+    });
+}
+
 /// Turn session events into plot samples and UI updates.
 async fn pump_events(
     mut events: mpsc::UnboundedReceiver<SessionEvent>,
@@ -269,6 +335,8 @@ async fn pump_events(
     let mut accumulator = MeasurementAccumulator::default();
     let mut rate = RATES[INITIAL_RATE_INDEX];
     let mut last_readout = Instant::now() - READOUT_INTERVAL;
+    let mut pd = pd::PdState::default();
+    let mut last_pd_status = Instant::now() - PD_STATUS_INTERVAL;
     let status = |text: String| Readout {
         status: Some(text),
         ..Readout::default()
@@ -327,8 +395,18 @@ async fn pump_events(
                     },
                 );
             }
+            SessionEvent::PdEvents(events) => apply_pd_update(&app, pd.events(&events, Instant::now())),
+            SessionEvent::PdStatusUpdate(status) => {
+                let now = Instant::now();
+                let (sink, lines) = pd.status(&status, now);
+                if now.duration_since(last_pd_status) >= PD_STATUS_INTERVAL {
+                    last_pd_status = now;
+                    set_pd_status(&app, sink, lines);
+                }
+            }
             SessionEvent::Connected(state) => {
                 info!("Connected to {} (FW {})", state.model(), state.firmware_version());
+                pd.reset();
                 update_ui(
                     &app,
                     Readout {
@@ -356,6 +434,15 @@ async fn pump_events(
             }
             SessionEvent::Disconnected { retry_when_present } => {
                 update_ui(&app, status("Disconnected".to_string()));
+                pd.reset();
+                set_pd_status(&app, "—".to_string(), "—".to_string());
+                apply_pd_update(
+                    &app,
+                    pd::PdUpdate {
+                        rows: Vec::new(),
+                        contract: Some("—".to_string()),
+                    },
+                );
                 if retry_when_present {
                     schedule_reconnect(&session, rate);
                 }
@@ -399,6 +486,11 @@ fn android_main(app: slint::android::AndroidApp) {
             .with(paranoid_android::layer("km003c").with_ansi(false).with_filter(filter))
             .init();
     });
+    // A meter is watched rather than touched, so keep the screen on while the
+    // app is in front. The flag only affects this window.
+    use slint::android::android_activity::WindowManagerFlags;
+    app.set_window_flags(WindowManagerFlags::KEEP_SCREEN_ON, WindowManagerFlags::empty());
+
     slint::android::init(app).expect("failed to initialize the Slint Android backend");
     main();
 }

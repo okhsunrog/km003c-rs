@@ -32,7 +32,7 @@ desktop = ["slint/backend-winit", "slint/renderer-skia"]
 android = ["slint/backend-android-activity-06"]
 
 [dependencies]
-km003c-lib = { version = "0.4.0", path = "../km003c-lib" }
+km003c-lib = { version = "0.4.0", path = "../km003c-lib", features = ["usbpd"] }
 slint = { workspace = true, features = ["accessibility"] }
 slint-realtime-plot = { path = "slint-realtime-plot" }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "time", "sync", "macros"] }

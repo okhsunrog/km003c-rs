@@ -5,8 +5,9 @@ KM003C. It runs on desktop and on Android phones with USB host support, with
 the meter plugged into the phone.
 
 <p align="center">
-  <img alt="km003c-slint on Android, light theme" src="../assets/km003c-slint-android-light.png" width="45%">
-  <img alt="km003c-slint on Android, dark theme" src="../assets/km003c-slint-android-dark.png" width="45%">
+  <img alt="km003c-slint on Android, charts in the light theme" src="../assets/km003c-slint-android-light.png" width="30%">
+  <img alt="km003c-slint on Android, charts in the dark theme" src="../assets/km003c-slint-android-dark.png" width="30%">
+  <img alt="km003c-slint on Android, PD tab" src="../assets/km003c-slint-android-pd.png" width="30%">
 </p>
 
 It plots voltage, current and power from the AdcQueue stream at 2, 10, 50 or
@@ -25,9 +26,16 @@ breaks in the line rather than being joined across.
   arriving.
 - The device reconnects on its own when it is replugged.
 - The status line counts received, missing and discarded samples.
+- On Android the screen stays on while the app is in front.
+
+The PD tab shows whether a sink is attached, the CC1/CC2 and VBUS readings,
+the power contract as the negotiation establishes it, and the PD message log
+in time order. Tapping a message expands its PDOs or RDO; GoodCRC
+acknowledgements are hidden by default. The log uses `pd_log` from
+`km003c-lib`, the same formatter as the egui timeline.
 
 Not yet ported from `km003c-egui`: recording to Parquet/CSV, offline logs, the
-PD timeline, and metric selection per chart.
+firmware PD trace, and metric selection per chart.
 
 ## Desktop
 

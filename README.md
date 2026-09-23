@@ -84,15 +84,19 @@ A second GUI built with [Slint](https://slint.dev) that also runs on Android
 phones, with the meter plugged into the phone:
 - Live voltage, current and power charts rendered on the GPU, at up to 1000 SPS
 - Pinch or scroll to zoom, double tap to pause, drag to pan through history
+- PD tab with sink detection, CC readings, the negotiated contract and the
+  PD message log
 - Automatic reconnection when the device is replugged
-- Shares the device session and measurement stream with `km003c-egui`
+- Shares the device session, measurement stream and PD log formatter with
+  `km003c-egui`
 
-It lacks recording, offline logs and the PD timeline so far. See
+It lacks recording, offline logs and the firmware PD trace so far. See
 [`km003c-slint/README.md`](km003c-slint/README.md) for the Android build.
 
 <p align="center">
-  <img alt="km003c-slint on Android, light theme" src="assets/km003c-slint-android-light.png" width="35%">
-  <img alt="km003c-slint on Android, dark theme" src="assets/km003c-slint-android-dark.png" width="35%">
+  <img alt="km003c-slint on Android, charts in the light theme" src="assets/km003c-slint-android-light.png" width="30%">
+  <img alt="km003c-slint on Android, charts in the dark theme" src="assets/km003c-slint-android-dark.png" width="30%">
+  <img alt="km003c-slint on Android, PD tab" src="assets/km003c-slint-android-pd.png" width="30%">
 </p>
 
 ### Python Bindings

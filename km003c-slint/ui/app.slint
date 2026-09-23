@@ -1,4 +1,12 @@
-import { Button, ComboBox, HorizontalBox, VerticalBox } from "std-widgets.slint";
+import {
+    Button,
+    CheckBox,
+    ComboBox,
+    HorizontalBox,
+    ListView,
+    Palette,
+    VerticalBox,
+} from "std-widgets.slint";
 import { PlotWidget } from "@slint-realtime-plot/plot.slint";
 
 // One chart per quantity: they differ in units and range, so each has its own
@@ -7,6 +15,161 @@ component Chart inherits PlotWidget {
     min-height: 120px;
     vertical-stretch: 1;
     x-divisions: 5;
+}
+
+// One PD log entry, as produced by km003c_lib::PdLogger.
+export struct PdRow {
+    time: string,
+    sop: string,
+    title: string,
+    header: string,
+    details: string,
+    // km003c_lib::PdLogCategory, in declaration order.
+    category: int,
+    good-crc: bool,
+    expanded: bool,
+}
+
+global PdColors {
+    // Readable on both light and dark backgrounds.
+    public pure function category(category: int) -> color {
+        if (category == 0) { return #22c55e; } // Connect
+        if (category == 1) { return #ef4444; } // Disconnect
+        if (category == 2) { return #3b82f6; } // Source capabilities
+        if (category == 3) { return #eab308; } // Request
+        if (category == 5) { return #f97316; } // Extended
+        if (category == 6) { return #dc2626; } // Error
+        return #9ca3af; // Control
+    }
+}
+
+component PdRowView inherits Rectangle {
+    in property <PdRow> entry;
+    callback toggled();
+
+    // ListView stacks rows by their height, so it has to follow the content.
+    height: layout.preferred-height;
+
+    layout := HorizontalLayout {
+        width: parent.width;
+        height: parent.height;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        spacing: 6px;
+
+        Rectangle {
+            width: 4px;
+            background: PdColors.category(root.entry.category);
+        }
+
+        VerticalLayout {
+            spacing: 1px;
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: root.entry.time;
+                    font-size: 11px;
+                    opacity: 0.6;
+                    vertical-alignment: center;
+                }
+                // Fixed width so titles line up whether or not there is a SOP.
+                Text {
+                    text: root.entry.sop;
+                    width: 36px;
+                    font-size: 11px;
+                    opacity: 0.6;
+                    vertical-alignment: center;
+                }
+
+                Text {
+                    text: root.entry.title;
+                    font-weight: 600;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                }
+                // Drawn rather than typed: phone fonts lack the arrow glyphs.
+                if root.entry.details != "": Path {
+                    width: 10px;
+                    height: 10px;
+                    commands: root.entry.expanded ? "M 0 2 L 10 2 L 5 9 Z" : "M 2 0 L 9 5 L 2 10 Z";
+                    fill: Palette.foreground;
+                    opacity: 0.5;
+                }
+            }
+
+            if root.entry.header != "": Text {
+                text: root.entry.header;
+                font-size: 11px;
+                opacity: 0.6;
+            }
+            if root.entry.expanded && root.entry.details != "": Text {
+                text: root.entry.details;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+        }
+    }
+
+    // Separates rows from each other.
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Palette.border;
+    }
+
+    TouchArea {
+        clicked => { root.toggled(); }
+    }
+}
+
+// One segment of the tab switcher.
+component Segment inherits Rectangle {
+    in property <string> text;
+    in property <bool> selected;
+    callback clicked();
+
+    border-radius: 7px;
+    background: root.selected ? Palette.accent-background : touch.pressed ? Palette.border : transparent;
+    animate background { duration: 120ms; }
+
+    Text {
+        text: root.text;
+        font-size: 15px;
+        font-weight: 600;
+        color: root.selected ? Palette.accent-foreground : Palette.foreground;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: parent.width;
+        height: parent.height;
+    }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// Segmented tab switcher. Every segment sits on a shared framed track, so the
+// unselected one reads as a button too; the stock TabWidget left it looking
+// like plain text on light themes.
+component TabSwitcher inherits Rectangle {
+    in-out property <int> current;
+    in property <[string]> labels;
+
+    height: 42px;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: Palette.border;
+    background: Palette.alternate-background;
+
+    HorizontalLayout {
+        padding: 3px;
+        spacing: 3px;
+        for label[index] in root.labels: Segment {
+            text: label;
+            selected: root.current == index;
+            clicked => { root.current = index; }
+        }
+    }
 }
 
 export component App inherits Window {
@@ -53,6 +216,19 @@ export component App inherits Window {
     callback rate-selected(int);
     callback reconnect();
 
+    // 0: charts, 1: PD.
+    in-out property <int> tab: 0;
+
+    // PD tab. Rows are oldest first, already filtered by pd-hide-good-crc.
+    in property <[PdRow]> pd-rows;
+    in-out property <bool> pd-hide-good-crc: true;
+    callback pd-filter-changed(bool);
+    in property <string> pd-sink: "—";
+    in property <string> pd-lines: "—";
+    in property <string> pd-contract: "—";
+    callback pd-clear();
+    callback pd-row-toggled(int);
+
     title: "POWER-Z KM003C";
     preferred-width: 900px;
     preferred-height: 800px;
@@ -68,6 +244,7 @@ export component App inherits Window {
                 text: root.status;
                 font-weight: 600;
             }
+
             Text {
                 text: root.device;
                 opacity: 0.7;
@@ -83,6 +260,7 @@ export component App inherits Window {
                 current-index <=> root.rate-index;
                 selected => { root.rate-selected(self.current-index); }
             }
+
             Button {
                 text: root.paused ? "Resume" : "Pause";
                 clicked => {
@@ -92,6 +270,7 @@ export component App inherits Window {
                     }
                 }
             }
+
             Button {
                 text: "Reconnect";
                 clicked => { root.reconnect(); }
@@ -101,55 +280,151 @@ export component App inherits Window {
         HorizontalBox {
             padding: 0;
             alignment: space-around;
-            Text { text: root.voltage-text; font-size: 22px; color: #22c55e; }
-            Text { text: root.current-text; font-size: 22px; color: #3b82f6; }
-            Text { text: root.power-text; font-size: 22px; color: #f59e0b; }
+            Text {
+                text: root.voltage-text;
+                font-size: 22px;
+                color: #22c55e;
+            }
+
+            Text {
+                text: root.current-text;
+                font-size: 22px;
+                color: #3b82f6;
+            }
+
+            Text {
+                text: root.power-text;
+                font-size: 22px;
+                color: #f59e0b;
+            }
         }
 
-        voltage := Chart {
-            title: "Voltage (V)";
-            legend-labels: ["VBUS"];
-            legend-colors: [#22c55e];
-            time-window <=> root.time-window;
-            paused <=> root.paused;
-            view-offset <=> root.view-offset;
-            paused-shift: root.paused-shift;
-            sample-rate: root.sample-rate;
-            capacity: root.capacity;
-            max-time-window: root.capacity / root.sample-rate;
-            available-samples: root.available-samples;
-        }
-        current := Chart {
-            title: "Current (A)";
-            legend-labels: ["IBUS"];
-            legend-colors: [#3b82f6];
-            time-window <=> root.time-window;
-            paused <=> root.paused;
-            view-offset <=> root.view-offset;
-            paused-shift: root.paused-shift;
-            sample-rate: root.sample-rate;
-            capacity: root.capacity;
-            max-time-window: root.capacity / root.sample-rate;
-            available-samples: root.available-samples;
-        }
-        power := Chart {
-            title: "Power (W)";
-            legend-labels: ["Power"];
-            legend-colors: [#f59e0b];
-            time-window <=> root.time-window;
-            paused <=> root.paused;
-            view-offset <=> root.view-offset;
-            paused-shift: root.paused-shift;
-            sample-rate: root.sample-rate;
-            capacity: root.capacity;
-            max-time-window: root.capacity / root.sample-rate;
-            available-samples: root.available-samples;
+        TabSwitcher {
+            labels: ["Charts", "PD"];
+            current <=> root.tab;
         }
 
-        Text {
-            text: root.quality-text;
-            opacity: 0.6;
-            font-size: 11px;
+        // Both pages stay laid out, so the charts keep their texture size
+        // while hidden; only the visible one draws and takes input.
+        Rectangle {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                visible: root.tab == 0;
+                width: parent.width;
+                height: parent.height;
+                spacing: 6px;
+
+                voltage := Chart {
+                    title: "Voltage (V)";
+                    legend-labels: ["VBUS"];
+                    legend-colors: [#22c55e];
+                    time-window <=> root.time-window;
+                    paused <=> root.paused;
+                    view-offset <=> root.view-offset;
+                    paused-shift: root.paused-shift;
+                    sample-rate: root.sample-rate;
+                    capacity: root.capacity;
+                    max-time-window: root.capacity / root.sample-rate;
+                    available-samples: root.available-samples;
+                }
+
+                current := Chart {
+                    title: "Current (A)";
+                    legend-labels: ["IBUS"];
+                    legend-colors: [#3b82f6];
+                    time-window <=> root.time-window;
+                    paused <=> root.paused;
+                    view-offset <=> root.view-offset;
+                    paused-shift: root.paused-shift;
+                    sample-rate: root.sample-rate;
+                    capacity: root.capacity;
+                    max-time-window: root.capacity / root.sample-rate;
+                    available-samples: root.available-samples;
+                }
+
+                power := Chart {
+                    title: "Power (W)";
+                    legend-labels: ["Power"];
+                    legend-colors: [#f59e0b];
+                    time-window <=> root.time-window;
+                    paused <=> root.paused;
+                    view-offset <=> root.view-offset;
+                    paused-shift: root.paused-shift;
+                    sample-rate: root.sample-rate;
+                    capacity: root.capacity;
+                    max-time-window: root.capacity / root.sample-rate;
+                    available-samples: root.available-samples;
+                }
+
+                Text {
+                    text: root.quality-text;
+                    opacity: 0.6;
+                    font-size: 11px;
+                }
+            }
+
+            VerticalLayout {
+                visible: root.tab == 1;
+                width: parent.width;
+                height: parent.height;
+                spacing: 4px;
+
+                Text {
+                    text: root.pd-sink;
+                    font-weight: 600;
+                }
+
+                Text {
+                    text: root.pd-lines;
+                    opacity: 0.8;
+                }
+
+                Text {
+                    text: "Contract: " + root.pd-contract;
+                    wrap: word-wrap;
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    CheckBox {
+                        text: "Hide GoodCRC";
+                        checked <=> root.pd-hide-good-crc;
+                        toggled => { root.pd-filter-changed(self.checked); }
+                    }
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+
+                    Button {
+                        text: "Clear";
+                        clicked => { root.pd-clear(); }
+                    }
+                }
+
+                ListView {
+                    // Follow new rows while scrolled to the end; stay put
+                    // while reading older ones.
+                    property <bool> follow: true;
+                    property <length> end-y: min(0px, self.visible-height - self.content-height);
+
+                    vertical-stretch: 1;
+                    changed content-y => {
+                        self.follow = self.content-y <= self.end-y + 24px;
+                    }
+                    changed content-height => {
+                        if (self.follow) {
+                            self.content-y = self.end-y;
+                        }
+                    }
+
+                    for row[index] in root.pd-rows: PdRowView {
+                        entry: row;
+                        toggled => { root.pd-row-toggled(index); }
+                    }
+                }
+            }
         }
     }
 }
