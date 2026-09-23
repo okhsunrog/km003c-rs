@@ -1,6 +1,6 @@
 <h1 align="center">km003c-rs</h1>
 
-<p align="center">Typed Rust library, CLI tools, GUI monitor, and Python bindings for the ChargerLAB POWER-Z KM003C USB-C power analyzer.</p>
+<p align="center">Typed Rust library, CLI tools, GUI monitors, and Python bindings for the ChargerLAB POWER-Z KM003C USB-C power analyzer.</p>
 
 <p align="center">
   <a href="https://crates.io/crates/km003c-lib"><img alt="crates.io" src="https://img.shields.io/crates/v/km003c-lib.svg"></a>
@@ -79,6 +79,22 @@ GUI application featuring:
 - Device info panel with auth status
 - Connect/disconnect control
 
+### `km003c-slint` (experimental)
+A second GUI built with [Slint](https://slint.dev) that also runs on Android
+phones, with the meter plugged into the phone:
+- Live voltage, current and power charts rendered on the GPU, at up to 1000 SPS
+- Pinch or scroll to zoom, double tap to pause, drag to pan through history
+- Automatic reconnection when the device is replugged
+- Shares the device session and measurement stream with `km003c-egui`
+
+It lacks recording, offline logs and the PD timeline so far. See
+[`km003c-slint/README.md`](km003c-slint/README.md) for the Android build.
+
+<p align="center">
+  <img alt="km003c-slint on Android, light theme" src="assets/km003c-slint-android-light.png" width="35%">
+  <img alt="km003c-slint on Android, dark theme" src="assets/km003c-slint-android-dark.png" width="35%">
+</p>
+
 ### Python Bindings
 
 Python bindings expose the parser using numeric properties with explicit unit
@@ -145,6 +161,9 @@ cargo run --bin offline-log -- download --index 0 --format csv
 
 ```bash
 cargo run --bin km003c-egui
+
+# The experimental Slint GUI is a separate workspace.
+cd km003c-slint && cargo run --release
 ```
 
 The GUI records the complete AdcQueue sample set, independently of which three
@@ -308,7 +327,7 @@ The research repository contains:
 - AdcQueue high-speed streaming (2-1000 SPS)
 - USB PD message capture and parsing
 - Memory read for device info/calibration
-- Real-time GUI with plotting
+- Real-time GUI with plotting, on desktop and (experimentally) Android
 
 ### Validation
 
@@ -318,6 +337,7 @@ The research repository contains:
 | macOS | Workspace compile check; USB reset is skipped by default |
 | Windows | Workspace compile check |
 | Python 3.13 | Extension build and binding tests |
+| Android | `km003c-slint` on a Pixel 8 Pro with a real KM003C; not built in CI |
 
 Protocol tests use recorded device traffic and do not require USB hardware.
 Live testing was performed on firmware 1.9.9 with a Pixel 8 Pro PPS charging
@@ -345,7 +365,7 @@ Hardware commands are deliberately separate from the offline CI gate; use
 ## Requirements
 
 - **Rust**: 1.97 or newer
-- **Platforms**: Linux, Windows, macOS
+- **Platforms**: Linux, Windows, macOS; Android for the experimental `km003c-slint`
 - **Hardware**: POWER-Z KM003C
 
 ## Contributing
