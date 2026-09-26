@@ -53,8 +53,7 @@ paranoid-android = "0.2.2"
 nusb = { git = "https://github.com/uglyoldbob/nusb", rev = "694ed760" }
 
 # Built with cargo-rapk, which compiles java/ into the APK's classes.dex; see
-# README.md. Until upstream supports meta-data resources, use the fork at
-# https://github.com/okhsunrog/cargo-rapk (branch meta-data-resource).
+# README.md. Meta-data resources need cargo-rapk 0.23.0 or later.
 [package.metadata.android]
 package = "dev.okhsunrog.km003c"
 build_targets = ["aarch64-linux-android"]
