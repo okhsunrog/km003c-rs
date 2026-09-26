@@ -60,12 +60,11 @@ Build with [cargo-rapk](https://github.com/mlm-games/cargo-rapk), which unlike
 cargo-apk compiles the Java in `java/` into the APK. It reads the system's
 dynamic colours there, in one JNI call, with names `javac` checks against the
 SDK. The USB device filter needs a `meta-data` element with a `resource`,
-which cargo-rapk supports from 0.23.0. That release is not on crates.io yet,
-so install it from the tag:
+which cargo-rapk supports from 0.23.0.
 
 ```bash
 rustup target add aarch64-linux-android
-cargo install --locked --git https://github.com/mlm-games/cargo-rapk --tag v0.23.0 cargo-rapk
+cargo install --locked cargo-rapk
 
 export ANDROID_HOME="$HOME/Android/Sdk"
 export ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/<version>"
