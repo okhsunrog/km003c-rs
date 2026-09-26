@@ -6,12 +6,19 @@ use std::time::Instant;
 use km003c_lib::pd::{PdEvent, PdEventData, PdStatus};
 use km003c_lib::uom::si::electric_current::ampere;
 use km003c_lib::uom::si::electric_potential::volt;
-use km003c_lib::{PdConnectionTracker, PdLogCategory, PdLogEntry, PdLogger};
+use km003c_lib::{
+    PdConnectionTracker, PdContract, PdLogCategory, PdLogEntry, PdLogger, PdTrace, PdTraceCategory, PdTraceEntry,
+};
 
 use crate::PdRow;
 
 /// Rows kept in the log; the oldest drop off the start.
 pub const MAX_ROWS: usize = 500;
+
+/// Row categories after the PdLogCategory ones; see the colour table in
+/// ui/app.slint.
+const TRACE_CATEGORY: i32 = 7;
+const UNKNOWN_TRACE_CATEGORY: i32 = 8;
 
 /// What a batch of PD events changes in the UI.
 pub struct PdUpdate {
@@ -21,21 +28,34 @@ pub struct PdUpdate {
     pub contract: Option<String>,
 }
 
+/// What a status update changes in the UI.
+pub struct PdStatusLines {
+    pub sink: String,
+    pub lines: String,
+    /// The contract line, when a detached sink ended the contract.
+    pub contract: Option<String>,
+}
+
 #[derive(Default)]
 pub struct PdState {
     logger: PdLogger,
     tracker: PdConnectionTracker,
-    contract: Contract,
+    contract: PdContract,
 }
 
 impl PdState {
-    /// Forget everything about the previous device connection.
-    pub fn reset(&mut self) {
-        *self = Self::default();
+    /// The meter was connected again. The decoder and the sink detection start
+    /// over; the contract is kept, marked as seen before, since a sink that
+    /// stayed plugged in does not negotiate again.
+    pub fn device_reconnected(&mut self) -> String {
+        self.logger.reset();
+        self.tracker = PdConnectionTracker::default();
+        self.contract.device_reconnected();
+        self.contract.to_string()
     }
 
     pub fn events(&mut self, events: &[PdEvent], now: Instant) -> PdUpdate {
-        let before = self.contract.describe();
+        let before = self.contract.clone();
         let rows = events
             .iter()
             .map(|event| {
@@ -49,17 +69,23 @@ impl PdState {
                 row(&entry)
             })
             .collect();
-        let after = self.contract.describe();
         PdUpdate {
             rows,
-            contract: (after != before).then_some(after),
+            contract: (self.contract != before).then(|| self.contract.to_string()),
         }
     }
 
+    /// Rows for the firmware's Type-C and protocol-engine trace.
+    pub fn trace(&self, trace: &PdTrace) -> Vec<PdRow> {
+        trace.entries().iter().map(trace_row).collect()
+    }
+
     /// The sink line and the CC/VBUS line for a status update.
-    pub fn status(&mut self, status: &PdStatus, now: Instant) -> (String, String) {
+    pub fn status(&mut self, status: &PdStatus, now: Instant) -> PdStatusLines {
         self.tracker.observe_status(status, now);
         self.tracker.update(now);
+        let before = self.contract.clone();
+        self.contract.observe_sink(self.tracker.connected());
         let sink = match self.tracker.connected() {
             Some(true) => "Sink attached",
             Some(false) => "No sink attached",
@@ -72,7 +98,11 @@ impl PdState {
             status.vbus.get::<volt>(),
             status.ibus.get::<ampere>()
         );
-        (sink.to_string(), lines)
+        PdStatusLines {
+            sink: sink.to_string(),
+            lines,
+            contract: (self.contract != before).then(|| self.contract.to_string()),
+        }
     }
 }
 
@@ -85,6 +115,24 @@ fn row(entry: &PdLogEntry) -> PdRow {
         details: entry.details.join("\n").into(),
         category: category_index(entry.category),
         good_crc: entry.is_good_crc(),
+        expanded: false,
+    }
+}
+
+fn trace_row(entry: &PdTraceEntry) -> PdRow {
+    PdRow {
+        // One-second resolution: more digits would suggest a precision the
+        // firmware does not have.
+        time: format!("{:.0} s", entry.timestamp_seconds).into(),
+        sop: "FW".into(),
+        title: entry.label.as_str().into(),
+        header: entry.source.into(),
+        details: Default::default(),
+        category: match entry.category {
+            PdTraceCategory::TypeCState | PdTraceCategory::ProtocolEvent => TRACE_CATEGORY,
+            _ => UNKNOWN_TRACE_CATEGORY,
+        },
+        good_crc: false,
         expanded: false,
     }
 }
@@ -102,66 +150,12 @@ fn category_index(category: PdLogCategory) -> i32 {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-enum Stage {
-    #[default]
-    None,
-    Offered,
-    Requested,
-    Accepted,
-    Rejected,
-    Active,
-}
-
-/// The power contract as the negotiation messages establish it.
-#[derive(Debug, Default)]
-struct Contract {
-    request: Option<String>,
-    stage: Stage,
-}
-
-impl Contract {
-    fn observe(&mut self, entry: &PdLogEntry) {
-        match (entry.category, entry.title.as_str()) {
-            (PdLogCategory::Connect | PdLogCategory::Disconnect, _) | (_, "Soft_Reset") => *self = Self::default(),
-            (PdLogCategory::Request, _) => {
-                self.request = entry
-                    .details
-                    .first()
-                    .map(|detail| detail.strip_prefix("RDO: ").unwrap_or(detail).to_string());
-                self.stage = Stage::Requested;
-            }
-            (_, "Source_Capabilities" | "EPR_Source_Capabilities") => {
-                *self = Self {
-                    request: None,
-                    stage: Stage::Offered,
-                };
-            }
-            (_, "Accept") if self.stage == Stage::Requested => self.stage = Stage::Accepted,
-            (_, "Reject") if self.stage == Stage::Requested => self.stage = Stage::Rejected,
-            (_, "PS_RDY") if self.stage == Stage::Accepted => self.stage = Stage::Active,
-            _ => {}
-        }
-    }
-
-    fn describe(&self) -> String {
-        let request = self.request.as_deref().unwrap_or("request");
-        match self.stage {
-            Stage::None => "—".to_string(),
-            Stage::Offered => "source capabilities offered".to_string(),
-            Stage::Requested => format!("{request} · requested"),
-            Stage::Accepted => format!("{request} · accepted, waiting for PS_RDY"),
-            Stage::Rejected => format!("{request} · rejected"),
-            Stage::Active => request.to_string(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use km003c_lib::uom::si::f64::Time;
-    use km003c_lib::uom::si::time::millisecond;
+    use km003c_lib::uom::si::time::{millisecond, second};
+    use km003c_lib::{PdTraceStateEvent, PdTypeCState};
 
     fn message(wire_hex: &str) -> PdEvent {
         let wire_data = (0..wire_hex.len())
@@ -174,17 +168,20 @@ mod tests {
         }
     }
 
-    #[test]
-    fn a_negotiation_ends_in_an_active_contract() {
-        let mut state = PdState::default();
+    fn negotiate(state: &mut PdState) -> PdUpdate {
         let events = [
             message("a1612c9101082cd102002cc103002cb10400454106003c21dcc0"), // Source_Capabilities
             message("8210dc700323"),                                         // Request PDO#2
             message("a305"),                                                 // Accept
             message("a607"),                                                 // PS_RDY
         ];
+        state.events(&events, Instant::now())
+    }
 
-        let update = state.events(&events, Instant::now());
+    #[test]
+    fn a_negotiation_ends_in_an_active_contract() {
+        let mut state = PdState::default();
+        let update = negotiate(&mut state);
 
         assert_eq!(update.rows.len(), 4);
         assert_eq!(update.rows[0].title, "Source_Capabilities");
@@ -193,25 +190,39 @@ mod tests {
     }
 
     #[test]
-    fn a_disconnect_clears_the_contract() {
+    fn the_contract_outlives_a_meter_reconnect() {
         let mut state = PdState::default();
-        state.events(&[message("8210dc700323")], Instant::now());
+        negotiate(&mut state);
 
-        let update = state.events(
-            &[PdEvent {
-                timestamp: Time::new::<millisecond>(0.0),
-                data: PdEventData::Disconnect,
-            }],
-            Instant::now(),
+        let contract = state.device_reconnected();
+
+        assert_eq!(
+            contract,
+            "PDO#2 (Fixed 9V @ 3.0A (27W)) @ 2.2A · seen before reconnecting"
         );
-
-        assert_eq!(update.contract.as_deref(), Some("—"));
-        assert_eq!(update.rows[0].sop, "");
     }
 
     #[test]
     fn good_crc_rows_are_flagged_for_hiding() {
         let update = PdState::default().events(&[message("4102")], Instant::now());
         assert!(update.rows[0].good_crc);
+    }
+
+    #[test]
+    fn trace_entries_become_firmware_rows() {
+        let trace = PdTrace {
+            state_events: vec![PdTraceStateEvent {
+                state: PdTypeCState::AttachedSink,
+                timestamp: Time::new::<second>(12.0),
+            }],
+            protocol_events: Vec::new(),
+        };
+
+        let rows = PdState::default().trace(&trace);
+
+        assert_eq!(rows[0].sop, "FW");
+        assert_eq!(rows[0].title, "AttachedSink (0x17)");
+        assert_eq!(rows[0].header, "Type-C state");
+        assert_eq!(rows[0].category, TRACE_CATEGORY);
     }
 }
