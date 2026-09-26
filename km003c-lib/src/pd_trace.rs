@@ -159,6 +159,74 @@ impl PdTrace {
         )?;
         Ok(bytes)
     }
+
+    /// Both queues as display entries in timestamp order.
+    pub fn entries(&self) -> Vec<PdTraceEntry> {
+        let states = self.state_events.iter().map(|event| {
+            let code = u8::from(event.state);
+            let (category, label) = match event.state {
+                PdTypeCState::Unknown(_) => (PdTraceCategory::Unknown, format!("Unknown state 0x{code:02x}")),
+                state => (PdTraceCategory::TypeCState, format!("{state:?} (0x{code:02x})")),
+            };
+            PdTraceEntry {
+                timestamp_seconds: event.timestamp.get::<second>(),
+                category,
+                source: "Type-C state",
+                label,
+            }
+        });
+        let protocol = self.protocol_events.iter().map(|event| {
+            let code = u8::from(event.kind);
+            let (category, label) = match event.kind {
+                PdProtocolTraceEventKind::Unknown(_) => {
+                    (PdTraceCategory::Unknown, format!("Unknown state 0x{code:02x}"))
+                }
+                kind => (PdTraceCategory::ProtocolEvent, format!("{kind:?} (0x{code:02x})")),
+            };
+            PdTraceEntry {
+                timestamp_seconds: event.timestamp.get::<second>(),
+                category,
+                source: "Protocol trace",
+                label,
+            }
+        });
+        let mut entries = states.chain(protocol).collect::<Vec<_>>();
+        entries.sort_by(|left, right| left.timestamp_seconds.total_cmp(&right.timestamp_seconds));
+        entries
+    }
+}
+
+/// What a [`PdTraceEntry`] records, for colour coding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PdTraceCategory {
+    TypeCState,
+    ProtocolEvent,
+    /// A code the firmware analysis has no name for.
+    Unknown,
+}
+
+/// One firmware trace event described for display.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct PdTraceEntry {
+    /// Device uptime, with one-second resolution.
+    pub timestamp_seconds: f64,
+    pub category: PdTraceCategory,
+    /// The queue the event came from: `"Type-C state"` or `"Protocol trace"`.
+    pub source: &'static str,
+    /// The state or event name with its code, such as `AttachedSink (0x17)`.
+    pub label: String,
+}
+
+impl PdTraceEntry {
+    /// The entry on one line.
+    pub fn summary(&self) -> String {
+        format!(
+            "[uptime {:>8.0}s] {}: {}",
+            self.timestamp_seconds, self.source, self.label
+        )
+    }
 }
 
 pub(crate) fn payload_size(bytes: &[u8]) -> Result<usize, KMError> {

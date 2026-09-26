@@ -1,7 +1,11 @@
 use bytes::Bytes;
 use km003c_lib::packet::{DataHeader, ExtendedHeader, PacketType};
+use km003c_lib::uom::si::f64::Time;
 use km003c_lib::uom::si::time::second;
-use km003c_lib::{Attribute, Packet, PayloadData, PdProtocolTraceEventKind, PdTrace, PdTypeCState, RawPacket};
+use km003c_lib::{
+    Attribute, Packet, PayloadData, PdProtocolTraceEventKind, PdTrace, PdTraceCategory, PdTraceProtocolEvent,
+    PdTraceStateEvent, PdTypeCState, RawPacket,
+};
 
 fn trace_payload() -> Vec<u8> {
     vec![10, 1, 100, 0, 0, 0, 4, 105, 0, 0, 0, 5, 0x82, 110, 0, 0, 0]
@@ -174,4 +178,46 @@ fn splits_recorded_zero_sized_trace_before_a_chained_attribute() {
     assert!(trace.state_events.is_empty());
     assert!(trace.protocol_events.is_empty());
     assert!(packet.has_payload(Attribute::Unknown(0x80)));
+}
+
+#[test]
+fn entries_combine_both_queues_in_timestamp_order() {
+    let trace = PdTrace {
+        state_events: vec![PdTraceStateEvent {
+            state: PdTypeCState::AttachedSink,
+            timestamp: Time::new::<second>(12.0),
+        }],
+        protocol_events: vec![PdTraceProtocolEvent {
+            kind: PdProtocolTraceEventKind::ReceivedMessage,
+            timestamp: Time::new::<second>(10.0),
+        }],
+    };
+
+    let entries = trace.entries();
+
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0].category, PdTraceCategory::ProtocolEvent);
+    assert!(entries[0].summary().contains("Protocol trace: ReceivedMessage (0x82)"));
+    assert_eq!(entries[1].category, PdTraceCategory::TypeCState);
+    assert_eq!(entries[1].label, "AttachedSink (0x17)");
+}
+
+#[test]
+fn entries_keep_unknown_codes() {
+    let trace = PdTrace {
+        state_events: vec![PdTraceStateEvent {
+            state: PdTypeCState::Unknown(0xfe),
+            timestamp: Time::new::<second>(1.0),
+        }],
+        protocol_events: vec![PdTraceProtocolEvent {
+            kind: PdProtocolTraceEventKind::Unknown(0x76),
+            timestamp: Time::new::<second>(2.0),
+        }],
+    };
+
+    let entries = trace.entries();
+
+    assert!(entries.iter().all(|entry| entry.category == PdTraceCategory::Unknown));
+    assert_eq!(entries[0].label, "Unknown state 0xfe");
+    assert_eq!(entries[1].label, "Unknown state 0x76");
 }

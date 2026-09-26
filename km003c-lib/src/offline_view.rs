@@ -1,29 +1,47 @@
+//! Offline recordings decoded for plotting and export.
+//!
+//! [`OfflineRecordingView`] places the samples of a downloaded [`OfflineLog`]
+//! on a time axis in the same integer units as live [`MeasurementSample`]s,
+//! and derives the transferred charge and energy the device does not store.
+//!
+//! [`MeasurementSample`]: crate::MeasurementSample
+
 use std::sync::Arc;
 
-use km003c_lib::uom::si::power::microwatt;
-use km003c_lib::{OfflineLog, OfflineLogSample};
+use uom::si::power::microwatt;
+use uom::si::time::microsecond;
 
-use km003c_lib::Metric;
+use crate::measurement::Metric;
+use crate::offline::{OfflineLog, OfflineLogSample};
 
+/// One offline sample on the recording's time axis.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct OfflineViewSample {
-    pub(crate) elapsed_us: u64,
-    pub(crate) sample_index: u64,
-    pub(crate) vbus_uv: i64,
-    pub(crate) ibus_ua: i64,
-    pub(crate) power_uw: i64,
-    pub(crate) charge_uah: f64,
-    pub(crate) energy_uwh: f64,
-    pub(crate) charge_throughput_uah: f64,
-    pub(crate) energy_throughput_uwh: f64,
+#[non_exhaustive]
+pub struct OfflineViewSample {
+    /// Time since the first sample, from the logging interval.
+    pub elapsed_us: u64,
+    pub sample_index: u64,
+    pub vbus_uv: i64,
+    pub ibus_ua: i64,
+    pub power_uw: i64,
+    /// Signed net charge, as the device accumulated it.
+    pub charge_uah: f64,
+    /// Signed net energy, as the device accumulated it.
+    pub energy_uwh: f64,
+    /// Sum of the absolute changes of the device's charge counter.
+    pub charge_throughput_uah: f64,
+    /// Sum of the absolute changes of the device's energy counter.
+    pub energy_throughput_uwh: f64,
 }
 
 impl OfflineViewSample {
-    pub(crate) fn elapsed_seconds(self) -> f64 {
+    pub fn elapsed_seconds(self) -> f64 {
         self.elapsed_us as f64 / 1_000_000.0
     }
 
-    pub(crate) fn metric_value(self, metric: Metric) -> Option<f64> {
+    /// The value in [`Metric::unit`], or `None` for the CC and D+/D- lines,
+    /// which offline logs do not record.
+    pub fn metric_value(self, metric: Metric) -> Option<f64> {
         match metric {
             Metric::Voltage => Some(self.vbus_uv as f64 / 1_000_000.0),
             Metric::Current => Some((self.ibus_ua as f64 / 1_000_000.0).abs()),
@@ -39,16 +57,18 @@ impl OfflineViewSample {
     }
 }
 
+/// A downloaded offline recording and its decoded samples.
 #[derive(Debug, Clone)]
-pub(crate) struct OfflineRecordingView {
-    pub(crate) log: Arc<OfflineLog>,
-    pub(crate) samples: Vec<OfflineViewSample>,
+#[non_exhaustive]
+pub struct OfflineRecordingView {
+    pub log: Arc<OfflineLog>,
+    pub samples: Vec<OfflineViewSample>,
 }
 
 impl OfflineRecordingView {
-    pub(crate) fn new(log: OfflineLog) -> Self {
+    pub fn new(log: OfflineLog) -> Self {
         let log = Arc::new(log);
-        let interval_us = (log.metadata.interval.get::<km003c_lib::uom::si::time::microsecond>()).round() as u64;
+        let interval_us = log.metadata.interval.get::<microsecond>().round() as u64;
         let mut previous_charge_uah = 0_i32;
         let mut previous_energy_uwh = 0_i32;
         let mut charge_throughput_uah = 0_u64;
@@ -93,13 +113,14 @@ fn decode_sample(
     }
 }
 
+/// Three samples captured from a KM003C, for tests.
 #[cfg(test)]
 pub(crate) fn captured_test_view() -> OfflineRecordingView {
-    use km003c_lib::LogMetadata;
-    use km003c_lib::uom::si::electric_charge::microampere_hour;
-    use km003c_lib::uom::si::energy::microwatt_hour;
-    use km003c_lib::uom::si::f64::{ElectricCharge, Energy, Time};
-    use km003c_lib::uom::si::time::{millisecond, second};
+    use crate::offline::LogMetadata;
+    use uom::si::electric_charge::microampere_hour;
+    use uom::si::energy::microwatt_hour;
+    use uom::si::f64::{ElectricCharge, Energy, Time};
+    use uom::si::time::{millisecond, second};
 
     let bytes = [
         "81494c0021f0e2ff56ebffffb998ffff",
@@ -154,7 +175,13 @@ mod tests {
 
         assert_eq!(view.samples[0].energy_throughput_uwh, 26_439.0);
         assert_eq!(view.samples[2].energy_throughput_uwh, 5_747_232.0);
-        assert_eq!(view.samples[2].metric_value(Metric::Energy), Some(5_747.232));
-        assert_eq!(view.samples[2].metric_value(Metric::SignedEnergy), Some(-5_747.232));
+        assert_eq!(
+            view.samples[2].metric_value(Metric::Energy),
+            Some(5_747_232.0 / 1_000.0)
+        );
+        assert_eq!(
+            view.samples[2].metric_value(Metric::SignedEnergy),
+            Some(-5_747_232.0 / 1_000.0)
+        );
     }
 }
