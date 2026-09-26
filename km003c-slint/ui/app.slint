@@ -270,7 +270,8 @@ export component App inherits MaterialWindow {
                 }
             }
 
-            IconButton {
+            // Pausing freezes the charts only.
+            if root.tab == 0: IconButton {
                 icon: root.paused ? AppIcons.play : AppIcons.pause;
                 tooltip: root.paused ? "Resume" : "Pause";
                 clicked => {
@@ -316,14 +317,6 @@ export component App inherits MaterialWindow {
                     accent: #d97706;
                 }
             }
-
-            SegmentedButton {
-                items: [{ text: "2 SPS" }, { text: "10 SPS" }, { text: "50 SPS" }, { text: "1k SPS" }];
-                current_index <=> root.rate-index;
-                index_changed(index) => {
-                    root.rate-selected(index);
-                }
-            }
         }
 
         // Both pages stay laid out, so the charts keep their texture size
@@ -338,6 +331,15 @@ export component App inherits MaterialWindow {
                 padding-left: 8px;
                 padding-right: 8px;
                 spacing: 6px;
+
+                // The rate only matters for the charts.
+                SegmentedButton {
+                    items: [{ text: "2 SPS" }, { text: "10 SPS" }, { text: "50 SPS" }, { text: "1k SPS" }];
+                    current_index <=> root.rate-index;
+                    index_changed(index) => {
+                        root.rate-selected(index);
+                    }
+                }
 
                 voltage := Chart {
                     title: "Voltage (V)";
