@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icon for Android before 8.0, which has no adaptive icons: the whole of
+     assets/km003c-logo.svg, rounded tile included. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <path
+        android:pathData="M132,20H380A112,112 0,0 1,492,132V380A112,112 0,0 1,380,492H132A112,112 0,0 1,20,380V132A112,112 0,0 1,132,20Z"
+        android:fillColor="#242527" />
+    <path
+        android:pathData="M136,250A120,120 0,0 1,333.1,158.1"
+        android:strokeColor="#FFF9F1"
+        android:strokeWidth="22"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M353.1,179.5A120,120 0,0 1,376,250"
+        android:strokeColor="#F59E0B"
+        android:strokeWidth="22"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M256,250L317.3,198.6"
+        android:strokeColor="#FFF9F1"
+        android:strokeWidth="18"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M239,250a17,17 0,1 0,34,0a17,17 0,1 0,-34,0z"
+        android:fillColor="#FFF9F1" />
+    <path
+        android:pathData="M189,292H323A43,43 0,0 1,323,378H189A43,43 0,0 1,189,292Z"
+        android:strokeColor="#FFF9F1"
+        android:strokeWidth="22" />
+    <path
+        android:pathData="M196,335H316"
+        android:strokeColor="#FFF9F1"
+        android:strokeWidth="18"
+        android:strokeLineCap="round" />
+</vector>

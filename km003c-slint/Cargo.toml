@@ -43,6 +43,7 @@ tracing-subscriber = "0.3.23"
 slint-build = "=1.18.1"
 
 [target.'cfg(target_os = "android")'.dependencies]
+jni = "0.22"
 paranoid-android = "0.2.2"
 
 # nusb 0.2 has no device enumeration, hotplug or permission requests on
@@ -51,36 +52,40 @@ paranoid-android = "0.2.2"
 [patch.crates-io]
 nusb = { git = "https://github.com/uglyoldbob/nusb", rev = "694ed760" }
 
+# Built with cargo-rapk, which compiles java/ into the APK's classes.dex; see
+# README.md. Meta-data resources need cargo-rapk 0.23.0 or later.
 [package.metadata.android]
 package = "dev.okhsunrog.km003c"
 build_targets = ["aarch64-linux-android"]
 resources = "res"
+java_sources = ["java"]
 
 [[package.metadata.android.uses_feature]]
 name = "android.hardware.usb.host"
 required = true
 
+# The Java compiles against the target SDK's android.jar, and the dynamic colour
+# roles appeared in API 34.
 [package.metadata.android.sdk]
 min_sdk_version = 23
-target_sdk_version = 33
+target_sdk_version = 34
 
 [package.metadata.android.application]
 label = "KM003C"
+# Adaptive on Android 8.0 and later; see res/mipmap*/.
+icon = "@mipmap/ic_launcher"
 # Light or dark system bar icons to match the system theme; see res/values*/.
 theme = "@style/Theme.KM003C"
 
 # Slint's backend-android-activity-06 runs inside NativeActivity; without an
 # explicit activity + LAUNCHER intent filter the app installs but has no icon.
+# cargo-rapk adds the android.app.lib_name meta-data itself.
 [[package.metadata.android.application.activity]]
 name = "android.app.NativeActivity"
 exported = true
 # An attach intent reaches the running activity instead of starting a second
 # one, which would open the device a second time.
 launch_mode = "singleTask"
-
-[[package.metadata.android.application.activity.meta_data]]
-name = "android.app.lib_name"
-value = "km003c_slint"
 
 [[package.metadata.android.application.activity.intent_filter]]
 actions = ["android.intent.action.MAIN"]
