@@ -143,9 +143,14 @@ impl Files {
         }
     }
 
-    pub fn request_catalog(&mut self, session: &Session) -> FilesUpdate {
+    /// Ask the session for the catalog. The session drops offline requests
+    /// while no meter is connected, so they would never be answered.
+    pub fn request_catalog(&mut self, session: &Session, connected: bool) -> FilesUpdate {
         if self.offline_busy || self.recorder.is_some() {
             return FilesUpdate::default();
+        }
+        if !connected {
+            return FilesUpdate::offline_status("Connect the KM003C to load its recordings", false);
         }
         self.offline_busy = true;
         if session.request_offline_catalog().is_err() {
@@ -171,9 +176,12 @@ impl Files {
     }
 
     /// Download a catalog entry; [`Self::downloaded`] then writes the file.
-    pub fn export(&mut self, index: usize, format: RecordingFormat, session: &Session) -> FilesUpdate {
+    pub fn export(&mut self, index: usize, format: RecordingFormat, session: &Session, connected: bool) -> FilesUpdate {
         if self.offline_busy || self.recorder.is_some() {
             return FilesUpdate::default();
+        }
+        if !connected {
+            return FilesUpdate::offline_status("Connect the KM003C to export its recordings", false);
         }
         let Some(metadata) = self.catalog.get(index).cloned() else {
             return FilesUpdate::default();
@@ -367,6 +375,23 @@ mod tests {
         assert_eq!(sanitize("A01.d"), "A01.d");
         assert_eq!(sanitize("../logs/A 01.d"), "A_01.d");
         assert_eq!(sanitize(""), "offline");
+    }
+
+    #[test]
+    fn the_catalog_needs_a_connected_meter() {
+        let (session, mut commands) = Session::detached();
+        let mut files = Files::new(Arc::new(Dirs {
+            preferences: PathBuf::new(),
+            journal: PathBuf::new(),
+            recordings: PathBuf::new(),
+        }));
+
+        let update = files.request_catalog(&session, false);
+
+        assert_eq!(update.offline_busy, Some(false));
+        assert!(commands.try_recv().is_err(), "nothing would answer the request");
+        assert_eq!(files.request_catalog(&session, true).offline_busy, Some(true));
+        assert!(commands.try_recv().is_ok());
     }
 
     #[test]

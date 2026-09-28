@@ -631,8 +631,10 @@ impl Pump {
                 self.files.start_recording(format, self.device.as_deref(), self.latest)
             }
             UiCommand::StopRecording => self.files.stop_recording(),
-            UiCommand::LoadCatalog => self.files.request_catalog(&self.session),
-            UiCommand::ExportOffline(index, format) => self.files.export(index, format, &self.session),
+            UiCommand::LoadCatalog => self.files.request_catalog(&self.session, self.device.is_some()),
+            UiCommand::ExportOffline(index, format) => {
+                self.files.export(index, format, &self.session, self.device.is_some())
+            }
             UiCommand::SetPdTrace(enabled) => {
                 self.pd_trace_enabled = enabled;
                 if self.device.is_some() {
