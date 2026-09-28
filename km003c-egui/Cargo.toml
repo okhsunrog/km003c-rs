@@ -14,14 +14,14 @@ name = "km003c-egui"
 path = "src/main.rs"
 
 [dependencies]
-km003c-lib = { workspace = true, features = ["usbpd"] }
+km003c-lib = { workspace = true, features = ["usbpd", "polars", "preferences"] }
 eframe = "0.36.2"
 egui_plot = "0.37.0"
-polars = { version = "0.55.1", default-features = false, features = ["csv", "parquet"] }
 rfd = "0.17.2"
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+dirs = "7.0.0"
 
 [dev-dependencies]
 hex = "0.4.3"

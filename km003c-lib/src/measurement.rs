@@ -214,6 +214,7 @@ impl MeasurementAccumulator {
 
 /// A quantity derived from a [`MeasurementSample`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Metric {
     Voltage,
     Current,

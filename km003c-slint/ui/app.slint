@@ -1,5 +1,6 @@
 import { ListView } from "std-widgets.slint";
 import {
+    FilledButton,
     FilterChip,
     IconButton,
     MaterialPalette,
@@ -9,6 +10,7 @@ import {
     NavigationBar,
     SegmentedButton,
     TextButton,
+    TonalButton,
 } from "@material";
 import { PlotWidget } from "@slint-realtime-plot/plot.slint";
 
@@ -22,6 +24,25 @@ global AppIcons {
     out property <image> pause: @image-url("icons/pause.svg");
     out property <image> play: @image-url("icons/play_arrow.svg");
     out property <image> refresh: @image-url("icons/refresh.svg");
+    out property <image> record: @image-url("icons/fiber_manual_record.svg");
+    out property <image> stop: @image-url("icons/stop.svg");
+    out property <image> folder: @image-url("icons/folder.svg");
+}
+
+// Dims its content and swallows its input while disabled, for components such
+// as SegmentedButton that have no enabled property.
+component Disableable inherits Rectangle {
+    in property <bool> enabled: true;
+
+    min-height: content.min-height;
+    preferred-height: content.preferred-height;
+    opacity: root.enabled ? 1 : 0.38;
+
+    content := VerticalLayout {
+        @children
+    }
+
+    if !root.enabled: TouchArea { }
 }
 
 // One chart per quantity: they differ in units and range, so each has its own
@@ -86,7 +107,62 @@ global PdColors {
         if (category == 3) { return #eab308; } // Request
         if (category == 5) { return #f97316; } // Extended
         if (category == 6) { return #dc2626; } // Error
+        if (category == 7) { return #06b6d4; } // Firmware trace
+        if (category == 8) { return #a16207; } // Unknown firmware trace code
         return #9ca3af; // Control
+    }
+}
+
+// One recording in the meter's own memory.
+export struct OfflineRow {
+    name: string,
+    detail: string,
+}
+
+component OfflineRowView inherits Rectangle {
+    in property <OfflineRow> entry;
+    in property <bool> enabled;
+    callback export();
+
+    height: layout.preferred-height;
+
+    layout := HorizontalLayout {
+        width: parent.width;
+        height: parent.height;
+        padding-top: 6px;
+        padding-bottom: 6px;
+        spacing: 8px;
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            MaterialText {
+                text: root.entry.name;
+                style: MaterialTypography.title_small;
+                color: MaterialPalette.on_surface;
+            }
+
+            MaterialText {
+                text: root.entry.detail;
+                style: MaterialTypography.body_small;
+                color: MaterialPalette.on_surface_variant;
+                wrap: word-wrap;
+            }
+        }
+
+        TonalButton {
+            text: "Export";
+            enabled: root.enabled;
+            clicked => {
+                root.export();
+            }
+        }
+    }
+
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: MaterialPalette.outline_variant;
     }
 }
 
@@ -217,18 +293,38 @@ export component App inherits MaterialWindow {
     callback rate-selected(int);
     callback reconnect();
 
-    // 0: charts, 1: PD.
+    // 0: charts, 1: PD, 2: files.
     in-out property <int> tab: 0;
 
     // PD tab. Rows are oldest first, already filtered by pd-hide-good-crc.
     in property <[PdRow]> pd-rows;
     in-out property <bool> pd-hide-good-crc: true;
     callback pd-filter-changed(bool);
+    in-out property <bool> pd-trace-enabled: false;
+    callback pd-trace-changed(bool);
     in property <string> pd-sink: "—";
     in property <string> pd-lines: "—";
     in property <string> pd-contract: "—";
     callback pd-clear();
     callback pd-row-toggled(int);
+
+    // Files tab: the live capture.
+    in property <bool> recording: false;
+    // 0: Parquet, 1: CSV.
+    in-out property <int> recording-format-index: 0;
+    callback recording-format-selected(int);
+    callback start-recording();
+    callback stop-recording();
+    in property <string> recording-progress: "";
+    in property <string> recording-status: "";
+    in property <string> recordings-dir: "";
+
+    // Files tab: recordings stored on the meter.
+    in property <[OfflineRow]> offline-rows;
+    in property <bool> offline-busy: false;
+    in property <string> offline-status: "Not loaded";
+    callback offline-load();
+    callback offline-export(int);
 
     title: "POWER-Z KM003C";
     icon: @image-url("../../assets/km003c-logo.svg");
@@ -237,6 +333,9 @@ export component App inherits MaterialWindow {
 
     changed pd-hide-good-crc => {
         root.pd-filter-changed(root.pd-hide-good-crc);
+    }
+    changed pd-trace-enabled => {
+        root.pd-trace-changed(root.pd-trace-enabled);
     }
 
     VerticalLayout {
@@ -278,6 +377,20 @@ export component App inherits MaterialWindow {
                     root.paused = !root.paused;
                     if (!root.paused) {
                         root.view-offset = 0;
+                    }
+                }
+            }
+
+            // Recording goes on whichever tab is open.
+            IconButton {
+                icon: root.recording ? AppIcons.stop : AppIcons.record;
+                tooltip: root.recording ? "Stop recording" : "Start recording";
+                has_error: !root.recording;
+                clicked => {
+                    if (root.recording) {
+                        root.stop-recording();
+                    } else {
+                        root.start-recording();
                     }
                 }
             }
@@ -332,12 +445,16 @@ export component App inherits MaterialWindow {
                 padding-right: 8px;
                 spacing: 6px;
 
-                // The rate only matters for the charts.
-                SegmentedButton {
-                    items: [{ text: "2 SPS" }, { text: "10 SPS" }, { text: "50 SPS" }, { text: "1k SPS" }];
-                    current_index <=> root.rate-index;
-                    index_changed(index) => {
-                        root.rate-selected(index);
+                // The rate only matters for the charts. A recording keeps
+                // one rate from start to end.
+                Disableable {
+                    enabled: !root.recording;
+                    SegmentedButton {
+                        items: [{ text: "2 SPS" }, { text: "10 SPS" }, { text: "50 SPS" }, { text: "1k SPS" }];
+                        current_index <=> root.rate-index;
+                        index_changed(index) => {
+                            root.rate-selected(index);
+                        }
                     }
                 }
 
@@ -425,9 +542,18 @@ export component App inherits MaterialWindow {
                 HorizontalLayout {
                     spacing: 8px;
                     alignment: space-between;
-                    FilterChip {
-                        text: "Hide GoodCRC";
-                        checked <=> root.pd-hide-good-crc;
+                    HorizontalLayout {
+                        spacing: 8px;
+                        FilterChip {
+                            text: "Hide GoodCRC";
+                            checked <=> root.pd-hide-good-crc;
+                        }
+
+                        FilterChip {
+                            text: "Firmware trace";
+                            tooltip: "Also read the Type-C and protocol-engine trace of the KM003C firmware";
+                            checked <=> root.pd-trace-enabled;
+                        }
                     }
 
                     TextButton {
@@ -462,12 +588,116 @@ export component App inherits MaterialWindow {
                     }
                 }
             }
+
+            VerticalLayout {
+                visible: root.tab == 2;
+                width: parent.width;
+                height: parent.height;
+                padding-left: 16px;
+                padding-right: 16px;
+                spacing: 8px;
+
+                Surface {
+                    VerticalLayout {
+                        padding: 12px;
+                        spacing: 8px;
+                        MaterialText {
+                            text: "Live recording";
+                            style: MaterialTypography.title_medium;
+                        }
+
+                        Disableable {
+                            enabled: !root.recording;
+                            SegmentedButton {
+                                items: [{ text: "Parquet" }, { text: "CSV" }];
+                                current_index <=> root.recording-format-index;
+                                index_changed(index) => {
+                                    root.recording-format-selected(index);
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            alignment: start;
+                            FilledButton {
+                                text: root.recording ? "Stop recording" : "Start recording";
+                                icon: root.recording ? AppIcons.stop : AppIcons.record;
+                                clicked => {
+                                    if (root.recording) {
+                                        root.stop-recording();
+                                    } else {
+                                        root.start-recording();
+                                    }
+                                }
+                            }
+                        }
+
+                        if root.recording-progress != "": MaterialText {
+                            text: root.recording-progress;
+                            style: MaterialTypography.body_medium;
+                        }
+                        if root.recording-status != "": MaterialText {
+                            text: root.recording-status;
+                            style: MaterialTypography.body_small;
+                            color: MaterialPalette.on_surface_variant;
+                            wrap: word-wrap;
+                        }
+                        MaterialText {
+                            text: "Saved to " + root.recordings-dir;
+                            style: MaterialTypography.label_small;
+                            color: MaterialPalette.on_surface_variant;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        MaterialText {
+                            text: "Stored on the meter";
+                            style: MaterialTypography.title_medium;
+                        }
+
+                        MaterialText {
+                            text: root.offline-status;
+                            style: MaterialTypography.body_small;
+                            color: MaterialPalette.on_surface_variant;
+                            wrap: word-wrap;
+                        }
+                    }
+
+                    TextButton {
+                        text: "Load";
+                        // Loading pauses the live stream, which a recording
+                        // cannot have.
+                        enabled: !root.offline-busy && !root.recording;
+                        clicked => {
+                            root.offline-load();
+                        }
+                    }
+                }
+
+                ListView {
+                    vertical-stretch: 1;
+                    for row[index] in root.offline-rows: OfflineRowView {
+                        entry: row;
+                        enabled: !root.offline-busy && !root.recording;
+                        export => {
+                            root.offline-export(index);
+                        }
+                    }
+                }
+            }
         }
 
         NavigationBar {
             items: [
                 { icon: AppIcons.chart, selected_icon: AppIcons.chart, text: "Charts" },
                 { icon: AppIcons.bolt, selected_icon: AppIcons.bolt, text: "PD" },
+                { icon: AppIcons.folder, selected_icon: AppIcons.folder, text: "Files" },
             ];
             current_index <=> root.tab;
         }

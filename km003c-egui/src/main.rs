@@ -1,8 +1,4 @@
 mod metric_color;
-mod offline_export;
-mod offline_view;
-mod pd_trace_view;
-mod recording;
 
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
@@ -11,20 +7,39 @@ use km003c_lib::uom::si::electric_potential::volt;
 use km003c_lib::uom::si::energy::milliwatt_hour;
 use km003c_lib::uom::si::time::{millisecond, second};
 use km003c_lib::{
-    DeviceState, GraphSampleRate, LogMetadata, MeasurementAccumulator, MeasurementSample, Metric, PdConnectionTracker,
-    PdLogCategory, PdLogEntry, PdLogger, Session, SessionEvent,
+    DeviceState, GraphSampleRate, LogMetadata, MeasurementAccumulator, MeasurementSample, Metric, OfflineExport,
+    OfflineExportEvent, OfflineRecordingView, PdConnectionTracker, PdContract, PdLogCategory, PdLogEntry, PdLogger,
+    PdTraceCategory, PdTraceEntry, Preferences, Recorder, RecordingEvent, RecordingFormat, RecordingMetadata,
+    RecordingSummary, RecoveryOutcome, Session, SessionEvent,
     pd::{PdEventData, PdStatus},
 };
 use metric_color::MetricColor;
-use offline_export::{OfflineExportEvent, OfflineExportTask};
-use offline_view::OfflineRecordingView;
-use pd_trace_view::{PdTraceCategory, PdTraceEntry, decode_trace};
-use recording::{Recorder, RecordingEvent, RecordingFormat, RecordingMetadata, RecordingSummary};
 use std::collections::VecDeque;
+use std::path::PathBuf;
 use std::sync::Arc;
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
-use tracing::info;
+use tracing::{info, warn};
+
+/// Where the app keeps its files. The Slint GUI uses the same ones on the
+/// desktop, so both remember the same settings.
+struct AppDirs {
+    preferences: Option<PathBuf>,
+    journal: PathBuf,
+}
+
+impl AppDirs {
+    fn locate() -> Self {
+        Self {
+            preferences: dirs::config_dir().map(|dir| dir.join("km003c").join("preferences.json")),
+            journal: dirs::data_local_dir()
+                .unwrap_or_else(std::env::temp_dir)
+                .join("km003c")
+                .join("journal"),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PlotSource {
@@ -46,17 +61,29 @@ impl PdTimelineEntry<'_> {
     }
 }
 
+/// Which entries the PD timeline shows.
+#[derive(Debug, Clone, Copy)]
+struct TimelineFilter {
+    protocol: bool,
+    good_crc: bool,
+    trace: bool,
+}
+
 fn pd_timeline_entries<'a>(
     protocol_log: &'a VecDeque<PdLogEntry>,
     trace_log: &'a VecDeque<PdTraceEntry>,
-    show_protocol: bool,
-    show_trace: bool,
+    filter: TimelineFilter,
 ) -> Vec<PdTimelineEntry<'a>> {
     let mut timeline = Vec::with_capacity(protocol_log.len() + trace_log.len());
-    if show_protocol {
-        timeline.extend(protocol_log.iter().map(PdTimelineEntry::Protocol));
+    if filter.protocol {
+        timeline.extend(
+            protocol_log
+                .iter()
+                .filter(|entry| filter.good_crc || !entry.is_good_crc())
+                .map(PdTimelineEntry::Protocol),
+        );
     }
-    if show_trace {
+    if filter.trace {
         timeline.extend(trace_log.iter().map(PdTimelineEntry::FirmwareTrace));
     }
     timeline.sort_by(|left, right| left.timestamp_seconds().total_cmp(&right.timestamp_seconds()));
@@ -142,6 +169,15 @@ impl TimeWindow {
     fn all() -> &'static [Self] {
         &[Self::Sec2, Self::Sec10, Self::Sec30, Self::Min1, Self::Min5, Self::All]
     }
+
+    /// The option for a saved window width, 30 s when none matches.
+    fn from_seconds(seconds: Option<f64>) -> Self {
+        Self::all()
+            .iter()
+            .copied()
+            .find(|window| window.seconds() == seconds)
+            .unwrap_or(Self::Sec30)
+    }
 }
 
 struct PowerMonitorApp {
@@ -200,7 +236,7 @@ struct PowerMonitorApp {
     /// Offline browser and export status
     offline_status: String,
     /// Background export of a downloaded offline recording
-    offline_export: Option<OfflineExportTask>,
+    offline_export: Option<OfflineExport>,
     /// Data source currently rendered by the three plots
     plot_source: PlotSource,
     /// PD protocol decoder
@@ -213,6 +249,10 @@ struct PowerMonitorApp {
     pd_status: Option<PdStatus>,
     /// Debounced phone connection state
     pd_connection: PdConnectionTracker,
+    /// Power contract from the negotiation messages
+    pd_contract: PdContract,
+    /// Leave GoodCRC acknowledgements out of the timeline
+    pd_hide_good_crc: bool,
     /// Auto-scroll PD log
     pd_auto_scroll: bool,
     /// PD panel visible
@@ -233,12 +273,30 @@ struct PowerMonitorApp {
     auto_connect_enabled: bool,
     /// Time of the next automatic probe while the KM003C is absent.
     reconnect_at: Option<Instant>,
+    /// Preference file and recording journal locations
+    dirs: AppDirs,
+    /// Preferences as last written, to save only changes
+    saved_preferences: Preferences,
+    /// Conversion of journals that earlier runs left behind
+    recovery: Option<JoinHandle<std::io::Result<Vec<RecoveryOutcome>>>>,
 }
 
 impl PowerMonitorApp {
     const RECONNECT_DELAY: Duration = Duration::from_secs(1);
 
-    fn new(session: Session, session_events: mpsc::UnboundedReceiver<SessionEvent>) -> Self {
+    fn new(
+        session: Session,
+        session_events: mpsc::UnboundedReceiver<SessionEvent>,
+        preferences: Preferences,
+        dirs: AppDirs,
+    ) -> Self {
+        let rate = SampleRateOption::from_graph_rate(preferences.sample_rate);
+        let journal = dirs.journal.clone();
+        let recovery = std::thread::Builder::new()
+            .name("km003c-recovery".to_string())
+            .spawn(move || km003c_lib::recover_interrupted(&journal))
+            .map_err(|error| warn!("Could not start recording recovery: {error}"))
+            .ok();
         Self {
             data_points: VecDeque::new(),
             measurement_accumulator: MeasurementAccumulator::default(),
@@ -247,9 +305,9 @@ impl PowerMonitorApp {
             device_state: None,
             status: "Connecting...".to_string(),
             streaming: false,
-            current_rate: SampleRateOption::Sps50,
-            selected_rate: SampleRateOption::Sps50,
-            time_window: TimeWindow::Sec30,
+            current_rate: rate,
+            selected_rate: rate,
+            time_window: TimeWindow::from_seconds(preferences.time_window_seconds),
             max_points: 100000, // Safety cap for memory
             total_samples: 0,
             dropped_samples: 0,
@@ -257,8 +315,8 @@ impl PowerMonitorApp {
             current_voltage: 0.0,
             current_current: 0.0,
             current_power: 0.0,
-            plot_metrics: [Metric::Voltage, Metric::Current, Metric::Power],
-            recording_format: RecordingFormat::Parquet,
+            plot_metrics: preferences.plot_metrics,
+            recording_format: preferences.recording_format,
             recorder: None,
             recording_status: "Not recording".to_string(),
             last_recording: None,
@@ -275,16 +333,80 @@ impl PowerMonitorApp {
             max_pd_entries: 1000,
             pd_status: None,
             pd_connection: PdConnectionTracker::default(),
+            pd_contract: PdContract::default(),
+            pd_hide_good_crc: preferences.pd_hide_good_crc,
             pd_auto_scroll: true,
             pd_panel_visible: true,
             pd_protocol_visible: true,
-            pd_trace_enabled: false,
+            pd_trace_enabled: preferences.pd_trace_enabled,
             pd_trace_log: VecDeque::new(),
             max_pd_trace_entries: 2000,
             usb_reset: !cfg!(target_os = "macos"),
             connection_attempt_in_flight: true,
             auto_connect_enabled: true,
             reconnect_at: None,
+            dirs,
+            saved_preferences: preferences,
+            recovery,
+        }
+    }
+
+    fn preferences(&self) -> Preferences {
+        let mut preferences = self.saved_preferences.clone();
+        preferences.sample_rate = self.selected_rate.to_graph_rate();
+        preferences.time_window_seconds = self.time_window.seconds();
+        preferences.plot_metrics = self.plot_metrics;
+        preferences.recording_format = self.recording_format;
+        preferences.pd_trace_enabled = self.pd_trace_enabled;
+        preferences.pd_hide_good_crc = self.pd_hide_good_crc;
+        preferences
+    }
+
+    /// Write the preferences when a setting changed.
+    fn save_preferences(&mut self) {
+        let preferences = self.preferences();
+        if preferences == self.saved_preferences {
+            return;
+        }
+        if let Some(path) = &self.dirs.preferences
+            && let Err(error) = preferences.save(path)
+        {
+            warn!("Could not save preferences to {}: {error}", path.display());
+        }
+        self.saved_preferences = preferences;
+    }
+
+    fn poll_recovery(&mut self) {
+        if !self.recovery.as_ref().is_some_and(JoinHandle::is_finished) {
+            return;
+        }
+        let outcomes = match self.recovery.take().map(JoinHandle::join) {
+            Some(Ok(Ok(outcomes))) => outcomes,
+            Some(Ok(Err(error))) => {
+                self.recording_status = format!("Could not look for interrupted recordings: {error}");
+                return;
+            }
+            _ => return,
+        };
+        let messages = outcomes
+            .iter()
+            .map(|outcome| match &outcome.result {
+                Ok(summary) => format!(
+                    "Recovered an interrupted recording: {} samples in {}",
+                    summary.rows,
+                    summary.path.display()
+                ),
+                Err(error) => format!(
+                    "Could not recover {}: {error}; the journal is kept",
+                    outcome.journal.display()
+                ),
+            })
+            .collect::<Vec<_>>();
+        for message in &messages {
+            info!("{message}");
+        }
+        if !messages.is_empty() {
+            self.recording_status = messages.join("\n");
         }
     }
 
@@ -324,6 +446,8 @@ impl PowerMonitorApp {
                     self.offline_status = "Catalog not loaded".to_string();
                     self.pd_connection = PdConnectionTracker::default();
                     self.pd_decoder = PdLogger::new();
+                    // Keep the contract; messages sent in between were missed.
+                    self.pd_contract.device_reconnected();
                     if self.pd_trace_enabled {
                         let _ = self.session.set_pd_trace_enabled(true);
                     }
@@ -370,7 +494,7 @@ impl PowerMonitorApp {
                     if let Some(recorder) = &mut self.recorder
                         && let Err(error) = recorder.push(&measurements)
                     {
-                        self.recording_status = error;
+                        self.recording_status = error.to_string();
                         recorder.request_finish();
                     }
                 }
@@ -395,7 +519,9 @@ impl PowerMonitorApp {
                             PdEventData::PdMessage { .. } => {}
                         }
 
-                        self.pd_log.push_back(self.pd_decoder.log_event(event));
+                        let entry = self.pd_decoder.log_event(event);
+                        self.pd_contract.observe(&entry);
+                        self.pd_log.push_back(entry);
                         while self.pd_log.len() > self.max_pd_entries {
                             self.pd_log.pop_front();
                         }
@@ -406,7 +532,7 @@ impl PowerMonitorApp {
                     self.pd_status = Some(status);
                 }
                 SessionEvent::PdTrace(trace) => {
-                    for entry in decode_trace(&trace) {
+                    for entry in trace.entries() {
                         self.pd_trace_log.push_back(entry);
                         while self.pd_trace_log.len() > self.max_pd_trace_entries {
                             self.pd_trace_log.pop_front();
@@ -427,11 +553,7 @@ impl PowerMonitorApp {
                     let samples = log.samples.len();
                     let filename = log.metadata.filename_lossy().into_owned();
                     self.offline_view = Some(Arc::new(OfflineRecordingView::new(log)));
-                    self.offline_device_metadata = self.device_state.as_ref().map(|state| RecordingMetadata {
-                        model: state.info.model.clone(),
-                        firmware: state.info.fw_version.clone(),
-                        serial: state.info.serial_id.clone(),
-                    });
+                    self.offline_device_metadata = self.device_state.as_deref().map(RecordingMetadata::from);
                     self.offline_busy = false;
                     self.offline_status = format!("Downloaded {samples} samples from {filename}");
                     self.plot_source = PlotSource::Offline;
@@ -476,8 +598,11 @@ impl PowerMonitorApp {
 
         self.retry_connection_if_due(Instant::now());
         self.pd_connection.update(std::time::Instant::now());
+        self.pd_contract.observe_sink(self.pd_connection.connected());
         self.poll_recording();
         self.poll_offline_export();
+        self.poll_recovery();
+        self.save_preferences();
     }
 
     fn clear_data(&mut self) {
@@ -504,11 +629,7 @@ impl PowerMonitorApp {
             return;
         }
 
-        let metadata = RecordingMetadata {
-            model: state.info.model.clone(),
-            firmware: state.info.fw_version.clone(),
-            serial: state.info.serial_id.clone(),
-        };
+        let metadata = RecordingMetadata::from(state.as_ref());
         let Some(path) = self.select_recording_path("km003c-live", "Save KM003C live recording") else {
             return;
         };
@@ -517,13 +638,14 @@ impl PowerMonitorApp {
             self.recording_format,
             metadata,
             self.data_points.back().copied(),
+            &self.dirs.journal,
         ) {
             Ok(recorder) => {
                 self.recording_status = format!("Recording to {}", path.display());
                 self.last_recording = None;
                 self.recorder = Some(recorder);
             }
-            Err(error) => self.recording_status = error,
+            Err(error) => self.recording_status = error.to_string(),
         }
     }
 
@@ -536,16 +658,18 @@ impl PowerMonitorApp {
             self.recording_status = "The plot buffer is empty".to_string();
             return;
         };
-        let metadata = RecordingMetadata {
-            model: state.info.model.clone(),
-            firmware: state.info.fw_version.clone(),
-            serial: state.info.serial_id.clone(),
-        };
+        let metadata = RecordingMetadata::from(state.as_ref());
         let Some(path) = self.select_recording_path("km003c-buffer", "Export KM003C plot buffer") else {
             return;
         };
 
-        match Recorder::start(path.clone(), self.recording_format, metadata, Some(first)) {
+        match Recorder::start(
+            path.clone(),
+            self.recording_format,
+            metadata,
+            Some(first),
+            &self.dirs.journal,
+        ) {
             Ok(mut recorder) => {
                 let samples = self.data_points.iter().copied().collect::<Vec<_>>();
                 match recorder.push(&samples) {
@@ -555,10 +679,10 @@ impl PowerMonitorApp {
                         self.last_recording = None;
                         self.recorder = Some(recorder);
                     }
-                    Err(error) => self.recording_status = error,
+                    Err(error) => self.recording_status = error.to_string(),
                 }
             }
-            Err(error) => self.recording_status = error,
+            Err(error) => self.recording_status = error.to_string(),
         }
     }
 
@@ -581,7 +705,7 @@ impl PowerMonitorApp {
             return;
         };
         recorder.request_finish();
-        self.recording_status = format!("Finalizing {}", recorder.path.display());
+        self.recording_status = format!("Finalizing {}", recorder.path().display());
     }
 
     fn poll_recording(&mut self) {
@@ -603,8 +727,18 @@ impl PowerMonitorApp {
                 self.last_recording = Some(summary);
                 self.recorder = None;
             }
-            Some(RecordingEvent::Failed(error)) => {
-                self.recording_status = error;
+            Some(RecordingEvent::Failed { error, journal }) => {
+                self.recording_status = match journal {
+                    Some(journal) => format!(
+                        "{error}; the samples are kept in {} and are recovered on the next start",
+                        journal.display()
+                    ),
+                    None => error.to_string(),
+                };
+                self.recorder = None;
+            }
+            Some(event) => {
+                warn!("Unhandled recording event: {event:?}");
                 self.recorder = None;
             }
             None => {}
@@ -672,24 +806,28 @@ impl PowerMonitorApp {
         let Some(path) = self.select_recording_path(prefix, "Export KM003C offline recording") else {
             return;
         };
-        match OfflineExportTask::start(path.clone(), self.recording_format, device.clone(), Arc::clone(view)) {
+        match OfflineExport::start(path.clone(), self.recording_format, device.clone(), Arc::clone(view)) {
             Ok(task) => {
                 self.offline_status = format!("Exporting to {}", path.display());
                 self.offline_export = Some(task);
             }
-            Err(error) => self.offline_status = error,
+            Err(error) => self.offline_status = error.to_string(),
         }
     }
 
     fn poll_offline_export(&mut self) {
-        let event = self.offline_export.as_mut().and_then(OfflineExportTask::poll_event);
+        let event = self.offline_export.as_mut().and_then(OfflineExport::poll_event);
         match event {
             Some(OfflineExportEvent::Finished { path, rows }) => {
                 self.offline_status = format!("Exported {rows} samples to {}", path.display());
                 self.offline_export = None;
             }
             Some(OfflineExportEvent::Failed(error)) => {
-                self.offline_status = error;
+                self.offline_status = error.to_string();
+                self.offline_export = None;
+            }
+            Some(event) => {
+                warn!("Unhandled export event: {event:?}");
                 self.offline_export = None;
             }
             None => {}
@@ -857,6 +995,10 @@ impl PowerMonitorApp {
                         };
                         ui.colored_label(color, label);
                         ui.end_row();
+
+                        ui.label("Contract:");
+                        ui.label(self.pd_contract.to_string());
+                        ui.end_row();
                     });
             } else {
                 ui.label("No PD data");
@@ -874,6 +1016,10 @@ impl PowerMonitorApp {
             ui.checkbox(&mut self.pd_panel_visible, "Show PD Panel");
             ui.label("Filters:");
             ui.checkbox(&mut self.pd_protocol_visible, "Protocol messages");
+            ui.add_enabled(
+                self.pd_protocol_visible,
+                egui::Checkbox::new(&mut self.pd_hide_good_crc, "Hide GoodCRC"),
+            );
             let trace_changed = ui
                 .checkbox(&mut self.pd_trace_enabled, "Firmware trace")
                 .on_hover_text(
@@ -1063,15 +1209,11 @@ impl PowerMonitorApp {
             }
 
             if let Some(recorder) = &self.recorder {
-                ui.label(format!("Samples: {}", recorder.rows));
-                ui.label(format!("Missing: {}", recorder.missing_samples));
-                ui.label(format!("Discarded: {}", recorder.discarded_sequence_samples));
-                let completeness = if recorder.elapsed_us == 0 {
-                    100.0
-                } else {
-                    (1.0 - recorder.interpolated_duration_us as f64 / recorder.elapsed_us as f64).max(0.0) * 100.0
-                };
-                ui.label(format!("Completeness: {completeness:.6}%"));
+                let progress = recorder.summary();
+                ui.label(format!("Samples: {}", progress.rows));
+                ui.label(format!("Missing: {}", progress.missing_samples));
+                ui.label(format!("Discarded: {}", progress.discarded_sequence_samples));
+                ui.label(format!("Completeness: {:.6}%", progress.completeness_percent()));
             } else if let Some(summary) = &self.last_recording {
                 ui.label(format!("Last capture: {} samples", summary.rows));
                 ui.label(format!("Discarded: {}", summary.discarded_sequence_samples));
@@ -1203,7 +1345,7 @@ impl PowerMonitorApp {
                 if let Some(export) = &self.offline_export {
                     ui.horizontal(|ui| {
                         ui.spinner();
-                        ui.label(format!("Exporting {}", export.path.display()));
+                        ui.label(format!("Exporting {}", export.path().display()));
                     });
                 } else if ui.button("Export Downloaded").clicked() {
                     self.export_offline_log();
@@ -1251,8 +1393,11 @@ impl PowerMonitorApp {
                     let timeline = pd_timeline_entries(
                         &self.pd_log,
                         &self.pd_trace_log,
-                        self.pd_protocol_visible,
-                        self.pd_trace_enabled,
+                        TimelineFilter {
+                            protocol: self.pd_protocol_visible,
+                            good_crc: !self.pd_hide_good_crc,
+                            trace: self.pd_trace_enabled,
+                        },
                     );
 
                     egui::ScrollArea::vertical()
@@ -1291,11 +1436,11 @@ impl PowerMonitorApp {
                                         let color = match entry.category {
                                             PdTraceCategory::TypeCState => egui::Color32::from_rgb(100, 200, 255),
                                             PdTraceCategory::ProtocolEvent => egui::Color32::LIGHT_GREEN,
-                                            PdTraceCategory::Unknown => egui::Color32::YELLOW,
+                                            _ => egui::Color32::YELLOW,
                                         };
                                         ui.colored_label(
                                             color,
-                                            egui::RichText::new(format!("[FW]   {}", entry.summary))
+                                            egui::RichText::new(format!("[FW]   {}", entry.summary()))
                                                 .monospace()
                                                 .size(row_height),
                                         );
@@ -1408,10 +1553,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
     info!("Starting POWER-Z KM003C GUI application");
 
+    let dirs = AppDirs::locate();
+    let preferences = dirs.preferences.as_deref().map(Preferences::load).unwrap_or_default();
     let (session, session_events) = Session::spawn();
 
     // Auto-connect on startup
-    let _ = session.connect(GraphSampleRate::Sps50, !cfg!(target_os = "macos"));
+    let _ = session.connect(preferences.sample_rate, !cfg!(target_os = "macos"));
 
     // Run egui application
     let options = eframe::NativeOptions {
@@ -1421,7 +1568,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
 
-    let app = PowerMonitorApp::new(session, session_events);
+    let app = PowerMonitorApp::new(session, session_events, preferences, dirs);
 
     eframe::run_native("POWER-Z KM003C Monitor", options, Box::new(|_cc| Ok(Box::new(app))))
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
@@ -1430,49 +1577,157 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::offline_view::captured_test_view;
-    use polars::prelude::{CsvReader, ParquetReader, SerReader};
+    use km003c_lib::{OfflineLog, read_recording};
 
-    /// An app whose session has no device task behind it.
+    /// An app whose session has no device task behind it. It saves no
+    /// preferences and journals into a directory of its own.
     fn test_app() -> (PowerMonitorApp, mpsc::UnboundedSender<SessionEvent>) {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let (session, _commands) = Session::detached();
-        (PowerMonitorApp::new(session, event_rx), event_tx)
+        let dirs = AppDirs {
+            preferences: None,
+            journal: std::env::temp_dir().join(format!("km003c-egui-test-journal-{}", std::process::id())),
+        };
+        (
+            PowerMonitorApp::new(session, event_rx, Preferences::default(), dirs),
+            event_tx,
+        )
+    }
+
+    /// Three samples captured from a KM003C.
+    fn captured_offline_log() -> OfflineLog {
+        use km003c_lib::uom::si::electric_charge::microampere_hour;
+        use km003c_lib::uom::si::energy::microwatt_hour;
+        use km003c_lib::uom::si::f64::{ElectricCharge, Energy, Time};
+
+        let bytes = [
+            "81494c0021f0e2ff56ebffffb998ffff",
+            "bcaa89006e25f2ff2dd5f8fff7fdd6ff",
+            "cf2a8900947dfeffa1a2f3ffe04da8ff",
+        ]
+        .into_iter()
+        .flat_map(|sample| hex::decode(sample).unwrap())
+        .collect::<Vec<_>>();
+        let mut filename_raw = [0; 16];
+        filename_raw[..5].copy_from_slice(b"A01.d");
+        OfflineLog::from_bytes(
+            LogMetadata {
+                filename_raw,
+                unknown_0x10: 0x0a45,
+                sample_count: 3,
+                interval: Time::new::<millisecond>(10_000.0),
+                flags: 0,
+                recorded_duration: Time::new::<second>(20.0),
+                final_charge: ElectricCharge::new::<microampere_hour>(-810_335.0),
+                final_energy: Energy::new::<microwatt_hour>(-5_747_232.0),
+                data_offset: 0,
+                reserved_tail: [0; 8],
+            },
+            &bytes,
+        )
+        .unwrap()
     }
 
     #[test]
     fn pd_timeline_filters_and_orders_both_sources() {
-        let protocol_log = VecDeque::from([PdLogEntry {
+        let wire = |title: &str| PdLogEntry {
             timestamp_seconds: 12.25,
             category: PdLogCategory::Control,
             sop: Some(0),
-            title: "wire".to_string(),
+            title: title.to_string(),
             header: None,
             details: Vec::new(),
-        }]);
-        let trace_log = VecDeque::from([PdTraceEntry {
-            timestamp_seconds: 11.0,
-            category: PdTraceCategory::TypeCState,
-            summary: "trace".to_string(),
-        }]);
+        };
+        let protocol_log = VecDeque::from([wire("Accept"), wire("GoodCRC")]);
+        let trace = km003c_lib::PdTrace {
+            state_events: vec![km003c_lib::PdTraceStateEvent {
+                state: km003c_lib::PdTypeCState::AttachedSink,
+                timestamp: km003c_lib::uom::si::f64::Time::new::<second>(11.0),
+            }],
+            protocol_events: Vec::new(),
+        };
+        let trace_log = VecDeque::from(trace.entries());
+        let all = TimelineFilter {
+            protocol: true,
+            good_crc: true,
+            trace: true,
+        };
 
-        let combined = pd_timeline_entries(&protocol_log, &trace_log, true, true);
+        let combined = pd_timeline_entries(&protocol_log, &trace_log, all);
+        assert_eq!(combined.len(), 3);
         assert!(matches!(combined[0], PdTimelineEntry::FirmwareTrace(_)));
         assert!(matches!(combined[1], PdTimelineEntry::Protocol(_)));
 
-        let protocol_only = pd_timeline_entries(&protocol_log, &trace_log, true, false);
-        assert_eq!(protocol_only.len(), 1);
+        let protocol_only = pd_timeline_entries(&protocol_log, &trace_log, TimelineFilter { trace: false, ..all });
+        assert_eq!(protocol_only.len(), 2);
         assert!(matches!(protocol_only[0], PdTimelineEntry::Protocol(_)));
+
+        let without_good_crc =
+            pd_timeline_entries(&protocol_log, &trace_log, TimelineFilter { good_crc: false, ..all });
+        assert_eq!(without_good_crc.len(), 2);
+        assert!(
+            without_good_crc
+                .iter()
+                .all(|entry| !matches!(entry, PdTimelineEntry::Protocol(entry) if entry.is_good_crc()))
+        );
+    }
+
+    #[test]
+    fn a_contract_survives_a_meter_reconnect() {
+        let (mut app, usb_tx) = test_app();
+        let message = |hex_data: &str| km003c_lib::PdEvent {
+            timestamp: km003c_lib::uom::si::f64::Time::new::<millisecond>(0.0),
+            data: PdEventData::PdMessage {
+                sop: 0,
+                wire_data: hex::decode(hex_data).unwrap(),
+            },
+        };
+        usb_tx
+            .send(SessionEvent::PdEvents(vec![
+                message("a1612c9101082cd102002cc103002cb10400454106003c21dcc0"),
+                message("8210dc700323"),
+                message("a305"),
+                message("a607"),
+            ]))
+            .unwrap();
+        app.process_messages();
+        assert_eq!(app.pd_contract.to_string(), "PDO#2 (Fixed 9V @ 3.0A (27W)) @ 2.2A");
+
+        usb_tx
+            .send(SessionEvent::Disconnected {
+                retry_when_present: true,
+            })
+            .unwrap();
+        app.process_messages();
+
+        assert_eq!(app.pd_contract.stage(), km003c_lib::PdContractStage::Active);
+    }
+
+    #[test]
+    fn preferences_follow_the_controls() {
+        let (mut app, _usb_tx) = test_app();
+        app.selected_rate = SampleRateOption::Sps1000;
+        app.time_window = TimeWindow::All;
+        app.pd_hide_good_crc = false;
+
+        let preferences = app.preferences();
+
+        assert_eq!(preferences.sample_rate, GraphSampleRate::Sps1000);
+        assert_eq!(preferences.time_window_seconds, None);
+        assert!(!preferences.pd_hide_good_crc);
+        assert_eq!(
+            TimeWindow::from_seconds(preferences.time_window_seconds),
+            TimeWindow::All
+        );
     }
 
     #[test]
     fn downloaded_offline_log_becomes_the_active_plot_source() {
         let (mut app, usb_tx) = test_app();
         app.plot_metrics[0] = Metric::Cc1;
-        let fixture = captured_test_view();
 
         usb_tx
-            .send(SessionEvent::OfflineLogDownloaded(fixture.log.as_ref().clone()))
+            .send(SessionEvent::OfflineLogDownloaded(captured_offline_log()))
             .unwrap();
         app.process_messages();
 
@@ -1583,11 +1838,7 @@ mod tests {
 
             if let Some(log) = downloaded_log {
                 let device_state = device_state.expect("connected device state was not retained");
-                let recording_metadata = RecordingMetadata {
-                    model: device_state.info.model.clone(),
-                    firmware: device_state.info.fw_version.clone(),
-                    serial: device_state.info.serial_id.clone(),
-                };
+                let recording_metadata = RecordingMetadata::from(device_state.as_ref());
                 let expected_rows = log.samples.len();
                 let expected_charge_uah = log
                     .metadata
@@ -1608,13 +1859,14 @@ mod tests {
                         format.extension()
                     ));
                     let mut export =
-                        OfflineExportTask::start(path.clone(), format, recording_metadata.clone(), Arc::clone(&view))
+                        OfflineExport::start(path.clone(), format, recording_metadata.clone(), Arc::clone(&view))
                             .unwrap();
                     let export_deadline = tokio::time::Instant::now() + Duration::from_secs(10);
                     let rows = loop {
                         match export.poll_event() {
                             Some(OfflineExportEvent::Finished { rows, .. }) => break rows,
                             Some(OfflineExportEvent::Failed(error)) => panic!("offline export failed: {error}"),
+                            Some(event) => panic!("unexpected export event: {event:?}"),
                             None => {
                                 assert!(
                                     tokio::time::Instant::now() < export_deadline,
@@ -1625,12 +1877,7 @@ mod tests {
                         }
                     };
                     assert_eq!(rows, expected_rows);
-                    let dataframe = match format {
-                        RecordingFormat::Parquet => ParquetReader::new(std::fs::File::open(&path).unwrap())
-                            .finish()
-                            .unwrap(),
-                        RecordingFormat::Csv => CsvReader::new(std::fs::File::open(&path).unwrap()).finish().unwrap(),
-                    };
+                    let dataframe = read_recording(&path).unwrap();
                     assert_eq!(dataframe.shape(), (expected_rows, 23));
                     assert_eq!(
                         dataframe

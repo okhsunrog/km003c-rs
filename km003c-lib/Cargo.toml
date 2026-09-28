@@ -36,9 +36,19 @@ rand = "0.10.2"
 uom.workspace = true
 usbpd = { workspace = true, optional = true }
 futures-util = { version = "0.3.34", default-features = false }
+polars = { version = "0.55.2", default-features = false, features = ["csv", "parquet"], optional = true }
+serde_json = { version = "1.0.151", optional = true }
 
 [features]
 default = []
 python = ["dep:pyo3"]
 serde = ["dep:serde", "uom/serde"]
 usbpd = ["dep:usbpd"]
+# Live recording, offline export and DataFrame conversion. The polars version
+# is part of this feature's API; use the re-exported `km003c_lib::polars`.
+polars = ["dep:polars"]
+# Front-end preferences saved as JSON.
+preferences = ["serde", "dep:serde_json"]
+
+[package.metadata.docs.rs]
+features = ["usbpd", "serde", "polars", "preferences"]

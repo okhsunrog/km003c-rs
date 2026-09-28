@@ -31,11 +31,21 @@ breaks in the line rather than being joined across.
 The PD tab shows whether a sink is attached, the CC1/CC2 and VBUS readings,
 the power contract as the negotiation establishes it, and the PD message log
 in time order. Tapping a message expands its PDOs or RDO; GoodCRC
-acknowledgements are hidden by default. The log uses `pd_log` from
-`km003c-lib`, the same formatter as the egui timeline.
+acknowledgements are hidden by default, and the firmware's Type-C and
+protocol-engine trace can be mixed in. A contract survives a reconnect of the
+meter, marked as seen before it, until the sink is unplugged. The log and the
+contract come from `km003c-lib`, as in the egui timeline.
 
-Not yet ported from `km003c-egui`: recording to Parquet/CSV, offline logs, the
-firmware PD trace, and metric selection per chart.
+The Files tab records the live stream to Parquet or CSV and exports the
+recordings stored on the meter. The record button in the top bar starts and
+stops a recording from any tab; the sample rate is locked while it runs. A
+recording interrupted by a crash is recovered on the next start. Recordings go
+to `~/Documents/KM003C` on the desktop and to
+`Android/data/dev.okhsunrog.km003c/files/recordings` on a phone, where
+`adb pull` reaches them. Settings are remembered between runs.
+
+Not yet ported from `km003c-egui`: plotting the recordings stored on the
+meter, and metric selection per chart.
 
 ## Desktop
 
