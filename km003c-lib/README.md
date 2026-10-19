@@ -9,8 +9,9 @@ information, and recorded-packet parsing. Physical measurements use
 [`uom`](https://docs.rs/uom) quantities throughout the Rust API.
 
 Offline recordings are exposed as a catalog of typed `LogMetadata` entries.
-`KM003C::download_offline_log()` selects the correct flash offset, validates
-the final charge and energy accumulators, and returns typed `uom` samples.
+`KM003C::download_offline_log()` selects the correct flash offset, accepts a
+final charge and energy within one sample interval of the last sample, and
+returns typed `uom` samples.
 
 Normal vendor initialization authenticates with the device HardwareID at
 level 1. `KM003C::authenticate_calibration()` safely reads the firmware-selected
