@@ -937,6 +937,30 @@ impl PowerMonitorApp {
 /// `eframe::App::ui` below owns only the window layout; each section here owns
 /// one block of the side panel, so neither grows into a single unreadable
 /// function.
+fn configure_appearance(ctx: &egui::Context) {
+    ctx.set_theme(egui::ThemePreference::Dark);
+    ctx.set_zoom_factor(1.5);
+    ctx.style_mut_of(egui::Theme::Dark, |style| {
+        style.visuals.override_text_color = Some(egui::Color32::from_gray(220));
+        style.visuals.weak_text_color = Some(egui::Color32::from_gray(180));
+    });
+}
+
+fn readable_color(ui: &egui::Ui, dark: egui::Color32) -> egui::Color32 {
+    if ui.visuals().dark_mode {
+        return dark;
+    }
+    let [r, g, b, _] = dark.to_array();
+    if r.max(g).max(b) <= 140 {
+        return dark;
+    }
+    egui::Color32::from_rgb(
+        (r as f32 * 0.45) as u8,
+        (g as f32 * 0.45) as u8,
+        (b as f32 * 0.45) as u8,
+    )
+}
+
 impl PowerMonitorApp {
     fn header_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
@@ -944,13 +968,32 @@ impl PowerMonitorApp {
             ui.separator();
 
             let status_color = if self.streaming {
-                egui::Color32::GREEN
+                readable_color(ui, egui::Color32::GREEN)
             } else if self.device_state.is_some() {
-                egui::Color32::YELLOW
+                readable_color(ui, egui::Color32::YELLOW)
             } else {
-                egui::Color32::RED
+                readable_color(ui, egui::Color32::RED)
             };
-            ui.colored_label(status_color, &self.status);
+            ui.colored_label(readable_color(ui, status_color), &self.status);
+            ui.separator();
+            egui::widgets::global_theme_preference_buttons(ui);
+            ui.menu_button("Scale", |ui| {
+                for (label, scale) in [
+                    ("100%", 1.0),
+                    ("125%", 1.25),
+                    ("150%", 1.5),
+                    ("175%", 1.75),
+                    ("200%", 2.0),
+                ] {
+                    if ui
+                        .selectable_label((ui.ctx().zoom_factor() - scale).abs() < 0.01, label)
+                        .clicked()
+                    {
+                        ui.ctx().set_zoom_factor(scale);
+                        ui.close();
+                    }
+                }
+            });
         });
     }
 
@@ -1014,9 +1057,9 @@ impl PowerMonitorApp {
                         ui.label("AdcQueue:");
                         ui.colored_label(
                             if state.adcqueue_enabled {
-                                egui::Color32::GREEN
+                                readable_color(ui, egui::Color32::GREEN)
                             } else {
-                                egui::Color32::RED
+                                readable_color(ui, egui::Color32::RED)
                             },
                             if state.adcqueue_enabled { "Enabled" } else { "Disabled" },
                         );
@@ -1069,7 +1112,7 @@ impl PowerMonitorApp {
                         ui.label("CC1:");
                         let cc1_v = pd.cc1.get::<volt>();
                         let cc1_color = if self.pd_connection.connected() == Some(true) && cc1_v > 0.2 {
-                            egui::Color32::GREEN
+                            readable_color(ui, egui::Color32::GREEN)
                         } else {
                             egui::Color32::GRAY
                         };
@@ -1079,7 +1122,7 @@ impl PowerMonitorApp {
                         ui.label("CC2:");
                         let cc2_v = pd.cc2.get::<volt>();
                         let cc2_color = if self.pd_connection.connected() == Some(true) && cc2_v > 0.2 {
-                            egui::Color32::GREEN
+                            readable_color(ui, egui::Color32::GREEN)
                         } else {
                             egui::Color32::GRAY
                         };
@@ -1088,9 +1131,9 @@ impl PowerMonitorApp {
 
                         ui.label("Type-C sink:");
                         let (color, label) = match self.pd_connection.connected() {
-                            Some(true) => (egui::Color32::GREEN, "Attached"),
-                            Some(false) => (egui::Color32::RED, "Not attached"),
-                            None => (egui::Color32::YELLOW, "Detecting..."),
+                            Some(true) => (readable_color(ui, egui::Color32::GREEN), "Attached"),
+                            Some(false) => (readable_color(ui, egui::Color32::RED), "Not attached"),
+                            None => (readable_color(ui, egui::Color32::YELLOW), "Detecting..."),
                         };
                         ui.colored_label(color, label);
                         ui.end_row();
@@ -1161,9 +1204,9 @@ impl PowerMonitorApp {
                     ui.label("Dropped:");
                     ui.colored_label(
                         if self.dropped_samples > 0 {
-                            egui::Color32::RED
+                            readable_color(ui, egui::Color32::RED)
                         } else {
-                            egui::Color32::GREEN
+                            readable_color(ui, egui::Color32::GREEN)
                         },
                         format!("{}", self.dropped_samples),
                     );
@@ -1172,9 +1215,9 @@ impl PowerMonitorApp {
                     ui.label("Discarded:");
                     ui.colored_label(
                         if self.discarded_sequence_samples > 0 {
-                            egui::Color32::YELLOW
+                            readable_color(ui, egui::Color32::YELLOW)
                         } else {
-                            egui::Color32::GREEN
+                            readable_color(ui, egui::Color32::GREEN)
                         },
                         format!("{}", self.discarded_sequence_samples),
                     );
@@ -1557,24 +1600,24 @@ impl PowerMonitorApp {
                                 match timeline_entry {
                                     PdTimelineEntry::Protocol(entry) => {
                                         let color = match entry.category {
-                                            PdLogCategory::Connect => egui::Color32::GREEN,
-                                            PdLogCategory::Disconnect => egui::Color32::RED,
+                                            PdLogCategory::Connect => readable_color(ui, egui::Color32::GREEN),
+                                            PdLogCategory::Disconnect => readable_color(ui, egui::Color32::RED),
                                             PdLogCategory::SourceCaps => egui::Color32::from_rgb(100, 149, 237),
-                                            PdLogCategory::Request => egui::Color32::YELLOW,
+                                            PdLogCategory::Request => readable_color(ui, egui::Color32::YELLOW),
                                             PdLogCategory::Control => egui::Color32::GRAY,
                                             PdLogCategory::Extended => egui::Color32::from_rgb(255, 165, 0),
                                             PdLogCategory::Error => egui::Color32::from_rgb(255, 80, 80),
                                         };
 
                                         ui.colored_label(
-                                            color,
+                                            readable_color(ui, color),
                                             egui::RichText::new(format!("[WIRE] {}", entry.summary()))
                                                 .monospace()
                                                 .size(row_height),
                                         );
                                         for detail in &entry.details {
                                             ui.colored_label(
-                                                color.gamma_multiply(0.8),
+                                                readable_color(ui, color),
                                                 egui::RichText::new(format!("       {detail}"))
                                                     .monospace()
                                                     .size(row_height),
@@ -1584,11 +1627,13 @@ impl PowerMonitorApp {
                                     PdTimelineEntry::FirmwareTrace(entry) => {
                                         let color = match entry.category {
                                             PdTraceCategory::TypeCState => egui::Color32::from_rgb(100, 200, 255),
-                                            PdTraceCategory::ProtocolEvent => egui::Color32::LIGHT_GREEN,
-                                            _ => egui::Color32::YELLOW,
+                                            PdTraceCategory::ProtocolEvent => {
+                                                readable_color(ui, egui::Color32::LIGHT_GREEN)
+                                            }
+                                            _ => readable_color(ui, egui::Color32::YELLOW),
                                         };
                                         ui.colored_label(
-                                            color,
+                                            readable_color(ui, color),
                                             egui::RichText::new(format!("[FW]   {}", entry.summary()))
                                                 .monospace()
                                                 .size(row_height),
@@ -1720,8 +1765,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = PowerMonitorApp::new(session, session_events, preferences, dirs);
 
-    eframe::run_native("POWER-Z KM003C Monitor", options, Box::new(|_cc| Ok(Box::new(app))))
-        .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+    eframe::run_native(
+        "POWER-Z KM003C Monitor",
+        options,
+        Box::new(|cc| {
+            configure_appearance(&cc.egui_ctx);
+            Ok(Box::new(app))
+        }),
+    )
+    .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -2072,7 +2124,8 @@ fn main() {
             .start(
                 canvas,
                 eframe::WebOptions::default(),
-                Box::new(move |_| {
+                Box::new(move |cc| {
+                    configure_appearance(&cc.egui_ctx);
                     let dirs = AppDirs::locate();
                     let preferences = dirs.load_preferences();
                     Ok(Box::new(PowerMonitorApp::new(session, events, preferences, dirs)))
