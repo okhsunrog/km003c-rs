@@ -147,6 +147,11 @@ sudo udevadm trigger
 
 The rules use the `uaccess` tag for secure, dynamic access to logged-in users.
 
+The browser monitor also needs interface 0 to be free of the `powerz` kernel
+driver. An optional rule automatically releases it; see
+[Linux WebUSB setup](km003c-egui/WEB.md#linux-setup), including its effect on hwmon
+and NixOS installation.
+
 ### Usage Examples
 
 #### ADC Reading

@@ -40,8 +40,8 @@ writer threads are target-specific and are not linked into the browser.
   renders egui. A secure context (HTTPS/localhost) and browser USB policy allowing
   access are required. An iframe also needs USB permission delegation.
 - WebUSB cannot detach kernel drivers or use protected HID interfaces. Only the
-  vendor bulk interface is used. On Linux apply the repository's udev rules and,
-  if powerz owns interface 0, unbind that driver before connecting. On Windows
+  vendor bulk interface is used. On Linux use the permissions and optional
+  driver-unbinding rules described below. On Windows
   interface 0 must use WinUSB (do not replace drivers for the other interfaces).
   The browser reports an open/claim failure if the OS or another app owns it.
 - Browser bus addresses are unavailable; reconnect uses the USB serial number.
@@ -74,6 +74,45 @@ writer threads are target-specific and are not linked into the browser.
   instrument queue, especially at 1000 SPS with PD. Loss counters and existing
   session stall recovery remain active; background logging guarantees are weaker
   than those of a desktop process.
+
+## Linux setup
+
+Install the USB permissions rule. If the `powerz` kernel driver is present,
+also install the optional WebUSB rule to automatically release vendor interface
+0 whenever that driver binds to a KM003C:
+
+```sh
+sudo install -m 0644 71-powerz-km003c.rules 72-powerz-km003c-webusb.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules
+```
+
+Unplug and reconnect the meter's PC connection, then click Connect in the browser.
+The optional rule matches only VID/PID `5fc9:0063`, interface 0 and driver
+`powerz`. It leaves CDC serial and HID interfaces alone, and does not unload or
+blacklist the module. Native applications can still use the vendor interface.
+While this rule is installed, the kernel's `powerz` hwmon readings for the KM003C
+are unavailable, even with the browser closed.
+
+To apply it to an already connected meter, first disconnect any native or browser
+USB session, then run:
+
+```sh
+sudo udevadm trigger --action=bind --subsystem-match=usb --attr-match=bInterfaceNumber=00
+sudo udevadm settle
+```
+
+The trigger visits interface 0 on USB devices; the rule's VID/PID and driver
+checks restrict unbinding to KM003C. Confirm with `lsusb -t`: its interface 0
+should show no driver before Connect, or `usbfs` while the browser owns it.
+
+On NixOS, install both files through `services.udev.packages` or
+`services.udev.extraRules` and rebuild the configuration; `/etc/udev/rules.d` is
+managed by NixOS. If copying the rule into a derivation, `/bin/sh` can be replaced
+with `${pkgs.runtimeShell}`.
+
+To restore hwmon, remove only `72-powerz-km003c-webusb.rules` (or its NixOS
+configuration), reload the rules and reconnect the meter. Keep the permissions
+rule for native application access.
 
 ## Checks without hardware
 

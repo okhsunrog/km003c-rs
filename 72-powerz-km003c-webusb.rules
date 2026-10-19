@@ -1,0 +1,5 @@
+# Optional WebUSB access for POWER-Z KM003C on Linux.
+# Install alongside 71-powerz-km003c.rules for USB access permissions.
+# Frees only vendor interface 0; disables powerz hwmon readings for this meter.
+# Match bind as well as add so a later driver probe cannot reclaim the interface.
+ACTION=="add|bind", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_interface", ATTRS{idVendor}=="5fc9", ATTRS{idProduct}=="0063", ATTR{bInterfaceNumber}=="00", DRIVER=="powerz", RUN+="/bin/sh -c 'echo -n %k > /sys/bus/usb/drivers/powerz/unbind'"
