@@ -39,6 +39,8 @@ jobs:
 
   msrv:
     name: Rust 1.97 compatibility
+    env:
+      RUSTUP_TOOLCHAIN: 1.97.0
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
