@@ -20,7 +20,7 @@ use crate::device::DeviceState;
 mod export;
 #[cfg(feature = "polars")]
 mod journal;
-#[cfg(feature = "polars")]
+#[cfg(any(feature = "polars", feature = "browser"))]
 mod row;
 #[cfg(feature = "polars")]
 mod writer;
@@ -169,3 +169,14 @@ mod tests {
         assert_eq!(RecordingFormat::from_path(Path::new("b.txt")), None);
     }
 }
+
+#[cfg(all(feature = "browser", any(target_arch = "wasm32", test)))]
+mod web_export;
+#[cfg(all(target_arch = "wasm32", feature = "browser"))]
+mod web_offline_export;
+#[cfg(all(target_arch = "wasm32", feature = "browser"))]
+mod web_recording;
+#[cfg(all(target_arch = "wasm32", feature = "browser"))]
+pub use web_offline_export::{OfflineExport, OfflineExportEvent};
+#[cfg(all(target_arch = "wasm32", feature = "browser"))]
+pub use web_recording::{Recorder, RecordingError, RecordingEvent};

@@ -59,6 +59,8 @@ pub use pd_trace::{
 pub use polars;
 #[cfg(feature = "preferences")]
 pub use preferences::{Preferences, PreferencesError};
+#[cfg(all(target_arch = "wasm32", feature = "browser"))]
+pub use recording::{OfflineExport, OfflineExportEvent, Recorder, RecordingError, RecordingEvent};
 #[cfg(feature = "polars")]
 pub use recording::{
     OfflineExport, OfflineExportEvent, Recorder, RecordingError, RecordingEvent, RecoveryOutcome,
@@ -70,3 +72,5 @@ pub use settings::Settings;
 pub use uom;
 #[cfg(feature = "usbpd")]
 pub use usbpd;
+
+pub mod runtime;

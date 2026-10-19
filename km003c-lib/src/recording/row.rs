@@ -4,6 +4,7 @@ use crate::measurement::MeasurementSample;
 
 /// Journal record size: the fields of [`RecordingRow`] in declaration order,
 /// little-endian, with `interpolated` as one byte.
+#[cfg(feature = "polars")]
 pub(crate) const ROW_SIZE: usize = 157;
 
 /// Where a recording starts on the accumulator's timeline and totals.
@@ -36,7 +37,7 @@ impl From<Option<MeasurementSample>> for RecordingOrigin {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub(crate) struct RecordingRow {
     pub(crate) elapsed_us: u64,
     pub(crate) sample_index: u64,
@@ -98,6 +99,7 @@ impl RecordingRow {
         }
     }
 
+    #[cfg(feature = "polars")]
     pub(crate) fn encode(&self, out: &mut Vec<u8>) {
         out.extend_from_slice(&self.elapsed_us.to_le_bytes());
         out.extend_from_slice(&self.sample_index.to_le_bytes());
@@ -127,6 +129,7 @@ impl RecordingRow {
         }
     }
 
+    #[cfg(feature = "polars")]
     pub(crate) fn decode(record: &[u8; ROW_SIZE]) -> Self {
         let mut fields = Fields(record);
         Self {
@@ -158,8 +161,10 @@ impl RecordingRow {
 }
 
 /// Reads a record's fields front to back.
+#[cfg(feature = "polars")]
 struct Fields<'a>(&'a [u8]);
 
+#[cfg(feature = "polars")]
 impl Fields<'_> {
     fn take<const N: usize>(&mut self) -> [u8; N] {
         let (field, rest) = self.0.split_at(N);
@@ -213,7 +218,7 @@ pub(crate) fn test_sample(elapsed_us: u64, missing: u64, interpolated_us: u64) -
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "polars"))]
 mod tests {
     use super::*;
 

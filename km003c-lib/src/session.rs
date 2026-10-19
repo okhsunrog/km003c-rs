@@ -8,8 +8,9 @@
 //! Where enumeration is unavailable, such as on Android, open the device
 //! yourself and hand it over with [`Session::connect_device`].
 
+use crate::runtime::Instant;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use futures_util::StreamExt;
 use thiserror::Error;
@@ -20,7 +21,10 @@ use crate::device::{PID, VID};
 use crate::error::KMError;
 use crate::packet::{Attribute, AttributeSet};
 use crate::pd::{PdEvent, PdStatus};
-use crate::{AdcQueueSample, DeviceConfig, DeviceState, GraphSampleRate, KM003C, LogMetadata, OfflineLog, PdTrace};
+use crate::{
+    AdcQueueSample, DeviceConfig, DeviceSelector, DeviceState, GraphSampleRate, KM003C, LogMetadata, OfflineLog,
+    PdTrace,
+};
 
 /// Consecutive request failures that end a streaming session.
 const MAX_ERRORS: u32 = 10;
@@ -72,6 +76,12 @@ pub enum SessionEvent {
 pub enum SessionCommand {
     /// Find the device, connect and start streaming.
     Connect { rate: GraphSampleRate, usb_reset: bool },
+    /// Discover a particular previously authorized device (no permission prompt).
+    ConnectSelected {
+        rate: GraphSampleRate,
+        usb_reset: bool,
+        selector: DeviceSelector,
+    },
     /// Connect to a device the caller has already opened, and start streaming.
     ConnectDevice {
         device: nusb::Device,
@@ -101,15 +111,15 @@ pub struct Session {
 }
 
 impl Session {
-    /// Spawn the session task on the current Tokio runtime.
+    /// Spawn on Tokio on desktop, or on the browser local executor on wasm32.
     ///
     /// # Panics
     ///
-    /// Panics when called outside a Tokio runtime.
+    /// On desktop, panics when called outside a Tokio runtime.
     pub fn spawn() -> (Self, mpsc::UnboundedReceiver<SessionEvent>) {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let (command_tx, command_rx) = mpsc::unbounded_channel();
-        tokio::spawn(run(event_tx, command_rx));
+        crate::runtime::spawn(run(event_tx, command_rx));
         (Self { commands: command_tx }, event_rx)
     }
 
@@ -129,6 +139,20 @@ impl Session {
     /// device to be plugged in.
     pub fn connect(&self, rate: GraphSampleRate, usb_reset: bool) -> Result<(), SessionClosed> {
         self.send(SessionCommand::Connect { rate, usb_reset })
+    }
+
+    /// Reconnect to a specific device without selecting a different attached meter.
+    pub fn connect_selected(
+        &self,
+        rate: GraphSampleRate,
+        usb_reset: bool,
+        selector: DeviceSelector,
+    ) -> Result<(), SessionClosed> {
+        self.send(SessionCommand::ConnectSelected {
+            rate,
+            usb_reset,
+            selector,
+        })
     }
 
     /// Connect to an already opened device and start streaming.
@@ -166,7 +190,18 @@ pub async fn run(tx: mpsc::UnboundedSender<SessionEvent>, mut cmd_rx: mpsc::Unbo
         match command {
             SessionCommand::Connect { rate, usb_reset } => {
                 debug!("Connect command received, rate={rate:?}, reset={usb_reset}");
-                if let Some((device, rate)) = discover_and_open(&tx, &mut cmd_rx, rate, usb_reset).await {
+                if let Some((device, rate)) =
+                    discover_and_open(&tx, &mut cmd_rx, rate, usb_reset, DeviceSelector::First).await
+                {
+                    stream(device, &tx, &mut cmd_rx, rate).await;
+                }
+            }
+            SessionCommand::ConnectSelected {
+                rate,
+                usb_reset,
+                selector,
+            } => {
+                if let Some((device, rate)) = discover_and_open(&tx, &mut cmd_rx, rate, usb_reset, selector).await {
                     stream(device, &tx, &mut cmd_rx, rate).await;
                 }
             }
@@ -194,14 +229,14 @@ pub async fn run(tx: mpsc::UnboundedSender<SessionEvent>, mut cmd_rx: mpsc::Unbo
 
 /// Subscribe before enumerating so an attachment cannot fall between the two.
 /// No device handles are opened and no periodic probes run while waiting.
-async fn wait_for_device(tx: &mpsc::UnboundedSender<SessionEvent>) -> Result<(), KMError> {
+async fn wait_for_device(tx: &mpsc::UnboundedSender<SessionEvent>, selector: &DeviceSelector) -> Result<(), KMError> {
     let is_km003c = |vendor_id: u16, product_id: u16| vendor_id == VID && product_id == PID;
     let mut watch = nusb::watch_devices()?;
     let mut announced = false;
     loop {
         if nusb::list_devices()
             .await?
-            .any(|device| is_km003c(device.vendor_id(), device.product_id()))
+            .any(|device| is_km003c(device.vendor_id(), device.product_id()) && selector.matches(&device))
         {
             return Ok(());
         }
@@ -212,10 +247,10 @@ async fn wait_for_device(tx: &mpsc::UnboundedSender<SessionEvent>) -> Result<(),
         loop {
             match watch.next().await {
                 Some(nusb::hotplug::HotplugEvent::Connected(device))
-                    if is_km003c(device.vendor_id(), device.product_id()) =>
+                    if is_km003c(device.vendor_id(), device.product_id()) && selector.matches(&device) =>
                 {
                     // Let interface creation and device permissions settle.
-                    tokio::time::sleep(Duration::from_millis(300)).await;
+                    crate::runtime::sleep(Duration::from_millis(300)).await;
                     break;
                 }
                 Some(_) => {}
@@ -257,6 +292,7 @@ async fn discover_and_open(
     cmd_rx: &mut mpsc::UnboundedReceiver<SessionCommand>,
     mut rate: GraphSampleRate,
     mut usb_reset: bool,
+    mut selector: DeviceSelector,
 ) -> Option<(KM003C, GraphSampleRate)> {
     loop {
         tokio::select! {
@@ -270,11 +306,16 @@ async fn discover_and_open(
                     rate = new_rate;
                     usb_reset = reset;
                 }
+                Some(SessionCommand::ConnectSelected { rate: new_rate, usb_reset: reset, selector: selected }) => {
+                    rate = new_rate;
+                    usb_reset = reset;
+                    selector = selected;
+                }
                 Some(SessionCommand::SetSampleRate(new_rate)) => rate = new_rate,
                 Some(_) => {}
             },
             _ = tx.closed() => return None,
-            result = wait_for_device(tx) => {
+            result = wait_for_device(tx, &selector) => {
                 if let Err(error) = result {
                     error!("USB discovery failed: {error}");
                     let _ = tx.send(SessionEvent::ConnectionFailed {
@@ -294,7 +335,7 @@ async fn discover_and_open(
     } else {
         DeviceConfig::vendor().skip_reset()
     };
-    match KM003C::new(config).await {
+    match KM003C::new(config.select(selector)).await {
         Ok(device) => announce(device, tx).map(|device| (device, rate)),
         Err(error) => {
             report_connection_failure(tx, &error);
@@ -436,7 +477,11 @@ async fn stream(
                 reconnect_when_present = false;
                 break;
             }
-            Ok(command @ (SessionCommand::Connect { .. } | SessionCommand::ConnectDevice { .. })) => {
+            Ok(
+                command @ (SessionCommand::Connect { .. }
+                | SessionCommand::ConnectDevice { .. }
+                | SessionCommand::ConnectSelected { .. }),
+            ) => {
                 debug!("Ignoring {command:?} while already streaming");
             }
             Err(mpsc::error::TryRecvError::Empty) => {}
@@ -511,7 +556,7 @@ async fn stream(
             GraphSampleRate::Sps50 => 20,  // 50 requests/sec for 50 SPS
             GraphSampleRate::Sps1000 => 5, // 200 requests/sec for 1000 SPS
         };
-        tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+        crate::runtime::sleep(Duration::from_millis(delay_ms)).await;
     }
 
     info!("Stopping streaming");
@@ -569,6 +614,43 @@ mod tests {
         assert!(enabled.contains(Attribute::AdcQueue));
         assert!(enabled.contains(Attribute::PdPacket));
         assert!(enabled.contains(Attribute::PdTrace));
+    }
+
+    #[test]
+    fn selected_reconnect_keeps_the_meter_identity() {
+        let (session, mut commands) = Session::detached();
+        let selector = DeviceSelector::SerialNumber("meter-2".into());
+        session
+            .connect_selected(GraphSampleRate::Sps1000, false, selector.clone())
+            .unwrap();
+        match commands.try_recv().unwrap() {
+            SessionCommand::ConnectSelected {
+                rate,
+                usb_reset,
+                selector: received,
+            } => {
+                assert_eq!(rate, GraphSampleRate::Sps1000);
+                assert!(!usb_reset);
+                assert_eq!(received, selector);
+            }
+            command => panic!("wrong command: {command:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn disconnect_while_idle_does_not_start_discovery() {
+        let (tx, mut events) = mpsc::unbounded_channel();
+        let (session, commands) = Session::detached();
+        session.disconnect().unwrap();
+        drop(session);
+        run(tx, commands).await;
+        assert!(matches!(
+            events.recv().await,
+            Some(SessionEvent::Disconnected {
+                retry_when_present: false
+            })
+        ));
+        assert!(events.recv().await.is_none());
     }
 
     #[test]

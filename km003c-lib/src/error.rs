@@ -15,7 +15,7 @@ pub enum KMError {
     Io(#[from] io::Error),
 
     #[error("Timeout during USB operation: {0}")]
-    Timeout(#[from] tokio::time::error::Elapsed),
+    Timeout(#[from] crate::runtime::Elapsed),
 
     #[error("Protocol error: {0}")]
     Protocol(String),

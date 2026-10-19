@@ -1,0 +1,9 @@
+[build]
+target = "km003c-egui/index.html"
+dist = "dist"
+locked = true
+
+[serve]
+addresses = ["127.0.0.1"]
+port = 8080
+open = false

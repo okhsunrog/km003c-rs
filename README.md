@@ -77,6 +77,15 @@ Command-line tools:
 - `offline-log` - List and export stored recordings as CSV or JSON
 
 ### `km003c-egui`
+
+Runs on desktop and in Chromium browsers via WebUSB. See [browser setup,
+constraints and hardware validation](km003c-egui/WEB.md).
+
+The [browser monitor](https://okhsunrog.github.io/km003c-rs/) is published from
+`main` to GitHub Pages. USB communication, plotting and export run locally in
+the browser; no USB server or desktop application is needed. Use desktop Chrome
+or Edge and follow the [Linux setup](km003c-egui/WEB.md#linux-setup) if applicable.
+
 GUI application featuring:
 - Three independently configurable plots for live or device-stored measurements
 - AdcQueue streaming with configurable sample rates
@@ -143,6 +152,11 @@ sudo udevadm trigger
 
 The rules use the `uaccess` tag for secure, dynamic access to logged-in users.
 
+The browser monitor also needs interface 0 to be free of the `powerz` kernel
+driver. An optional rule automatically releases it; see
+[Linux WebUSB setup](km003c-egui/WEB.md#linux-setup), including its effect on hwmon
+and NixOS installation.
+
 ### Usage Examples
 
 #### ADC Reading
@@ -175,6 +189,11 @@ cargo run --bin offline-log -- download --index 0 --format csv
 
 #### GUI Application
 
+Browser: open the [hosted monitor](https://okhsunrog.github.io/km003c-rs/) and
+click **Connect**, then select the KM003C and confirm the browser dialog. To run
+locally, install Trunk 0.21.14 and run `trunk serve --release` from the repository
+root. See [browser instructions](km003c-egui/WEB.md).
+
 ```bash
 cargo run --bin km003c-egui
 
@@ -196,8 +215,8 @@ If samples are missing, the interval is retained as a linear estimate rather
 than invalidating the rest of the recording. The affected row and cumulative
 quality are exposed through `missing_samples`, `gap_duration_us`,
 `interpolated`, `cumulative_missing_samples`, and
-`cumulative_interpolated_duration_us`. Duplicate, stale, and invalid-sequence
-samples are excluded from plots and integration and counted by
+`cumulative_interpolated_duration_us`. Rejected sequence samples are excluded
+from plots and integration and counted by
 `discarded_sequence_samples` and `cumulative_discarded_sequence_samples`. The
 GUI reports completeness as the fraction of elapsed time covered by received
 intervals rather than estimated gap intervals.
@@ -211,15 +230,19 @@ fabricated as zero. Signed charge and energy preserve the device accumulators;
 positive throughput is derived from the absolute changes between successive
 device accumulator values.
 
-A live recording is first appended to a journal, flushed after every batch,
-and becomes the Parquet or CSV file when the recording stops. If the app
-crashes or is killed mid-recording, the next start converts the journal it
+On desktop, a live recording is first appended to a journal, flushed after
+every batch, and becomes the Parquet or CSV file when the recording stops. If
+the app crashes or is killed mid-recording, the next start converts the journal it
 left, so the samples up to the crash are kept. Both GUIs remember the sample
 rate, time window, plotted metrics, recording format and PD log filters. On
 the desktop they share `~/.config/km003c/preferences.json` and the journal
 directory `~/.local/share/km003c/journal` (the platform's equivalents on macOS
 and Windows); the Slint app saves recordings to `~/Documents/KM003C`, and on
 Android to the app's external files directory.
+
+In the browser, recordings stay in memory until stopped and downloaded, and
+preferences use localStorage. Closing the tab loses an unfinished recording;
+see [browser limits](km003c-egui/WEB.md#platform-constraints).
 
 ## Library Usage
 
