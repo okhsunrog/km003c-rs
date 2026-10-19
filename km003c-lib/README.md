@@ -29,6 +29,14 @@ Firmware Type-C and protocol-engine traces are available separately as a typed
 Unknown codes remain available losslessly for firmware variants that have not
 yet been reverse engineered.
 
+The optional `polars` feature records live measurements to Parquet or CSV on a
+background thread through a crash-safe journal (`Recorder`,
+`recover_interrupted`), exports downloaded offline logs, and converts
+measurements and offline logs to polars `DataFrame`s. `read_recording` reads a
+file back with the recording schema's types. Use the re-exported
+`km003c_lib::polars`, whose version is part of this feature's API. The
+`preferences` feature adds the settings the GUIs share, saved as JSON.
+
 ```rust,no_run
 use km003c_lib::uom::si::electric_potential::volt;
 use km003c_lib::{DeviceConfig, KM003C};

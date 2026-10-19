@@ -3,24 +3,32 @@
 //! The device session from km003c-lib runs on a Tokio runtime. Its samples go
 //! through the shared [`MeasurementAccumulator`] into lock-protected ring
 //! buffers, which `slint-realtime-plot` renders on the GPU each frame.
+//! Recording, offline export, the PD contract and the preferences come from
+//! km003c-lib as well, so they behave as in the egui app.
 
 slint::include_modules!();
 
 mod dynamic_colors;
+mod files;
 mod pd;
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use km003c_lib::{GraphSampleRate, MeasurementAccumulator, MeasurementSample, Metric, Session, SessionEvent};
+use km003c_lib::{
+    DeviceState, GraphSampleRate, MeasurementAccumulator, MeasurementSample, Metric, Preferences, RecordingFormat,
+    Session, SessionEvent,
+};
 use slint::wgpu_30::WGPUConfiguration;
 use slint::{FilterModel, Model, VecModel};
 use slint_realtime_plot::{PlotBuffer, PlotConfig, PlotRenderer, required_wgpu_settings};
 use tokio::sync::mpsc;
 use tracing::{info, warn};
+
+use files::{Dirs, Files, FilesUpdate};
 
 /// Ring capacity per chart: 4.4 minutes at 1000 SPS, 87 minutes at 50 SPS.
 const CAPACITY: usize = 1 << 18;
@@ -30,11 +38,14 @@ const RATES: [GraphSampleRate; 4] = [
     GraphSampleRate::Sps50,
     GraphSampleRate::Sps1000,
 ];
-const INITIAL_RATE_INDEX: usize = 2;
 const RECONNECT_DELAY: Duration = Duration::from_secs(1);
 const READOUT_INTERVAL: Duration = Duration::from_millis(100);
 /// PD status arrives with every poll; the CC readout does not need that rate.
 const PD_STATUS_INTERVAL: Duration = Duration::from_millis(250);
+/// How often recording progress and finished files are checked.
+const FILES_INTERVAL: Duration = Duration::from_millis(250);
+/// How often changed settings are written.
+const PREFERENCES_INTERVAL: Duration = Duration::from_secs(2);
 
 /// A USB reset re-enumerates the device. On Android that would need a new
 /// permission grant, and macOS handles it badly, so only reset elsewhere.
@@ -60,6 +71,15 @@ struct Charts {
 
 type Buffers = Arc<Charts>;
 
+/// Requests from the UI thread to the task that owns the files.
+enum UiCommand {
+    StartRecording(RecordingFormat),
+    StopRecording,
+    LoadCatalog,
+    ExportOffline(usize, RecordingFormat),
+    SetPdTrace(bool),
+}
+
 fn rate_hz(rate: GraphSampleRate) -> f32 {
     match rate {
         GraphSampleRate::Sps2 => 2.0,
@@ -69,15 +89,62 @@ fn rate_hz(rate: GraphSampleRate) -> f32 {
     }
 }
 
+fn rate_index(rate: GraphSampleRate) -> usize {
+    RATES.iter().position(|&r| r == rate).unwrap_or(2)
+}
+
+fn format_index(format: RecordingFormat) -> i32 {
+    RecordingFormat::ALL.iter().position(|&f| f == format).unwrap_or(0) as i32
+}
+
+fn format_at(index: i32) -> RecordingFormat {
+    RecordingFormat::ALL
+        .get(index.max(0) as usize)
+        .copied()
+        .unwrap_or_default()
+}
+
 pub fn main() {
-    run(|_| {});
+    #[cfg(not(target_os = "android"))]
+    tracing_subscriber::fmt::init();
+    run(desktop_dirs(), |_| {});
+}
+
+/// The egui app uses the same preferences file and journal directory.
+#[cfg(not(target_os = "android"))]
+fn desktop_dirs() -> Dirs {
+    let config = dirs::config_dir().unwrap_or_else(std::env::temp_dir).join("km003c");
+    let data = dirs::data_local_dir().unwrap_or_else(std::env::temp_dir).join("km003c");
+    let documents = dirs::document_dir()
+        .or_else(dirs::home_dir)
+        .unwrap_or_else(std::env::temp_dir);
+    Dirs {
+        preferences: config.join("preferences.json"),
+        journal: data.join("journal"),
+        recordings: documents.join("KM003C"),
+    }
+}
+
+#[cfg(target_os = "android")]
+fn desktop_dirs() -> Dirs {
+    unreachable!("Android starts in android_main")
+}
+
+/// The UI's settings as preferences, keeping the fields it has no control for.
+fn current_preferences(app: &App, saved: &Preferences) -> Preferences {
+    let mut preferences = saved.clone();
+    if let Some(&rate) = RATES.get(app.get_rate_index().max(0) as usize) {
+        preferences.sample_rate = rate;
+    }
+    preferences.time_window_seconds = Some(f64::from(app.get_time_window()));
+    preferences.recording_format = format_at(app.get_recording_format_index());
+    preferences.pd_hide_good_crc = app.get_pd_hide_good_crc();
+    preferences.pd_trace_enabled = app.get_pd_trace_enabled();
+    preferences
 }
 
 /// Run the app; `customize` adjusts the window before it is shown.
-fn run(customize: impl FnOnce(&App)) {
-    #[cfg(not(target_os = "android"))]
-    tracing_subscriber::fmt::init();
-
+fn run(dirs: Dirs, customize: impl FnOnce(&App)) {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .enable_all()
@@ -89,11 +156,22 @@ fn run(customize: impl FnOnce(&App)) {
         .select()
         .expect("Unable to create Slint backend with WGPU renderer");
 
+    let dirs = Arc::new(dirs);
+    let preferences = Preferences::load(&dirs.preferences);
+    let initial_rate = preferences.sample_rate;
+
     let app = App::new().expect("failed to create the window");
     customize(&app);
     app.set_capacity(CAPACITY as i32);
-    app.set_rate_index(INITIAL_RATE_INDEX as i32);
-    app.set_sample_rate(rate_hz(RATES[INITIAL_RATE_INDEX]));
+    app.set_rate_index(rate_index(initial_rate) as i32);
+    app.set_sample_rate(rate_hz(initial_rate));
+    if let Some(seconds) = preferences.time_window_seconds {
+        app.set_time_window(seconds as f32);
+    }
+    app.set_recording_format_index(format_index(preferences.recording_format));
+    app.set_pd_hide_good_crc(preferences.pd_hide_good_crc);
+    app.set_pd_trace_enabled(preferences.pd_trace_enabled);
+    app.set_recordings_dir(dirs.recordings.display().to_string().into());
 
     let buffers: Buffers = Arc::new(Charts {
         buffers: std::array::from_fn(|_| PlotBuffer::new(1, CAPACITY)),
@@ -104,8 +182,17 @@ fn run(customize: impl FnOnce(&App)) {
         let _guard = runtime.enter();
         Session::spawn()
     };
-    runtime.spawn(pump_events(events, session.clone(), buffers.clone(), app.as_weak()));
-    let _ = session.connect(RATES[INITIAL_RATE_INDEX], USB_RESET);
+    let (commands, command_rx) = mpsc::unbounded_channel();
+    let pump = Pump::new(
+        session.clone(),
+        buffers.clone(),
+        app.as_weak(),
+        dirs.clone(),
+        initial_rate,
+        preferences.pd_trace_enabled,
+    );
+    runtime.spawn(pump.run(events, command_rx));
+    let _ = session.connect(initial_rate, USB_RESET);
 
     {
         let session = session.clone();
@@ -117,9 +204,54 @@ fn run(customize: impl FnOnce(&App)) {
     }
     {
         let session = session.clone();
+        let weak = app.as_weak();
         app.on_reconnect(move || {
+            let rate = weak
+                .upgrade()
+                .and_then(|app| RATES.get(app.get_rate_index().max(0) as usize).copied())
+                .unwrap_or(initial_rate);
             let _ = session.disconnect();
-            let _ = session.connect(RATES[INITIAL_RATE_INDEX], USB_RESET);
+            let _ = session.connect(rate, USB_RESET);
+        });
+    }
+    {
+        let commands = commands.clone();
+        let weak = app.as_weak();
+        app.on_start_recording(move || {
+            if let Some(app) = weak.upgrade() {
+                let format = format_at(app.get_recording_format_index());
+                let _ = commands.send(UiCommand::StartRecording(format));
+            }
+        });
+    }
+    {
+        let commands = commands.clone();
+        app.on_stop_recording(move || {
+            let _ = commands.send(UiCommand::StopRecording);
+        });
+    }
+    // The format applies when the next recording or export starts.
+    app.on_recording_format_selected(|_| {});
+    {
+        let commands = commands.clone();
+        app.on_offline_load(move || {
+            let _ = commands.send(UiCommand::LoadCatalog);
+        });
+    }
+    {
+        let commands = commands.clone();
+        let weak = app.as_weak();
+        app.on_offline_export(move |index| {
+            if let Some(app) = weak.upgrade() {
+                let format = format_at(app.get_recording_format_index());
+                let _ = commands.send(UiCommand::ExportOffline(index.max(0) as usize, format));
+            }
+        });
+    }
+    {
+        let commands = commands.clone();
+        app.on_pd_trace_changed(move |enabled| {
+            let _ = commands.send(UiCommand::SetPdTrace(enabled));
         });
     }
 
@@ -151,11 +283,41 @@ fn run(customize: impl FnOnce(&App)) {
         }
     });
 
+    // Settings are written when they change, checked on a timer so a pinch
+    // zoom does not write the file on every frame.
+    let saved_preferences = Rc::new(RefCell::new(preferences));
+    let save_preferences = {
+        let weak = app.as_weak();
+        let saved = saved_preferences.clone();
+        let path = dirs.preferences.clone();
+        move || {
+            let Some(app) = weak.upgrade() else {
+                return;
+            };
+            let current = current_preferences(&app, &saved.borrow());
+            if current == *saved.borrow() {
+                return;
+            }
+            if let Err(error) = current.save(&path) {
+                warn!("Could not save preferences to {}: {error}", path.display());
+            }
+            *saved.borrow_mut() = current;
+        }
+    };
+    let preferences_timer = slint::Timer::default();
+    preferences_timer.start(
+        slint::TimerMode::Repeated,
+        PREFERENCES_INTERVAL,
+        save_preferences.clone(),
+    );
+
     install_renderer(&app, buffers);
     app.run().expect("event loop failed");
 
+    save_preferences();
     let _ = session.disconnect();
-    runtime.shutdown_timeout(Duration::from_secs(2));
+    // Dropping the runtime drops a running recorder, which writes its file.
+    runtime.shutdown_timeout(Duration::from_secs(5));
 }
 
 /// Render the three charts from their ring buffers before every frame.
@@ -301,6 +463,46 @@ fn update_ui(app: &slint::Weak<App>, readout: Readout) {
     });
 }
 
+fn apply_files(app: &slint::Weak<App>, update: FilesUpdate) {
+    let FilesUpdate {
+        recording,
+        progress,
+        status,
+        offline_busy,
+        offline_status,
+        offline_rows,
+    } = update;
+    if recording.is_none()
+        && progress.is_none()
+        && status.is_none()
+        && offline_busy.is_none()
+        && offline_status.is_none()
+        && offline_rows.is_none()
+    {
+        return;
+    }
+    let _ = app.upgrade_in_event_loop(move |app| {
+        if let Some(recording) = recording {
+            app.set_recording(recording);
+        }
+        if let Some(progress) = progress {
+            app.set_recording_progress(progress.into());
+        }
+        if let Some(status) = status {
+            app.set_recording_status(status.into());
+        }
+        if let Some(busy) = offline_busy {
+            app.set_offline_busy(busy);
+        }
+        if let Some(status) = offline_status {
+            app.set_offline_status(status.into());
+        }
+        if let Some(rows) = offline_rows {
+            app.set_offline_rows(Rc::new(VecModel::from(rows)).into());
+        }
+    });
+}
+
 thread_local! {
     /// The unfiltered PD log, owned by the UI thread.
     static PD_ROWS: Cell<Option<Rc<VecModel<PdRow>>>> = const { Cell::new(None) };
@@ -325,97 +527,180 @@ fn apply_pd_update(app: &slint::Weak<App>, update: pd::PdUpdate) {
     });
 }
 
-fn set_pd_status(app: &slint::Weak<App>, sink: String, lines: String) {
+fn set_pd_status(app: &slint::Weak<App>, lines: pd::PdStatusLines) {
     let _ = app.upgrade_in_event_loop(move |app| {
-        app.set_pd_sink(sink.into());
-        app.set_pd_lines(lines.into());
+        app.set_pd_sink(lines.sink.into());
+        app.set_pd_lines(lines.lines.into());
+        if let Some(contract) = lines.contract {
+            app.set_pd_contract(contract.into());
+        }
     });
 }
 
-/// Turn session events into plot samples and UI updates.
-async fn pump_events(
-    mut events: mpsc::UnboundedReceiver<SessionEvent>,
+/// Turns session events into plot samples, files and UI updates.
+struct Pump {
     session: Session,
     buffers: Buffers,
     app: slint::Weak<App>,
-) {
-    let mut accumulator = MeasurementAccumulator::default();
-    let mut rate = RATES[INITIAL_RATE_INDEX];
-    let mut last_readout = Instant::now() - READOUT_INTERVAL;
-    let mut pd = pd::PdState::default();
-    let mut last_pd_status = Instant::now() - PD_STATUS_INTERVAL;
-    let status = |text: String| Readout {
-        status: Some(text),
-        ..Readout::default()
-    };
+    dirs: Arc<Dirs>,
+    accumulator: MeasurementAccumulator,
+    rate: GraphSampleRate,
+    last_readout: Instant,
+    pd: pd::PdState,
+    last_pd_status: Instant,
+    pd_trace_enabled: bool,
+    device: Option<Arc<DeviceState>>,
+    latest: Option<MeasurementSample>,
+    files: Files,
+}
 
-    while let Some(event) = events.recv().await {
-        match event {
-            SessionEvent::Samples(samples) => {
-                let mut latest = None;
-                for sample in samples {
-                    let Some(measurement) = accumulator.push(sample, rate) else {
-                        continue;
-                    };
-                    // The plot's X axis is the sample index, so a gap has to
-                    // occupy its slots; NaN renders as a break in the line.
-                    let gap = usize::from(measurement.missing_samples).min(CAPACITY);
-                    for (chart, metric) in CHART_METRICS.iter().enumerate() {
-                        let buffer = &buffers.buffers[chart];
-                        for _ in 0..gap {
-                            buffer.push_frame(&[f32::NAN]);
-                        }
-                        buffer.push_frame(&[metric.value(&measurement) as f32]);
+impl Pump {
+    fn new(
+        session: Session,
+        buffers: Buffers,
+        app: slint::Weak<App>,
+        dirs: Arc<Dirs>,
+        rate: GraphSampleRate,
+        pd_trace_enabled: bool,
+    ) -> Self {
+        Self {
+            session,
+            buffers,
+            app,
+            files: Files::new(dirs.clone()),
+            dirs,
+            accumulator: MeasurementAccumulator::default(),
+            rate,
+            last_readout: Instant::now() - READOUT_INTERVAL,
+            pd: pd::PdState::default(),
+            last_pd_status: Instant::now() - PD_STATUS_INTERVAL,
+            pd_trace_enabled,
+            device: None,
+            latest: None,
+        }
+    }
+
+    async fn run(
+        mut self,
+        mut events: mpsc::UnboundedReceiver<SessionEvent>,
+        mut commands: mpsc::UnboundedReceiver<UiCommand>,
+    ) {
+        self.recover();
+        let mut files_tick = tokio::time::interval(FILES_INTERVAL);
+        loop {
+            tokio::select! {
+                event = events.recv() => match event {
+                    Some(event) => self.event(event),
+                    None => break,
+                },
+                Some(command) = commands.recv() => self.command(command),
+                _ = files_tick.tick() => apply_files(&self.app, self.files.poll()),
+            }
+        }
+    }
+
+    /// Convert the journals of recordings an earlier run did not finish.
+    fn recover(&self) {
+        let journal = self.dirs.journal.clone();
+        let app = self.app.clone();
+        tokio::task::spawn_blocking(move || match km003c_lib::recover_interrupted(&journal) {
+            Ok(outcomes) => {
+                for outcome in &outcomes {
+                    match &outcome.result {
+                        Ok(summary) => info!("Recovered {} samples to {}", summary.rows, summary.path.display()),
+                        Err(error) => warn!("Could not recover {}: {error}", outcome.journal.display()),
                     }
-                    buffers.pushed.fetch_add(gap as u64 + 1, Ordering::Relaxed);
-                    latest = Some(measurement);
                 }
-                if latest.is_some() && last_readout.elapsed() >= READOUT_INTERVAL {
-                    last_readout = Instant::now();
-                    update_ui(
+                if let Some(message) = files::recovery_message(&outcomes) {
+                    apply_files(
                         &app,
-                        Readout {
-                            measurement: latest,
-                            ..Readout::default()
+                        FilesUpdate {
+                            status: Some(message),
+                            ..FilesUpdate::default()
                         },
                     );
                 }
             }
+            Err(error) => warn!("Could not look for interrupted recordings: {error}"),
+        });
+    }
+
+    fn command(&mut self, command: UiCommand) {
+        let update = match command {
+            UiCommand::StartRecording(format) => {
+                self.files.start_recording(format, self.device.as_deref(), self.latest)
+            }
+            UiCommand::StopRecording => self.files.stop_recording(),
+            UiCommand::LoadCatalog => self.files.request_catalog(&self.session, self.device.is_some()),
+            UiCommand::ExportOffline(index, format) => {
+                self.files.export(index, format, &self.session, self.device.is_some())
+            }
+            UiCommand::SetPdTrace(enabled) => {
+                self.pd_trace_enabled = enabled;
+                if self.device.is_some() {
+                    let _ = self.session.set_pd_trace_enabled(enabled);
+                }
+                FilesUpdate::default()
+            }
+        };
+        apply_files(&self.app, update);
+    }
+
+    fn event(&mut self, event: SessionEvent) {
+        let status = |text: String| Readout {
+            status: Some(text),
+            ..Readout::default()
+        };
+        match event {
+            SessionEvent::Samples(samples) => self.samples(samples),
             SessionEvent::StreamingStarted(new_rate) => {
                 // Samples are placed by index, so a new rate starts a new series.
-                if new_rate != rate {
-                    for buffer in &buffers.buffers {
+                if new_rate != self.rate {
+                    for buffer in &self.buffers.buffers {
                         buffer.clear();
                     }
-                    accumulator.reset();
+                    self.accumulator.reset();
                 } else {
-                    accumulator.reset_continuity();
+                    self.accumulator.reset_continuity();
                 }
-                rate = new_rate;
-                let index = RATES.iter().position(|&r| r == new_rate).unwrap_or(INITIAL_RATE_INDEX);
+                self.rate = new_rate;
                 update_ui(
-                    &app,
+                    &self.app,
                     Readout {
                         status: Some(format!("Streaming at {} SPS", rate_hz(new_rate))),
-                        sample_rate: Some((rate_hz(new_rate), index as i32)),
+                        sample_rate: Some((rate_hz(new_rate), rate_index(new_rate) as i32)),
                         ..Readout::default()
                     },
                 );
             }
-            SessionEvent::PdEvents(events) => apply_pd_update(&app, pd.events(&events, Instant::now())),
+            SessionEvent::PdEvents(events) => apply_pd_update(&self.app, self.pd.events(&events, Instant::now())),
             SessionEvent::PdStatusUpdate(status) => {
                 let now = Instant::now();
-                let (sink, lines) = pd.status(&status, now);
-                if now.duration_since(last_pd_status) >= PD_STATUS_INTERVAL {
-                    last_pd_status = now;
-                    set_pd_status(&app, sink, lines);
+                let lines = self.pd.status(&status, now);
+                if lines.contract.is_some() || now.duration_since(self.last_pd_status) >= PD_STATUS_INTERVAL {
+                    self.last_pd_status = now;
+                    set_pd_status(&self.app, lines);
                 }
+            }
+            SessionEvent::PdTrace(trace) => {
+                let rows = self.pd.trace(&trace);
+                apply_pd_update(&self.app, pd::PdUpdate { rows, contract: None });
             }
             SessionEvent::Connected(state) => {
                 info!("Connected to {} (FW {})", state.model(), state.firmware_version());
-                pd.reset();
+                let contract = self.pd.device_reconnected();
+                apply_pd_update(
+                    &self.app,
+                    pd::PdUpdate {
+                        rows: Vec::new(),
+                        contract: Some(contract),
+                    },
+                );
+                if self.pd_trace_enabled {
+                    let _ = self.session.set_pd_trace_enabled(true);
+                }
                 update_ui(
-                    &app,
+                    &self.app,
                     Readout {
                         status: Some("Connected".to_string()),
                         device: Some(format!(
@@ -427,38 +712,82 @@ async fn pump_events(
                         ..Readout::default()
                     },
                 );
+                self.device = Some(state);
             }
-            SessionEvent::WaitingForDevice => update_ui(&app, status("Waiting for the KM003C...".to_string())),
+            SessionEvent::WaitingForDevice => update_ui(&self.app, status("Waiting for the KM003C...".to_string())),
             SessionEvent::ConnectionFailed {
                 error,
                 retry_when_present,
             } => {
                 warn!("Connection failed: {error}");
-                update_ui(&app, status(format!("Connection failed: {error}")));
+                update_ui(&self.app, status(format!("Connection failed: {error}")));
                 if retry_when_present {
-                    schedule_reconnect(&session, rate);
+                    schedule_reconnect(&self.session, self.rate);
                 }
             }
             SessionEvent::Disconnected { retry_when_present } => {
-                update_ui(&app, status("Disconnected".to_string()));
-                pd.reset();
-                set_pd_status(&app, "—".to_string(), "—".to_string());
-                apply_pd_update(
-                    &app,
-                    pd::PdUpdate {
-                        rows: Vec::new(),
-                        contract: Some("—".to_string()),
+                update_ui(&self.app, status("Disconnected".to_string()));
+                self.device = None;
+                apply_files(&self.app, self.files.device_disconnected());
+                // The contract stays: the sink may still be plugged in.
+                set_pd_status(
+                    &self.app,
+                    pd::PdStatusLines {
+                        sink: "—".to_string(),
+                        lines: "—".to_string(),
+                        contract: None,
                     },
                 );
                 if retry_when_present {
-                    schedule_reconnect(&session, rate);
+                    schedule_reconnect(&self.session, self.rate);
                 }
             }
+            SessionEvent::OfflineCatalog(catalog) => apply_files(&self.app, self.files.catalog(catalog)),
+            SessionEvent::OfflineLogDownloaded(log) => {
+                apply_files(&self.app, self.files.downloaded(log, self.device.as_deref()));
+            }
+            SessionEvent::OfflineOperationFailed(error) => apply_files(&self.app, self.files.offline_failed(error)),
             SessionEvent::Error(error) => {
                 warn!("Session error: {error}");
-                update_ui(&app, status(format!("Error: {error}")));
+                update_ui(&self.app, status(format!("Error: {error}")));
             }
             _ => {}
+        }
+    }
+
+    fn samples(&mut self, samples: Vec<km003c_lib::AdcQueueSample>) {
+        let mut measurements = Vec::with_capacity(samples.len());
+        for sample in samples {
+            let Some(measurement) = self.accumulator.push(sample, self.rate) else {
+                continue;
+            };
+            // The plot's X axis is the sample index, so a gap has to occupy
+            // its slots; NaN renders as a break in the line.
+            let gap = usize::from(measurement.missing_samples).min(CAPACITY);
+            for (chart, metric) in CHART_METRICS.iter().enumerate() {
+                let buffer = &self.buffers.buffers[chart];
+                for _ in 0..gap {
+                    buffer.push_frame(&[f32::NAN]);
+                }
+                buffer.push_frame(&[metric.value(&measurement) as f32]);
+            }
+            self.buffers.pushed.fetch_add(gap as u64 + 1, Ordering::Relaxed);
+            measurements.push(measurement);
+        }
+        let Some(&latest) = measurements.last() else {
+            return;
+        };
+        self.latest = Some(latest);
+        apply_files(&self.app, self.files.push(&measurements));
+        if self.last_readout.elapsed() >= READOUT_INTERVAL {
+            self.last_readout = Instant::now();
+            update_ui(
+                &self.app,
+                Readout {
+                    measurement: Some(latest),
+                    ..Readout::default()
+                },
+            );
         }
     }
 }
@@ -498,6 +827,18 @@ fn android_main(app: slint::android::AndroidApp) {
     use slint::android::android_activity::WindowManagerFlags;
     app.set_window_flags(WindowManagerFlags::KEEP_SCREEN_ON, WindowManagerFlags::empty());
 
+    // Settings and journals stay private to the app. Recordings go to its
+    // external files directory, which adb and file managers can read.
+    let internal = app.internal_data_path().unwrap_or_else(std::env::temp_dir);
+    let dirs = Dirs {
+        preferences: internal.join("preferences.json"),
+        journal: internal.join("journal"),
+        recordings: app
+            .external_data_path()
+            .unwrap_or_else(|| internal.clone())
+            .join("recordings"),
+    };
+
     slint::android::init(app.clone()).expect("failed to initialize the Slint Android backend");
-    run(|ui| dynamic_colors::apply(ui, &app));
+    run(dirs, |ui| dynamic_colors::apply(ui, &app));
 }

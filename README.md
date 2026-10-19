@@ -59,8 +59,15 @@ Core library providing:
 - CRC-validated read-only device settings
 - Offline recording catalog and encrypted log downloads
 - USB PD event parsing
-- Optional stateful USB PD semantic decoding through the `usbpd` feature
-- Typed firmware PD state-trace parsing
+- Optional stateful USB PD semantic decoding through the `usbpd` feature,
+  with the PD message log and the negotiated power contract
+- Typed firmware PD state-trace parsing and display entries
+- The long-running device session, measurement stream and offline recording
+  view the GUIs are built on
+- Optional live recording, offline export and polars `DataFrame` conversion
+  through the `polars` feature, with recovery of recordings a crash
+  interrupted
+- Optional preferences shared by the GUIs through the `preferences` feature
 
 ### `km003c-cli`
 Command-line tools:
@@ -86,13 +93,16 @@ A second GUI built with [Slint](https://slint.dev) that also runs on Android
 phones, with the meter plugged into the phone:
 - Live voltage, current and power charts rendered on the GPU, at up to 1000 SPS
 - Pinch or scroll to zoom, double tap to pause, drag to pan through history
-- PD tab with sink detection, CC readings, the negotiated contract and the
-  PD message log
+- PD tab with sink detection, CC readings, the negotiated contract, the PD
+  message log and the firmware trace
+- Files tab: live recording to Parquet or CSV, and export of the recordings
+  stored on the meter
 - Automatic reconnection when the device is replugged
-- Shares the device session, measurement stream and PD log formatter with
-  `km003c-egui`
+- Shares everything but the widgets with `km003c-egui` through `km003c-lib`:
+  the device session, measurements, PD log and contract, recording, export
+  and preferences. On the desktop both apps read the same preferences file.
 
-It lacks recording, offline logs and the firmware PD trace so far. See
+It cannot plot the recordings stored on the meter yet, only export them. See
 [`km003c-slint/README.md`](km003c-slint/README.md) for the Android build.
 
 <p align="center">
@@ -200,6 +210,16 @@ marker, sample rate, gap quality, CC1/CC2, and D+/D-—are null rather than
 fabricated as zero. Signed charge and energy preserve the device accumulators;
 positive throughput is derived from the absolute changes between successive
 device accumulator values.
+
+A live recording is first appended to a journal, flushed after every batch,
+and becomes the Parquet or CSV file when the recording stops. If the app
+crashes or is killed mid-recording, the next start converts the journal it
+left, so the samples up to the crash are kept. Both GUIs remember the sample
+rate, time window, plotted metrics, recording format and PD log filters. On
+the desktop they share `~/.config/km003c/preferences.json` and the journal
+directory `~/.local/share/km003c/journal` (the platform's equivalents on macOS
+and Windows); the Slint app saves recordings to `~/Documents/KM003C`, and on
+Android to the app's external files directory.
 
 ## Library Usage
 

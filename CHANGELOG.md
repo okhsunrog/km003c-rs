@@ -13,6 +13,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   both x86-64 and arm64 plus a source distribution, and uploads them to PyPI
   through trusted publishing, so `pip install km003c` no longer requires a Rust
   toolchain. A manual run publishes only when asked for.
+- A `polars` feature for recording and export, moved from `km003c-egui` so
+  every front end shares it:
+  - `Recorder` writes live measurements to Parquet or CSV on a background
+    thread. Rows are first appended to a journal, so `recover_interrupted`
+    can turn a recording interrupted by a crash into its file.
+  - `OfflineExport` and `write_offline_recording` write downloaded offline
+    logs in the same 23-column schema.
+  - `measurements_to_dataframe`, `OfflineRecordingView::to_dataframe`,
+    `read_recording` and `recording_schema` work with polars `DataFrame`s.
+    The crate re-exports `polars`, whose version is part of this feature's
+    API.
+- `OfflineRecordingView` places a downloaded offline log on a time axis in the
+  units of live measurements and derives transferred charge and energy.
+- `PdContract` follows a USB PD negotiation to the power contract in effect
+  (`usbpd` feature). A contract survives a reconnect of the meter, marked as
+  seen before it, until a new negotiation or a detached sink replaces it.
+- `PdTrace::entries()` describes the firmware trace for display as
+  `PdTraceEntry` values.
+- A `preferences` feature with `Preferences`, the settings the GUIs share,
+  saved as JSON.
+- `Metric` implements serde's traits with the `serde` feature.
 
 ### Changed
 
