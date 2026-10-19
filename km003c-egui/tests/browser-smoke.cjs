@@ -30,7 +30,7 @@ const { chromium } = require('playwright');
         });
         await page.goto(process.env.KM003C_URL || 'http://127.0.0.1:8080');
         await page.waitForFunction(() => !document.getElementById('notice'), { timeout: 60000 });
-        const connect = () => page.mouse.click(35, 40);
+        const connect = () => page.mouse.click(35, 60);
         await connect();
         await page.waitForFunction(() => window.usbRequests.length === 1);
         assert.equal(await page.evaluate(() => window.usbRequests[0].active), true);

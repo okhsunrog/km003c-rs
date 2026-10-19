@@ -4,12 +4,30 @@ The browser runs the same egui application and km003c-lib session as desktop:
 vendor bulk interface 0, initialization and streaming authentication, 2/10/50/1000
 SPS measurements, all three selectable plots, accumulation and loss counters,
 USB PD capture/decoding, firmware trace, offline catalog/download/plots, live
-recording, and CSV/Parquet export. Hardware operation still needs validation on a
-real KM003C; a successful build or mock permission test does not establish it.
+recording, and CSV/Parquet export. Linux Chrome has been exercised with a real
+KM003C running firmware 1.9.9; see [hardware validation](#hardware-validation).
+
+## Use the hosted monitor
+
+Open **[okhsunrog.github.io/km003c-rs](https://okhsunrog.github.io/km003c-rs/)**
+in desktop Chrome or Edge. Connect the meter's PC port, click **Connect**,
+click the KM003C row in the browser's device chooser, then click its **Connect**
+button. Linux users should first complete the [USB setup](#linux-setup).
+
+The initial theme is dark and the interface scale is 150%. The top toolbar has
+theme buttons and a **Scale** menu. Choose the sample rate and time window in
+the sidebar; the three plots can show different measurements. Keep the tab in
+the foreground during a capture. Stop a recording and wait for its `.parquet`
+or `.csv` download before closing the tab.
+
+GitHub Pages serves only the static application. USB communication, decoding,
+plotting and recording export run on the computer connected to the meter.
+No server-side USB bridge or separate desktop installation is required.
 
 ## Build and run
 
-Install Rust with rustup. The repository pins Rust 1.99.1 and the wasm target.
+Run these commands from the repository root. Install Rust with rustup. The
+repository pins Rust 1.99.1 and the wasm target.
 Install the pinned frontend builder once:
 
     cargo install trunk --version 0.21.14 --locked
@@ -41,6 +59,39 @@ needed.
 
 Desktop remains: cargo run -p km003c-egui. Native Polars, file dialogs and file
 writer threads are target-specific and are not linked into the browser.
+
+## Publish to GitHub Pages
+
+The [GitHub Pages workflow](../.github/workflows/pages.yml) builds and publishes
+the monitor on every push to `main`, including merged pull requests. It can
+also be run manually from **Actions → GitHub Pages → Run workflow**; select
+`main` to publish. Manual runs on other branches build an artifact without
+deploying it.
+
+For a new repository or fork, enable **Settings → Pages → Build and deployment
+→ Source → GitHub Actions** once. The workflow uses the standard `GITHUB_TOKEN`;
+no personal token or repository secret is needed. Its build job reads Pages
+metadata; only the deploy job has `pages: write` and `id-token: write`.
+Deployments use the `github-pages` environment. If that environment restricts
+deployment branches or requires review, allow `main` and satisfy its rules.
+See [GitHub's custom workflow documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
+
+The build uses the pinned Rust toolchain, Trunk 0.21.14, the committed
+`Cargo.lock`, and the release profile. It passes the Pages `base_path` to
+Trunk's `--public-url`, including a trailing slash. Thus JavaScript and WASM
+load from `/km003c-rs/` on the project site, or `/` when Pages uses a dedicated
+domain. The `dist/` artifact is uploaded and deployed after a successful build;
+deployment runs are serialized without cancelling an active deployment.
+
+To reproduce the project-site build locally:
+
+```sh
+trunk build --release --public-url /km003c-rs/
+```
+
+Serve the contents of `dist/` at `/km003c-rs/` on a local HTTP server, or upload
+them to an HTTPS static host with the same path. The Actions deployment summary
+and **Settings → Pages** show the published URL. No `gh-pages` branch is used.
 
 ## Platform constraints
 
@@ -76,8 +127,10 @@ writer threads are target-specific and are not linked into the browser.
   directory; “Saved” means the download was handed to it.
 - CSV and Parquet retain the desktop 23-column schema, unsigned/signed types,
   null unavailable offline channels and Parquet source/device metadata. Browser
-  Parquet is uncompressed and encoded with the pure Rust parquet writer instead
-  of Polars; desktop keeps its existing encoder.
+  Parquet is uncompressed and encoded with Apache Arrow Rust's `parquet` crate,
+  with its default features disabled. Desktop keeps Polars. Polars 0.55.2,
+  even with default features disabled and only Parquet enabled, pulls in
+  `tokio/net` through `polars-core`; `mio` then rejects the browser target.
 - Keep the tab active. Browser background/sleep throttling can overflow the
   instrument queue, especially at 1000 SPS with PD. Loss counters and existing
   session stall recovery remain active; background logging guarantees are weaker
@@ -133,15 +186,35 @@ The library tests with the browser feature include CSV/Parquet round trips with 
 signed values and null offline channels. Library tests cover recorded protocol
 captures, session commands, deadlines and pending-operation cleanup.
 
-For an optional browser smoke test, install Playwright (npm install playwright
-in a disposable directory), expose its node_modules via NODE_PATH, and run:
+For an optional browser smoke test, install Playwright with `vp add playwright`
+in a disposable JavaScript project, expose its `node_modules` via `NODE_PATH`,
+and run:
 
     node km003c-egui/tests/browser-smoke.cjs
 
-Run it against trunk serve. Set CHROMIUM to the Chromium executable if it is not
-/usr/bin/chromium. It mocks only browser permission/open calls: checks actual
+Run it against `trunk serve --release`. Set `CHROMIUM` to the Chrome/Chromium
+executable if it is not `/usr/bin/chromium`. It mocks only browser permission/open calls: checks actual
 egui rendering, user activation, VID/PID filtering, cancellation, opening timeout
 and retry. It does not emulate KM003C authentication or measurements.
+
+## Hardware validation
+
+On 2026-10-19, the release build was tested in desktop Google Chrome on Linux
+with KM003C firmware 1.9.9. Checks included connection/authentication, live
+1000 SPS plots with PD protocol capture and firmware trace, live Parquet
+recording, and downloading/exporting a device-stored recording. The optional
+Linux udev rule was tested by rebinding `powerz`: interface 0 was released
+automatically while the CDC and HID interfaces remained unchanged.
+
+A 30-second foreground run after the plotting changes received 30,030 samples
+with no observed sequence gaps or duplicates. A longer 336.55-second recording
+contained 336,537 rows, 14 reported missing samples, 8 discarded sequence
+samples and two non-unit sequence transitions. One repeated older sequence
+block was accepted after the accumulator's resynchronization threshold; loss
+and discard counters alone do not prove that every saved row is unique.
+These observations do not establish lossless capture or reconnect/sleep
+behavior on every platform. The checklist below covers the remaining scenarios
+as well as repeatable acceptance checks.
 
 ## Manual validation with a real KM003C
 
