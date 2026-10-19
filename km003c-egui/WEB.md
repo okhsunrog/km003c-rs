@@ -27,7 +27,8 @@ builds can delay USB polling while rendering. Plot geometry is reduced to a
 screen-sized minimum/maximum envelope with stable time buckets; full received
 samples still go to recording and export. This reduces rendering work without
 reducing the instrument's sample rate. Zooming recomputes the display geometry
-from the original samples.
+from the original samples. This reduction applies only to the browser build;
+desktop plots retain every sample in the selected time window.
 
     cargo check -p km003c-egui --target wasm32-unknown-unknown --locked
     trunk build --release

@@ -1,4 +1,5 @@
 mod metric_color;
+#[cfg(any(target_arch = "wasm32", test))]
 mod plot_sampling;
 
 use eframe::egui;
@@ -26,6 +27,22 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{info, warn};
+
+/// Bound browser drawing work; desktop plots retain every supplied sample.
+fn display_plot_points(
+    points: impl Iterator<Item = [f64; 2]>,
+    _x_bounds: [f64; 2],
+    _columns: usize,
+) -> PlotPoints<'static> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        plot_sampling::sample_line(points, _x_bounds, _columns).into()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        points.collect()
+    }
+}
 
 /// Where the app keeps its files. The Slint GUI uses the same ones on the
 /// desktop, so both remember the same settings.
@@ -1696,16 +1713,15 @@ impl PowerMonitorApp {
                         let x_bounds = [bounds.min()[0], bounds.max()[0]];
                         let columns = plot_ui.transform().frame().width().ceil() as usize;
                         let points: PlotPoints = match self.plot_source {
-                            PlotSource::Live => plot_sampling::sample_line(
+                            PlotSource::Live => display_plot_points(
                                 self.data_points
                                     .iter()
                                     .skip(live_start)
                                     .map(|sample| [sample.elapsed_seconds(), metric.value(sample)]),
                                 x_bounds,
                                 columns,
-                            )
-                            .into(),
-                            PlotSource::Offline => plot_sampling::sample_line(
+                            ),
+                            PlotSource::Offline => display_plot_points(
                                 self.offline_view
                                     .iter()
                                     .flat_map(|view| &view.samples)
@@ -1717,8 +1733,7 @@ impl PowerMonitorApp {
                                     }),
                                 x_bounds,
                                 columns,
-                            )
-                            .into(),
+                            ),
                         };
                         plot_ui.line(Line::new(metric.label(), points).color(metric.color()).width(1.5_f32));
                     });
@@ -1796,6 +1811,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
     use km003c_lib::{OfflineLog, read_recording};
+
+    #[test]
+    fn desktop_plot_retains_every_sample_even_at_small_width() {
+        let samples: Vec<_> = (0..10_000).map(|i| [f64::from(i), f64::from(i % 17)]).collect();
+        let displayed = display_plot_points(samples.iter().copied(), [0.0, 10_000.0], 10);
+        assert_eq!(displayed.points().len(), samples.len());
+        for (actual, expected) in displayed.points().iter().zip(samples) {
+            assert_eq!([actual.x, actual.y], expected);
+        }
+    }
 
     /// An app whose session has no device task behind it. It saves no
     /// preferences and journals into a directory of its own.
