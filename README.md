@@ -77,6 +77,10 @@ Command-line tools:
 - `offline-log` - List and export stored recordings as CSV or JSON
 
 ### `km003c-egui`
+
+Runs on desktop and in Chromium browsers via WebUSB. See [browser setup,
+constraints and hardware validation](km003c-egui/WEB.md).
+
 GUI application featuring:
 - Three independently configurable plots for live or device-stored measurements
 - AdcQueue streaming with configurable sample rates
@@ -174,6 +178,10 @@ cargo run --bin offline-log -- download --index 0 --format csv
 ```
 
 #### GUI Application
+
+Browser: install Trunk 0.21.14, run `trunk serve`, open http://localhost:8080
+and click **Connect**. See [browser instructions](km003c-egui/WEB.md).
+
 
 ```bash
 cargo run --bin km003c-egui

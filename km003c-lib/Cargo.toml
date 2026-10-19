@@ -19,7 +19,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 modular-bitfield = "0.13.1"
-nusb = { version = "0.2.5", features = ["tokio"] }
+nusb = { version = "0.2.7", features = ["tokio"] }
 thiserror = "2.0.19"
 tracing.workspace = true
 tokio.workspace = true
@@ -38,9 +38,12 @@ usbpd = { workspace = true, optional = true }
 futures-util = { version = "0.3.34", default-features = false }
 polars = { version = "0.55.2", default-features = false, features = ["csv", "parquet"], optional = true }
 serde_json = { version = "1.0.151", optional = true }
+parquet = { version = "58", default-features = false, optional = true }
 
 [features]
 default = []
+# Browser recording and download backend, without native file threads or Polars.
+browser = ["dep:parquet"]
 python = ["dep:pyo3"]
 serde = ["dep:serde", "uom/serde"]
 usbpd = ["dep:usbpd"]
@@ -52,3 +55,15 @@ preferences = ["serde", "dep:serde_json"]
 
 [package.metadata.docs.rs]
 features = ["usbpd", "serde", "polars", "preferences"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "0.4"
+gloo-timers = { version = "0.3", features = ["futures"] }
+web-time = "1"
+getrandom = { version = "0.4", features = ["wasm_js"] }
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ["Window", "Document", "HtmlAnchorElement", "Blob", "Url"] }

@@ -2,6 +2,9 @@ mod metric_color;
 
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
+#[cfg(not(target_arch = "wasm32"))]
+use km003c_lib::RecoveryOutcome;
+use km003c_lib::runtime::Instant;
 use km003c_lib::uom::si::electric_charge::milliampere_hour;
 use km003c_lib::uom::si::electric_potential::volt;
 use km003c_lib::uom::si::energy::milliwatt_hour;
@@ -10,26 +13,29 @@ use km003c_lib::{
     DeviceState, GraphSampleRate, LogMetadata, MeasurementAccumulator, MeasurementSample, Metric, OfflineExport,
     OfflineExportEvent, OfflineRecordingView, PdConnectionTracker, PdContract, PdLogCategory, PdLogEntry, PdLogger,
     PdTraceCategory, PdTraceEntry, Preferences, Recorder, RecordingEvent, RecordingFormat, RecordingMetadata,
-    RecordingSummary, RecoveryOutcome, Session, SessionEvent,
+    RecordingSummary, Session, SessionEvent,
     pd::{PdEventData, PdStatus},
 };
 use metric_color::MetricColor;
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
+#[cfg(not(target_arch = "wasm32"))]
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
 /// Where the app keeps its files. The Slint GUI uses the same ones on the
 /// desktop, so both remember the same settings.
 struct AppDirs {
+    #[cfg(not(target_arch = "wasm32"))]
     preferences: Option<PathBuf>,
     journal: PathBuf,
 }
 
 impl AppDirs {
+    #[cfg(not(target_arch = "wasm32"))]
     fn locate() -> Self {
         Self {
             preferences: dirs::config_dir().map(|dir| dir.join("km003c").join("preferences.json")),
@@ -39,7 +45,31 @@ impl AppDirs {
                 .join("journal"),
         }
     }
+    #[cfg(target_arch = "wasm32")]
+    fn locate() -> Self {
+        Self {
+            journal: PathBuf::new(),
+        }
+    }
+
+    fn load_preferences(&self) -> Preferences {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.preferences.as_deref().map(Preferences::load).unwrap_or_default()
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            web_sys::window()
+                .and_then(|w| w.local_storage().ok().flatten())
+                .and_then(|storage| storage.get_item("km003c.preferences").ok().flatten())
+                .and_then(|json| serde_json::from_str(&json).ok())
+                .unwrap_or_default()
+        }
+    }
 }
+
+#[cfg(target_arch = "wasm32")]
+type BrowserDeviceResult = Result<(nusb::Device, Option<String>), String>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PlotSource {
@@ -266,9 +296,14 @@ struct PowerMonitorApp {
     /// Max firmware PD trace entries
     max_pd_trace_entries: usize,
     /// Whether to perform USB reset on connect
+    #[cfg(not(target_arch = "wasm32"))]
     usb_reset: bool,
     /// An attempted connection has not yet produced a result.
     connection_attempt_in_flight: bool,
+    #[cfg(target_arch = "wasm32")]
+    chooser: Option<mpsc::UnboundedReceiver<BrowserDeviceResult>>,
+    #[cfg(target_arch = "wasm32")]
+    selected_serial: Option<String>,
     /// User intent, retained while a connection or disconnect is in progress.
     auto_connect_enabled: bool,
     /// Time of the next automatic probe while the KM003C is absent.
@@ -278,6 +313,7 @@ struct PowerMonitorApp {
     /// Preferences as last written, to save only changes
     saved_preferences: Preferences,
     /// Conversion of journals that earlier runs left behind
+    #[cfg(not(target_arch = "wasm32"))]
     recovery: Option<JoinHandle<std::io::Result<Vec<RecoveryOutcome>>>>,
 }
 
@@ -291,7 +327,9 @@ impl PowerMonitorApp {
         dirs: AppDirs,
     ) -> Self {
         let rate = SampleRateOption::from_graph_rate(preferences.sample_rate);
+        #[cfg(not(target_arch = "wasm32"))]
         let journal = dirs.journal.clone();
+        #[cfg(not(target_arch = "wasm32"))]
         let recovery = std::thread::Builder::new()
             .name("km003c-recovery".to_string())
             .spawn(move || km003c_lib::recover_interrupted(&journal))
@@ -303,7 +341,12 @@ impl PowerMonitorApp {
             session_events,
             session,
             device_state: None,
-            status: "Connecting...".to_string(),
+            status: if cfg!(target_arch = "wasm32") {
+                "Click Connect to select KM003C"
+            } else {
+                "Connecting..."
+            }
+            .to_string(),
             streaming: false,
             current_rate: rate,
             selected_rate: rate,
@@ -341,12 +384,18 @@ impl PowerMonitorApp {
             pd_trace_enabled: preferences.pd_trace_enabled,
             pd_trace_log: VecDeque::new(),
             max_pd_trace_entries: 2000,
+            #[cfg(not(target_arch = "wasm32"))]
             usb_reset: !cfg!(target_os = "macos"),
-            connection_attempt_in_flight: true,
+            connection_attempt_in_flight: !cfg!(target_arch = "wasm32"),
+            #[cfg(target_arch = "wasm32")]
+            chooser: None,
+            #[cfg(target_arch = "wasm32")]
+            selected_serial: None,
             auto_connect_enabled: true,
             reconnect_at: None,
             dirs,
             saved_preferences: preferences,
+            #[cfg(not(target_arch = "wasm32"))]
             recovery,
         }
     }
@@ -368,14 +417,22 @@ impl PowerMonitorApp {
         if preferences == self.saved_preferences {
             return;
         }
+        #[cfg(not(target_arch = "wasm32"))]
         if let Some(path) = &self.dirs.preferences
             && let Err(error) = preferences.save(path)
         {
             warn!("Could not save preferences to {}: {error}", path.display());
         }
+        #[cfg(target_arch = "wasm32")]
+        if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten())
+            && let Ok(json) = serde_json::to_string(&preferences)
+        {
+            let _ = storage.set_item("km003c.preferences", &json);
+        }
         self.saved_preferences = preferences;
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn poll_recovery(&mut self) {
         if !self.recovery.as_ref().is_some_and(JoinHandle::is_finished) {
             return;
@@ -421,7 +478,21 @@ impl PowerMonitorApp {
             self.auto_connect_enabled = true;
             self.status = "Connecting...".to_string();
         }
-        let _ = self.session.connect(self.selected_rate.to_graph_rate(), self.usb_reset);
+        #[cfg(not(target_arch = "wasm32"))]
+        let result = self.session.connect(self.selected_rate.to_graph_rate(), self.usb_reset);
+        #[cfg(target_arch = "wasm32")]
+        let result = self.session.connect_selected(
+            self.selected_rate.to_graph_rate(),
+            false,
+            self.selected_serial
+                .clone()
+                .map(km003c_lib::DeviceSelector::SerialNumber)
+                .unwrap_or_default(),
+        );
+        if let Err(error) = result {
+            self.connection_attempt_in_flight = false;
+            self.status = error.to_string();
+        }
     }
 
     fn retry_connection_if_due(&mut self, now: Instant) {
@@ -431,6 +502,23 @@ impl PowerMonitorApp {
     }
 
     fn process_messages(&mut self) {
+        #[cfg(target_arch = "wasm32")]
+        if let Some(result) = self.chooser.as_mut().and_then(|rx| rx.try_recv().ok()) {
+            self.chooser = None;
+            match result {
+                Ok((device, serial)) => {
+                    self.selected_serial = serial;
+                    if let Err(error) = self.session.connect_device(device, self.selected_rate.to_graph_rate()) {
+                        self.connection_attempt_in_flight = false;
+                        self.status = error.to_string();
+                    }
+                }
+                Err(error) => {
+                    self.connection_attempt_in_flight = false;
+                    self.status = error;
+                }
+            }
+        }
         while let Ok(msg) = self.session_events.try_recv() {
             match msg {
                 SessionEvent::WaitingForDevice => {
@@ -511,10 +599,10 @@ impl PowerMonitorApp {
                     for event in &events {
                         match &event.data {
                             PdEventData::Connect => {
-                                self.pd_connection.observe_event(true, std::time::Instant::now());
+                                self.pd_connection.observe_event(true, Instant::now());
                             }
                             PdEventData::Disconnect => {
-                                self.pd_connection.observe_event(false, std::time::Instant::now());
+                                self.pd_connection.observe_event(false, Instant::now());
                             }
                             PdEventData::PdMessage { .. } => {}
                         }
@@ -528,7 +616,7 @@ impl PowerMonitorApp {
                     }
                 }
                 SessionEvent::PdStatusUpdate(status) => {
-                    self.pd_connection.observe_status(&status, std::time::Instant::now());
+                    self.pd_connection.observe_status(&status, Instant::now());
                     self.pd_status = Some(status);
                 }
                 SessionEvent::PdTrace(trace) => {
@@ -597,10 +685,11 @@ impl PowerMonitorApp {
         }
 
         self.retry_connection_if_due(Instant::now());
-        self.pd_connection.update(std::time::Instant::now());
+        self.pd_connection.update(Instant::now());
         self.pd_contract.observe_sink(self.pd_connection.connected());
         self.poll_recording();
         self.poll_offline_export();
+        #[cfg(not(target_arch = "wasm32"))]
         self.poll_recovery();
         self.save_preferences();
     }
@@ -687,17 +776,25 @@ impl PowerMonitorApp {
     }
 
     fn select_recording_path(&self, prefix: &str, title: &str) -> Option<std::path::PathBuf> {
-        let unix_seconds = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        let unix_seconds = km003c_lib::runtime::SystemTime::now()
+            .duration_since(km003c_lib::runtime::SystemTime::UNIX_EPOCH)
             .map_or(0, |duration| duration.as_secs());
         let filename = format!("{prefix}-{unix_seconds}.{}", self.recording_format.extension());
-        let mut path = rfd::FileDialog::new()
-            .set_title(title)
-            .add_filter(self.recording_format.label(), &[self.recording_format.extension()])
-            .set_file_name(filename)
-            .save_file()?;
-        path.set_extension(self.recording_format.extension());
-        Some(path)
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = title;
+            Some(filename.into())
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let mut path = rfd::FileDialog::new()
+                .set_title(title)
+                .add_filter(self.recording_format.label(), &[self.recording_format.extension()])
+                .set_file_name(filename)
+                .save_file()?;
+            path.set_extension(self.recording_format.extension());
+            Some(path)
+        }
     }
 
     fn stop_recording(&mut self) {
@@ -859,6 +956,7 @@ impl PowerMonitorApp {
 
     /// Every side-panel section, in display order.
     fn side_panel(&mut self, ui: &mut egui::Ui) {
+        self.connection_section(ui);
         self.device_info_section(ui);
         self.current_readings_section(ui);
         self.pd_status_section(ui);
@@ -867,7 +965,8 @@ impl PowerMonitorApp {
         self.controls_section(ui);
         self.live_capture_section(ui);
         self.offline_recordings_section(ui);
-        self.connection_section(ui);
+        #[cfg(target_arch = "wasm32")]
+        ui.small("Browser recording uses memory (128 MiB limit). Stop to download. Keep this tab open and active; background tabs may be throttled.");
     }
 
     fn device_info_section(&mut self, ui: &mut egui::Ui) {
@@ -1088,6 +1187,10 @@ impl PowerMonitorApp {
         }
     }
 
+    fn recording_busy(&self) -> bool {
+        self.recorder.is_some()
+    }
+
     fn controls_section(&mut self, ui: &mut egui::Ui) {
         {
             ui.add_space(20.0);
@@ -1096,7 +1199,7 @@ impl PowerMonitorApp {
             ui.separator();
 
             // Sample rate selector
-            ui.add_enabled_ui(self.recorder.is_none(), |ui| {
+            ui.add_enabled_ui(!self.recording_busy(), |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Sample Rate:");
                     let prev_rate = self.selected_rate;
@@ -1152,7 +1255,7 @@ impl PowerMonitorApp {
 
             ui.horizontal(|ui| {
                 if ui
-                    .add_enabled(self.recorder.is_none(), egui::Button::new("Clear Live Data"))
+                    .add_enabled(!self.recording_busy(), egui::Button::new("Clear Live Data"))
                     .clicked()
                 {
                     self.clear_data();
@@ -1216,6 +1319,7 @@ impl PowerMonitorApp {
                 ui.label(format!("Completeness: {:.6}%", progress.completeness_percent()));
             } else if let Some(summary) = &self.last_recording {
                 ui.label(format!("Last capture: {} samples", summary.rows));
+                ui.label(format!("Missing: {}", summary.missing_samples));
                 ui.label(format!("Discarded: {}", summary.discarded_sequence_samples));
                 ui.label(format!("Completeness: {:.6}%", summary.completeness_percent()));
             }
@@ -1355,6 +1459,43 @@ impl PowerMonitorApp {
         }
     }
 
+    #[cfg(target_arch = "wasm32")]
+    fn choose_device(&mut self) {
+        let window = web_sys::window().unwrap();
+        if !window.is_secure_context()
+            || !js_sys::Reflect::get(&window.navigator(), &"usb".into())
+                .is_ok_and(|usb| !usb.is_null() && !usb.is_undefined())
+        {
+            self.status = "WebUSB needs desktop Chrome/Edge on HTTPS or localhost.".into();
+            return;
+        }
+        let (tx, rx) = mpsc::unbounded_channel();
+        self.chooser = Some(rx);
+        self.connection_attempt_in_flight = true;
+        self.status = "Select KM003C in the browser permission dialog...".into();
+        self.auto_connect_enabled = true;
+        // No asynchronous work before request_device: preserve user activation.
+        wasm_bindgen_futures::spawn_local(async move {
+            let filters = [nusb::DeviceSelector::all().with_vid_pid(0x5fc9, 0x0063)];
+            let result = async {
+                let info = nusb::request_device(&filters)
+                    .await
+                    .map_err(|e| e.to_string())?
+                    .ok_or_else(|| {
+                        "No device selected: permission denied or dialog cancelled. Click Connect to retry.".to_string()
+                    })?;
+                let serial = info.serial_number().map(str::to_owned);
+                let device = km003c_lib::runtime::timeout(Duration::from_secs(10), async { info.open().await })
+                    .await
+                    .map_err(|e| e.to_string())?
+                    .map_err(|e| e.to_string())?;
+                Ok((device, serial))
+            }
+            .await;
+            let _ = tx.send(result);
+        });
+    }
+
     fn connection_section(&mut self, ui: &mut egui::Ui) {
         {
             ui.add_space(5.0);
@@ -1363,14 +1504,22 @@ impl PowerMonitorApp {
                 if ui.button("Disconnect").clicked() {
                     info!("Disconnect requested");
                     self.auto_connect_enabled = false;
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        self.chooser = None;
+                    }
                     self.reconnect_at = None;
                     let _ = self.session.disconnect();
                 }
             } else if self.device_state.is_none() {
+                #[cfg(not(target_arch = "wasm32"))]
                 ui.checkbox(&mut self.usb_reset, "USB reset on connect");
                 if ui.button("Connect").clicked() {
                     info!("Connect requested");
+                    #[cfg(not(target_arch = "wasm32"))]
                     self.request_connection(true);
+                    #[cfg(target_arch = "wasm32")]
+                    self.choose_device();
                 }
             }
         }
@@ -1548,13 +1697,14 @@ impl eframe::App for PowerMonitorApp {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
     info!("Starting POWER-Z KM003C GUI application");
 
     let dirs = AppDirs::locate();
-    let preferences = dirs.preferences.as_deref().map(Preferences::load).unwrap_or_default();
+    let preferences = dirs.load_preferences();
     let (session, session_events) = Session::spawn();
 
     // Auto-connect on startup
@@ -1574,7 +1724,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
     use km003c_lib::{OfflineLog, read_recording};
@@ -1902,4 +2052,45 @@ mod tests {
             }
         });
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    use wasm_bindgen::JsCast;
+    let _ = eframe::WebLogger::init(log::LevelFilter::Info);
+    wasm_bindgen_futures::spawn_local(async {
+        let canvas = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("km003c")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlCanvasElement>()
+            .unwrap();
+        let (session, events) = Session::spawn();
+        let result = eframe::WebRunner::new()
+            .start(
+                canvas,
+                eframe::WebOptions::default(),
+                Box::new(move |_| {
+                    let dirs = AppDirs::locate();
+                    let preferences = dirs.load_preferences();
+                    Ok(Box::new(PowerMonitorApp::new(session, events, preferences, dirs)))
+                }),
+            )
+            .await;
+        if let Some(notice) = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("notice")
+        {
+            match result {
+                Ok(()) => notice.remove(),
+                Err(error) => {
+                    notice.set_text_content(Some(&format!("Could not start egui (WebGL2 required): {error:?}")))
+                }
+            }
+        }
+    });
 }

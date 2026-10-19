@@ -392,8 +392,8 @@ pub fn build_streaming_auth_payload(credential: &AuthCredential) -> [u8; 32] {
     let mut plaintext = [0u8; 32];
 
     // Bytes 0-7: Timestamp (milliseconds since epoch)
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let timestamp = crate::runtime::SystemTime::now()
+        .duration_since(crate::runtime::SystemTime::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0);
     plaintext[0..8].copy_from_slice(&timestamp.to_le_bytes());
@@ -828,8 +828,8 @@ mod tests {
 
         // Timestamp should be recent (within last hour - 3600000 ms)
         let timestamp = u64::from_le_bytes(plaintext[0..8].try_into().unwrap());
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        let now = crate::runtime::SystemTime::now()
+            .duration_since(crate::runtime::SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
         assert!(timestamp > now - 3600000, "Timestamp should be recent");

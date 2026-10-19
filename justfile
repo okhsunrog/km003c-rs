@@ -55,3 +55,15 @@ hardware-pd:
 # Start the graphical monitor.
 gui:
     cargo run -p km003c-egui
+
+# Serve the browser egui monitor on http://localhost:8080 (Trunk 0.21.14).
+web:
+    trunk serve
+
+# Build static browser assets in dist/.
+web-build:
+    trunk build --release
+
+# Check browser-compatible dependencies and APIs.
+web-check:
+    cargo check -p km003c-egui --target wasm32-unknown-unknown --locked

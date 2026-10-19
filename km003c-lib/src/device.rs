@@ -53,6 +53,7 @@ use crate::message::Packet;
 use crate::offline::{LogMetadata, LogMetadataResponse, OfflineLog};
 use crate::packet::{Attribute, AttributeSet, PacketPeek, PacketType, RawPacket};
 use crate::pd::{PdEventStream, PdStatus};
+use crate::runtime::timeout;
 use crate::settings::Settings;
 use bytes::Bytes;
 use nusb::Interface;
@@ -62,7 +63,6 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::time::timeout;
 use tracing::{debug, info, trace, warn};
 
 fn calibration_record_is_erased(record: &[u8]) -> bool {
@@ -356,7 +356,7 @@ pub enum DeviceSelector {
     First,
     /// Open the KM003C with this USB serial number string.
     SerialNumber(String),
-    /// Open the KM003C at this bus and device address.
+    /// Open the KM003C at this bus and device address (unavailable on WebUSB/Android).
     ///
     /// The address changes across a USB reset, so prefer
     /// [`DeviceSelector::SerialNumber`] together with `skip_reset()`.
@@ -364,16 +364,16 @@ pub enum DeviceSelector {
 }
 
 impl DeviceSelector {
-    fn matches(&self, device: &nusb::DeviceInfo) -> bool {
+    pub(crate) fn matches(&self, device: &nusb::DeviceInfo) -> bool {
         match self {
             Self::First => true,
             Self::SerialNumber(serial) => device.serial_number() == Some(serial.as_str()),
-            #[cfg(not(target_os = "android"))]
+            #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
             Self::BusAddress { bus_id, device_address } => {
                 device.bus_id() == bus_id && device.device_address() == *device_address
             }
-            // Android's USB API exposes no bus topology.
-            #[cfg(target_os = "android")]
+            // Android and WebUSB expose no bus topology.
+            #[cfg(any(target_os = "android", target_arch = "wasm32"))]
             Self::BusAddress { .. } => false,
         }
     }
@@ -554,13 +554,13 @@ impl KM003C {
         info!("Searching for {}...", config.selector.describe());
         let device_info = find_device(&config.selector).await?;
 
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
         info!(
             "Found device on bus {} addr {}",
             device_info.bus_id(),
             device_info.device_address()
         );
-        #[cfg(target_os = "android")]
+        #[cfg(any(target_os = "android", target_arch = "wasm32"))]
         info!("Found device {:?}", device_info.id());
 
         // A reset re-enumerates the device, so reopening must target the same
@@ -574,7 +574,7 @@ impl KM003C {
                 .unwrap_or(DeviceSelector::First),
         };
 
-        let mut device = device_info.open().await?;
+        let mut device = timeout(DEFAULT_TIMEOUT, async { device_info.open().await }).await??;
 
         // Optionally reset device (skip on MacOS if having issues)
         if !config.skip_reset {
@@ -582,9 +582,12 @@ impl KM003C {
             device.reset().await?;
             // CRITICAL: Device needs 1.5 seconds to fully initialize after reset
             // (validated through protocol research - 100ms is insufficient for AdcQueue)
-            tokio::time::sleep(Duration::from_millis(1500)).await;
+            crate::runtime::sleep(Duration::from_millis(1500)).await;
             // Re-enumerate and reopen after reset (old handle may be invalid).
-            device = find_device(&reopen_selector).await?.open().await?;
+            device = timeout(DEFAULT_TIMEOUT, async {
+                find_device(&reopen_selector).await?.open().await.map_err(KMError::from)
+            })
+            .await??;
         } else {
             debug!("Skipping USB reset (skip_reset=true)");
         }
@@ -615,6 +618,7 @@ impl KM003C {
         //   Interface 1+2: cdc_acm (serial)
         //   Interface 3: usbhid (HID generic)
         // Detaching all prevents re-binding and ensures clean access
+        #[cfg(not(target_arch = "wasm32"))]
         for interface_num in 0..4 {
             if let Err(e) = device.detach_kernel_driver(interface_num) {
                 // Ignore errors - driver may already be detached
@@ -624,8 +628,22 @@ impl KM003C {
             }
         }
 
+        // Browsers can expose an opened, but not yet configured device.
+        #[cfg(target_arch = "wasm32")]
+        if device.active_configuration().is_err() {
+            let value = device
+                .configurations()
+                .next()
+                .ok_or_else(|| KMError::Protocol("USB device has no configuration".into()))?
+                .configuration_value();
+            crate::runtime::timeout(DEFAULT_TIMEOUT, async { device.set_configuration(value).await }).await??;
+        }
+
         // Claim the configured interface
-        let interface = device.claim_interface(config.interface).await?;
+        let interface = crate::runtime::timeout(DEFAULT_TIMEOUT, async {
+            device.claim_interface(config.interface).await
+        })
+        .await??;
         info!("Interface {} claimed successfully", config.interface);
 
         // Create persistent endpoints based on transfer type
@@ -806,9 +824,9 @@ impl KM003C {
                 .expect("pending response index is valid"));
         }
 
-        let deadline = tokio::time::Instant::now() + DEFAULT_TIMEOUT;
+        let deadline = crate::runtime::Instant::now() + DEFAULT_TIMEOUT;
         loop {
-            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            let remaining = deadline.saturating_duration_since(crate::runtime::Instant::now());
             if remaining.is_zero() {
                 return Err(KMError::Protocol(
                     "Timed out waiting for a correlated response".to_string(),
@@ -1057,7 +1075,7 @@ impl KM003C {
             }
             if attempt < MAX_CONNECT_RETRIES {
                 debug!("Connect attempt {} failed, retrying...", attempt);
-                tokio::time::sleep(Duration::from_millis(100)).await;
+                crate::runtime::sleep(Duration::from_millis(100)).await;
             }
         }
         if let Some(err) = last_error {

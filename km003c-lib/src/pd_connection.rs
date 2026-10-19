@@ -1,6 +1,7 @@
 //! Whether a sink is attached to the KM003C's source-facing port.
 
-use std::time::{Duration, Instant};
+use crate::runtime::Instant;
+use std::time::Duration;
 
 use uom::si::electric_potential::volt;
 

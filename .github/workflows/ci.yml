@@ -80,3 +80,19 @@ jobs:
       - run: uv sync --locked
       - run: uv run maturin develop
       - run: uv run pytest -q test_bindings.py
+
+  browser:
+    name: Browser egui (WebUSB)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.1
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm-egui
+      - run: cargo check -p km003c-egui --target wasm32-unknown-unknown --locked
+      - run: cargo install trunk --version 0.21.14 --locked
+      - run: trunk build --release
