@@ -13,7 +13,7 @@ Install Rust with rustup. The repository pins Rust 1.99.1 and the wasm target.
 Install the pinned frontend builder once:
 
     cargo install trunk --version 0.21.14 --locked
-    trunk serve
+    trunk serve --release
 
 Open **http://localhost:8080** in desktop Chrome or Edge. Click **Connect** and
 select the KM003C (VID 5fc9, PID 0063). Permission is requested only from that
@@ -21,6 +21,13 @@ button; startup never opens a permission prompt. Cancellation/denial leaves the
 button available. After an unexpected unplug the shared hotplug session waits
 for the previously selected serial number and authenticates again. Disconnect
 cancels waiting; Connect can select another meter.
+
+Use the release build for hardware measurements, especially at 1000 SPS. Debug
+builds can delay USB polling while rendering. Plot geometry is reduced to a
+screen-sized minimum/maximum envelope with stable time buckets; full received
+samples still go to recording and export. This reduces rendering work without
+reducing the instrument's sample rate. Zooming recomputes the display geometry
+from the original samples.
 
     cargo check -p km003c-egui --target wasm32-unknown-unknown --locked
     trunk build --release

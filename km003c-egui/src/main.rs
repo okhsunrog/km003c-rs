@@ -1,4 +1,5 @@
 mod metric_color;
+mod plot_sampling;
 
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
@@ -1674,6 +1675,10 @@ impl PowerMonitorApp {
                 .time_window
                 .seconds()
                 .map(|window| (current_time - window).max(0.0));
+            let live_start = min_time.map_or(0, |min| {
+                self.data_points
+                    .partition_point(|sample| sample.elapsed_seconds() < min)
+            });
 
             for (index, metric) in self.plot_metrics.into_iter().enumerate() {
                 ui.label(format!("{} ({})", metric.label(), metric.unit()));
@@ -1685,24 +1690,33 @@ impl PowerMonitorApp {
                     .allow_drag(true)
                     .allow_scroll(true)
                     .show(ui, |plot_ui| {
+                        let bounds = plot_ui.plot_bounds();
+                        let x_bounds = [bounds.min()[0], bounds.max()[0]];
+                        let columns = plot_ui.transform().frame().width().ceil() as usize;
                         let points: PlotPoints = match self.plot_source {
-                            PlotSource::Live => self
-                                .data_points
-                                .iter()
-                                .filter(|sample| min_time.is_none_or(|min| sample.elapsed_seconds() >= min))
-                                .map(|sample| [sample.elapsed_seconds(), metric.value(sample)])
-                                .collect(),
-                            PlotSource::Offline => self
-                                .offline_view
-                                .iter()
-                                .flat_map(|view| &view.samples)
-                                .filter(|sample| min_time.is_none_or(|min| sample.elapsed_seconds() >= min))
-                                .filter_map(|sample| {
-                                    sample
-                                        .metric_value(metric)
-                                        .map(|value| [sample.elapsed_seconds(), value])
-                                })
-                                .collect(),
+                            PlotSource::Live => plot_sampling::sample_line(
+                                self.data_points
+                                    .iter()
+                                    .skip(live_start)
+                                    .map(|sample| [sample.elapsed_seconds(), metric.value(sample)]),
+                                x_bounds,
+                                columns,
+                            )
+                            .into(),
+                            PlotSource::Offline => plot_sampling::sample_line(
+                                self.offline_view
+                                    .iter()
+                                    .flat_map(|view| &view.samples)
+                                    .filter(|sample| min_time.is_none_or(|min| sample.elapsed_seconds() >= min))
+                                    .filter_map(|sample| {
+                                        sample
+                                            .metric_value(metric)
+                                            .map(|value| [sample.elapsed_seconds(), value])
+                                    }),
+                                x_bounds,
+                                columns,
+                            )
+                            .into(),
                         };
                         plot_ui.line(Line::new(metric.label(), points).color(metric.color()).width(1.5_f32));
                     });
