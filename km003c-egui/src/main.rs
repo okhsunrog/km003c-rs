@@ -1021,6 +1021,7 @@ impl PowerMonitorApp {
             if let Some(state) = &self.device_state {
                 egui::Grid::new("device_info_grid")
                     .num_columns(2)
+                    .max_col_width((ui.available_width() - 110.0).max(100.0))
                     .spacing([10.0, 4.0])
                     .show(ui, |ui| {
                         ui.label("Model:");
@@ -1048,7 +1049,7 @@ impl PowerMonitorApp {
                         ui.end_row();
 
                         ui.label("Hardware ID:");
-                        ui.label(format!("{}", state.hardware_id));
+                        ui.add(egui::Label::new(state.hardware_id.to_string()).wrap());
                         ui.end_row();
 
                         ui.label("Auth Level:");
@@ -1108,6 +1109,7 @@ impl PowerMonitorApp {
             if let Some(pd) = &self.pd_status {
                 egui::Grid::new("pd_status_grid")
                     .num_columns(2)
+                    .max_col_width((ui.available_width() - 110.0).max(100.0))
                     .spacing([10.0, 4.0])
                     .show(ui, |ui| {
                         ui.label("CC1:");
@@ -1140,7 +1142,7 @@ impl PowerMonitorApp {
                         ui.end_row();
 
                         ui.label("Contract:");
-                        ui.label(self.pd_contract.to_string());
+                        ui.add(egui::Label::new(self.pd_contract.to_string()).wrap());
                         ui.end_row();
                     });
             } else {
@@ -1738,7 +1740,7 @@ impl eframe::App for PowerMonitorApp {
 
         egui::Panel::top("header").show(ui, |ui| self.header_bar(ui));
 
-        egui::Panel::left("info_panel").min_size(220.0).show(ui, |ui| {
+        egui::Panel::left("info_panel").exact_size(280.0).show(ui, |ui| {
             egui::ScrollArea::vertical()
                 .auto_shrink([false; 2])
                 .show(ui, |ui| self.side_panel(ui));
