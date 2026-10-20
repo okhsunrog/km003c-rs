@@ -78,7 +78,7 @@ Command-line tools:
 
 ### `km003c-egui`
 
-Runs on desktop and in Chromium browsers via WebUSB. See [browser setup,
+Runs on desktop and in Chromium browsers via WebUSB and WebGPU. See [browser setup,
 constraints and hardware validation](km003c-egui/WEB.md).
 
 The [browser monitor](https://okhsunrog.github.io/km003c-rs/) is published from
@@ -87,7 +87,9 @@ the browser; no USB server or desktop application is needed. Use desktop Chrome
 or Edge and follow the [Linux setup](km003c-egui/WEB.md#linux-setup) if applicable.
 
 GUI application featuring:
-- Three independently configurable plots for live or device-stored measurements
+- Three independently configurable GPU plots for live or device-stored measurements
+- Shared wgpu core with Slint: line segments and compute min/max envelopes,
+  with incremental sample uploads and real timestamps
 - AdcQueue streaming with configurable sample rates
 - Adjustable time window (2s to 5min or all data)
 - Live recording and plot-buffer export to Parquet or CSV

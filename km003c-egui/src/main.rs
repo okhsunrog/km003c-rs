@@ -1,9 +1,9 @@
+mod gpu_plot;
 mod metric_color;
-#[cfg(any(target_arch = "wasm32", test))]
-mod plot_sampling;
 
 use eframe::egui;
-use egui_plot::{Line, Plot, PlotPoints};
+use egui_plot::Plot;
+use gpu_plot::{GpuPlot, GpuPlotItem, Series};
 #[cfg(not(target_arch = "wasm32"))]
 use km003c_lib::RecoveryOutcome;
 use km003c_lib::runtime::Instant;
@@ -18,7 +18,7 @@ use km003c_lib::{
     RecordingSummary, Session, SessionEvent,
     pd::{PdEventData, PdStatus},
 };
-use metric_color::MetricColor;
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -27,22 +27,6 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{info, warn};
-
-/// Bound browser drawing work; desktop plots retain every supplied sample.
-fn display_plot_points(
-    points: impl Iterator<Item = [f64; 2]>,
-    _x_bounds: [f64; 2],
-    _columns: usize,
-) -> PlotPoints<'static> {
-    #[cfg(target_arch = "wasm32")]
-    {
-        plot_sampling::sample_line(points, _x_bounds, _columns).into()
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        points.collect()
-    }
-}
 
 /// Where the app keeps its files. The Slint GUI uses the same ones on the
 /// desktop, so both remember the same settings.
@@ -263,6 +247,7 @@ struct PowerMonitorApp {
     current_power: f64,
     /// Metric selected independently for each plot
     plot_metrics: [Metric; 3],
+    gpu_plots: Option<[RefCell<GpuPlot>; 3]>,
     /// Preferred output format for live capture
     recording_format: RecordingFormat,
     /// Active or finalizing background recorder
@@ -377,6 +362,7 @@ impl PowerMonitorApp {
             current_current: 0.0,
             current_power: 0.0,
             plot_metrics: preferences.plot_metrics,
+            gpu_plots: None,
             recording_format: preferences.recording_format,
             recorder: None,
             recording_status: "Not recording".to_string(),
@@ -416,6 +402,11 @@ impl PowerMonitorApp {
             #[cfg(not(target_arch = "wasm32"))]
             recovery,
         }
+    }
+
+    fn init_gpu(&mut self, cc: &eframe::CreationContext<'_>) {
+        let state = cc.wgpu_render_state.as_ref().expect("wgpu renderer is required");
+        self.gpu_plots = Some(std::array::from_fn(|_| RefCell::new(GpuPlot::new(state.clone()))));
     }
 
     fn preferences(&self) -> Preferences {
@@ -714,6 +705,11 @@ impl PowerMonitorApp {
 
     fn clear_data(&mut self) {
         self.data_points.clear();
+        if let Some(plots) = &self.gpu_plots {
+            for plot in plots {
+                plot.borrow_mut().invalidate();
+            }
+        }
         self.total_samples = 0;
         self.dropped_samples = 0;
         self.discarded_sequence_samples = 0;
@@ -1694,13 +1690,20 @@ impl PowerMonitorApp {
                 .time_window
                 .seconds()
                 .map(|window| (current_time - window).max(0.0));
-            let live_start = min_time.map_or(0, |min| {
-                self.data_points
-                    .partition_point(|sample| sample.elapsed_seconds() < min)
-            });
-
+            let Some(gpu_plots) = &self.gpu_plots else {
+                return;
+            };
             for (index, metric) in self.plot_metrics.into_iter().enumerate() {
                 ui.label(format!("{} ({})", metric.label(), metric.unit()));
+                let gpu = &gpu_plots[index];
+                let series = match self.plot_source {
+                    PlotSource::Live => Series::Live {
+                        samples: &self.data_points,
+                        total: self.total_samples,
+                    },
+                    PlotSource::Offline => Series::Offline(self.offline_view.as_ref()),
+                };
+                let hover_radius = ui.style().interaction.interact_radius;
                 Plot::new(("measurement_plot", index))
                     .height(plot_height)
                     .show_axes([true, true])
@@ -1709,33 +1712,7 @@ impl PowerMonitorApp {
                     .allow_drag(true)
                     .allow_scroll(true)
                     .show(ui, |plot_ui| {
-                        let bounds = plot_ui.plot_bounds();
-                        let x_bounds = [bounds.min()[0], bounds.max()[0]];
-                        let columns = plot_ui.transform().frame().width().ceil() as usize;
-                        let points: PlotPoints = match self.plot_source {
-                            PlotSource::Live => display_plot_points(
-                                self.data_points
-                                    .iter()
-                                    .skip(live_start)
-                                    .map(|sample| [sample.elapsed_seconds(), metric.value(sample)]),
-                                x_bounds,
-                                columns,
-                            ),
-                            PlotSource::Offline => display_plot_points(
-                                self.offline_view
-                                    .iter()
-                                    .flat_map(|view| &view.samples)
-                                    .filter(|sample| min_time.is_none_or(|min| sample.elapsed_seconds() >= min))
-                                    .filter_map(|sample| {
-                                        sample
-                                            .metric_value(metric)
-                                            .map(|value| [sample.elapsed_seconds(), value])
-                                    }),
-                                x_bounds,
-                                columns,
-                            ),
-                        };
-                        plot_ui.line(Line::new(metric.label(), points).color(metric.color()).width(1.5_f32));
+                        plot_ui.add(GpuPlotItem::new(gpu, series, metric, min_time, hover_radius));
                     });
             }
         }
@@ -1788,19 +1765,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Run egui application
     let options = eframe::NativeOptions {
+        renderer: eframe::Renderer::Wgpu,
+        wgpu_options: gpu_plot::wgpu_options(),
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1024.0, 768.0])
             .with_title("POWER-Z KM003C Monitor"),
         ..Default::default()
     };
 
-    let app = PowerMonitorApp::new(session, session_events, preferences, dirs);
+    let mut app = PowerMonitorApp::new(session, session_events, preferences, dirs);
 
     eframe::run_native(
         "POWER-Z KM003C Monitor",
         options,
         Box::new(|cc| {
             configure_appearance(&cc.egui_ctx);
+            app.init_gpu(cc);
             Ok(Box::new(app))
         }),
     )
@@ -1811,16 +1791,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
     use km003c_lib::{OfflineLog, read_recording};
-
-    #[test]
-    fn desktop_plot_retains_every_sample_even_at_small_width() {
-        let samples: Vec<_> = (0..10_000).map(|i| [f64::from(i), f64::from(i % 17)]).collect();
-        let displayed = display_plot_points(samples.iter().copied(), [0.0, 10_000.0], 10);
-        assert_eq!(displayed.points().len(), samples.len());
-        for (actual, expected) in displayed.points().iter().zip(samples) {
-            assert_eq!([actual.x, actual.y], expected);
-        }
-    }
 
     /// An app whose session has no device task behind it. It saves no
     /// preferences and journals into a directory of its own.
@@ -1838,7 +1808,7 @@ mod tests {
     }
 
     /// Three samples captured from a KM003C.
-    fn captured_offline_log() -> OfflineLog {
+    pub(super) fn captured_offline_log() -> OfflineLog {
         use km003c_lib::uom::si::electric_charge::microampere_hour;
         use km003c_lib::uom::si::energy::microwatt_hour;
         use km003c_lib::uom::si::f64::{ElectricCharge, Energy, Time};
@@ -2164,12 +2134,17 @@ fn main() {
         let result = eframe::WebRunner::new()
             .start(
                 canvas,
-                eframe::WebOptions::default(),
+                eframe::WebOptions {
+                    wgpu_options: gpu_plot::wgpu_options(),
+                    ..Default::default()
+                },
                 Box::new(move |cc| {
                     configure_appearance(&cc.egui_ctx);
                     let dirs = AppDirs::locate();
                     let preferences = dirs.load_preferences();
-                    Ok(Box::new(PowerMonitorApp::new(session, events, preferences, dirs)))
+                    let mut app = PowerMonitorApp::new(session, events, preferences, dirs);
+                    app.init_gpu(cc);
+                    Ok(Box::new(app))
                 }),
             )
             .await;
@@ -2182,7 +2157,7 @@ fn main() {
             match result {
                 Ok(()) => notice.remove(),
                 Err(error) => {
-                    notice.set_text_content(Some(&format!("Could not start egui (WebGL2 required): {error:?}")))
+                    notice.set_text_content(Some(&format!("Could not start egui (WebGPU required): {error:?}")))
                 }
             }
         }
