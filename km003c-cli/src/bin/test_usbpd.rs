@@ -123,6 +123,12 @@ fn print_decoded(decoded: &DecodedPdEvent, source_caps: Option<&SourceCapabiliti
         DecodedPdEvent::Disconnect { timestamp } => {
             println!("[{:>8.3}s] ** DISCONNECT **", timestamp.get::<millisecond>() / 1000.0);
         }
+        DecodedPdEvent::DeviceStatus { timestamp, code, raw } => {
+            println!(
+                "[{:>8.3}s] Device status 0x{code:02X}: {raw:02X?}",
+                timestamp.get::<millisecond>() / 1000.0
+            );
+        }
         DecodedPdEvent::Message(message) => print_message(message, source_caps),
         DecodedPdEvent::Chunk(status) => print_chunk_status(*status),
         DecodedPdEvent::Error(failure) => print_failure(failure),

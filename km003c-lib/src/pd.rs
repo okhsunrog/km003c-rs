@@ -109,7 +109,15 @@ impl PdStatus {
 pub enum PdEventData {
     Connect,
     Disconnect,
-    PdMessage { sop: u8, wire_data: Vec<u8> },
+    /// An unrecognized firmware connection/status event, not a PD wire message.
+    DeviceStatus {
+        code: u8,
+        raw: Vec<u8>,
+    },
+    PdMessage {
+        sop: u8,
+        wire_data: Vec<u8>,
+    },
 }
 
 #[cfg(feature = "python")]
@@ -125,6 +133,12 @@ impl<'py> pyo3::IntoPyObject<'py> for PdEventData {
         match self {
             Self::Connect => dict.set_item("Connect", py.None())?,
             Self::Disconnect => dict.set_item("Disconnect", py.None())?,
+            Self::DeviceStatus { code, raw } => {
+                let inner = PyDict::new(py);
+                inner.set_item("code", code)?;
+                inner.set_item("raw", raw)?;
+                dict.set_item("DeviceStatus", inner)?;
+            }
             Self::PdMessage { sop, wire_data } => {
                 let inner = PyDict::new(py);
                 inner.set_item("sop", sop)?;
@@ -193,9 +207,9 @@ impl PdEventStream {
                 let data = match event_code {
                     PD_CONNECTION_CONNECT | PD_CONNECTION_CONNECT_LEGACY => PdEventData::Connect,
                     PD_CONNECTION_DISCONNECT | PD_CONNECTION_DISCONNECT_LEGACY => PdEventData::Disconnect,
-                    _ => PdEventData::PdMessage {
-                        sop: event_code,
-                        wire_data: Vec::new(),
+                    _ => PdEventData::DeviceStatus {
+                        code: event_code,
+                        raw: bytes[offset..offset + PD_EVENT_HEADER_SIZE].to_vec(),
                     },
                 };
                 events.push(PdEvent {
@@ -290,6 +304,10 @@ impl PdEvent {
             ),
             PdEventData::Disconnect => format!(
                 "PdEvent(timestamp={}ms, type=disconnect)",
+                self.timestamp.get::<millisecond>()
+            ),
+            PdEventData::DeviceStatus { code, raw } => format!(
+                "PdEvent(timestamp={}ms, type=device_status, code={code:#04x}, raw={raw:02X?})",
                 self.timestamp.get::<millisecond>()
             ),
             PdEventData::PdMessage { sop, wire_data } => format!(

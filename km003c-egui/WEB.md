@@ -10,19 +10,43 @@ KM003C running firmware 1.9.9; see [hardware validation](#hardware-validation).
 ## Use the hosted monitor
 
 Open **[okhsunrog.github.io/km003c-rs](https://okhsunrog.github.io/km003c-rs/)**
-in desktop Chrome or Edge with WebGPU support. Connect the meter's PC port, click **Connect**,
+in desktop Chrome or Edge with WebGPU support. Connect the meter's PC port, click **Start**,
 click the KM003C row in the browser's device chooser, then click its **Connect**
 button. Linux users should first complete the [USB setup](#linux-setup).
 
 The initial theme is dark and the interface scale is 150%. The top toolbar has
-theme buttons and a **Scale** menu. Choose the sample rate and time window in
-the sidebar; the three plots can show different measurements. Keep the tab in
+theme buttons and a **Scale** menu. Large voltage, signed current and signed power readings stay above the charts.
+The **Charts**, **USB PD**, and **Recordings** tabs keep the measurement area clear;
+**Settings** contains device details and USB selection. Choose the sample rate in
+the control row, the time window above the charts, and the metric beside each plot.
+
+**Start/Stop** controls acquisition while retaining the USB connection.
+**Pause view** freezes a snapshot while acquisition and file recording continue;
+**Resume view** resumes following new samples. **Live** returns from history or an
+offline log to the current live measurements. **Disconnect** releases USB and stops
+recording. File recording has its own **Record to file/Stop recording** buttons.
+
+Wheel/pinch zoom changes only time, centered on the cursor; dragging pans history.
+All three charts share the same time range. Double click returns to following the
+latest samples in the displayed source. Hover anywhere in a chart for a shared time
+cursor and the nearest sample's elapsed device timestamp and signed V/A/W values.
+Y defaults to stable metric-specific steps (voltage ceilings 6, 10, 13, 16, 21, 26 V,
+etc., with headroom). It expands immediately and waits 15 seconds before shrinking;
+pausing or browsing history holds the stepped range. **Fit signal** shows detail;
+**Manual Y** accepts explicit limits. Metric, window and Y preferences persist. Keep the tab in
 the foreground during a capture. Stop a recording and wait for its `.parquet`
 or `.csv` download before closing the tab.
 
 GitHub Pages serves only the static application. USB communication, decoding,
 plotting and recording export run on the computer connected to the meter.
 No server-side USB bridge or separate desktop installation is required.
+
+Routine unknown device-status records (`0x45`) are kept as device diagnostics,
+not decoded as empty PD packets. The PD tab can show these diagnostics; repeated
+statuses and identical errors are grouped with a count and first/last timestamps.
+Diagnostic groups retain the first and latest raw headers, including status flags;
+real malformed PD packets remain errors. No observed PD traffic is a normal state
+for a USB-A cable and does not imply missing power measurements.
 
 ## Build and run
 
@@ -33,20 +57,25 @@ Install the pinned frontend builder once:
     cargo install trunk --version 0.21.14 --locked
     trunk serve --release
 
-Open **http://localhost:8080** in desktop Chrome or Edge. Click **Connect** and
+Open **http://localhost:8080** in desktop Chrome or Edge. Click **Start** and
 select the KM003C (VID 5fc9, PID 0063). Permission is requested only from that
 button; startup never opens a permission prompt. Cancellation/denial leaves the
-button available. After an unexpected unplug the shared hotplug session waits
+button available. On load, previously permitted meters are enumerated without opening USB or
+prompting. **Start** directly opens the selected/last permitted meter; a permission
+chooser appears only when no permitted selection is available. Permission belongs
+to the browser and may be revoked in its site settings. To select another meter,
+use **Settings → Choose another USB device…** while disconnected.
+After an unexpected unplug the shared hotplug session waits
 for the previously selected serial number and authenticates again. Disconnect
-cancels waiting; Connect can select another meter.
+cancels waiting and automatic reconnection. Start reconnects when requested.
 
 Use the release build for hardware measurements, especially at 1000 SPS. Debug
 builds can delay USB polling while rendering. Both desktop and browser use the
 shared [`realtime-plot`](../realtime-plot) wgpu renderer: anti-aliased line
 segments when zoomed in, compute min/max envelopes when zoomed out. The original
 samples and timestamps are uploaded without CPU downsampling; recording and
-export retain their complete data. egui_plot provides axes, zoom/pan and sample
-readouts. GPU textures stay on the device, with incremental uploads while live.
+export retain their complete data. egui_plot provides axes and overlays; the app coordinates time navigation and
+nearest-sample readouts. GPU textures stay on the device, with incremental uploads while live.
 
 The browser requires WebGPU, including compute/storage buffers. There is no
 WebGL fallback. Plot parameters use uniform buffers, without optional immediate
@@ -152,7 +181,7 @@ sudo install -m 0644 71-powerz-km003c.rules 72-powerz-km003c-webusb.rules /etc/u
 sudo udevadm control --reload-rules
 ```
 
-Unplug and reconnect the meter's PC connection, then click Connect in the browser.
+Unplug and reconnect the meter's PC connection, then click Start in the browser.
 The optional rule matches only VID/PID `5fc9:0063`, interface 0 and driver
 `powerz`. It leaves CDC serial and HID interfaces alone, and does not unload or
 blacklist the module. Native applications can still use the vendor interface.
@@ -169,7 +198,7 @@ sudo udevadm settle
 
 The trigger visits interface 0 on USB devices; the rule's VID/PID and driver
 checks restrict unbinding to KM003C. Confirm with `lsusb -t`: its interface 0
-should show no driver before Connect, or `usbfs` while the browser owns it.
+should show no driver before Start, or `usbfs` while the browser owns it.
 
 On NixOS, install both files through `services.udev.packages` or
 `services.udev.extraRules` and rebuild the configuration; `/etc/udev/rules.d` is
@@ -224,9 +253,20 @@ as well as repeatable acceptance checks.
 ## Manual validation with a real KM003C
 
 1. Open the site in Chrome/Edge. Cancel the chooser, then deny permission;
-   confirm a useful status and another working Connect click. Grant access,
+   confirm a useful status and another working Start click. Grant access,
    verify model/serial, successful streaming authentication, live readings and
    all three plots. Check 2, 10, 50 and 1000 SPS, metric selection and time windows.
+   Reload: Start must reopen the same permitted serial without a chooser. Test
+   selecting another meter in Settings and revoking permission in browser settings.
+   Wheel/pinch and drag must affect time only, identically on all three plots;
+   check the shared hover cursor away from the line and the timestamp/V/A/W values.
+   Verify 5.1/9.1/20.1 V stay visible with stepped Y, Fit and Manual work, and signed
+   metrics retain negative values. Pause view while recording, wait for more data,
+   then Resume view; the file must include samples collected during the pause.
+   Stop must halt acquisition while USB remains connected; Start must resume.
+   Fetch a device recording while stopped and confirm acquisition stays stopped.
+   On an A-to-C cable, check no false empty-message PD errors appear and diagnostics
+   remain inspectable with counts, time spans, and first/latest raw headers.
 2. At **1000 SPS**, enable PD protocol capture and firmware trace, repeatedly
    negotiate power with a PD source/load, and run at least 5 minutes. Confirm
    continuously advancing plots, PD decode/timestamps, responsive controls and
@@ -236,7 +276,7 @@ as well as repeatable acceptance checks.
    UI remains responsive, shows waiting/disconnected state, and stops the
    recording. Reattach the same meter: it should reauthenticate and resume.
    Disconnect while waiting must stop automatic reconnection. Repeat after an
-   opening/transfer timeout and after revoking permission (new Connect required).
+   opening/transfer timeout and after revoking permission (new Start/chooser required).
 4. Fetch the offline catalog and download a log. Confirm streaming pauses and
    resumes, offline graphs agree with desktop, unavailable channels remain
    unavailable, and CSV/Parquet downloads preserve the device's accumulated

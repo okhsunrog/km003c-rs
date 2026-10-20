@@ -10,7 +10,7 @@ impl MetricColor for Metric {
     fn color(self) -> Color32 {
         match self {
             Self::Voltage => Color32::GREEN,
-            Self::Current | Self::SignedCurrent => Color32::BLUE,
+            Self::Current | Self::SignedCurrent => Color32::from_rgb(90, 160, 255),
             Self::Power | Self::SignedPower => Color32::from_rgb(255, 165, 0),
             Self::Charge | Self::SignedCharge => Color32::from_rgb(180, 120, 255),
             Self::Energy | Self::SignedEnergy => Color32::from_rgb(255, 100, 180),
