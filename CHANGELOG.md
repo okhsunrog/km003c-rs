@@ -43,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The PD Status contract keeps a fixed two-line row inside the sidebar column.
+  Longer negotiation text is elided and shown on hover, so the sections below
+  no longer jump and the label does not widen the panel.
 - The source distribution now contains the two license files it names in its
   metadata. PyPI rejects an sdist whose `License-File` entries are missing from
   the archive, which is why 0.4.0 reached PyPI as wheels only.

@@ -964,6 +964,32 @@ fn configure_appearance(ctx: &egui::Context) {
     });
 }
 
+/// Draw `text` in the current grid cell at a fixed two-line height.
+///
+/// The width is the cell's available width, which the grid already caps, and
+/// the label does not report the unwrapped string width. A longer contract
+/// stays two lines, with the rest on hover, so the sidebar neither grows
+/// sideways nor pushes the sections below.
+fn contract_label(ui: &mut egui::Ui, text: &str) -> egui::Response {
+    const ROWS: usize = 2;
+    let width = ui.available_width();
+    let width = if width.is_finite() { width } else { 0.0 };
+    let color = ui.visuals().text_color();
+    let font_id = egui::TextStyle::Body.resolve(ui.style());
+    let row_height = ui.text_style_height(&egui::TextStyle::Body);
+    let mut job = egui::text::LayoutJob::simple(text.to_owned(), font_id, color, width);
+    job.wrap.max_rows = ROWS;
+    let galley = ui.fonts_mut(|fonts| fonts.layout_job(job));
+    let show_full_text = galley.elided || galley.rect.width() > width + 1.0;
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, row_height * ROWS as f32), egui::Sense::hover());
+    ui.painter_at(rect).galley(rect.left_top(), galley, color);
+    if show_full_text {
+        response.on_hover_text(text)
+    } else {
+        response
+    }
+}
+
 fn readable_color(ui: &egui::Ui, dark: egui::Color32) -> egui::Color32 {
     if ui.visuals().dark_mode {
         return dark;
@@ -1159,7 +1185,7 @@ impl PowerMonitorApp {
                         ui.end_row();
 
                         ui.label("Contract:");
-                        ui.add(egui::Label::new(self.pd_contract.to_string()).wrap());
+                        contract_label(ui, &self.pd_contract.to_string());
                         ui.end_row();
                     });
             } else {
@@ -1810,6 +1836,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
+    use eframe::egui;
     use km003c_lib::{OfflineLog, read_recording};
 
     #[test]
@@ -1962,6 +1989,52 @@ mod tests {
             TimeWindow::from_seconds(preferences.time_window_seconds),
             TimeWindow::All
         );
+    }
+
+    #[test]
+    fn contract_label_stays_two_lines_inside_the_sidebar_column() {
+        let ctx = egui::Context::default();
+        let short = contract_label_size(&ctx, "—");
+        let long = contract_label_size(&ctx, "Requesting PDO#6 (Raw=0x6303A83B) · accepted, waiting for PS_RDY");
+
+        let column_cap = (280.0_f32 - 110.0).max(100.0);
+        assert_eq!(short, long);
+        assert!(
+            (short.x - column_cap).abs() < 1.0,
+            "contract column should stay at the sidebar cap {column_cap}, got {short:?}"
+        );
+        assert!(
+            (24.0..40.0).contains(&short.y),
+            "expected a fixed two-line row, got short={short:?} long={long:?}"
+        );
+    }
+
+    fn contract_label_size(ctx: &egui::Context, text: &str) -> egui::Vec2 {
+        let mut size = egui::Vec2::ZERO;
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))),
+            ..Default::default()
+        };
+        for _ in 0..3 {
+            ctx.run_ui(input.clone(), |ui| {
+                let origin = ui.cursor().min;
+                let mut column = ui.new_child(
+                    egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(origin, egui::vec2(280.0, 400.0))),
+                );
+                let max_col_width = (column.available_width() - 110.0).max(100.0);
+                egui::Grid::new("pd_status_grid")
+                    .num_columns(2)
+                    .max_col_width(max_col_width)
+                    .spacing([10.0, 4.0])
+                    .show(&mut column, |ui| {
+                        ui.label("Contract:");
+                        size = super::contract_label(ui, text).rect.size();
+                        ui.end_row();
+                    });
+            })
+            .drop_without_applying_deltas();
+        }
+        size
     }
 
     #[test]
