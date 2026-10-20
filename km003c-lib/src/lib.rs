@@ -58,7 +58,7 @@ pub use pd_trace::{
 #[cfg(feature = "polars")]
 pub use polars;
 #[cfg(feature = "preferences")]
-pub use preferences::{Preferences, PreferencesError};
+pub use preferences::{PlotScaleMode, PlotScaleSettings, Preferences, PreferencesError};
 #[cfg(all(target_arch = "wasm32", feature = "browser"))]
 pub use recording::{OfflineExport, OfflineExportEvent, Recorder, RecordingError, RecordingEvent};
 #[cfg(feature = "polars")]

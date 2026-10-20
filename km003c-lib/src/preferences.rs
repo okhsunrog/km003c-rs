@@ -16,6 +16,49 @@ use crate::adcqueue::GraphSampleRate;
 use crate::measurement::Metric;
 use crate::recording::RecordingFormat;
 
+/// How a frontend chooses a chart's vertical range.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlotScaleMode {
+    #[default]
+    Stepped,
+    Fit,
+    Manual,
+}
+
+/// Per-chart vertical scale; manual limits use the selected metric's units.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PlotScaleSettings {
+    pub mode: PlotScaleMode,
+    pub min: f64,
+    pub max: f64,
+}
+
+impl Default for PlotScaleSettings {
+    fn default() -> Self {
+        Self {
+            mode: PlotScaleMode::Stepped,
+            min: 0.0,
+            max: 6.0,
+        }
+    }
+}
+
+impl PlotScaleSettings {
+    /// Ignore invalid persisted limits without losing the other preferences.
+    pub fn sanitized(self) -> Self {
+        if self.min.is_finite() && self.max.is_finite() && self.min < self.max {
+            self
+        } else {
+            Self {
+                mode: self.mode,
+                ..Self::default()
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 #[non_exhaustive]
@@ -25,6 +68,9 @@ pub struct Preferences {
     pub time_window_seconds: Option<f64>,
     /// The quantity each of the three plots shows.
     pub plot_metrics: [Metric; 3],
+    pub plot_scales: [PlotScaleSettings; 3],
+    /// USB serial of the browser's last selected, previously permitted meter.
+    pub last_device_serial: Option<String>,
     pub recording_format: RecordingFormat,
     /// Also read the firmware's Type-C and protocol-engine trace.
     pub pd_trace_enabled: bool,
@@ -38,6 +84,8 @@ impl Default for Preferences {
             sample_rate: GraphSampleRate::Sps50,
             time_window_seconds: Some(30.0),
             plot_metrics: [Metric::Voltage, Metric::Current, Metric::Power],
+            plot_scales: [PlotScaleSettings::default(); 3],
+            last_device_serial: None,
             recording_format: RecordingFormat::Parquet,
             pd_trace_enabled: false,
             pd_hide_good_crc: true,
@@ -97,6 +145,12 @@ mod tests {
             sample_rate: GraphSampleRate::Sps1000,
             time_window_seconds: None,
             plot_metrics: [Metric::SignedPower, Metric::Cc1, Metric::Energy],
+            plot_scales: [PlotScaleSettings {
+                mode: PlotScaleMode::Manual,
+                min: -2.0,
+                max: 2.0,
+            }; 3],
+            last_device_serial: Some("meter-test".into()),
             recording_format: RecordingFormat::Csv,
             pd_trace_enabled: true,
             pd_hide_good_crc: false,
@@ -106,6 +160,20 @@ mod tests {
 
         assert_eq!(Preferences::try_load(&path).unwrap(), preferences);
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn invalid_manual_limits_do_not_reach_the_renderer() {
+        for (min, max) in [(5.0, 5.0), (10.0, -10.0), (f64::NAN, 1.0), (0.0, f64::INFINITY)] {
+            let scale = PlotScaleSettings {
+                mode: PlotScaleMode::Manual,
+                min,
+                max,
+            }
+            .sanitized();
+            assert_eq!(scale.mode, PlotScaleMode::Manual);
+            assert_eq!([scale.min, scale.max], [0.0, 6.0]);
+        }
     }
 
     #[test]

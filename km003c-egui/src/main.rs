@@ -1,8 +1,14 @@
+#[cfg(target_arch = "wasm32")]
+mod browser_devices;
+mod chart_view;
 mod gpu_plot;
+mod measurement_ui;
 mod metric_color;
+mod pd_timeline;
 
+use chart_view::{TimeView, VerticalScale};
 use eframe::egui;
-use egui_plot::Plot;
+use egui_plot::{Plot, PlotBounds};
 use gpu_plot::{GpuPlot, GpuPlotItem, Series};
 #[cfg(not(target_arch = "wasm32"))]
 use km003c_lib::RecoveryOutcome;
@@ -13,11 +19,12 @@ use km003c_lib::uom::si::energy::milliwatt_hour;
 use km003c_lib::uom::si::time::{millisecond, second};
 use km003c_lib::{
     DeviceState, GraphSampleRate, LogMetadata, MeasurementAccumulator, MeasurementSample, Metric, OfflineExport,
-    OfflineExportEvent, OfflineRecordingView, PdConnectionTracker, PdContract, PdLogCategory, PdLogEntry, PdLogger,
-    PdTraceCategory, PdTraceEntry, Preferences, Recorder, RecordingEvent, RecordingFormat, RecordingMetadata,
-    RecordingSummary, Session, SessionEvent,
+    OfflineExportEvent, OfflineRecordingView, PdConnectionTracker, PdContract, PdLogCategory, PdLogger,
+    PdTraceCategory, PdTraceEntry, PlotScaleMode, PlotScaleSettings, Preferences, Recorder, RecordingEvent,
+    RecordingFormat, RecordingMetadata, RecordingSummary, Session, SessionEvent,
     pd::{PdEventData, PdStatus},
 };
+use pd_timeline::PdLogRow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::path::PathBuf;
@@ -79,8 +86,15 @@ enum PlotSource {
     Offline,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AppTab {
+    Charts,
+    Pd,
+    Recordings,
+}
+
 enum PdTimelineEntry<'a> {
-    Protocol(&'a PdLogEntry),
+    Protocol(&'a PdLogRow),
     FirmwareTrace(&'a PdTraceEntry),
 }
 
@@ -102,7 +116,7 @@ struct TimelineFilter {
 }
 
 fn pd_timeline_entries<'a>(
-    protocol_log: &'a VecDeque<PdLogEntry>,
+    protocol_log: &'a VecDeque<PdLogRow>,
     trace_log: &'a VecDeque<PdTraceEntry>,
     filter: TimelineFilter,
 ) -> Vec<PdTimelineEntry<'a>> {
@@ -248,6 +262,17 @@ struct PowerMonitorApp {
     /// Metric selected independently for each plot
     plot_metrics: [Metric; 3],
     gpu_plots: Option<[RefCell<GpuPlot>; 3]>,
+    plot_scales: [PlotScaleSettings; 3],
+    vertical_scales: [VerticalScale; 3],
+    time_view: TimeView,
+    paused_view: Option<(VecDeque<MeasurementSample>, u64)>,
+    chart_rects: [Option<egui::Rect>; 3],
+    dragging_plot: bool,
+    shared_cursor: Option<f64>,
+    active_tab: AppTab,
+    settings_open: bool,
+    stream_command_pending: bool,
+    acquisition_requested: bool,
     /// Preferred output format for live capture
     recording_format: RecordingFormat,
     /// Active or finalizing background recorder
@@ -275,7 +300,9 @@ struct PowerMonitorApp {
     /// PD protocol decoder
     pd_decoder: PdLogger,
     /// Decoded PD log entries
-    pd_log: VecDeque<PdLogEntry>,
+    pd_log: VecDeque<PdLogRow>,
+    pd_wire_messages: u64,
+    pd_show_diagnostics: bool,
     /// Max PD log entries
     max_pd_entries: usize,
     /// Current PD status
@@ -288,8 +315,6 @@ struct PowerMonitorApp {
     pd_hide_good_crc: bool,
     /// Auto-scroll PD log
     pd_auto_scroll: bool,
-    /// PD panel visible
-    pd_panel_visible: bool,
     /// Show decoded wire-protocol events in the shared timeline
     pd_protocol_visible: bool,
     /// Whether the USB task should drain the firmware PD trace queues
@@ -307,6 +332,8 @@ struct PowerMonitorApp {
     chooser: Option<mpsc::UnboundedReceiver<BrowserDeviceResult>>,
     #[cfg(target_arch = "wasm32")]
     selected_serial: Option<String>,
+    #[cfg(target_arch = "wasm32")]
+    browser_devices: browser_devices::BrowserDevices,
     /// User intent, retained while a connection or disconnect is in progress.
     auto_connect_enabled: bool,
     /// Time of the next automatic probe while the KM003C is absent.
@@ -345,7 +372,7 @@ impl PowerMonitorApp {
             session,
             device_state: None,
             status: if cfg!(target_arch = "wasm32") {
-                "Click Connect to select KM003C"
+                "Press Start to begin measuring"
             } else {
                 "Connecting..."
             }
@@ -363,6 +390,17 @@ impl PowerMonitorApp {
             current_power: 0.0,
             plot_metrics: preferences.plot_metrics,
             gpu_plots: None,
+            plot_scales: preferences.plot_scales.map(PlotScaleSettings::sanitized),
+            vertical_scales: std::array::from_fn(|_| VerticalScale::default()),
+            time_view: TimeView::default(),
+            paused_view: None,
+            chart_rects: [None; 3],
+            dragging_plot: false,
+            shared_cursor: None,
+            active_tab: AppTab::Charts,
+            settings_open: false,
+            stream_command_pending: false,
+            acquisition_requested: !cfg!(target_arch = "wasm32"),
             recording_format: preferences.recording_format,
             recorder: None,
             recording_status: "Not recording".to_string(),
@@ -377,13 +415,14 @@ impl PowerMonitorApp {
             plot_source: PlotSource::Live,
             pd_decoder: PdLogger::new(),
             pd_log: VecDeque::new(),
+            pd_wire_messages: 0,
+            pd_show_diagnostics: false,
             max_pd_entries: 1000,
             pd_status: None,
             pd_connection: PdConnectionTracker::default(),
             pd_contract: PdContract::default(),
             pd_hide_good_crc: preferences.pd_hide_good_crc,
             pd_auto_scroll: true,
-            pd_panel_visible: true,
             pd_protocol_visible: true,
             pd_trace_enabled: preferences.pd_trace_enabled,
             pd_trace_log: VecDeque::new(),
@@ -394,7 +433,9 @@ impl PowerMonitorApp {
             #[cfg(target_arch = "wasm32")]
             chooser: None,
             #[cfg(target_arch = "wasm32")]
-            selected_serial: None,
+            selected_serial: preferences.last_device_serial.clone(),
+            #[cfg(target_arch = "wasm32")]
+            browser_devices: browser_devices::BrowserDevices::new(),
             auto_connect_enabled: true,
             reconnect_at: None,
             dirs,
@@ -414,6 +455,11 @@ impl PowerMonitorApp {
         preferences.sample_rate = self.selected_rate.to_graph_rate();
         preferences.time_window_seconds = self.time_window.seconds();
         preferences.plot_metrics = self.plot_metrics;
+        preferences.plot_scales = self.plot_scales.map(PlotScaleSettings::sanitized);
+        #[cfg(target_arch = "wasm32")]
+        {
+            preferences.last_device_serial = self.selected_serial.clone();
+        }
         preferences.recording_format = self.recording_format;
         preferences.pd_trace_enabled = self.pd_trace_enabled;
         preferences.pd_hide_good_crc = self.pd_hide_good_crc;
@@ -484,6 +530,7 @@ impl PowerMonitorApp {
         self.connection_attempt_in_flight = true;
         self.reconnect_at = None;
         if show_connecting {
+            self.acquisition_requested = true;
             self.auto_connect_enabled = true;
             self.status = "Connecting...".to_string();
         }
@@ -512,8 +559,11 @@ impl PowerMonitorApp {
 
     fn process_messages(&mut self) {
         #[cfg(target_arch = "wasm32")]
+        self.browser_devices.poll(self.selected_serial.as_deref());
+        #[cfg(target_arch = "wasm32")]
         if let Some(result) = self.chooser.as_mut().and_then(|rx| rx.try_recv().ok()) {
             self.chooser = None;
+            self.browser_devices.refresh();
             match result {
                 Ok((device, serial)) => {
                     self.selected_serial = serial;
@@ -524,6 +574,7 @@ impl PowerMonitorApp {
                 }
                 Err(error) => {
                     self.connection_attempt_in_flight = false;
+                    self.stream_command_pending = false;
                     self.status = error;
                 }
             }
@@ -534,6 +585,7 @@ impl PowerMonitorApp {
                     self.status = "Waiting for POWER-Z KM003C...".to_string();
                 }
                 SessionEvent::Connected(state) => {
+                    self.pd_wire_messages = 0;
                     self.connection_attempt_in_flight = false;
                     self.reconnect_at = None;
                     self.status = format!("Connected: {}", state.model());
@@ -596,6 +648,10 @@ impl PowerMonitorApp {
                     }
                 }
                 SessionEvent::StreamingStarted(rate) => {
+                    self.stream_command_pending = false;
+                    if !self.acquisition_requested {
+                        let _ = self.session.set_streaming(false);
+                    }
                     self.streaming = true;
                     self.current_rate = SampleRateOption::from_graph_rate(rate);
                     self.selected_rate = self.current_rate;
@@ -613,15 +669,16 @@ impl PowerMonitorApp {
                             PdEventData::Disconnect => {
                                 self.pd_connection.observe_event(false, Instant::now());
                             }
-                            PdEventData::PdMessage { .. } => {}
+                            PdEventData::PdMessage { .. } | PdEventData::DeviceStatus { .. } => {}
                         }
 
                         let entry = self.pd_decoder.log_event(event);
                         self.pd_contract.observe(&entry);
-                        self.pd_log.push_back(entry);
-                        while self.pd_log.len() > self.max_pd_entries {
-                            self.pd_log.pop_front();
+                        if matches!(event.data, PdEventData::PdMessage { .. }) && entry.category != PdLogCategory::Error
+                        {
+                            self.pd_wire_messages += 1;
                         }
+                        pd_timeline::push(&mut self.pd_log, entry, self.max_pd_entries);
                     }
                 }
                 SessionEvent::PdStatusUpdate(status) => {
@@ -654,6 +711,8 @@ impl PowerMonitorApp {
                     self.offline_busy = false;
                     self.offline_status = format!("Downloaded {samples} samples from {filename}");
                     self.plot_source = PlotSource::Offline;
+                    self.active_tab = AppTab::Charts;
+                    self.reset_view();
                     self.time_window = TimeWindow::All;
                     for metric in &mut self.plot_metrics {
                         if !metric.supports_offline() {
@@ -667,12 +726,14 @@ impl PowerMonitorApp {
                 }
                 SessionEvent::StreamingStopped => {
                     self.streaming = false;
-                    self.status = "Stopped".to_string();
+                    self.stream_command_pending = false;
+                    self.status = "Connected · acquisition stopped".to_string();
                 }
                 SessionEvent::Error(err) => {
                     self.status = format!("Error: {}", err);
                 }
                 SessionEvent::Disconnected { retry_when_present } => {
+                    self.stream_command_pending = false;
                     self.connection_attempt_in_flight = false;
                     self.status = if retry_when_present && self.auto_connect_enabled {
                         self.reconnect_at = Some(Instant::now() + Self::RECONNECT_DELAY);
@@ -703,7 +764,17 @@ impl PowerMonitorApp {
         self.save_preferences();
     }
 
+    fn reset_view(&mut self) {
+        self.time_view.live();
+        self.paused_view = None;
+        self.shared_cursor = None;
+        for scale in &mut self.vertical_scales {
+            scale.reset();
+        }
+    }
+
     fn clear_data(&mut self) {
+        self.reset_view();
         self.data_points.clear();
         if let Some(plots) = &self.gpu_plots {
             for plot in plots {
@@ -719,6 +790,7 @@ impl PowerMonitorApp {
 
     fn clear_pd_log(&mut self) {
         self.pd_log.clear();
+        self.pd_wire_messages = 0;
         self.pd_trace_log.clear();
         info!("PD timeline cleared");
     }
@@ -977,19 +1049,13 @@ fn readable_color(ui: &egui::Ui, dark: egui::Color32) -> egui::Color32 {
 
 impl PowerMonitorApp {
     fn header_bar(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.heading("POWER-Z KM003C Monitor");
             ui.separator();
 
-            let status_color = if self.streaming {
-                readable_color(ui, egui::Color32::GREEN)
-            } else if self.device_state.is_some() {
-                readable_color(ui, egui::Color32::YELLOW)
-            } else {
-                readable_color(ui, egui::Color32::RED)
-            };
-            ui.colored_label(readable_color(ui, status_color), &self.status);
-            ui.separator();
+            if ui.button("Settings").clicked() {
+                self.settings_open = !self.settings_open;
+            }
             egui::widgets::global_theme_preference_buttons(ui);
             ui.menu_button("Scale", |ui| {
                 for (label, scale) in [
@@ -1009,21 +1075,15 @@ impl PowerMonitorApp {
                 }
             });
         });
-    }
-
-    /// Every side-panel section, in display order.
-    fn side_panel(&mut self, ui: &mut egui::Ui) {
-        self.connection_section(ui);
-        self.device_info_section(ui);
-        self.current_readings_section(ui);
-        self.pd_status_section(ui);
-        self.pd_timeline_controls_section(ui);
-        self.live_statistics_section(ui);
-        self.controls_section(ui);
-        self.live_capture_section(ui);
-        self.offline_recordings_section(ui);
-        #[cfg(target_arch = "wasm32")]
-        ui.small("Browser recording uses memory (128 MiB limit). Stop to download. Keep this tab open and active; background tabs may be throttled.");
+        let status_color = if self.streaming {
+            egui::Color32::LIGHT_GREEN
+        } else if self.device_state.is_some() {
+            egui::Color32::YELLOW
+        } else {
+            ui.visuals().text_color()
+        };
+        ui.add(egui::Label::new(egui::RichText::new(&self.status).color(readable_color(ui, status_color))).truncate())
+            .on_hover_text(&self.status);
     }
 
     fn device_info_section(&mut self, ui: &mut egui::Ui) {
@@ -1086,32 +1146,6 @@ impl PowerMonitorApp {
         }
     }
 
-    fn current_readings_section(&mut self, ui: &mut egui::Ui) {
-        {
-            ui.add_space(20.0);
-            ui.separator();
-            ui.heading("Current Readings");
-            ui.separator();
-
-            egui::Grid::new("readings_grid")
-                .num_columns(2)
-                .spacing([10.0, 4.0])
-                .show(ui, |ui| {
-                    ui.label("Voltage:");
-                    ui.label(format!("{:.3} V", self.current_voltage));
-                    ui.end_row();
-
-                    ui.label("Current:");
-                    ui.label(format!("{:.3} A", self.current_current.abs()));
-                    ui.end_row();
-
-                    ui.label("Power:");
-                    ui.label(format!("{:.3} W", self.current_power.abs()));
-                    ui.end_row();
-                });
-        }
-    }
-
     fn pd_status_section(&mut self, ui: &mut egui::Ui) {
         {
             ui.add_space(20.0);
@@ -1171,7 +1205,7 @@ impl PowerMonitorApp {
             ui.heading("PD Timeline");
             ui.separator();
 
-            ui.checkbox(&mut self.pd_panel_visible, "Show PD Panel");
+            ui.checkbox(&mut self.pd_show_diagnostics, "Show device diagnostics");
             ui.label("Filters:");
             ui.checkbox(&mut self.pd_protocol_visible, "Protocol messages");
             ui.add_enabled(
@@ -1202,125 +1236,8 @@ impl PowerMonitorApp {
         }
     }
 
-    fn live_statistics_section(&mut self, ui: &mut egui::Ui) {
-        {
-            ui.add_space(20.0);
-            ui.separator();
-            ui.heading("Live Statistics");
-            ui.separator();
-
-            egui::Grid::new("stats_grid")
-                .num_columns(2)
-                .spacing([10.0, 4.0])
-                .show(ui, |ui| {
-                    ui.label("Samples:");
-                    ui.label(format!("{}", self.total_samples));
-                    ui.end_row();
-
-                    ui.label("Dropped:");
-                    ui.colored_label(
-                        if self.dropped_samples > 0 {
-                            readable_color(ui, egui::Color32::RED)
-                        } else {
-                            readable_color(ui, egui::Color32::GREEN)
-                        },
-                        format!("{}", self.dropped_samples),
-                    );
-                    ui.end_row();
-
-                    ui.label("Discarded:");
-                    ui.colored_label(
-                        if self.discarded_sequence_samples > 0 {
-                            readable_color(ui, egui::Color32::YELLOW)
-                        } else {
-                            readable_color(ui, egui::Color32::GREEN)
-                        },
-                        format!("{}", self.discarded_sequence_samples),
-                    );
-                    ui.end_row();
-
-                    ui.label("Buffer:");
-                    ui.label(format!("{} pts", self.data_points.len()));
-                    ui.end_row();
-                });
-        }
-    }
-
     fn recording_busy(&self) -> bool {
         self.recorder.is_some()
-    }
-
-    fn controls_section(&mut self, ui: &mut egui::Ui) {
-        {
-            ui.add_space(20.0);
-            ui.separator();
-            ui.heading("Controls");
-            ui.separator();
-
-            // Sample rate selector
-            ui.add_enabled_ui(!self.recording_busy(), |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Sample Rate:");
-                    let prev_rate = self.selected_rate;
-                    egui::ComboBox::from_id_salt("sample_rate")
-                        .selected_text(self.selected_rate.label())
-                        .show_ui(ui, |ui| {
-                            for rate in SampleRateOption::all() {
-                                ui.selectable_value(&mut self.selected_rate, *rate, rate.label());
-                            }
-                        });
-
-                    if self.selected_rate != prev_rate
-                        && (self.device_state.is_some() || self.connection_attempt_in_flight)
-                    {
-                        info!("Sample rate changed to {}", self.selected_rate.label());
-                        let _ = self.session.set_sample_rate(self.selected_rate.to_graph_rate());
-                    }
-                });
-            });
-
-            ui.add_space(5.0);
-
-            // Time window selector
-            ui.horizontal(|ui| {
-                ui.label("Time Window:");
-                egui::ComboBox::from_id_salt("time_window")
-                    .selected_text(self.time_window.label())
-                    .show_ui(ui, |ui| {
-                        for window in TimeWindow::all() {
-                            ui.selectable_value(&mut self.time_window, *window, window.label());
-                        }
-                    });
-            });
-
-            ui.add_space(10.0);
-            ui.label("Plot metrics:");
-            for (index, metric) in self.plot_metrics.iter_mut().enumerate() {
-                ui.horizontal(|ui| {
-                    ui.label(format!("{}:", index + 1));
-                    egui::ComboBox::from_id_salt(("plot_metric", index))
-                        .selected_text(metric.label())
-                        .show_ui(ui, |ui| {
-                            for option in Metric::ALL {
-                                if self.plot_source == PlotSource::Live || option.supports_offline() {
-                                    ui.selectable_value(metric, option, option.label());
-                                }
-                            }
-                        });
-                });
-            }
-
-            ui.add_space(10.0);
-
-            ui.horizontal(|ui| {
-                if ui
-                    .add_enabled(!self.recording_busy(), egui::Button::new("Clear Live Data"))
-                    .clicked()
-                {
-                    self.clear_data();
-                }
-            });
-        }
     }
 
     fn live_capture_section(&mut self, ui: &mut egui::Ui) {
@@ -1485,6 +1402,10 @@ impl PowerMonitorApp {
                     ui.selectable_value(&mut self.plot_source, PlotSource::Live, "View Live");
                     ui.selectable_value(&mut self.plot_source, PlotSource::Offline, "View Offline");
                 });
+                if previous_source != self.plot_source {
+                    self.reset_view();
+                    self.active_tab = AppTab::Charts;
+                }
                 if previous_source != self.plot_source && self.plot_source == PlotSource::Offline {
                     self.time_window = TimeWindow::All;
                     for metric in &mut self.plot_metrics {
@@ -1519,7 +1440,11 @@ impl PowerMonitorApp {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn choose_device(&mut self) {
+    fn choose_device(&mut self, force_chooser: bool) {
+        let cached = (!force_chooser)
+            .then(|| self.browser_devices.selected_device())
+            .flatten();
+        self.acquisition_requested = true;
         let window = web_sys::window().unwrap();
         if !window.is_secure_context()
             || !js_sys::Reflect::get(&window.navigator(), &"usb".into())
@@ -1531,18 +1456,29 @@ impl PowerMonitorApp {
         let (tx, rx) = mpsc::unbounded_channel();
         self.chooser = Some(rx);
         self.connection_attempt_in_flight = true;
-        self.status = "Select KM003C in the browser permission dialog...".into();
+        self.reconnect_at = None;
+        self.status = if cached.is_some() {
+            "Opening the permitted KM003C…"
+        } else {
+            "Select KM003C in the browser permission dialog..."
+        }
+        .into();
         self.auto_connect_enabled = true;
         // No asynchronous work before request_device: preserve user activation.
         wasm_bindgen_futures::spawn_local(async move {
             let filters = [nusb::DeviceSelector::all().with_vid_pid(0x5fc9, 0x0063)];
             let result = async {
-                let info = nusb::request_device(&filters)
-                    .await
-                    .map_err(|e| e.to_string())?
-                    .ok_or_else(|| {
-                        "No device selected: permission denied or dialog cancelled. Click Connect to retry.".to_string()
-                    })?;
+                let info = if let Some(info) = cached {
+                    info
+                } else {
+                    nusb::request_device(&filters)
+                        .await
+                        .map_err(|e| e.to_string())?
+                        .ok_or_else(|| {
+                            "No device selected: permission denied or dialog cancelled. Press Start to retry."
+                                .to_string()
+                        })?
+                };
                 let serial = info.serial_number().map(str::to_owned);
                 let device = km003c_lib::runtime::timeout(Duration::from_secs(10), async { info.open().await })
                     .await
@@ -1553,35 +1489,6 @@ impl PowerMonitorApp {
             .await;
             let _ = tx.send(result);
         });
-    }
-
-    fn connection_section(&mut self, ui: &mut egui::Ui) {
-        {
-            ui.add_space(5.0);
-
-            if self.device_state.is_some() || self.connection_attempt_in_flight || self.reconnect_at.is_some() {
-                if ui.button("Disconnect").clicked() {
-                    info!("Disconnect requested");
-                    self.auto_connect_enabled = false;
-                    #[cfg(target_arch = "wasm32")]
-                    {
-                        self.chooser = None;
-                    }
-                    self.reconnect_at = None;
-                    let _ = self.session.disconnect();
-                }
-            } else if self.device_state.is_none() {
-                #[cfg(not(target_arch = "wasm32"))]
-                ui.checkbox(&mut self.usb_reset, "USB reset on connect");
-                if ui.button("Connect").clicked() {
-                    info!("Connect requested");
-                    #[cfg(not(target_arch = "wasm32"))]
-                    self.request_connection(true);
-                    #[cfg(target_arch = "wasm32")]
-                    self.choose_device();
-                }
-            }
-        }
     }
 
     fn pd_timeline_panel(&mut self, ui: &mut egui::Ui) {
@@ -1615,11 +1522,15 @@ impl PowerMonitorApp {
                             for timeline_entry in timeline {
                                 match timeline_entry {
                                     PdTimelineEntry::Protocol(entry) => {
+                                        if entry.category == PdLogCategory::Diagnostic && !self.pd_show_diagnostics {
+                                            continue;
+                                        }
                                         let color = match entry.category {
                                             PdLogCategory::Connect => readable_color(ui, egui::Color32::GREEN),
                                             PdLogCategory::Disconnect => readable_color(ui, egui::Color32::RED),
                                             PdLogCategory::SourceCaps => egui::Color32::from_rgb(100, 149, 237),
                                             PdLogCategory::Request => readable_color(ui, egui::Color32::YELLOW),
+                                            PdLogCategory::Diagnostic => egui::Color32::GRAY,
                                             PdLogCategory::Control => egui::Color32::GRAY,
                                             PdLogCategory::Extended => egui::Color32::from_rgb(255, 165, 0),
                                             PdLogCategory::Error => egui::Color32::from_rgb(255, 80, 80),
@@ -1631,7 +1542,7 @@ impl PowerMonitorApp {
                                                 .monospace()
                                                 .size(row_height),
                                         );
-                                        for detail in &entry.details {
+                                        for detail in entry.details.iter().chain(entry.latest_raw.iter()) {
                                             ui.colored_label(
                                                 readable_color(ui, color),
                                                 egui::RichText::new(format!("       {detail}"))
@@ -1662,65 +1573,10 @@ impl PowerMonitorApp {
             }
         }
     }
-
-    fn plots_panel(&mut self, ui: &mut egui::Ui) {
-        {
-            match self.plot_source {
-                PlotSource::Live => ui.small("Plot source: live AdcQueue"),
-                PlotSource::Offline => {
-                    let filename = self
-                        .offline_view
-                        .as_ref()
-                        .map_or_else(|| "not loaded".into(), |view| view.log.metadata.filename_lossy());
-                    ui.small(format!("Plot source: offline recording {filename}"))
-                }
-            };
-            let available_height = ui.available_height();
-            let plot_height = (available_height - 30.0) / 3.0;
-
-            let current_time = match self.plot_source {
-                PlotSource::Live => self.data_points.back().map_or(0.0, |sample| sample.elapsed_seconds()),
-                PlotSource::Offline => self
-                    .offline_view
-                    .as_ref()
-                    .and_then(|view| view.samples.last())
-                    .map_or(0.0, |sample| sample.elapsed_seconds()),
-            };
-            let min_time = self
-                .time_window
-                .seconds()
-                .map(|window| (current_time - window).max(0.0));
-            let Some(gpu_plots) = &self.gpu_plots else {
-                return;
-            };
-            for (index, metric) in self.plot_metrics.into_iter().enumerate() {
-                ui.label(format!("{} ({})", metric.label(), metric.unit()));
-                let gpu = &gpu_plots[index];
-                let series = match self.plot_source {
-                    PlotSource::Live => Series::Live {
-                        samples: &self.data_points,
-                        total: self.total_samples,
-                    },
-                    PlotSource::Offline => Series::Offline(self.offline_view.as_ref()),
-                };
-                let hover_radius = ui.style().interaction.interact_radius;
-                Plot::new(("measurement_plot", index))
-                    .height(plot_height)
-                    .show_axes([true, true])
-                    .show_grid(true)
-                    .allow_boxed_zoom(true)
-                    .allow_drag(true)
-                    .allow_scroll(true)
-                    .show(ui, |plot_ui| {
-                        plot_ui.add(GpuPlotItem::new(gpu, series, metric, min_time, hover_radius));
-                    });
-            }
-        }
-    }
 }
 
-impl eframe::App for PowerMonitorApp {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+impl PowerMonitorApp {
+    fn render_ui(&mut self, ui: &mut egui::Ui) {
         self.process_messages();
 
         // Request repaints - fast when streaming, slower when idle
@@ -1730,23 +1586,46 @@ impl eframe::App for PowerMonitorApp {
             ui.ctx().request_repaint_after(Duration::from_millis(100)); // 10fps when idle
         }
 
-        egui::Panel::top("header").show(ui, |ui| self.header_bar(ui));
-
-        egui::Panel::left("info_panel").exact_size(280.0).show(ui, |ui| {
-            egui::ScrollArea::vertical()
-                .auto_shrink([false; 2])
-                .show(ui, |ui| self.side_panel(ui));
+        egui::Panel::top("header").show(ui, |ui| {
+            self.header_bar(ui);
+            self.measurement_cards(ui);
+            self.acquisition_controls(ui);
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut self.active_tab, AppTab::Charts, "Charts");
+                ui.selectable_value(&mut self.active_tab, AppTab::Pd, "USB PD");
+                ui.selectable_value(&mut self.active_tab, AppTab::Recordings, "Recordings");
+            });
         });
+        egui::Panel::bottom("status").show(ui, |ui| {
+            ui.small(format!(
+                "{} samples · {} missing · {} discarded · {}",
+                self.total_samples, self.dropped_samples, self.discarded_sequence_samples, self.recording_status
+            ));
+        });
+        egui::CentralPanel::default().show(ui, |ui| match self.active_tab {
+            AppTab::Charts => self.plots_panel(ui),
+            AppTab::Pd => {
+                if self.pd_wire_messages == 0 {
+                    ui.label("No USB PD packets observed. This is normal for USB-A connections.");
+                }
+                self.pd_status_section(ui);
+                self.pd_timeline_controls_section(ui);
+                self.pd_timeline_panel(ui);
+            }
+            AppTab::Recordings => {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    self.live_capture_section(ui);
+                    self.offline_recordings_section(ui);
+                });
+            }
+        });
+        self.settings_window(ui.ctx());
+    }
+}
 
-        if self.pd_panel_visible {
-            egui::Panel::bottom("pd_panel")
-                .resizable(true)
-                .min_size(100.0)
-                .default_size(200.0)
-                .show(ui, |ui| self.pd_timeline_panel(ui));
-        }
-
-        egui::CentralPanel::default().show(ui, |ui| self.plots_panel(ui));
+impl eframe::App for PowerMonitorApp {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.render_ui(ui);
     }
 }
 
@@ -1790,7 +1669,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
-    use km003c_lib::{OfflineLog, read_recording};
+    use km003c_lib::{OfflineLog, PdLogEntry, read_recording};
 
     /// An app whose session has no device task behind it. It saves no
     /// preferences and journals into a directory of its own.
@@ -1851,7 +1730,7 @@ mod tests {
             header: None,
             details: Vec::new(),
         };
-        let protocol_log = VecDeque::from([wire("Accept"), wire("GoodCRC")]);
+        let protocol_log = VecDeque::from([wire("Accept").into(), wire("GoodCRC").into()]);
         let trace = km003c_lib::PdTrace {
             state_events: vec![km003c_lib::PdTraceStateEvent {
                 state: km003c_lib::PdTypeCState::AttachedSink,
@@ -1914,6 +1793,114 @@ mod tests {
         app.process_messages();
 
         assert_eq!(app.pd_contract.stage(), km003c_lib::PdContractStage::Active);
+    }
+
+    #[test]
+    fn paused_view_keeps_samples_while_acquisition_continues() {
+        use km003c_lib::AdcQueueSample;
+        use km003c_lib::uom::si::{
+            electric_current::ampere,
+            f64::{ElectricCurrent, ElectricPotential},
+        };
+        let (mut app, tx) = test_app();
+        let sample = |sequence| {
+            let vbus = ElectricPotential::new::<volt>(5.1);
+            let ibus = ElectricCurrent::new::<ampere>(-0.5);
+            AdcQueueSample {
+                sequence,
+                marker: 0,
+                vbus,
+                ibus,
+                power: vbus * ibus,
+                cc1: vbus,
+                cc2: vbus,
+                vdp: vbus,
+                vdm: vbus,
+            }
+        };
+        tx.send(SessionEvent::Samples(vec![sample(0), sample(20)])).unwrap();
+        app.process_messages();
+        app.toggle_view_pause();
+        let frozen_range = app.time_view.history;
+        tx.send(SessionEvent::Samples(vec![sample(40), sample(60)])).unwrap();
+        app.process_messages();
+        assert_eq!(app.total_samples, 4);
+        assert_eq!(app.paused_view.as_ref().unwrap().0.len(), 2);
+        assert_eq!(app.time_view.history, frozen_range);
+        assert_eq!(app.current_voltage, 5.1);
+        app.toggle_view_pause();
+        assert!(app.paused_view.is_none());
+        assert!(app.time_view.history.is_none());
+    }
+
+    #[test]
+    fn chart_input_zooms_only_time_and_synchronizes_all_three_axes() {
+        let (mut app, _tx) = test_app();
+        app.time_window = TimeWindow::Min5;
+        let ctx = egui::Context::default();
+        configure_appearance(&ctx);
+        let frame = |app: &mut PowerMonitorApp, events, time| {
+            let output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(853.0, 666.0))),
+                    time: Some(time),
+                    events,
+                    ..Default::default()
+                },
+                |ui| app.render_ui(ui),
+            );
+            output.drop_without_applying_deltas();
+        };
+        frame(&mut app, vec![], 0.0);
+        frame(&mut app, vec![], 0.1);
+        let bounds = || {
+            std::array::from_fn::<_, 3, _>(|index| {
+                *egui_plot::PlotMemory::load(&ctx, egui::Id::new(("measurement_plot", index)))
+                    .unwrap()
+                    .transform()
+                    .bounds()
+            })
+        };
+        let before = bounds();
+        let pointer = app.chart_rects[1].unwrap().center();
+        frame(
+            &mut app,
+            vec![
+                egui::Event::PointerMoved(pointer),
+                egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    phase: egui::TouchPhase::Move,
+                    delta: egui::vec2(0.0, 50.0),
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            0.2,
+        );
+        let after = bounds();
+        assert!(after[0].width() < before[0].width());
+        assert!(
+            after[0].width() > 120.0,
+            "zoom must not jump to a shorter range when the stream is new"
+        );
+        for index in 0..3 {
+            assert_eq!(after[index].range_x(), after[0].range_x());
+            assert_eq!(after[index].range_y(), before[index].range_y());
+        }
+        assert!(app.shared_cursor.is_some());
+        // A typical laptop at the default 150% UI scale must show all charts.
+        assert!(app.chart_rects[2].unwrap().bottom() <= 666.0);
+        for time in [1.0, 1.1] {
+            ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(682.0, 512.0))),
+                    time: Some(time),
+                    ..Default::default()
+                },
+                |ui| app.render_ui(ui),
+            )
+            .drop_without_applying_deltas();
+        }
+        assert!(app.chart_rects[2].unwrap().bottom() <= 512.0);
     }
 
     #[test]

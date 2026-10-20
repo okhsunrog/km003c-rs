@@ -65,6 +65,7 @@ pub enum PdLogCategory {
     Control,
     Extended,
     Error,
+    Diagnostic,
 }
 
 /// One PD event described for display.
@@ -126,6 +127,17 @@ impl PdLogger {
         match self.session.decode_event(event) {
             DecodedPdEvent::Connect { timestamp } => connection_entry(timestamp.get::<second>(), true),
             DecodedPdEvent::Disconnect { timestamp } => connection_entry(timestamp.get::<second>(), false),
+            DecodedPdEvent::DeviceStatus { timestamp, code, raw } => PdLogEntry {
+                timestamp_seconds: timestamp.get::<second>(),
+                category: PdLogCategory::Diagnostic,
+                sop: None,
+                title: format!("Device status 0x{code:02X}"),
+                header: None,
+                details: vec![
+                    format!("Flags: {:02X}", raw.get(4).copied().unwrap_or(0)),
+                    format!("Raw: {raw:02X?}"),
+                ],
+            },
             DecodedPdEvent::Message(message) => self.message_entry(&message),
             DecodedPdEvent::Chunk(status) => chunk_entry(status),
             DecodedPdEvent::Error(failure) => failure_entry(failure),
@@ -535,6 +547,35 @@ mod tests {
         assert_eq!(entry.category, PdLogCategory::Connect);
         assert_eq!(entry.sop, None);
         assert_eq!(entry.summary(), "[2.000s] ** CONNECT **");
+    }
+
+    #[test]
+    fn unknown_device_status_is_diagnostic_and_preserves_decoder_context() {
+        let raw = [0x45, 0x34, 0x12, 0, 0x80, 0x02];
+        let mut bytes = vec![0; crate::constants::PD_STATUS_SIZE];
+        bytes.extend(raw);
+        let stream = crate::pd::PdEventStream::from_bytes(bytes.into()).unwrap();
+        assert!(matches!(&stream.events[0].data, PdEventData::DeviceStatus { code: 2, raw: saved } if saved == &raw));
+        assert_eq!(stream.events[0].timestamp.get::<millisecond>(), 4660.0);
+        let mut logger = PdLogger::new();
+        logger.log_event(&message(0.0, SOURCE_CAPS));
+        let entry = logger.log_event(&stream.events[0]);
+        assert_eq!(entry.category, PdLogCategory::Diagnostic);
+        assert!(entry.details[1].contains("45, 34, 12, 00, 80, 02"));
+        let request = logger.log_event(&message(5_000.0, REQUEST));
+        assert!(request.details[0].contains("Fixed 9V"));
+        assert_eq!(logger.log_event(&message(6_000.0, "")).category, PdLogCategory::Error);
+        for (code, category) in [
+            (0x21, PdLogCategory::Connect),
+            (0x11, PdLogCategory::Connect),
+            (0x22, PdLogCategory::Disconnect),
+            (0x12, PdLogCategory::Disconnect),
+        ] {
+            let mut bytes = vec![0; crate::constants::PD_STATUS_SIZE];
+            bytes.extend([0x45, 0, 0, 0, 0, code]);
+            let stream = crate::pd::PdEventStream::from_bytes(bytes.into()).unwrap();
+            assert_eq!(logger.log_event(&stream.events[0]).category, category);
+        }
     }
 
     #[test]
