@@ -6,18 +6,14 @@ description = "Experimental Slint monitor for the ChargerLAB POWER-Z KM003C"
 license = "MIT OR Apache-2.0"
 publish = false
 
-# Kept out of the main workspace while it is an experiment, so Slint and wgpu
-# stay out of the shared lock file and CI.
+# Kept out of the main workspace while it is an experiment, so Slint
+# stays out of the shared lock file and CI. The plot core is shared.
 [workspace]
 members = ["slint-realtime-plot"]
 
-# Slint is pinned for its unstable wgpu 30 integration; wgpu's major version
-# must match it.
+# Slint is pinned for its unstable wgpu 30 integration, matching realtime-plot.
 [workspace.dependencies]
-bytemuck = { version = "1.25.0", features = ["derive"] }
-png = "0.18.1"
 slint = { version = "=1.18.1", default-features = false, features = ["std", "unstable-wgpu-30", "compat-1-2"] }
-wgpu = { version = "30", features = ["wgsl"] }
 
 [lib]
 crate-type = ["lib", "cdylib"]

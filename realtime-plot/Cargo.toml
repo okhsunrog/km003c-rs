@@ -1,0 +1,20 @@
+[package]
+name = "realtime-plot"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+description = "Shared wgpu real-time plot renderer for native and WebGPU frontends"
+license = "MIT"
+publish = false
+
+[dependencies]
+bytemuck = { version = "1.25", features = ["derive"] }
+wgpu = { version = "30", default-features = false, features = ["std", "wgsl", "webgpu"] }
+png = { version = "0.18.1", optional = true }
+
+[features]
+png = ["dep:png"]
+
+[dev-dependencies]
+pollster = "1.0.1"
+wgpu = { version = "30", features = ["vulkan"] }

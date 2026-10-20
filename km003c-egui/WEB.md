@@ -10,7 +10,7 @@ KM003C running firmware 1.9.9; see [hardware validation](#hardware-validation).
 ## Use the hosted monitor
 
 Open **[okhsunrog.github.io/km003c-rs](https://okhsunrog.github.io/km003c-rs/)**
-in desktop Chrome or Edge. Connect the meter's PC port, click **Connect**,
+in desktop Chrome or Edge with WebGPU support. Connect the meter's PC port, click **Connect**,
 click the KM003C row in the browser's device chooser, then click its **Connect**
 button. Linux users should first complete the [USB setup](#linux-setup).
 
@@ -41,12 +41,17 @@ for the previously selected serial number and authenticates again. Disconnect
 cancels waiting; Connect can select another meter.
 
 Use the release build for hardware measurements, especially at 1000 SPS. Debug
-builds can delay USB polling while rendering. Plot geometry is reduced to a
-screen-sized minimum/maximum envelope with stable time buckets; full received
-samples still go to recording and export. This reduces rendering work without
-reducing the instrument's sample rate. Zooming recomputes the display geometry
-from the original samples. This reduction applies only to the browser build;
-desktop plots retain every sample in the selected time window.
+builds can delay USB polling while rendering. Both desktop and browser use the
+shared [`realtime-plot`](../realtime-plot) wgpu renderer: anti-aliased line
+segments when zoomed in, compute min/max envelopes when zoomed out. The original
+samples and timestamps are uploaded without CPU downsampling; recording and
+export retain their complete data. egui_plot provides axes, zoom/pan and sample
+readouts. GPU textures stay on the device, with incremental uploads while live.
+
+The browser requires WebGPU, including compute/storage buffers. There is no
+WebGL fallback. Plot parameters use uniform buffers, without optional immediate
+data features. If a visible offline range exceeds the adapter's storage-buffer
+limit, the chart asks you to zoom in; the recording remains available for export.
 
     cargo check -p km003c-egui --target wasm32-unknown-unknown --locked
     trunk build --release
@@ -95,8 +100,8 @@ and **Settings → Pages** show the published URL. No `gh-pages` branch is used.
 
 ## Platform constraints
 
-- Desktop Chromium is required; Firefox/Safari do not implement WebUSB. WebGL2
-  renders egui. A secure context (HTTPS/localhost) and browser USB policy allowing
+- Desktop Chromium with WebGPU enabled is required; Firefox/Safari do not
+  implement WebUSB. WebGPU renders egui and the plots. A secure context (HTTPS/localhost) and browser USB policy allowing
   access are required. An iframe also needs USB permission delegation.
 - WebUSB cannot detach kernel drivers or use protected HID interfaces. Only the
   vendor bulk interface is used. On Linux use the permissions and optional
@@ -193,13 +198,13 @@ and run:
     node km003c-egui/tests/browser-smoke.cjs
 
 Run it against `trunk serve --release`. Set `CHROMIUM` to the Chrome/Chromium
-executable if it is not `/usr/bin/chromium`. It mocks only browser permission/open calls: checks actual
-egui rendering, user activation, VID/PID filtering, cancellation, opening timeout
-and retry. It does not emulate KM003C authentication or measurements.
+executable if it is not `/usr/bin/chromium`. It compiles the shared render/compute shaders on a browser WebGPU device and
+checks egui rendering, user activation, VID/PID filtering, cancellation, opening
+timeout and retry. Only browser permission/open calls are mocked. It does not emulate KM003C authentication or measurements.
 
 ## Hardware validation
 
-On 2026-10-19, the release build was tested in desktop Google Chrome on Linux
+Before the WebGPU migration, on 2026-10-19, the release build was tested in desktop Google Chrome on Linux
 with KM003C firmware 1.9.9. Checks included connection/authentication, live
 1000 SPS plots with PD protocol capture and firmware trace, live Parquet
 recording, and downloading/exporting a device-stored recording. The optional

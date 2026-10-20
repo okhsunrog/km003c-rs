@@ -1294,7 +1294,6 @@ dependencies = [
  "egui-wgpu",
  "egui-winit",
  "egui_glow",
- "glow",
  "glutin",
  "glutin-winit",
  "image",
@@ -2542,6 +2541,8 @@ dependencies = [
  "km003c-lib",
  "log",
  "nusb",
+ "pollster 1.0.1",
+ "realtime-plot",
  "rfd",
  "serde_json",
  "tokio",
@@ -4638,6 +4639,16 @@ dependencies = [
  "bytemuck",
  "font-types",
  "once_cell",
+]
+
+[[package]]
+name = "realtime-plot"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "png",
+ "pollster 1.0.1",
+ "wgpu",
 ]
 
 [[package]]

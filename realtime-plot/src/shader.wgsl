@@ -33,6 +33,10 @@ struct PlotParams {
     texture_height:  u32,
     view_offset:     u32,   // samples to shift back from write_pos (for pan)
     scale:           f32,   // physical pixels per logical pixel (hidpi)
+    x_min_hi:        f32,
+    x_min_lo:        f32,
+    x_span:          f32,
+    timed:           u32,
     _pad0:           u32,
     _pad1:           u32,
 };
@@ -41,7 +45,16 @@ struct Colors {
     data: array<vec4<f32>, 8>,  // one entry per channel; MAX_CHANNELS = 8
 };
 
-var<immediate> params: PlotParams;
+@group(0) @binding(4) var<uniform> params: PlotParams;
+@group(0) @binding(3) var<storage, read> times: array<vec2<f32>>;
+
+// Timestamps use a high/low pair to retain detail far from time zero.
+fn sample_x(index: u32) -> f32 {
+    if params.timed == 0u { return f32(index) / f32(params.visible_samples - 1u); }
+    let start = (params.write_pos + params.num_samples - params.visible_samples - params.view_offset) % params.num_samples;
+    let time = times[(start + index) % params.num_samples];
+    return ((time.x - params.x_min_hi) + (time.y - params.x_min_lo)) / params.x_span;
+}
 @group(0) @binding(2) var<storage, read> peaks: array<vec4<f32>>;
 
 @group(0) @binding(0) var<storage, read> samples:        array<f32>;
@@ -89,10 +102,10 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
         else                 { dist = 0.0; }
 
         let line_col   = channel_colors.data[ch].rgb;
-        let line_alpha = smoothstep(px_y * 2.0 * params.scale, 0.0, dist);
+        let line_alpha = (1.0 - smoothstep(0.0, px_y * 2.0 * params.scale, dist)) * channel_colors.data[ch].a;
 
         color = mix(color, line_col, line_alpha);
-        alpha = max(alpha, line_alpha);
+        alpha = line_alpha + alpha * (1.0 - line_alpha);
     }
     return vec4<f32>(color, alpha);
 }
@@ -117,9 +130,9 @@ fn vs_line(@builtin(vertex_index) vertex: u32, @builtin(instance_index) instance
         return LineVertex(vec4<f32>(2.0, 2.0, 0.0, 1.0), vec2<f32>(0.0), vec2<f32>(0.0), vec4<f32>(0.0));
     }
     let size = vec2<f32>(f32(params.texture_width), f32(params.texture_height));
-    let a = vec2<f32>(f32(sample_index) / f32(segments), 1.0 - value_to_y(va)) * size;
-    let b = vec2<f32>(f32(sample_index + 1u) / f32(segments), 1.0 - value_to_y(vb)) * size;
-    let direction = normalize(b - a);
+    let a = vec2<f32>(sample_x(sample_index), 1.0 - value_to_y(va)) * size;
+    let b = vec2<f32>(sample_x(sample_index + 1u), 1.0 - value_to_y(vb)) * size;
+    let direction = (b - a) / max(length(b - a), 1e-20);
     let normal = vec2<f32>(-direction.y, direction.x);
     // Covers the anti-aliased edge of the line, which fades out at 1.5 px.
     let radius = 2.0 * params.scale;

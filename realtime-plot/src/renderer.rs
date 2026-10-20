@@ -1,5 +1,5 @@
 use crate::{MAX_CHANNELS, PlotBuffer};
-use slint::wgpu_30::wgpu;
+#[cfg(feature = "png")]
 use std::path::Path;
 
 // Matches the `PlotParams` struct in shader.wgsl exactly.
@@ -16,6 +16,10 @@ pub(crate) struct PlotParams {
     texture_height: u32,
     view_offset: u32,
     scale: f32,
+    x_min_hi: f32,
+    x_min_lo: f32,
+    x_span: f32,
+    timed: u32,
     _pad: [u32; 2], // align to 16 bytes for GPU
 }
 
@@ -40,6 +44,20 @@ pub struct PlotConfig {
     pub channel_colors: Vec<[f32; 4]>,
 }
 
+/// Pixel dimensions, sample window and optional exact axis ranges.
+#[derive(Clone, Copy)]
+pub struct PlotView {
+    pub width: u32,
+    pub height: u32,
+    pub visible_samples: u32,
+    pub view_offset: u32,
+    pub scale_factor: f32,
+    /// Real timestamps in seconds; None retains the uniform sample-index axis.
+    pub x_range: Option<[f64; 2]>,
+    /// Exact viewport Y bounds; None uses the renderer's auto/nice range.
+    pub y_range: Option<[f32; 2]>,
+}
+
 /// Result of one [`PlotRenderer::render`] call: the texture plus the axis
 /// range and tick count actually used (nice-snapped to 1-2-5 steps).
 pub struct RenderOutput {
@@ -52,10 +70,13 @@ pub struct RenderOutput {
     pub rendered: bool,
 }
 
-/// GPU renderer for one chart.  Create one instance per chart via
-/// [`PlotRenderer::new`] inside Slint's `RenderingState::RenderingSetup`
-/// callback.
+/// GPU renderer for one chart, created on the frontend's device and queue.
 pub struct PlotRenderer {
+    params_buffer: wgpu::Buffer,
+    times_buffer: wgpu::Buffer,
+    times_scratch: Vec<[f32; 2]>,
+    texture_format: wgpu::TextureFormat,
+    last_x_range: Option<[f64; 2]>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     pipeline: wgpu::RenderPipeline,
@@ -120,6 +141,20 @@ fn nice_axis(lo: f32, hi: f32, target_divisions: u32) -> (f32, f32, u32) {
 
 impl PlotRenderer {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, config: PlotConfig) -> Self {
+        Self::with_format(device, queue, config, wgpu::TextureFormat::Rgba8UnormSrgb)
+    }
+
+    /// Use Rgba8Unorm with gamma-space colors for egui; Slint uses sRGB.
+    pub fn with_format(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        config: PlotConfig,
+        texture_format: wgpu::TextureFormat,
+    ) -> Self {
+        assert!(matches!(
+            texture_format,
+            wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Rgba8UnormSrgb
+        ));
         assert!((1..=MAX_CHANNELS).contains(&config.num_channels));
         assert!(config.capacity >= 2);
         assert!(config.y_min.is_finite() && config.y_max.is_finite() && config.y_min < config.y_max);
@@ -142,6 +177,18 @@ impl PlotRenderer {
             mapped_at_creation: false,
         });
 
+        let times_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("plot_times"),
+            size: (config.capacity * size_of::<[f32; 2]>()) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let params_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("plot_params"),
+            size: size_of::<PlotParams>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let mut colors_data = ColorsUniform {
             data: [[0.0; 4]; MAX_CHANNELS],
         };
@@ -200,6 +247,28 @@ impl PlotRenderer {
                 count: None,
             },
         ];
+        entries.extend([
+            wgpu::BindGroupLayoutEntry {
+                binding: 3,
+                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 4,
+                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT | wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ]);
         let bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("plot_bgl"),
             entries: &entries,
@@ -219,6 +288,14 @@ impl PlotRenderer {
             layout: &peak_bgl,
             entries: &[
                 wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: times_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: params_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
                     binding: 0,
                     resource: samples_buffer.as_entire_binding(),
                 },
@@ -235,7 +312,7 @@ impl PlotRenderer {
         let peak_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("plot_peak_layout"),
             bind_group_layouts: &[Some(&peak_bgl)],
-            immediate_size: size_of::<PlotParams>() as u32,
+            immediate_size: 0,
         });
         let peak_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("plot_reduce"),
@@ -255,6 +332,14 @@ impl PlotRenderer {
             layout: &bgl,
             entries: &[
                 wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: times_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: params_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
                     binding: 2,
                     resource: peaks_buffer.as_entire_binding(),
                 },
@@ -272,7 +357,7 @@ impl PlotRenderer {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("plot_pipeline_layout"),
             bind_group_layouts: &[Some(&bgl)],
-            immediate_size: size_of::<PlotParams>() as u32,
+            immediate_size: 0,
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -288,7 +373,7 @@ impl PlotRenderer {
                 module: &shader,
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
-                targets: &[Some(wgpu::TextureFormat::Rgba8UnormSrgb.into())],
+                targets: &[Some(texture_format.into())],
             }),
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
@@ -311,7 +396,7 @@ impl PlotRenderer {
                 entry_point: Some("fs_line"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    format: texture_format,
                     blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -323,11 +408,16 @@ impl PlotRenderer {
             cache: None,
         });
 
-        let texture = Self::make_texture(device, 1, 1);
+        let texture = Self::make_texture(device, 1, 1, texture_format);
         let y_min = config.y_min;
         let y_max = config.y_max;
 
         Self {
+            params_buffer,
+            times_buffer,
+            times_scratch: Vec::with_capacity(config.capacity),
+            texture_format,
+            last_x_range: None,
             device: device.clone(),
             queue: queue.clone(),
             pipeline,
@@ -358,7 +448,12 @@ impl PlotRenderer {
         }
     }
 
-    fn make_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
+    fn make_texture(
+        device: &wgpu::Device,
+        width: u32,
+        height: u32,
+        texture_format: wgpu::TextureFormat,
+    ) -> wgpu::Texture {
         device.create_texture(&wgpu::TextureDescriptor {
             label: Some("plot_texture"),
             size: wgpu::Extent3d {
@@ -369,7 +464,7 @@ impl PlotRenderer {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            format: texture_format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC,
@@ -416,7 +511,7 @@ impl PlotRenderer {
     ///
     /// `visible_samples` is clamped to `[2, buffer.capacity]`; `scale_factor`
     /// is the window's physical-per-logical pixel ratio (hidpi).
-    /// Call this from Slint's `RenderingState::BeforeRendering` on the main thread.
+    /// Submit before the frontend samples the resulting texture.
     ///
     /// When `auto_range` is on, the Y range follows the visible data:
     /// it expands instantly, shrinks gradually, and is snapped outward to
@@ -430,18 +525,58 @@ impl PlotRenderer {
         view_offset: u32,
         scale_factor: f32,
     ) -> RenderOutput {
+        self.render_view(
+            buffer,
+            PlotView {
+                width,
+                height,
+                visible_samples,
+                view_offset,
+                scale_factor,
+                x_range: None,
+                y_range: None,
+            },
+        )
+    }
+
+    /// Render a viewport. Explicit ranges use the frontend's exact transform,
+    /// without axis snapping; timed X ranges address real sample timestamps.
+    pub fn render_view(&mut self, buffer: &PlotBuffer, view: PlotView) -> RenderOutput {
+        let PlotView {
+            width,
+            height,
+            visible_samples,
+            view_offset,
+            scale_factor,
+            x_range,
+            y_range,
+        } = view;
+        if let Some([lo, hi]) = x_range {
+            assert!(lo.is_finite() && hi.is_finite() && hi > lo);
+        }
+        if let Some([lo, hi]) = y_range {
+            assert!(lo.is_finite() && hi.is_finite() && hi > lo);
+        }
         let width = width.clamp(1, self.peak_width_capacity);
         let height = height.clamp(1, self.device.limits().max_texture_dimension_2d);
         let scale_factor = if scale_factor > 0.0 { scale_factor } else { 1.0 };
         let vis = visible_samples.clamp(2, buffer.capacity as u32);
         assert_eq!(buffer.capacity, self.config.capacity);
         assert_eq!(buffer.num_channels, self.config.num_channels);
-        let uploads = buffer.sync_to(&mut self.scratch, &mut self.snapshot);
+        let uploads = buffer.sync_to(&mut self.scratch, &mut self.times_scratch, &mut self.snapshot);
         for range in &uploads {
             self.queue.write_buffer(
                 &self.samples_buffer,
                 (range.start * size_of::<f32>()) as u64,
                 bytemuck::cast_slice(&self.scratch[range.clone()]),
+            );
+        }
+        for range in &uploads {
+            let frames = range.start / buffer.num_channels..range.end / buffer.num_channels;
+            self.queue.write_buffer(
+                &self.times_buffer,
+                (frames.start * size_of::<[f32; 2]>()) as u64,
+                bytemuck::cast_slice(&self.times_scratch[frames]),
             );
         }
         let generation = self.snapshot.generation;
@@ -451,7 +586,8 @@ impl PlotRenderer {
         let view_offset = view_offset.min(self.snapshot.available.saturating_sub(vis));
 
         let data_changed = generation != self.last_generation;
-        let view_changed = vis != self.last_visible || view_offset != self.last_view_offset;
+        let view_changed =
+            vis != self.last_visible || view_offset != self.last_view_offset || x_range != self.last_x_range;
         let needs_resize = width != self.last_width || height != self.last_height;
         let scale_changed = scale_factor != self.last_scale;
 
@@ -460,7 +596,8 @@ impl PlotRenderer {
                 || vis != self.last_visible
                 || view_offset != self.last_view_offset
                 || width != self.last_width
-                || scale_factor != self.last_scale);
+                || scale_factor != self.last_scale
+                || x_range != self.last_x_range);
 
         if data_changed {
             self.last_generation = generation;
@@ -500,11 +637,12 @@ impl PlotRenderer {
             self.smooth_hi = self.config.y_max;
         }
 
-        let (y_min, y_max, divisions) = nice_axis(self.smooth_lo, self.smooth_hi, 6);
+        let (y_min, y_max, divisions) =
+            y_range.map_or_else(|| nice_axis(self.smooth_lo, self.smooth_hi, 6), |[lo, hi]| (lo, hi, 6));
         let range_changed = y_min != self.last_y_min || y_max != self.last_y_max;
 
         if needs_resize {
-            self.texture = Self::make_texture(&self.device, width, height);
+            self.texture = Self::make_texture(&self.device, width, height, self.texture_format);
         }
 
         if !(data_changed || view_changed || needs_resize || scale_changed || range_changed) {
@@ -517,6 +655,7 @@ impl PlotRenderer {
             };
         }
 
+        self.last_x_range = x_range;
         self.last_width = width;
         self.last_height = height;
         self.last_visible = vis;
@@ -526,6 +665,8 @@ impl PlotRenderer {
         self.last_y_max = y_max;
         self.last_divisions = divisions;
 
+        let [x_min, x_max] = x_range.unwrap_or([0.0, 1.0]);
+        let x_min_hi = x_min as f32;
         let params = PlotParams {
             write_pos: self.snapshot.write_pos,
             num_samples: buffer.capacity as u32,
@@ -537,9 +678,15 @@ impl PlotRenderer {
             texture_height: height,
             view_offset,
             scale: scale_factor,
+            x_min_hi,
+            x_min_lo: (x_min - f64::from(x_min_hi)) as f32,
+            x_span: (x_max - x_min) as f32,
+            timed: u32::from(x_range.is_some()),
             _pad: [0; 2],
         };
 
+        self.queue
+            .write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));
         let view = self.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("plot_encoder"),
@@ -551,7 +698,6 @@ impl PlotRenderer {
             });
             pass.set_pipeline(&self.peak_pipeline);
             pass.set_bind_group(0, &self.peak_bind_group, &[]);
-            pass.set_immediates(0, bytemuck::bytes_of(&params));
             pass.dispatch_workgroups((width * params.num_channels).div_ceil(64), 1, 1);
         }
         {
@@ -579,7 +725,6 @@ impl PlotRenderer {
             let use_lines = vis as f32 / width as f32 * scale_factor <= 8.0;
             rpass.set_pipeline(if use_lines { &self.line_pipeline } else { &self.pipeline });
             rpass.set_bind_group(0, &self.bind_group, &[]);
-            rpass.set_immediates(0, bytemuck::bytes_of(&params));
             if use_lines {
                 rpass.draw(0..6, 0..((vis - 1) * params.num_channels));
             } else {
@@ -606,6 +751,7 @@ impl PlotRenderer {
 
     /// Save the last rendered texture as a PNG, composited over `background`
     /// (linear-ish sRGB triplet, 0..1) since the plot itself is transparent.
+    #[cfg(feature = "png")]
     pub fn export_png(&self, path: &Path, background: [f32; 3]) -> Result<(), String> {
         let width = self.texture.size().width;
         let height = self.texture.size().height;
@@ -655,7 +801,7 @@ impl PlotRenderer {
         let mut rgb = Vec::with_capacity((width * height * 3) as usize);
         for row in 0..height {
             let start = (row * padded_row) as usize;
-            for px in data[start..start + unpadded_row as usize].chunks_exact(4) {
+            for px in data[start..start + unpadded_row as usize].as_chunks::<4>().0.iter() {
                 let a = f32::from(px[3]) / 255.0;
                 for ch in 0..3 {
                     rgb.push((f32::from(px[ch]) * a + bg[ch] * (1.0 - a)).round() as u8);
