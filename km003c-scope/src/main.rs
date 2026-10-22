@@ -101,6 +101,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         cursor_time: None,
         plot_width: None,
         plot_left: None,
+        window_has_pointer: false,
         usb_reset,
     };
 
@@ -154,6 +155,8 @@ struct ScopeApp {
     plot_width: Option<f64>,
     /// Screen position of the inner plot's left edge, from the previous frame.
     plot_left: Option<f32>,
+    /// The current press started on a floating window, so it must not pan the strips.
+    window_has_pointer: bool,
     usb_reset: bool,
 }
 
@@ -447,8 +450,15 @@ impl ScopeApp {
             )
         });
         let drag_started_on_plots = origin.is_some_and(|origin| rect.contains(origin));
-        let placing_cursor = self.cursor_mode && primary_down && drag_started_on_plots;
-        let panning = primary_down && drag_started_on_plots && delta_x != 0.0 && !self.cursor_mode;
+        let origin_on_window = origin.is_some_and(|pos| {
+            ui.ctx()
+                .layer_id_at(pos)
+                .is_some_and(|layer| layer_covers_plots(layer.order))
+        });
+        self.window_has_pointer = pointer_blocks_plots(self.window_has_pointer, primary_down, origin_on_window);
+        let interacting_with_plots = drag_started_on_plots && !self.window_has_pointer;
+        let placing_cursor = self.cursor_mode && primary_down && interacting_with_plots;
+        let panning = primary_down && interacting_with_plots && delta_x != 0.0 && !self.cursor_mode;
         if self.autoscroll
             && !panning
             && let Some(latest) = self.samples.back()
@@ -733,6 +743,16 @@ fn panned_view_end(view_end: f64, drag_x: f32, pixels_per_second: f64) -> f64 {
     view_end - f64::from(drag_x) / pixels_per_second
 }
 
+/// The root UI is a background layer that covers the strips. Floating windows sit above it.
+fn layer_covers_plots(order: egui::Order) -> bool {
+    order != egui::Order::Background
+}
+
+/// A press that starts on a floating window keeps blocking the strips until release.
+fn pointer_blocks_plots(blocked: bool, primary_down: bool, origin_on_window: bool) -> bool {
+    primary_down && (blocked || origin_on_window)
+}
+
 /// Time at a screen position, clamped to the visible window.
 fn time_at_pointer(pointer_x: f32, plot_left: f32, view_end: f64, window_secs: f64, pixels_per_second: f64) -> f64 {
     let from_left = f64::from(pointer_x - plot_left) / pixels_per_second;
@@ -830,8 +850,8 @@ mod tests {
     use super::{
         AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, GraphSampleRate, MAX_PIXELS_PER_SECOND, MIN_PIXELS_PER_SECOND,
         MeterAverage, PIXELS_PER_SECOND, clamped_cursor, cursor_label_on_left, cursor_value, format_measurement,
-        initial_window_size, meter_pane_width, minimum_window_size, panned_view_end, samples_per_meter_update,
-        time_at_pointer, zoomed_pixels_per_second,
+        initial_window_size, layer_covers_plots, meter_pane_width, minimum_window_size, panned_view_end,
+        pointer_blocks_plots, samples_per_meter_update, time_at_pointer, zoomed_pixels_per_second,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
@@ -905,6 +925,16 @@ mod tests {
             zoomed_pixels_per_second(MIN_PIXELS_PER_SECOND, 1_000.0),
             MIN_PIXELS_PER_SECOND
         );
+    }
+
+    #[test]
+    fn dragging_the_device_info_window_does_not_pan_the_strips() {
+        assert!(pointer_blocks_plots(false, true, true));
+        assert!(pointer_blocks_plots(true, true, false));
+        assert!(!pointer_blocks_plots(true, false, true));
+        assert!(!pointer_blocks_plots(false, true, false));
+        assert!(!layer_covers_plots(eframe::egui::Order::Background));
+        assert!(layer_covers_plots(eframe::egui::Order::Middle));
     }
 
     #[test]
