@@ -44,6 +44,12 @@ const CURSOR_LABEL_SIZE: f32 = 16.0;
 const INITIAL_SECONDS: f64 = 8.0;
 const MIN_SECONDS: f64 = 4.0;
 const STRIP_HEIGHT: f32 = 200.0;
+/// Vertical padding around an autoscaled trace, as a fraction of its span.
+const Y_MARGIN_FRACTION: f64 = 0.08;
+/// Smallest autoscaled voltage span: 8 mV.
+const MIN_VOLTAGE_SPAN: f64 = 0.008;
+/// Smallest autoscaled current and power span: 2 mA and 2 mW.
+const MIN_Y_SPAN: f64 = 0.002;
 /// Gap between the voltage, current, and power strips.
 const STRIP_GAP: f32 = 16.0;
 /// Horizontal and vertical inset of egui's central panel frame.
@@ -668,7 +674,7 @@ fn trace_plot(
         .allow_scroll(false)
         .allow_axis_zoom_drag(false)
         .allow_boxed_zoom(false)
-        .set_margin_fraction(egui::vec2(0.0, 0.08));
+        .set_margin_fraction(egui::vec2(0.0, Y_MARGIN_FRACTION as f32));
     if hide_pointer_lines {
         plot = plot.cursor_color(Color32::TRANSPARENT);
     }
@@ -679,6 +685,9 @@ fn trace_plot(
         plot_ui.set_auto_bounds([false, true]);
         if let Some(time) = time {
             plot_ui.set_plot_bounds_x(time);
+        }
+        if let Some(range) = y_axis_range(points, cursor.as_ref().and_then(|mark| mark.value), strip.metric) {
+            plot_ui.set_plot_bounds_y(range);
         }
         plot_ui.line(
             Line::new(strip.id, PlotPoints::new(points.to_vec()))
@@ -751,6 +760,44 @@ impl Strip {
             show_time,
         }
     }
+}
+
+/// Autoscaled Y range. A wider trace keeps its own span.
+fn y_axis_range(points: &[[f64; 2]], extra: Option<f64>, metric: Metric) -> Option<RangeInclusive<f64>> {
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    let mut consider = |y: f64| {
+        if y.is_finite() {
+            min_y = min_y.min(y);
+            max_y = max_y.max(y);
+        }
+    };
+    for point in points {
+        consider(point[1]);
+    }
+    if let Some(y) = extra {
+        consider(y);
+    }
+    if !min_y.is_finite() {
+        return None;
+    }
+    Some(scaled_y_range(min_y, max_y, min_y_span(metric)))
+}
+
+fn min_y_span(metric: Metric) -> f64 {
+    match metric {
+        Metric::Voltage => MIN_VOLTAGE_SPAN,
+        _ => MIN_Y_SPAN,
+    }
+}
+
+/// Pad the samples, then refuse to zoom in tighter than `min_span`.
+fn scaled_y_range(min_y: f64, max_y: f64, min_span: f64) -> RangeInclusive<f64> {
+    let mid = (min_y + max_y) * 0.5;
+    let span = (max_y - min_y).max(0.0);
+    let padded = span * (1.0 + 2.0 * Y_MARGIN_FRACTION);
+    let half = padded.max(min_span) * 0.5;
+    (mid - half)..=(mid + half)
 }
 
 /// Time span ending at the newest sample. The right edge stays on that sample.
@@ -886,10 +933,10 @@ fn rate_label(rate: GraphSampleRate) -> &'static str {
 mod tests {
     use super::{
         AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, GraphSampleRate, MAX_PIXELS_PER_SECOND, MIN_PIXELS_PER_SECOND,
-        MeterAverage, PIXELS_PER_SECOND, clamped_cursor, cursor_label_on_left, cursor_value, format_measurement,
-        initial_window_size, layer_covers_plots, meter_pane_width, minimum_window_size, panned_view_end,
-        pointer_blocks_plots, samples_per_meter_update, time_at_pointer, zoomed_pixels_per_second,
-        zoomed_view_end_at_pointer,
+        MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage, PIXELS_PER_SECOND, Y_MARGIN_FRACTION, clamped_cursor,
+        cursor_label_on_left, cursor_value, format_measurement, initial_window_size, layer_covers_plots,
+        meter_pane_width, minimum_window_size, panned_view_end, pointer_blocks_plots, samples_per_meter_update,
+        scaled_y_range, time_at_pointer, zoomed_pixels_per_second, zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
@@ -1001,6 +1048,21 @@ mod tests {
             next_scale,
         );
         assert!((right_end - view_end).abs() < 1e-9);
+    }
+
+    #[test]
+    fn y_axis_does_not_zoom_tighter_than_its_minimum() {
+        let voltage = scaled_y_range(5.0, 5.0, MIN_VOLTAGE_SPAN);
+        assert!((voltage.end() - voltage.start() - MIN_VOLTAGE_SPAN).abs() < 1e-12);
+        assert!(((voltage.start() + voltage.end()) / 2.0 - 5.0).abs() < 1e-12);
+
+        let current = scaled_y_range(1.0, 1.0, MIN_Y_SPAN);
+        assert!((current.end() - current.start() - MIN_Y_SPAN).abs() < 1e-12);
+
+        let wide = scaled_y_range(0.0, 10.0, MIN_VOLTAGE_SPAN);
+        let pad = 10.0 * Y_MARGIN_FRACTION;
+        assert!((wide.start() - (0.0 - pad)).abs() < 1e-9);
+        assert!((wide.end() - (10.0 + pad)).abs() < 1e-9);
     }
 
     #[test]
