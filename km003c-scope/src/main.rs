@@ -1,8 +1,8 @@
 //! A small time-domain scope for the KM003C.
 //!
 //! The left side is split in half: live voltage, current, and power on top,
-//! and the connection controls below. The center overlays voltage and current
-//! on one time axis, each with its own scale.
+//! and the connection controls below. The center is three separate 200-pixel
+//! strips — voltage, current, and power — at 100 pixels per second.
 
 use std::collections::VecDeque;
 use std::ops::RangeInclusive;
@@ -11,7 +11,6 @@ use std::time::Duration;
 use eframe::egui;
 use eframe::egui::Color32;
 use eframe::egui::RichText;
-use eframe::egui::UiBuilder;
 use egui_plot::AxisHints;
 use egui_plot::HPlacement;
 use egui_plot::Line;
@@ -31,6 +30,14 @@ const VOLTAGE_COLOR: Color32 = Color32::from_rgb(80, 220, 120);
 const CURRENT_COLOR: Color32 = Color32::from_rgb(90, 170, 255);
 const POWER_COLOR: Color32 = Color32::from_rgb(255, 176, 64);
 const AXIS_THICKNESS: f32 = 100.0;
+const PIXELS_PER_SECOND: f64 = 100.0;
+const INITIAL_SECONDS: f64 = 8.0;
+const MIN_SECONDS: f64 = 4.0;
+const STRIP_HEIGHT: f32 = 200.0;
+/// Gap between the voltage, current, and power strips.
+const STRIP_GAP: f32 = 16.0;
+/// Horizontal and vertical inset of egui's central panel frame.
+const CENTRAL_PANEL_MARGIN: f32 = 8.0;
 /// Space Mono's advance width, in font units per em.
 const SPACE_MONO_ADVANCE_EM: f32 = 612.0 / 1000.0;
 const METER_VALUE_FONT_SIZE: f32 = 28.0;
@@ -73,17 +80,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         connected: false,
         streaming: false,
         rate,
-        window_secs: 10.0,
-        pixels_per_second: None,
+        window_secs: INITIAL_SECONDS,
         plot_width: None,
         usb_reset,
     };
 
+    let [width, height] = initial_window_size();
+    let [min_width, _] = minimum_window_size();
     eframe::run_native(
         "KM003C Scope",
         eframe::NativeOptions {
             viewport: egui::ViewportBuilder::default()
-                .with_inner_size([1430.0, 700.0])
+                .with_inner_size([width, height])
+                .with_min_inner_size([min_width, height])
+                .with_max_inner_size([16_384.0, height])
                 .with_title("KM003C Scope"),
             ..Default::default()
         },
@@ -110,8 +120,6 @@ struct ScopeApp {
     streaming: bool,
     rate: GraphSampleRate,
     window_secs: f64,
-    /// Horizontal scale of the trace, taken from the opening layout.
-    pixels_per_second: Option<f64>,
     /// Inner plot width from the previous frame, in pixels.
     plot_width: Option<f64>,
     usb_reset: bool,
@@ -279,55 +287,35 @@ impl ScopeApp {
     }
 
     fn scope(&mut self, ui: &mut egui::Ui) {
-        let rect = ui.available_rect_before_wrap();
-        if rect.width() < 2.0 || rect.height() < 2.0 {
-            return;
-        }
-        ui.allocate_rect(rect, egui::Sense::hover());
         self.follow_plot_width();
-
-        let voltage = series(&self.samples, Metric::Voltage, self.window_secs);
-        let current = series(&self.samples, Metric::SignedCurrent, self.window_secs);
+        ui.spacing_mut().item_spacing.y = STRIP_GAP;
+        let width = ui.available_width();
         let link = ui.id().with("scope_time");
         let time = visible_time(&self.samples, self.window_secs);
-
-        let mut voltage_ui = ui.new_child(UiBuilder::new().max_rect(rect));
-        let plot_width = trace_plot(
-            &mut voltage_ui,
-            "scope_voltage",
-            &voltage,
-            VOLTAGE_COLOR,
-            true,
-            link,
-            time.clone(),
-        );
-        let mut current_ui = ui.new_child(UiBuilder::new().max_rect(rect));
-        trace_plot(
-            &mut current_ui,
-            "scope_current",
-            &current,
-            CURRENT_COLOR,
-            false,
-            link,
-            time,
-        );
-        self.note_plot_width(plot_width);
+        let strips = [
+            Strip::new("scope_voltage", Metric::Voltage, VOLTAGE_COLOR, "V", false),
+            Strip::new("scope_current", Metric::SignedCurrent, CURRENT_COLOR, "A", false),
+            Strip::new("scope_power", Metric::SignedPower, POWER_COLOR, "W", true),
+        ];
+        let mut plot_width = None;
+        for strip in strips {
+            let points = series(&self.samples, strip.metric, self.window_secs);
+            ui.allocate_ui(egui::vec2(width, STRIP_HEIGHT), |ui| {
+                let measured = trace_plot(ui, &strip, &points, link, time.clone());
+                plot_width.get_or_insert(f64::from(measured));
+            });
+        }
+        if let Some(width) = plot_width {
+            self.plot_width = Some(width.max(1.0));
+        }
     }
 
-    /// Keep the opening pixels/second. A wider plot then covers more time.
+    /// Keep 100 pixels per second. A wider plot then covers more time.
     fn follow_plot_width(&mut self) {
-        let (Some(pixels_per_second), Some(plot_width)) = (self.pixels_per_second, self.plot_width) else {
+        let Some(plot_width) = self.plot_width else {
             return;
         };
-        self.window_secs = plot_width / pixels_per_second;
-    }
-
-    fn note_plot_width(&mut self, width: f32) {
-        let width = f64::from(width).max(1.0);
-        self.plot_width = Some(width);
-        if self.pixels_per_second.is_none() {
-            self.pixels_per_second = Some(width / self.window_secs.max(1.0e-3));
-        }
+        self.window_secs = plot_width / PIXELS_PER_SECOND;
     }
 }
 
@@ -438,50 +426,65 @@ fn series(samples: &VecDeque<MeasurementSample>, metric: Metric, window_secs: f6
         .collect()
 }
 
-/// Draw one trace into a shared time window.
-///
-/// Voltage is drawn first and owns the grid. Current is drawn over it without
-/// a background, with its scale on the right. Both plots reserve the same axis
-/// margins so the traces sit on the same pixels. Only the X axis is linked, so
-/// each trace keeps its own vertical scale.
+/// Draw one 200-pixel strip. The three strips share the time axis.
 fn trace_plot(
     ui: &mut egui::Ui,
-    id: &str,
+    strip: &Strip,
     points: &[[f64; 2]],
-    color: Color32,
-    background: bool,
     link: egui::Id,
     time: Option<RangeInclusive<f64>>,
 ) -> f32 {
-    let size = ui.available_size();
-    let y_axes = vec![
-        y_axis(HPlacement::Left, "Voltage (V)", background),
-        y_axis(HPlacement::Right, "Current (A)", !background),
-    ];
-    Plot::new(id)
-        .width(size.x)
-        .height(size.y)
-        .show_background(background)
-        .show_grid(background)
-        .custom_y_axes(y_axes)
-        .x_axis_label("Time (s)")
+    let width = ui.available_width();
+    let mut plot = Plot::new(strip.id)
+        .width(width)
+        .height(STRIP_HEIGHT)
+        .show_grid(true)
+        .custom_y_axes(y_axis(strip.unit, strip.color))
+        .show_axes([strip.show_time, true])
         .link_axis(link, [true, false])
         .link_cursor(link, [true, false])
         .auto_bounds([false, true])
-        .allow_zoom([false, !background])
-        .allow_drag([false, !background])
-        .allow_scroll([false, !background])
+        .allow_zoom([false, true])
+        .allow_drag([false, true])
+        .allow_scroll([false, true])
         .allow_boxed_zoom(false)
-        .set_margin_fraction(egui::vec2(0.0, 0.08))
-        .show(ui, |plot_ui| {
-            if let Some(time) = time {
-                plot_ui.set_plot_bounds_x(time);
-            }
-            plot_ui.line(Line::new(id, PlotPoints::new(points.to_vec())).color(color).width(1.8));
-        })
-        .transform
-        .frame()
-        .width()
+        .set_margin_fraction(egui::vec2(0.0, 0.08));
+    if strip.show_time {
+        plot = plot.x_axis_label("Time (s)");
+    }
+    plot.show(ui, |plot_ui| {
+        if let Some(time) = time {
+            plot_ui.set_plot_bounds_x(time);
+        }
+        plot_ui.line(
+            Line::new(strip.id, PlotPoints::new(points.to_vec()))
+                .color(strip.color)
+                .width(1.8),
+        );
+    })
+    .transform
+    .frame()
+    .width()
+}
+
+struct Strip {
+    id: &'static str,
+    metric: Metric,
+    color: Color32,
+    unit: &'static str,
+    show_time: bool,
+}
+
+impl Strip {
+    fn new(id: &'static str, metric: Metric, color: Color32, unit: &'static str, show_time: bool) -> Self {
+        Self {
+            id,
+            metric,
+            color,
+            unit,
+            show_time,
+        }
+    }
 }
 
 /// Time span ending at the newest sample. The right edge stays on that sample.
@@ -490,24 +493,29 @@ fn visible_time(samples: &VecDeque<MeasurementSample>, window_secs: f64) -> Opti
     Some((latest - window_secs)..=latest)
 }
 
-fn y_axis<'a>(placement: HPlacement, label: &str, visible: bool) -> AxisHints<'a> {
-    let color = if visible {
-        match placement {
-            HPlacement::Left => VOLTAGE_COLOR,
-            HPlacement::Right => CURRENT_COLOR,
-        }
-    } else {
-        Color32::TRANSPARENT
-    };
-    let hints = AxisHints::new_y()
-        .label(RichText::new(label).color(color))
-        .min_thickness(AXIS_THICKNESS)
-        .placement(placement);
-    if visible {
-        hints
-    } else {
-        hints.formatter(|_, _| String::new())
-    }
+fn y_axis(unit: &str, color: Color32) -> Vec<AxisHints<'static>> {
+    vec![
+        AxisHints::new_y()
+            .label(RichText::new(unit).color(color))
+            .min_thickness(AXIS_THICKNESS)
+            .placement(HPlacement::Left),
+    ]
+}
+
+/// Meter pane, central-panel padding, one Y axis, and `seconds` of plot at 100 px/s.
+fn window_size(seconds: f64) -> [f32; 2] {
+    let plot_inner = (seconds * PIXELS_PER_SECOND) as f32;
+    let width = meter_pane_width() + CENTRAL_PANEL_MARGIN * 2.0 + AXIS_THICKNESS + plot_inner;
+    let height = STRIP_HEIGHT * 3.0 + STRIP_GAP * 2.0 + CENTRAL_PANEL_MARGIN * 2.0;
+    [width, height]
+}
+
+fn initial_window_size() -> [f32; 2] {
+    window_size(INITIAL_SECONDS)
+}
+
+fn minimum_window_size() -> [f32; 2] {
+    window_size(MIN_SECONDS)
 }
 
 fn rate_label(rate: GraphSampleRate) -> &'static str {
@@ -521,7 +529,10 @@ fn rate_label(rate: GraphSampleRate) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{GraphSampleRate, MeterAverage, format_measurement, samples_per_meter_update};
+    use super::{
+        AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, GraphSampleRate, MeterAverage, format_measurement, initial_window_size,
+        meter_pane_width, minimum_window_size, samples_per_meter_update,
+    };
 
     #[test]
     fn meter_decimals_share_one_column() {
@@ -562,5 +573,18 @@ mod tests {
         assert!((voltage - 2.0).abs() < 1e-9);
 
         assert!(meter.push(GraphSampleRate::Sps50, 10.0, 0.0, 0.0).is_none());
+    }
+
+    #[test]
+    fn default_window_shows_eight_seconds_at_100_pixels_per_second() {
+        let [width, height] = initial_window_size();
+        let plot_inner = width - meter_pane_width() - CENTRAL_PANEL_MARGIN * 2.0 - AXIS_THICKNESS;
+        assert_eq!(plot_inner, 800.0);
+        assert_eq!(height, 648.0);
+
+        let [min_width, min_height] = minimum_window_size();
+        let min_plot = min_width - meter_pane_width() - CENTRAL_PANEL_MARGIN * 2.0 - AXIS_THICKNESS;
+        assert_eq!(min_plot, 400.0);
+        assert_eq!(min_height, height);
     }
 }
