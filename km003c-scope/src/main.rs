@@ -31,6 +31,10 @@ const CURRENT_COLOR: Color32 = Color32::from_rgb(90, 170, 255);
 const POWER_COLOR: Color32 = Color32::from_rgb(255, 176, 64);
 const AXIS_THICKNESS: f32 = 100.0;
 const PIXELS_PER_SECOND: f64 = 100.0;
+const MIN_PIXELS_PER_SECOND: f64 = 10.0;
+const MAX_PIXELS_PER_SECOND: f64 = 1_000.0;
+/// How strongly one point of wheel travel changes the time scale.
+const SCROLL_ZOOM_SPEED: f64 = 0.002;
 const INITIAL_SECONDS: f64 = 8.0;
 const MIN_SECONDS: f64 = 4.0;
 const STRIP_HEIGHT: f32 = 200.0;
@@ -81,6 +85,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         streaming: false,
         rate,
         window_secs: INITIAL_SECONDS,
+        pixels_per_second: PIXELS_PER_SECOND,
+        view_end: None,
+        autoscroll: true,
         plot_width: None,
         usb_reset,
     };
@@ -120,6 +127,12 @@ struct ScopeApp {
     streaming: bool,
     rate: GraphSampleRate,
     window_secs: f64,
+    /// Shared horizontal scale of the three strips. The wheel changes this.
+    pixels_per_second: f64,
+    /// Right edge of the visible time window, in seconds.
+    view_end: Option<f64>,
+    /// When set, the strips follow the newest sample.
+    autoscroll: bool,
     /// Inner plot width from the previous frame, in pixels.
     plot_width: Option<f64>,
     usb_reset: bool,
@@ -261,6 +274,9 @@ impl ScopeApp {
             ui.weak(model);
         }
 
+        ui.add_space(8.0);
+        ui.checkbox(&mut self.autoscroll, "Autoscroll");
+
         ui.separator();
         ui.label("Sample rate");
         let previous_rate = self.rate;
@@ -287,11 +303,13 @@ impl ScopeApp {
     }
 
     fn scope(&mut self, ui: &mut egui::Ui) {
+        self.zoom_time_scale(ui);
         self.follow_plot_width();
+        let dragging = self.place_time_window(ui);
         ui.spacing_mut().item_spacing.y = STRIP_GAP;
         let width = ui.available_width();
         let link = ui.id().with("scope_time");
-        let time = visible_time(&self.samples, self.window_secs);
+        let time = visible_time(self.view_end, self.window_secs);
         let strips = [
             Strip::new("scope_voltage", Metric::Voltage, VOLTAGE_COLOR, "V", false),
             Strip::new("scope_current", Metric::SignedCurrent, CURRENT_COLOR, "A", false),
@@ -299,7 +317,10 @@ impl ScopeApp {
         ];
         let mut plot_width = None;
         for strip in strips {
-            let points = series(&self.samples, strip.metric, self.window_secs);
+            let points = match self.view_end {
+                Some(end) => series(&self.samples, strip.metric, end, self.window_secs),
+                None => Vec::new(),
+            };
             ui.allocate_ui(egui::vec2(width, STRIP_HEIGHT), |ui| {
                 let measured = trace_plot(ui, &strip, &points, link, time.clone());
                 plot_width.get_or_insert(f64::from(measured));
@@ -308,14 +329,60 @@ impl ScopeApp {
         if let Some(width) = plot_width {
             self.plot_width = Some(width.max(1.0));
         }
+        if dragging {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+        }
     }
 
-    /// Keep 100 pixels per second. A wider plot then covers more time.
+    /// Wheel over the strips changes pixels per second for every plot.
+    ///
+    /// Scrolling up shows less time, so each second occupies more pixels.
+    fn zoom_time_scale(&mut self, ui: &egui::Ui) {
+        let rect = ui.available_rect_before_wrap();
+        if !ui.rect_contains_pointer(rect) {
+            return;
+        }
+        let scroll = ui.input(|input| input.smooth_scroll_delta.y);
+        if scroll == 0.0 {
+            return;
+        }
+        self.pixels_per_second = zoomed_pixels_per_second(self.pixels_per_second, scroll);
+    }
+
+    /// Keep the current pixels per second. A wider plot then covers more time.
     fn follow_plot_width(&mut self) {
         let Some(plot_width) = self.plot_width else {
             return;
         };
-        self.window_secs = plot_width / PIXELS_PER_SECOND;
+        self.window_secs = plot_width / self.pixels_per_second;
+    }
+
+    /// Dragging moves every strip along time and leaves Autoscroll off.
+    ///
+    /// With Autoscroll on, the right edge stays on the newest sample.
+    fn place_time_window(&mut self, ui: &egui::Ui) -> bool {
+        let rect = ui.available_rect_before_wrap();
+        let (primary_down, delta_x, origin) = ui.input(|input| {
+            (
+                input.pointer.primary_down(),
+                input.pointer.delta().x,
+                input.pointer.press_origin(),
+            )
+        });
+        let drag_started_on_plots = origin.is_some_and(|origin| rect.contains(origin));
+        if primary_down && drag_started_on_plots && delta_x != 0.0 {
+            self.autoscroll = false;
+            let end = self.view_end.unwrap_or(0.0);
+            self.view_end = Some(panned_view_end(end, delta_x, self.pixels_per_second));
+            true
+        } else {
+            if self.autoscroll
+                && let Some(latest) = self.samples.back()
+            {
+                self.view_end = Some(latest.elapsed_seconds());
+            }
+            false
+        }
     }
 }
 
@@ -414,14 +481,14 @@ fn install_meter_font(ctx: &egui::Context) {
     ctx.set_fonts(fonts);
 }
 
-fn series(samples: &VecDeque<MeasurementSample>, metric: Metric, window_secs: f64) -> Vec<[f64; 2]> {
-    let Some(latest) = samples.back().map(|sample| sample.elapsed_seconds()) else {
-        return Vec::new();
-    };
-    let oldest = latest - window_secs;
+fn series(samples: &VecDeque<MeasurementSample>, metric: Metric, view_end: f64, window_secs: f64) -> Vec<[f64; 2]> {
+    let oldest = view_end - window_secs;
     samples
         .iter()
-        .filter(|sample| sample.elapsed_seconds() >= oldest)
+        .filter(|sample| {
+            let elapsed = sample.elapsed_seconds();
+            elapsed >= oldest && elapsed <= view_end
+        })
         .map(|sample| [sample.elapsed_seconds(), metric.value(sample)])
         .collect()
 }
@@ -444,15 +511,17 @@ fn trace_plot(
         .link_axis(link, [true, false])
         .link_cursor(link, [true, false])
         .auto_bounds([false, true])
-        .allow_zoom([false, true])
-        .allow_drag([false, true])
-        .allow_scroll([false, true])
+        .allow_zoom(false)
+        .allow_drag(false)
+        .allow_scroll(false)
+        .allow_axis_zoom_drag(false)
         .allow_boxed_zoom(false)
         .set_margin_fraction(egui::vec2(0.0, 0.08));
     if strip.show_time {
         plot = plot.x_axis_label("Time (s)");
     }
     plot.show(ui, |plot_ui| {
+        plot_ui.set_auto_bounds([false, true]);
         if let Some(time) = time {
             plot_ui.set_plot_bounds_x(time);
         }
@@ -488,9 +557,14 @@ impl Strip {
 }
 
 /// Time span ending at the newest sample. The right edge stays on that sample.
-fn visible_time(samples: &VecDeque<MeasurementSample>, window_secs: f64) -> Option<RangeInclusive<f64>> {
-    let latest = samples.back()?.elapsed_seconds();
-    Some((latest - window_secs)..=latest)
+fn visible_time(view_end: Option<f64>, window_secs: f64) -> Option<RangeInclusive<f64>> {
+    let end = view_end?;
+    Some((end - window_secs)..=end)
+}
+
+/// Dragging right pulls earlier samples into view.
+fn panned_view_end(view_end: f64, drag_x: f32, pixels_per_second: f64) -> f64 {
+    view_end - f64::from(drag_x) / pixels_per_second
 }
 
 fn y_axis(unit: &str, color: Color32) -> Vec<AxisHints<'static>> {
@@ -518,6 +592,12 @@ fn minimum_window_size() -> [f32; 2] {
     window_size(MIN_SECONDS)
 }
 
+/// Scrolling up increases pixels per second. The result stays inside the zoom limits.
+fn zoomed_pixels_per_second(current: f64, scroll_y: f32) -> f64 {
+    let factor = (-f64::from(scroll_y) * SCROLL_ZOOM_SPEED).exp();
+    (current * factor).clamp(MIN_PIXELS_PER_SECOND, MAX_PIXELS_PER_SECOND)
+}
+
 fn rate_label(rate: GraphSampleRate) -> &'static str {
     match rate {
         GraphSampleRate::Sps2 => "2 / s",
@@ -530,8 +610,9 @@ fn rate_label(rate: GraphSampleRate) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, GraphSampleRate, MeterAverage, format_measurement, initial_window_size,
-        meter_pane_width, minimum_window_size, samples_per_meter_update,
+        AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, GraphSampleRate, MAX_PIXELS_PER_SECOND, MIN_PIXELS_PER_SECOND,
+        MeterAverage, PIXELS_PER_SECOND, format_measurement, initial_window_size, meter_pane_width,
+        minimum_window_size, panned_view_end, samples_per_meter_update, zoomed_pixels_per_second,
     };
 
     #[test]
@@ -586,5 +667,27 @@ mod tests {
         let min_plot = min_width - meter_pane_width() - CENTRAL_PANEL_MARGIN * 2.0 - AXIS_THICKNESS;
         assert_eq!(min_plot, 400.0);
         assert_eq!(min_height, height);
+    }
+
+    #[test]
+    fn mouse_wheel_changes_pixels_per_second_for_the_whole_scope() {
+        let zoomed_in = zoomed_pixels_per_second(PIXELS_PER_SECOND, -100.0);
+        let zoomed_out = zoomed_pixels_per_second(PIXELS_PER_SECOND, 100.0);
+        assert!(zoomed_in > PIXELS_PER_SECOND);
+        assert!(zoomed_out < PIXELS_PER_SECOND);
+        assert_eq!(
+            zoomed_pixels_per_second(MAX_PIXELS_PER_SECOND, -1_000.0),
+            MAX_PIXELS_PER_SECOND
+        );
+        assert_eq!(
+            zoomed_pixels_per_second(MIN_PIXELS_PER_SECOND, 1_000.0),
+            MIN_PIXELS_PER_SECOND
+        );
+    }
+
+    #[test]
+    fn dragging_moves_all_strips_along_time() {
+        assert_eq!(panned_view_end(10.0, 100.0, 100.0), 9.0);
+        assert_eq!(panned_view_end(10.0, -50.0, 100.0), 10.5);
     }
 }
