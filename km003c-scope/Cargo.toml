@@ -1,0 +1,24 @@
+[package]
+name = "km003c-scope"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Simple time-domain scope for the ChargerLAB POWER-Z KM003C"
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "km003c-scope"
+path = "src/main.rs"
+
+[dependencies]
+km003c-lib = { workspace = true }
+egui_plot = "0.37.0"
+tracing.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+eframe = "0.36.2"
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+tracing-subscriber.workspace = true
