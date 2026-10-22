@@ -7,6 +7,7 @@
 use std::collections::VecDeque;
 use std::ops::RangeInclusive;
 use std::time::Duration;
+use std::time::Instant;
 
 use eframe::egui;
 use eframe::egui::Color32;
@@ -21,8 +22,17 @@ use km003c_lib::GraphSampleRate;
 use km003c_lib::MeasurementAccumulator;
 use km003c_lib::MeasurementSample;
 use km003c_lib::Metric;
+use km003c_lib::PdConnectionTracker;
+use km003c_lib::PdContract;
+use km003c_lib::PdEvent;
+use km003c_lib::PdEventData;
+use km003c_lib::PdLogger;
+use km003c_lib::PdStatus;
 use km003c_lib::Session;
 use km003c_lib::SessionEvent;
+use km003c_lib::pd_log::format_pdo;
+use km003c_lib::uom::si::electric_current::ampere;
+use km003c_lib::uom::si::electric_potential::volt;
 use km003c_lib::uom::si::frequency::hertz;
 use tokio::sync::mpsc;
 use tracing::info;
@@ -96,6 +106,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         status: "Connecting...".to_string(),
         device: None,
         device_info_open: false,
+        pd: PdView::default(),
+        pd_info_open: false,
         connected: false,
         streaming: false,
         rate,
@@ -143,6 +155,9 @@ struct ScopeApp {
     status: String,
     device: Option<DeviceState>,
     device_info_open: bool,
+    /// Negotiated USB PD contract and the latest CC measurements.
+    pd: PdView,
+    pd_info_open: bool,
     connected: bool,
     streaming: bool,
     rate: GraphSampleRate,
@@ -178,6 +193,7 @@ impl eframe::App for ScopeApp {
             .show(ui, |ui| self.side(ui));
         egui::CentralPanel::default().show(ui, |ui| self.scope(ui));
         self.device_info_dialog(ui.ctx());
+        self.pd_info_dialog(ui.ctx());
     }
 }
 
@@ -191,6 +207,7 @@ impl ScopeApp {
                 SessionEvent::Connected(state) => {
                     self.connected = true;
                     self.device = Some((*state).clone());
+                    self.pd.device_reconnected();
                     self.status = "Connected".to_string();
                 }
                 SessionEvent::ConnectionFailed { error, .. } => {
@@ -237,9 +254,9 @@ impl ScopeApp {
                     self.mark_disconnected();
                     self.status = "Disconnected".to_string();
                 }
-                SessionEvent::PdEvents(_)
-                | SessionEvent::PdStatusUpdate(_)
-                | SessionEvent::PdTrace(_)
+                SessionEvent::PdEvents(events) => self.pd.observe_events(&events),
+                SessionEvent::PdStatusUpdate(status) => self.pd.observe_status(status),
+                SessionEvent::PdTrace(_)
                 | SessionEvent::OfflineCatalog(_)
                 | SessionEvent::OfflineLogDownloaded(_)
                 | SessionEvent::OfflineOperationFailed(_) => {}
@@ -253,6 +270,8 @@ impl ScopeApp {
         self.streaming = false;
         self.device = None;
         self.device_info_open = false;
+        self.pd_info_open = false;
+        self.pd.reset();
         self.voltage = None;
         self.current = None;
         self.power = None;
@@ -302,12 +321,20 @@ impl ScopeApp {
         }
 
         ui.add_space(8.0);
-        if ui
-            .add_enabled(self.device.is_some(), egui::Button::new("Device Info"))
-            .clicked()
-        {
-            self.device_info_open = true;
-        }
+        ui.horizontal(|ui| {
+            if ui
+                .add_enabled(self.device.is_some(), egui::Button::new("Device Info"))
+                .clicked()
+            {
+                self.device_info_open = true;
+            }
+            if ui
+                .add_enabled(self.device.is_some(), egui::Button::new("PD Info"))
+                .clicked()
+            {
+                self.pd_info_open = true;
+            }
+        });
 
         ui.add_space(8.0);
         ui.checkbox(&mut self.autoscroll, "Autoscroll");
@@ -363,6 +390,48 @@ impl ScopeApp {
                         row("UUID", &device.info.uuid);
                         row("Hardware ID", &device.hardware_id.to_string());
                     });
+            });
+    }
+
+    fn pd_info_dialog(&mut self, ctx: &egui::Context) {
+        if self.device.is_none() {
+            self.pd_info_open = false;
+            return;
+        }
+        let sink = sink_label(self.pd.tracker.connected());
+        let mode = self.pd.contract.to_string();
+        let status = self.pd.status;
+        let offered = self.pd.offered_modes();
+        egui::Window::new("PD Info")
+            .open(&mut self.pd_info_open)
+            .collapsible(false)
+            .resizable(false)
+            .default_pos(egui::pos2(64.0, 64.0))
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
+                    egui::Grid::new("pd_info").num_columns(2).striped(true).show(ui, |ui| {
+                        let mut row = |label: &str, value: &str| {
+                            ui.label(label);
+                            ui.label(if value.is_empty() { "—" } else { value });
+                            ui.end_row();
+                        };
+                        row("Sink", sink);
+                        row("Mode", &mode);
+                        if let Some(status) = status {
+                            row("VBUS", &format!("{:.3} V", status.vbus.get::<volt>()));
+                            row("IBUS", &format!("{:.3} A", status.ibus.get::<ampere>()));
+                            row("CC1", &format!("{:.3} V", status.cc1.get::<volt>()));
+                            row("CC2", &format!("{:.3} V", status.cc2.get::<volt>()));
+                        }
+                        if offered.is_empty() {
+                            row("Offered", "—");
+                        } else {
+                            for (index, offer) in offered.iter().enumerate() {
+                                row(if index == 0 { "Offered" } else { "" }, offer);
+                            }
+                        }
+                    });
+                });
             });
     }
 
@@ -424,7 +493,7 @@ impl ScopeApp {
     /// right edge. Otherwise the time under the pointer stays where it is.
     fn zoom_time_scale(&mut self, ui: &egui::Ui) {
         let rect = ui.available_rect_before_wrap();
-        if !ui.rect_contains_pointer(rect) {
+        if !ui.rect_contains_pointer(rect) || pointer_over_floating_window(ui) {
             return;
         }
         let (scroll, pointer_x) =
@@ -762,6 +831,70 @@ impl Strip {
     }
 }
 
+/// Negotiated USB PD state collected while the meter is streaming.
+#[derive(Default)]
+struct PdView {
+    logger: PdLogger,
+    tracker: PdConnectionTracker,
+    contract: PdContract,
+    status: Option<PdStatus>,
+}
+
+impl PdView {
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    /// A new connection missed any negotiation that already finished.
+    fn device_reconnected(&mut self) {
+        self.logger.reset();
+        self.tracker = PdConnectionTracker::default();
+        self.contract.device_reconnected();
+        self.status = None;
+    }
+
+    fn observe_events(&mut self, events: &[PdEvent]) {
+        let now = Instant::now();
+        for event in events {
+            match &event.data {
+                PdEventData::Connect => self.tracker.observe_event(true, now),
+                PdEventData::Disconnect => self.tracker.observe_event(false, now),
+                PdEventData::PdMessage { .. } => {}
+            }
+            let entry = self.logger.log_event(event);
+            self.contract.observe(&entry);
+        }
+    }
+
+    fn observe_status(&mut self, status: PdStatus) {
+        let now = Instant::now();
+        self.tracker.observe_status(&status, now);
+        self.tracker.update(now);
+        self.contract.observe_sink(self.tracker.connected());
+        self.status = Some(status);
+    }
+
+    fn offered_modes(&self) -> Vec<String> {
+        let Some(capabilities) = self.logger.source_capabilities() else {
+            return Vec::new();
+        };
+        capabilities
+            .pdos()
+            .iter()
+            .enumerate()
+            .map(|(index, pdo)| format!("{}: {}", index + 1, format_pdo(pdo)))
+            .collect()
+    }
+}
+
+fn sink_label(connected: Option<bool>) -> &'static str {
+    match connected {
+        Some(true) => "Attached",
+        Some(false) => "Not attached",
+        None => "Detecting",
+    }
+}
+
 /// Autoscaled Y range. A wider trace keeps its own span.
 fn y_axis_range(points: &[[f64; 2]], extra: Option<f64>, metric: Metric) -> Option<RangeInclusive<f64>> {
     let mut min_y = f64::INFINITY;
@@ -814,6 +947,15 @@ fn panned_view_end(view_end: f64, drag_x: f32, pixels_per_second: f64) -> f64 {
 /// The root UI is a background layer that covers the strips. Floating windows sit above it.
 fn layer_covers_plots(order: egui::Order) -> bool {
     order != egui::Order::Background
+}
+
+/// Wheel and drag over a dialog belong to that dialog.
+fn pointer_over_floating_window(ui: &egui::Ui) -> bool {
+    ui.input(|input| input.pointer.hover_pos()).is_some_and(|pos| {
+        ui.ctx()
+            .layer_id_at(pos)
+            .is_some_and(|layer| layer_covers_plots(layer.order))
+    })
 }
 
 /// A press that starts on a floating window keeps blocking the strips until release.

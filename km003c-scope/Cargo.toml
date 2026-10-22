@@ -14,7 +14,7 @@ name = "km003c-scope"
 path = "src/main.rs"
 
 [dependencies]
-km003c-lib = { workspace = true }
+km003c-lib = { workspace = true, features = ["usbpd"] }
 egui_plot = "0.37.0"
 tracing.workspace = true
 
