@@ -47,6 +47,8 @@ const SPACE_MONO_ADVANCE_EM: f32 = 612.0 / 1000.0;
 const METER_VALUE_FONT_SIZE: f32 = 28.0;
 /// Horizontal inset of egui's side-panel frame, on each side.
 const SIDE_PANEL_INNER_MARGIN: f32 = 8.0;
+/// Padding inside the black meter box, on each side.
+const METER_BOX_MARGIN: f32 = 8.0;
 /// Room egui reserves for the side panel's separator stroke.
 const SIDE_PANEL_SEPARATOR: f32 = 1.0;
 /// Samples kept so a wider window can reveal history that has already scrolled off.
@@ -297,9 +299,17 @@ impl ScopeApp {
     }
 
     fn readings(&self, ui: &mut egui::Ui) {
-        reading(ui, self.voltage, "V", VOLTAGE_COLOR);
-        reading(ui, self.current, "A", CURRENT_COLOR);
-        reading(ui, self.power, "W", POWER_COLOR);
+        egui::Frame::new()
+            .fill(Color32::BLACK)
+            .inner_margin(METER_BOX_MARGIN)
+            .corner_radius(4.0)
+            .show(ui, |ui| {
+                reading(ui, self.voltage, "V", VOLTAGE_COLOR);
+                ui.add_space(12.0);
+                reading(ui, self.current, "A", CURRENT_COLOR);
+                ui.add_space(12.0);
+                reading(ui, self.power, "W", POWER_COLOR);
+            });
     }
 
     fn scope(&mut self, ui: &mut egui::Ui) {
@@ -391,7 +401,6 @@ fn reading(ui: &mut egui::Ui, value: Option<f64>, unit: &str, color: Color32) {
         egui::Label::new(meter_text(format_measurement(value, unit), METER_VALUE_FONT_SIZE).color(color))
             .wrap_mode(egui::TextWrapMode::Extend),
     );
-    ui.add_space(16.0);
 }
 
 /// Sign, two integer digits, and six decimal places, so the points line up.
@@ -406,11 +415,11 @@ fn format_measurement(value: Option<f64>, unit: &str) -> String {
     format!("{number} {unit}")
 }
 
-/// Outer width of the left pane: one meter line, plus the panel frame.
+/// Outer width of the left pane: one meter line, the black box, and the panel frame.
 fn meter_pane_width() -> f32 {
     let columns = format_measurement(Some(-99.99999), "W").chars().count() as f32;
     let text = columns * SPACE_MONO_ADVANCE_EM * METER_VALUE_FONT_SIZE;
-    (text + SIDE_PANEL_INNER_MARGIN * 2.0 + SIDE_PANEL_SEPARATOR).ceil()
+    (text + METER_BOX_MARGIN * 2.0 + SIDE_PANEL_INNER_MARGIN * 2.0 + SIDE_PANEL_SEPARATOR).ceil()
 }
 
 fn meter_text(text: impl Into<String>, size: f32) -> RichText {
@@ -506,7 +515,7 @@ fn trace_plot(
         .width(width)
         .height(STRIP_HEIGHT)
         .show_grid(true)
-        .custom_y_axes(y_axis(strip.unit, strip.color))
+        .custom_y_axes(y_axis())
         .show_axes([strip.show_time, true])
         .link_axis(link, [true, false])
         .link_cursor(link, [true, false])
@@ -520,7 +529,7 @@ fn trace_plot(
     if strip.show_time {
         plot = plot.x_axis_label("Time (s)");
     }
-    plot.show(ui, |plot_ui| {
+    let drawn = plot.show(ui, |plot_ui| {
         plot_ui.set_auto_bounds([false, true]);
         if let Some(time) = time {
             plot_ui.set_plot_bounds_x(time);
@@ -530,10 +539,21 @@ fn trace_plot(
                 .color(strip.color)
                 .width(1.8),
         );
-    })
-    .transform
-    .frame()
-    .width()
+    });
+    paint_upright_unit(ui, strip, *drawn.transform.frame());
+    drawn.transform.frame().width()
+}
+
+/// Upright unit at the left of the strip. The plot's own axis title is rotated.
+fn paint_upright_unit(ui: &egui::Ui, strip: &Strip, frame: egui::Rect) {
+    let galley = ui
+        .painter()
+        .layout_no_wrap(strip.unit.to_owned(), egui::FontId::proportional(18.0), strip.color);
+    let pos = egui::pos2(
+        frame.left() - AXIS_THICKNESS + 8.0,
+        frame.center().y - galley.size().y * 0.5,
+    );
+    ui.painter().galley(pos, galley, strip.color);
 }
 
 struct Strip {
@@ -567,10 +587,9 @@ fn panned_view_end(view_end: f64, drag_x: f32, pixels_per_second: f64) -> f64 {
     view_end - f64::from(drag_x) / pixels_per_second
 }
 
-fn y_axis(unit: &str, color: Color32) -> Vec<AxisHints<'static>> {
+fn y_axis() -> Vec<AxisHints<'static>> {
     vec![
         AxisHints::new_y()
-            .label(RichText::new(unit).color(color))
             .min_thickness(AXIS_THICKNESS)
             .placement(HPlacement::Left),
     ]
