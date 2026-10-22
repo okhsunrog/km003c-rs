@@ -16,6 +16,7 @@ use egui_plot::HPlacement;
 use egui_plot::Line;
 use egui_plot::Plot;
 use egui_plot::PlotPoints;
+use km003c_lib::DeviceState;
 use km003c_lib::GraphSampleRate;
 use km003c_lib::MeasurementAccumulator;
 use km003c_lib::MeasurementSample;
@@ -82,7 +83,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         current: None,
         power: None,
         status: "Connecting...".to_string(),
-        model: None,
+        device: None,
+        device_info_open: false,
         connected: false,
         streaming: false,
         rate,
@@ -124,7 +126,8 @@ struct ScopeApp {
     current: Option<f64>,
     power: Option<f64>,
     status: String,
-    model: Option<String>,
+    device: Option<DeviceState>,
+    device_info_open: bool,
     connected: bool,
     streaming: bool,
     rate: GraphSampleRate,
@@ -151,6 +154,7 @@ impl eframe::App for ScopeApp {
             .exact_size(meter_pane_width())
             .show(ui, |ui| self.side(ui));
         egui::CentralPanel::default().show(ui, |ui| self.scope(ui));
+        self.device_info_dialog(ui.ctx());
     }
 }
 
@@ -163,8 +167,8 @@ impl ScopeApp {
                 }
                 SessionEvent::Connected(state) => {
                     self.connected = true;
-                    self.model = Some(state.model().to_string());
-                    self.status = format!("Connected to {}", state.model());
+                    self.device = Some((*state).clone());
+                    self.status = "Connected".to_string();
                 }
                 SessionEvent::ConnectionFailed { error, .. } => {
                     self.mark_disconnected();
@@ -224,7 +228,8 @@ impl ScopeApp {
     fn mark_disconnected(&mut self) {
         self.connected = false;
         self.streaming = false;
-        self.model = None;
+        self.device = None;
+        self.device_info_open = false;
         self.voltage = None;
         self.current = None;
         self.power = None;
@@ -251,14 +256,17 @@ impl ScopeApp {
         let meter_height = ui.available_height() * 0.5;
         let width = ui.available_width();
         ui.allocate_ui(egui::vec2(width, meter_height), |ui| self.readings(ui));
-        ui.separator();
+        ui.add_space(8.0);
         egui::ScrollArea::vertical()
             .id_salt("controls")
             .show(ui, |ui| self.controls(ui));
     }
 
     fn controls(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Scope");
+        ui.label(self.status.as_str());
+        ui.add_space(8.0);
+        ui.checkbox(&mut self.usb_reset, "USB reset on connect")
+            .on_hover_text("Applied the next time Connect runs. Leave this off on macOS.");
         ui.add_space(8.0);
 
         if self.connected {
@@ -271,15 +279,17 @@ impl ScopeApp {
         }
 
         ui.add_space(8.0);
-        ui.label(self.status.as_str());
-        if let Some(model) = &self.model {
-            ui.weak(model);
+        if ui
+            .add_enabled(self.device.is_some(), egui::Button::new("Device Info"))
+            .clicked()
+        {
+            self.device_info_open = true;
         }
 
         ui.add_space(8.0);
         ui.checkbox(&mut self.autoscroll, "Autoscroll");
 
-        ui.separator();
+        ui.add_space(8.0);
         ui.label("Sample rate");
         let previous_rate = self.rate;
         egui::ComboBox::from_id_salt("sample_rate")
@@ -292,10 +302,42 @@ impl ScopeApp {
         if self.streaming && self.rate != previous_rate {
             let _ = self.session.set_sample_rate(self.rate);
         }
+    }
 
-        ui.add_space(8.0);
-        ui.checkbox(&mut self.usb_reset, "USB reset on connect")
-            .on_hover_text("Applied the next time Connect runs. Leave this off on macOS.");
+    fn device_info_dialog(&mut self, ctx: &egui::Context) {
+        if self.device.is_none() {
+            self.device_info_open = false;
+            return;
+        }
+        let Some(device) = self.device.clone() else {
+            return;
+        };
+        egui::Window::new("Device Info")
+            .open(&mut self.device_info_open)
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                egui::Grid::new("device_info")
+                    .num_columns(2)
+                    .striped(true)
+                    .show(ui, |ui| {
+                        let mut row = |label: &str, value: &str| {
+                            ui.label(label);
+                            ui.label(if value.is_empty() { "—" } else { value });
+                            ui.end_row();
+                        };
+                        row("Model", &device.info.model);
+                        row("Serial", &device.info.serial_id);
+                        row("Firmware", &device.info.fw_version);
+                        row("Firmware date", &device.info.fw_date);
+                        row("Hardware", &device.info.hw_version);
+                        row("Manufactured", &device.info.mfg_date);
+                        row("UUID", &device.info.uuid);
+                        row("Hardware ID", &device.hardware_id.to_string());
+                        row("Auth level", &device.auth_level.to_string());
+                        row("AdcQueue", if device.adcqueue_enabled { "enabled" } else { "disabled" });
+                    });
+            });
     }
 
     fn readings(&self, ui: &mut egui::Ui) {
