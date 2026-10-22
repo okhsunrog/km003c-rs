@@ -396,7 +396,7 @@ impl ScopeApp {
             };
             ui.allocate_ui(egui::vec2(width, STRIP_HEIGHT), |ui| {
                 let cursor = self.cursor_mark(strip.metric);
-                let frame = trace_plot(ui, &strip, &points, link, time.clone(), cursor);
+                let frame = trace_plot(ui, &strip, &points, link, time.clone(), cursor, self.cursor_mode);
                 plot_width.get_or_insert(f64::from(frame.width()));
                 plot_left.get_or_insert(frame.left());
             });
@@ -414,17 +414,34 @@ impl ScopeApp {
 
     /// Wheel over the strips changes pixels per second for every plot.
     ///
-    /// Scrolling up shows less time, so each second occupies more pixels.
+    /// Scrolling up shows less time. Autoscroll keeps the newest sample on the
+    /// right edge. Otherwise the time under the pointer stays where it is.
     fn zoom_time_scale(&mut self, ui: &egui::Ui) {
         let rect = ui.available_rect_before_wrap();
         if !ui.rect_contains_pointer(rect) {
             return;
         }
-        let scroll = ui.input(|input| input.smooth_scroll_delta.y);
+        let (scroll, pointer_x) =
+            ui.input(|input| (input.smooth_scroll_delta.y, input.pointer.latest_pos().map(|pos| pos.x)));
         if scroll == 0.0 {
             return;
         }
-        self.pixels_per_second = zoomed_pixels_per_second(self.pixels_per_second, scroll);
+        let next_scale = zoomed_pixels_per_second(self.pixels_per_second, scroll);
+        if !self.autoscroll
+            && let (Some(pointer_x), Some(end), Some(plot_width), Some(plot_left)) =
+                (pointer_x, self.view_end, self.plot_width, self.plot_left)
+        {
+            self.view_end = Some(zoomed_view_end_at_pointer(
+                pointer_x,
+                plot_left,
+                plot_width,
+                end,
+                self.window_secs,
+                self.pixels_per_second,
+                next_scale,
+            ));
+        }
+        self.pixels_per_second = next_scale;
     }
 
     /// Keep the current pixels per second. A wider plot then covers more time.
@@ -634,6 +651,7 @@ fn trace_plot(
     link: egui::Id,
     time: Option<RangeInclusive<f64>>,
     cursor: Option<CursorMark>,
+    hide_pointer_lines: bool,
 ) -> egui::Rect {
     let width = ui.available_width();
     let mut plot = Plot::new(strip.id)
@@ -651,6 +669,9 @@ fn trace_plot(
         .allow_axis_zoom_drag(false)
         .allow_boxed_zoom(false)
         .set_margin_fraction(egui::vec2(0.0, 0.08));
+    if hide_pointer_lines {
+        plot = plot.cursor_color(Color32::TRANSPARENT);
+    }
     if strip.show_time {
         plot = plot.x_axis_label("Time (s)");
     }
@@ -836,6 +857,22 @@ fn zoomed_pixels_per_second(current: f64, scroll_y: f32) -> f64 {
     (current * factor).clamp(MIN_PIXELS_PER_SECOND, MAX_PIXELS_PER_SECOND)
 }
 
+/// Move the right edge so `pointer_x` still marks the same time at `next_scale`.
+fn zoomed_view_end_at_pointer(
+    pointer_x: f32,
+    plot_left: f32,
+    plot_width: f64,
+    view_end: f64,
+    window_secs: f64,
+    pixels_per_second: f64,
+    next_scale: f64,
+) -> f64 {
+    let anchor = time_at_pointer(pointer_x, plot_left, view_end, window_secs, pixels_per_second);
+    let fraction = (f64::from(pointer_x - plot_left) / plot_width).clamp(0.0, 1.0);
+    let next_window = plot_width / next_scale;
+    anchor + next_window * (1.0 - fraction)
+}
+
 fn rate_label(rate: GraphSampleRate) -> &'static str {
     match rate {
         GraphSampleRate::Sps2 => "2 / s",
@@ -852,6 +889,7 @@ mod tests {
         MeterAverage, PIXELS_PER_SECOND, clamped_cursor, cursor_label_on_left, cursor_value, format_measurement,
         initial_window_size, layer_covers_plots, meter_pane_width, minimum_window_size, panned_view_end,
         pointer_blocks_plots, samples_per_meter_update, time_at_pointer, zoomed_pixels_per_second,
+        zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
@@ -925,6 +963,44 @@ mod tests {
             zoomed_pixels_per_second(MIN_PIXELS_PER_SECOND, 1_000.0),
             MIN_PIXELS_PER_SECOND
         );
+    }
+
+    #[test]
+    fn zoom_without_autoscroll_keeps_the_time_under_the_pointer() {
+        let pointer_x = 500.0;
+        let plot_left = 100.0;
+        let plot_width = 800.0;
+        let view_end = 10.0;
+        let pixels_per_second = 100.0;
+        let window_secs = plot_width / pixels_per_second;
+        let anchor = time_at_pointer(pointer_x, plot_left, view_end, window_secs, pixels_per_second);
+        assert!((anchor - 6.0).abs() < 1e-9);
+
+        let next_scale = 200.0;
+        let next_end = zoomed_view_end_at_pointer(
+            pointer_x,
+            plot_left,
+            plot_width,
+            view_end,
+            window_secs,
+            pixels_per_second,
+            next_scale,
+        );
+        let next_window = plot_width / next_scale;
+        let still_there = time_at_pointer(pointer_x, plot_left, next_end, next_window, next_scale);
+        assert!((still_there - anchor).abs() < 1e-9);
+
+        let on_the_right = plot_left + plot_width as f32;
+        let right_end = zoomed_view_end_at_pointer(
+            on_the_right,
+            plot_left,
+            plot_width,
+            view_end,
+            window_secs,
+            pixels_per_second,
+            next_scale,
+        );
+        assert!((right_end - view_end).abs() < 1e-9);
     }
 
     #[test]
