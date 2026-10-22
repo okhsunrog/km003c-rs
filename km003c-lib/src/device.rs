@@ -193,15 +193,13 @@ fn memory_response_size(requested_size: u32) -> usize {
 
 fn append_memory_chunk(buffer: &mut Vec<u8>, chunk: &[u8], expected_size: usize) -> Result<bool, KMError> {
     if chunk.is_empty() {
-        return Err(KMError::Protocol(
-            "Received an empty encrypted memory chunk".to_string(),
-        ));
+        return Err(KMError::Protocol("Received an empty memory chunk".to_string()));
     }
 
     let remaining = expected_size.saturating_sub(buffer.len());
     if chunk.len() > remaining {
         return Err(KMError::Protocol(format!(
-            "Encrypted memory response exceeded expected size: expected {expected_size} bytes, got at least {}",
+            "Memory response exceeded expected size: expected {expected_size} bytes, got at least {}",
             buffer.len() + chunk.len()
         )));
     }
@@ -210,18 +208,24 @@ fn append_memory_chunk(buffer: &mut Vec<u8>, chunk: &[u8], expected_size: usize)
     Ok(buffer.len() == expected_size)
 }
 
-fn decrypt_memory_response(encrypted: &[u8], requested_size: u32) -> Result<Vec<u8>, KMError> {
+fn decode_memory_response(bytes: &[u8], requested_size: u32, encrypted: bool) -> Result<Vec<u8>, KMError> {
+    // Transfers are padded to AES blocks even when the confirmation marks
+    // their contents as plaintext.
     let expected_size = memory_response_size(requested_size);
-    if encrypted.len() != expected_size {
+    if bytes.len() != expected_size {
         return Err(KMError::Protocol(format!(
-            "Encrypted memory response has the wrong size: expected {expected_size} bytes, got {}",
-            encrypted.len()
+            "Memory response has the wrong size: expected {expected_size} bytes, got {}",
+            bytes.len()
         )));
     }
 
-    let mut decrypted = crate::auth::aes_ecb_decrypt_blocks(encrypted, crate::auth::MEMORY_READ_KEY)?;
-    decrypted.truncate(requested_size as usize);
-    Ok(decrypted)
+    if encrypted {
+        let mut decrypted = crate::auth::aes_ecb_decrypt_blocks(bytes, crate::auth::MEMORY_READ_KEY)?;
+        decrypted.truncate(requested_size as usize);
+        Ok(decrypted)
+    } else {
+        Ok(bytes[..requested_size as usize].to_vec())
+    }
 }
 
 fn validate_memory_read_confirmation(
@@ -229,7 +233,7 @@ fn validate_memory_read_confirmation(
     expected_id: u8,
     expected_address: u32,
     expected_size: u32,
-) -> Result<(), KMError> {
+) -> Result<bool, KMError> {
     let RawPacket::SimpleData { header, payload } = packet else {
         return Err(KMError::Protocol(
             "MemoryRead confirmation has an unexpected packet layout".to_string(),
@@ -271,7 +275,11 @@ fn validate_memory_read_confirmation(
         )));
     }
 
-    Ok(())
+    // Bit 0 of byte 2 in the confirmation indicates AES-encrypted data.
+    // Current KM003C firmware returns ordinary info and calibration blocks
+    // as plaintext; blindly decrypting those blocks produces plausible-sized
+    // garbage and then authenticates with a false hardware ID.
+    Ok(header.into_bytes()[2] & 1 != 0)
 }
 
 /// Transfer type for USB communication
@@ -903,26 +911,30 @@ impl KM003C {
         }
     }
 
-    /// Read the unframed ciphertext that follows a MemoryRead confirmation.
+    /// Read the unframed data that follows a MemoryRead confirmation.
     ///
-    /// These transfers carry no header and AES ciphertext is indistinguishable
+    /// These transfers carry no header. Encrypted responses are indistinguishable
     /// from a protocol frame, so nothing else may be in flight while they are
     /// read. [`Self::read_memory_block`] enforces that precondition.
-    async fn receive_memory_read_data_exact(&mut self, requested_size: u32) -> Result<Vec<u8>, KMError> {
+    async fn receive_memory_read_data_exact(
+        &mut self,
+        requested_size: u32,
+        encrypted: bool,
+    ) -> Result<Vec<u8>, KMError> {
         let expected_size = memory_response_size(requested_size);
         if expected_size == 0 {
             return Ok(Vec::new());
         }
 
-        let mut encrypted = Vec::with_capacity(expected_size);
-        while encrypted.len() < expected_size {
+        let mut data = Vec::with_capacity(expected_size);
+        while data.len() < expected_size {
             let chunk = self.read_raw_from_usb().await?;
-            if append_memory_chunk(&mut encrypted, &chunk, expected_size)? {
+            if append_memory_chunk(&mut data, &chunk, expected_size)? {
                 break;
             }
         }
 
-        decrypt_memory_response(&encrypted, requested_size)
+        decode_memory_response(&data, requested_size, encrypted)
     }
 
     /// Request data with a specific attribute set
@@ -1224,11 +1236,11 @@ impl KM003C {
         Ok(result)
     }
 
-    /// Read an encrypted memory block from the device
+    /// Read a memory block from the device
     ///
     /// Sends a MemoryRead request, receives the confirmation, then receives
-    /// and decrypts the actual data. Returns exactly `size` decrypted bytes;
-    /// AES block padding received from the device is removed.
+    /// the data. The confirmation flags whether the response must be decrypted.
+    /// Returns exactly `size` bytes; transport padding is removed.
     ///
     /// # Errors
     ///
@@ -1253,8 +1265,8 @@ impl KM003C {
         let confirmation = RawPacket::try_from(Bytes::from(confirmation))?;
         match confirmation.packet_type() {
             PacketType::MemoryRead => {
-                validate_memory_read_confirmation(&confirmation, id, address, size)?;
-                self.receive_memory_read_data_exact(size).await
+                let encrypted = validate_memory_read_confirmation(&confirmation, id, address, size)?;
+                self.receive_memory_read_data_exact(size, encrypted).await
             }
             PacketType::Rejected => Err(KMError::Protocol(format!("MemoryRead at 0x{address:08X} was rejected"))),
             PacketType::NotReadable => Err(KMError::Protocol(format!(
@@ -1370,6 +1382,25 @@ impl KM003C {
         Ok(())
     }
 
+    /// Change the ADC stream rate, stopping the previous graph session first.
+    ///
+    /// A fresh `StartGraph` request resets the device's sequence timeline, so
+    /// callers that integrate samples should also reset their continuity state.
+    pub async fn set_graph_sample_rate(&mut self, rate: GraphSampleRate) -> Result<(), KMError> {
+        if self.graph_sample_rate == Some(rate) {
+            return Ok(());
+        }
+        if self.graph_sample_rate.is_some() {
+            self.stop_graph_mode().await?;
+        }
+        self.start_graph_mode(rate).await
+    }
+
+    /// Rate selected for the current authenticated ADC stream.
+    pub fn graph_sample_rate(&self) -> Option<GraphSampleRate> {
+        self.graph_sample_rate
+    }
+
     /// Stop AdcQueue graph/streaming mode
     ///
     /// **Requires Full mode** (vendor interface). Will return error in Basic mode.
@@ -1461,7 +1492,7 @@ mod tests {
     #[test]
     fn decrypted_memory_response_is_trimmed_to_the_requested_size() {
         let ciphertext = crate::auth::build_memory_read_payload(0x4001_0450, 12);
-        let decrypted = decrypt_memory_response(&ciphertext[..16], 12).unwrap();
+        let decrypted = decode_memory_response(&ciphertext[..16], 12, true).unwrap();
 
         assert_eq!(decrypted.len(), 12);
         assert_eq!(&decrypted[..4], &0x4001_0450_u32.to_le_bytes());
@@ -1471,7 +1502,31 @@ mod tests {
 
     #[test]
     fn decrypted_memory_response_rejects_an_incorrect_ciphertext_size() {
-        assert!(decrypt_memory_response(&[0; 32], 12).is_err());
+        assert!(decode_memory_response(&[0; 32], 12, true).is_err());
+    }
+
+    #[test]
+    fn current_firmware_plaintext_memory_is_not_decrypted() {
+        // Firmware 2.0.5 returned this unencrypted 0x420 block. Its 0xc4
+        // confirmation has byte 2 bit 0 clear. A 12-byte hardware-ID read
+        // also returns one padded 16-byte transfer.
+        let confirmation = hex::decode("c40100012004000040000000ffffffff1b8c1b24").unwrap();
+        let packet = RawPacket::try_from(Bytes::from(confirmation)).unwrap();
+        assert!(!validate_memory_read_confirmation(&packet, 1, 0x420, 64).unwrap());
+
+        let hardware_id = b"89PSCP\x06\xff5,\xff\xff\0\0\0\0";
+        assert_eq!(
+            decode_memory_response(hardware_id, 12, false).unwrap(),
+            &hardware_id[..12]
+        );
+    }
+
+    #[test]
+    fn memory_confirmation_encryption_flag_controls_decryption() {
+        let mut confirmation = hex::decode("c40100012004000040000000ffffffff1b8c1b24").unwrap();
+        confirmation[2] = 1;
+        let packet = RawPacket::try_from(Bytes::from(confirmation)).unwrap();
+        assert!(validate_memory_read_confirmation(&packet, 1, 0x420, 64).unwrap());
     }
 
     #[test]

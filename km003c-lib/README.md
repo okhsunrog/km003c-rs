@@ -15,6 +15,9 @@ the final charge and energy accumulators, and returns typed `uom` samples.
 Normal vendor initialization authenticates with the device HardwareID at
 level 1. `KM003C::authenticate_calibration()` safely reads the firmware-selected
 calibration credential and requests level 2 without writing device memory.
+Firmware 2.0.5 returns device-info and hardware-ID memory as plaintext; the
+library reads the confirmation flag and decrypts only encrypted responses.
+For a live rate change, use `KM003C::set_graph_sample_rate()`.
 
 `KM003C::request_settings()` validates both persisted settings-block checksums
 and exposes only firmware-confirmed fields semantically. Unknown bytes remain
@@ -24,6 +27,8 @@ settings writes.
 Enable the optional `usbpd` feature to turn captured PD wire frames into typed
 USB PD messages. `PdSessionDecoder` retains Source Capabilities state for
 subsequent Request messages and reassembles chunked EPR Source Capabilities.
+Source Capabilities must be observed during a PD exchange; connecting the
+library after negotiation does not provide a historical list of charger modes.
 Firmware Type-C and protocol-engine traces are available separately as a typed
 `PdTrace` containing `PdTraceStateEvent` and `PdTraceProtocolEvent` values.
 Unknown codes remain available losslessly for firmware variants that have not
