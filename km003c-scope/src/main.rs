@@ -36,6 +36,11 @@ const MIN_PIXELS_PER_SECOND: f64 = 10.0;
 const MAX_PIXELS_PER_SECOND: f64 = 1_000.0;
 /// How strongly one point of wheel travel changes the time scale.
 const SCROLL_ZOOM_SPEED: f64 = 0.002;
+/// Pixels of clear space between the cursor line and its readout.
+const CURSOR_LABEL_GAP: f64 = 6.0;
+/// Flip the readout to the left of the line when fewer pixels remain on the right.
+const CURSOR_LABEL_MARGIN: f64 = 110.0;
+const CURSOR_LABEL_SIZE: f32 = 16.0;
 const INITIAL_SECONDS: f64 = 8.0;
 const MIN_SECONDS: f64 = 4.0;
 const STRIP_HEIGHT: f32 = 200.0;
@@ -92,7 +97,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pixels_per_second: PIXELS_PER_SECOND,
         view_end: None,
         autoscroll: true,
+        cursor_mode: false,
+        cursor_time: None,
         plot_width: None,
+        plot_left: None,
         usb_reset,
     };
 
@@ -138,8 +146,14 @@ struct ScopeApp {
     view_end: Option<f64>,
     /// When set, the strips follow the newest sample.
     autoscroll: bool,
+    /// Dragging moves a time cursor instead of the traces.
+    cursor_mode: bool,
+    /// Cursor position on the shared time axis, in seconds.
+    cursor_time: Option<f64>,
     /// Inner plot width from the previous frame, in pixels.
     plot_width: Option<f64>,
+    /// Screen position of the inner plot's left edge, from the previous frame.
+    plot_left: Option<f32>,
     usb_reset: bool,
 }
 
@@ -288,6 +302,11 @@ impl ScopeApp {
 
         ui.add_space(8.0);
         ui.checkbox(&mut self.autoscroll, "Autoscroll");
+        let cursor_was_off = !self.cursor_mode;
+        ui.checkbox(&mut self.cursor_mode, "Cursor");
+        if self.cursor_mode && cursor_was_off {
+            self.cursor_time = self.view_end.map(|end| end - self.window_secs * 0.5);
+        }
 
         ui.add_space(8.0);
         ui.label("Sample rate");
@@ -334,8 +353,6 @@ impl ScopeApp {
                         row("Manufactured", &device.info.mfg_date);
                         row("UUID", &device.info.uuid);
                         row("Hardware ID", &device.hardware_id.to_string());
-                        row("Auth level", &device.auth_level.to_string());
-                        row("AdcQueue", if device.adcqueue_enabled { "enabled" } else { "disabled" });
                     });
             });
     }
@@ -368,18 +385,24 @@ impl ScopeApp {
             Strip::new("scope_power", Metric::SignedPower, POWER_COLOR, "W", true),
         ];
         let mut plot_width = None;
+        let mut plot_left = None;
         for strip in strips {
             let points = match self.view_end {
                 Some(end) => series(&self.samples, strip.metric, end, self.window_secs),
                 None => Vec::new(),
             };
             ui.allocate_ui(egui::vec2(width, STRIP_HEIGHT), |ui| {
-                let measured = trace_plot(ui, &strip, &points, link, time.clone());
-                plot_width.get_or_insert(f64::from(measured));
+                let cursor = self.cursor_mark(strip.metric);
+                let frame = trace_plot(ui, &strip, &points, link, time.clone(), cursor);
+                plot_width.get_or_insert(f64::from(frame.width()));
+                plot_left.get_or_insert(frame.left());
             });
         }
         if let Some(width) = plot_width {
             self.plot_width = Some(width.max(1.0));
+        }
+        if let Some(left) = plot_left {
+            self.plot_left = Some(left);
         }
         if dragging {
             ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
@@ -411,30 +434,65 @@ impl ScopeApp {
 
     /// Dragging moves every strip along time and leaves Autoscroll off.
     ///
+    /// Cursor mode keeps Autoscroll. The marker sits on the time under the pointer.
     /// With Autoscroll on, the right edge stays on the newest sample.
     fn place_time_window(&mut self, ui: &egui::Ui) -> bool {
         let rect = ui.available_rect_before_wrap();
-        let (primary_down, delta_x, origin) = ui.input(|input| {
+        let (primary_down, delta_x, origin, pointer_x) = ui.input(|input| {
             (
                 input.pointer.primary_down(),
                 input.pointer.delta().x,
                 input.pointer.press_origin(),
+                input.pointer.latest_pos().map(|pos| pos.x),
             )
         });
         let drag_started_on_plots = origin.is_some_and(|origin| rect.contains(origin));
-        if primary_down && drag_started_on_plots && delta_x != 0.0 {
+        let placing_cursor = self.cursor_mode && primary_down && drag_started_on_plots;
+        let panning = primary_down && drag_started_on_plots && delta_x != 0.0 && !self.cursor_mode;
+        if self.autoscroll
+            && !panning
+            && let Some(latest) = self.samples.back()
+        {
+            self.view_end = Some(latest.elapsed_seconds());
+        }
+        if placing_cursor {
+            if let (Some(pointer_x), Some(end)) = (pointer_x, self.view_end) {
+                let plot_left = self.plot_left.unwrap_or(rect.left() + AXIS_THICKNESS);
+                self.cursor_time = Some(time_at_pointer(
+                    pointer_x,
+                    plot_left,
+                    end,
+                    self.window_secs,
+                    self.pixels_per_second,
+                ));
+            }
+            return true;
+        }
+        if self.cursor_mode && self.cursor_time.is_none() {
+            self.cursor_time = self.view_end.map(|end| end - self.window_secs * 0.5);
+        }
+        if panning {
             self.autoscroll = false;
             let end = self.view_end.unwrap_or(0.0);
             self.view_end = Some(panned_view_end(end, delta_x, self.pixels_per_second));
-            true
-        } else {
-            if self.autoscroll
-                && let Some(latest) = self.samples.back()
-            {
-                self.view_end = Some(latest.elapsed_seconds());
-            }
-            false
+            return true;
         }
+        false
+    }
+
+    fn cursor_mark(&self, metric: Metric) -> Option<CursorMark> {
+        if !self.cursor_mode {
+            return None;
+        }
+        let time = self.cursor_time?;
+        let label_on_left = self
+            .view_end
+            .is_some_and(|end| cursor_label_on_left(time, end, self.pixels_per_second));
+        Some(CursorMark {
+            time,
+            value: cursor_value(&self.samples, metric, time),
+            label_on_left,
+        })
     }
 }
 
@@ -522,13 +580,27 @@ fn install_meter_font(ctx: &egui::Context) {
             "../fonts/SpaceMono-Regular.ttf"
         ))),
     );
-    let mut family = vec!["Space Mono".to_owned()];
-    if let Some(fallbacks) = fonts.families.get(&egui::FontFamily::Proportional) {
-        family.extend(fallbacks.iter().cloned());
-    }
+    fonts.font_data.insert(
+        "Space Mono Bold".to_owned(),
+        std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
+            "../fonts/SpaceMono-Bold.ttf"
+        ))),
+    );
+    let fallbacks = fonts
+        .families
+        .get(&egui::FontFamily::Proportional)
+        .cloned()
+        .unwrap_or_default();
+    let mut regular = vec!["Space Mono".to_owned()];
+    regular.extend(fallbacks.iter().cloned());
+    let mut bold = vec!["Space Mono Bold".to_owned()];
+    bold.extend(fallbacks);
     fonts
         .families
-        .insert(egui::FontFamily::Name("Space Mono".into()), family);
+        .insert(egui::FontFamily::Name("Space Mono".into()), regular);
+    fonts
+        .families
+        .insert(egui::FontFamily::Name("Space Mono Bold".into()), bold);
     ctx.set_fonts(fonts);
 }
 
@@ -551,7 +623,8 @@ fn trace_plot(
     points: &[[f64; 2]],
     link: egui::Id,
     time: Option<RangeInclusive<f64>>,
-) -> f32 {
+    cursor: Option<CursorMark>,
+) -> egui::Rect {
     let width = ui.available_width();
     let mut plot = Plot::new(strip.id)
         .width(width)
@@ -581,9 +654,40 @@ fn trace_plot(
                 .color(strip.color)
                 .width(1.8),
         );
+        if let Some(cursor) = &cursor {
+            plot_ui.vline(
+                egui_plot::VLine::new(format!("{}-cursor", strip.id), cursor.time)
+                    .color(strip.color)
+                    .width(1.5)
+                    .allow_hover(false),
+            );
+        }
     });
     paint_upright_unit(ui, strip, *drawn.transform.frame());
-    drawn.transform.frame().width()
+    if let Some(cursor) = &cursor {
+        paint_cursor_value(ui, strip, cursor, &drawn.transform);
+    }
+    *drawn.transform.frame()
+}
+
+/// Bold readout at the top of the strip, beside the cursor line.
+fn paint_cursor_value(ui: &egui::Ui, strip: &Strip, cursor: &CursorMark, transform: &egui_plot::PlotTransform) {
+    let Some(value) = cursor.value else {
+        return;
+    };
+    let galley = ui.painter().layout_no_wrap(
+        format!("{value:.3} {}", strip.unit),
+        egui::FontId::new(CURSOR_LABEL_SIZE, egui::FontFamily::Name("Space Mono Bold".into())),
+        strip.color,
+    );
+    let x = transform.position_from_point_x(cursor.time);
+    let text_x = if cursor.label_on_left {
+        x - CURSOR_LABEL_GAP as f32 - galley.size().x
+    } else {
+        x + CURSOR_LABEL_GAP as f32
+    };
+    let pos = egui::pos2(text_x, transform.frame().top() + 4.0);
+    ui.painter().galley(pos, galley, strip.color);
 }
 
 /// Upright unit at the left of the strip. The plot's own axis title is rotated.
@@ -629,6 +733,59 @@ fn panned_view_end(view_end: f64, drag_x: f32, pixels_per_second: f64) -> f64 {
     view_end - f64::from(drag_x) / pixels_per_second
 }
 
+/// Time at a screen position, clamped to the visible window.
+fn time_at_pointer(pointer_x: f32, plot_left: f32, view_end: f64, window_secs: f64, pixels_per_second: f64) -> f64 {
+    let from_left = f64::from(pointer_x - plot_left) / pixels_per_second;
+    clamped_cursor(view_end - window_secs + from_left, view_end, window_secs)
+}
+
+fn clamped_cursor(cursor: f64, view_end: f64, window_secs: f64) -> f64 {
+    cursor.clamp(view_end - window_secs, view_end)
+}
+
+/// Keep the readout inside the strip when the cursor is near the right edge.
+fn cursor_label_on_left(cursor: f64, view_end: f64, pixels_per_second: f64) -> bool {
+    (view_end - cursor) * pixels_per_second < CURSOR_LABEL_MARGIN
+}
+
+/// Curve value at `time`, linearly between the surrounding samples.
+fn cursor_value(samples: &VecDeque<MeasurementSample>, metric: Metric, time: f64) -> Option<f64> {
+    if samples.is_empty() {
+        return None;
+    }
+    let index = samples.partition_point(|sample| sample.elapsed_seconds() < time);
+    if index == 0 {
+        return Some(metric.value(&samples[0]));
+    }
+    if index >= samples.len() {
+        return samples.back().map(|sample| metric.value(sample));
+    }
+    let left = &samples[index - 1];
+    let right = &samples[index];
+    Some(interpolated_value(
+        left.elapsed_seconds(),
+        metric.value(left),
+        right.elapsed_seconds(),
+        metric.value(right),
+        time,
+    ))
+}
+
+fn interpolated_value(left_time: f64, left_value: f64, right_time: f64, right_value: f64, time: f64) -> f64 {
+    let span = right_time - left_time;
+    if span <= f64::EPSILON {
+        return left_value;
+    }
+    let mix = ((time - left_time) / span).clamp(0.0, 1.0);
+    left_value + (right_value - left_value) * mix
+}
+
+struct CursorMark {
+    time: f64,
+    value: Option<f64>,
+    label_on_left: bool,
+}
+
 fn y_axis() -> Vec<AxisHints<'static>> {
     vec![
         AxisHints::new_y()
@@ -672,9 +829,13 @@ fn rate_label(rate: GraphSampleRate) -> &'static str {
 mod tests {
     use super::{
         AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, GraphSampleRate, MAX_PIXELS_PER_SECOND, MIN_PIXELS_PER_SECOND,
-        MeterAverage, PIXELS_PER_SECOND, format_measurement, initial_window_size, meter_pane_width,
-        minimum_window_size, panned_view_end, samples_per_meter_update, zoomed_pixels_per_second,
+        MeterAverage, PIXELS_PER_SECOND, clamped_cursor, cursor_label_on_left, cursor_value, format_measurement,
+        initial_window_size, meter_pane_width, minimum_window_size, panned_view_end, samples_per_meter_update,
+        time_at_pointer, zoomed_pixels_per_second,
     };
+    use km003c_lib::MeasurementSample;
+    use km003c_lib::Metric;
+    use std::collections::VecDeque;
 
     #[test]
     fn meter_decimals_share_one_column() {
@@ -750,5 +911,60 @@ mod tests {
     fn dragging_moves_all_strips_along_time() {
         assert_eq!(panned_view_end(10.0, 100.0, 100.0), 9.0);
         assert_eq!(panned_view_end(10.0, -50.0, 100.0), 10.5);
+    }
+
+    #[test]
+    fn cursor_follows_the_pointer_in_time() {
+        assert_eq!(time_at_pointer(100.0, 100.0, 8.0, 8.0, 100.0), 0.0);
+        assert_eq!(time_at_pointer(250.0, 100.0, 8.0, 8.0, 100.0), 1.5);
+        assert_eq!(time_at_pointer(900.0, 100.0, 8.0, 8.0, 100.0), 8.0);
+        assert_eq!(time_at_pointer(40.0, 100.0, 8.0, 8.0, 100.0), 0.0);
+        assert_eq!(time_at_pointer(2_000.0, 100.0, 8.0, 8.0, 100.0), 8.0);
+        assert_eq!(clamped_cursor(9.5, 8.0, 4.0), 8.0);
+        assert_eq!(clamped_cursor(1.0, 8.0, 4.0), 4.0);
+        assert!(cursor_label_on_left(7.5, 8.0, 100.0));
+        assert!(!cursor_label_on_left(4.0, 8.0, 100.0));
+    }
+
+    #[test]
+    fn cursor_reads_the_curve_at_its_time() {
+        let samples = VecDeque::from([
+            voltage_sample(0, 10.0),
+            voltage_sample(1_000_000, 20.0),
+            voltage_sample(2_000_000, 0.0),
+        ]);
+        let at = |time| cursor_value(&samples, Metric::Voltage, time).unwrap();
+        assert!((at(0.5) - 15.0).abs() < 1e-9);
+        assert!((at(-1.0) - 10.0).abs() < 1e-9);
+        assert!((at(3.0) - 0.0).abs() < 1e-9);
+        assert!(cursor_value(&VecDeque::new(), Metric::Voltage, 1.0).is_none());
+    }
+
+    fn voltage_sample(elapsed_us: u64, volts: f64) -> MeasurementSample {
+        MeasurementSample {
+            elapsed_us,
+            sample_index: 0,
+            sequence: 0,
+            marker: 0,
+            sample_rate_hz: 0,
+            missing_samples: 0,
+            gap_duration_us: 0,
+            interpolated: false,
+            cumulative_missing_samples: 0,
+            cumulative_interpolated_duration_us: 0,
+            discarded_sequence_samples: 0,
+            cumulative_discarded_sequence_samples: 0,
+            vbus_uv: (volts * 1_000_000.0) as i64,
+            ibus_ua: 0,
+            power_uw: 0,
+            charge_uah: 0.0,
+            energy_uwh: 0.0,
+            charge_throughput_uah: 0.0,
+            energy_throughput_uwh: 0.0,
+            cc1_uv: 0,
+            cc2_uv: 0,
+            dp_uv: 0,
+            dm_uv: 0,
+        }
     }
 }
