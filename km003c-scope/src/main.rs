@@ -23,6 +23,7 @@ use km003c_lib::MeasurementSample;
 use km003c_lib::Metric;
 use km003c_lib::Session;
 use km003c_lib::SessionEvent;
+use km003c_lib::uom::si::frequency::hertz;
 use tokio::sync::mpsc;
 use tracing::info;
 
@@ -63,6 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         events,
         accumulator: MeasurementAccumulator::default(),
         samples: VecDeque::new(),
+        meter: MeterAverage::default(),
         voltage: None,
         current: None,
         power: None,
@@ -98,6 +100,7 @@ struct ScopeApp {
     events: mpsc::UnboundedReceiver<SessionEvent>,
     accumulator: MeasurementAccumulator,
     samples: VecDeque<MeasurementSample>,
+    meter: MeterAverage,
     voltage: Option<f64>,
     current: Option<f64>,
     power: Option<f64>,
@@ -150,18 +153,27 @@ impl ScopeApp {
                         let Some(measurement) = self.accumulator.push(sample, rate) else {
                             continue;
                         };
-                        self.voltage = Some(Metric::Voltage.value(&measurement));
-                        self.current = Some(Metric::SignedCurrent.value(&measurement));
-                        self.power = Some(Metric::SignedPower.value(&measurement));
                         self.samples.push_back(measurement);
+                        if let Some((voltage, current, power)) = self.meter.push(
+                            rate,
+                            Metric::Voltage.value(&measurement),
+                            Metric::SignedCurrent.value(&measurement),
+                            Metric::SignedPower.value(&measurement),
+                        ) {
+                            self.voltage = Some(voltage);
+                            self.current = Some(current);
+                            self.power = Some(power);
+                        }
                     }
                     self.trim_window();
                 }
                 SessionEvent::StreamingStarted(rate) => {
                     self.streaming = true;
                     self.rate = rate;
-                    self.samples.clear();
+                    // A rate change restarts the device counter. Keep the samples
+                    // and the elapsed time so the new points continue the trace.
                     self.accumulator.reset_continuity();
+                    self.meter.reset();
                     self.status = format!("Streaming at {}", rate_label(rate));
                 }
                 SessionEvent::StreamingStopped => {
@@ -195,6 +207,7 @@ impl ScopeApp {
         self.power = None;
         self.samples.clear();
         self.accumulator = MeasurementAccumulator::default();
+        self.meter.reset();
     }
 
     fn trim_window(&mut self) {
@@ -260,9 +273,9 @@ impl ScopeApp {
     }
 
     fn readings(&self, ui: &mut egui::Ui) {
-        reading(ui, "Voltage", self.voltage, "V", VOLTAGE_COLOR);
-        reading(ui, "Current", self.current, "A", CURRENT_COLOR);
-        reading(ui, "Power", self.power, "W", POWER_COLOR);
+        reading(ui, self.voltage, "V", VOLTAGE_COLOR);
+        reading(ui, self.current, "A", CURRENT_COLOR);
+        reading(ui, self.power, "W", POWER_COLOR);
     }
 
     fn scope(&mut self, ui: &mut egui::Ui) {
@@ -318,8 +331,7 @@ impl ScopeApp {
     }
 }
 
-fn reading(ui: &mut egui::Ui, title: &str, value: Option<f64>, unit: &str, color: Color32) {
-    ui.label(meter_text(title, 14.0).color(color).strong());
+fn reading(ui: &mut egui::Ui, value: Option<f64>, unit: &str, color: Color32) {
     ui.add(
         egui::Label::new(meter_text(format_measurement(value, unit), METER_VALUE_FONT_SIZE).color(color))
             .wrap_mode(egui::TextWrapMode::Extend),
@@ -348,6 +360,52 @@ fn meter_pane_width() -> f32 {
 
 fn meter_text(text: impl Into<String>, size: f32) -> RichText {
     RichText::new(text).font(egui::FontId::new(size, egui::FontFamily::Name("Space Mono".into())))
+}
+
+/// How many samples make one meter update. The display refreshes twice a second:
+/// one sample at 2 SPS, five at 10 SPS, and so on.
+fn samples_per_meter_update(rate: GraphSampleRate) -> u32 {
+    (rate.frequency().get::<hertz>() as u32) / 2
+}
+
+#[derive(Debug, Default)]
+struct MeterAverage {
+    rate: Option<GraphSampleRate>,
+    count: u32,
+    voltage: f64,
+    current: f64,
+    power: f64,
+}
+
+impl MeterAverage {
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    /// Average the next half-second of samples. Returns the mean once the window is full.
+    fn push(&mut self, rate: GraphSampleRate, voltage: f64, current: f64, power: f64) -> Option<(f64, f64, f64)> {
+        if self.rate != Some(rate) {
+            self.rate = Some(rate);
+            self.count = 0;
+            self.voltage = 0.0;
+            self.current = 0.0;
+            self.power = 0.0;
+        }
+        self.voltage += voltage;
+        self.current += current;
+        self.power += power;
+        self.count += 1;
+        if self.count < samples_per_meter_update(rate) {
+            return None;
+        }
+        let count = f64::from(self.count);
+        let averaged = (self.voltage / count, self.current / count, self.power / count);
+        self.count = 0;
+        self.voltage = 0.0;
+        self.current = 0.0;
+        self.power = 0.0;
+        Some(averaged)
+    }
 }
 
 fn install_meter_font(ctx: &egui::Context) {
@@ -463,7 +521,7 @@ fn rate_label(rate: GraphSampleRate) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::format_measurement;
+    use super::{GraphSampleRate, MeterAverage, format_measurement, samples_per_meter_update};
 
     #[test]
     fn meter_decimals_share_one_column() {
@@ -480,5 +538,29 @@ mod tests {
             assert_eq!(text.find('.'), expected.find('.'));
             assert_eq!(text.chars().count(), 12);
         }
+    }
+
+    #[test]
+    fn meter_updates_twice_per_second() {
+        assert_eq!(samples_per_meter_update(GraphSampleRate::Sps2), 1);
+        assert_eq!(samples_per_meter_update(GraphSampleRate::Sps10), 5);
+        assert_eq!(samples_per_meter_update(GraphSampleRate::Sps50), 25);
+        assert_eq!(samples_per_meter_update(GraphSampleRate::Sps1000), 500);
+
+        let mut meter = MeterAverage::default();
+        assert!(meter.push(GraphSampleRate::Sps2, 1.0, 2.0, 3.0).is_some());
+
+        let mut meter = MeterAverage::default();
+        for sample in 0..4 {
+            assert!(
+                meter
+                    .push(GraphSampleRate::Sps10, f64::from(sample), 0.0, 0.0)
+                    .is_none()
+            );
+        }
+        let (voltage, _, _) = meter.push(GraphSampleRate::Sps10, 4.0, 0.0, 0.0).unwrap();
+        assert!((voltage - 2.0).abs() < 1e-9);
+
+        assert!(meter.push(GraphSampleRate::Sps50, 10.0, 0.0, 0.0).is_none());
     }
 }
