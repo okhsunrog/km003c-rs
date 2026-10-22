@@ -49,8 +49,9 @@ const SCROLL_ZOOM_SPEED: f64 = 0.002;
 /// Pixels of clear space between the cursor line and its readout.
 const CURSOR_LABEL_GAP: f64 = 6.0;
 /// Flip the readout to the left of the line when fewer pixels remain on the right.
-const CURSOR_LABEL_MARGIN: f64 = 110.0;
-const CURSOR_LABEL_SIZE: f32 = 16.0;
+const CURSOR_LABEL_MARGIN: f64 = 110.0 * 1.3;
+/// Largest cursor readout. It is 30% larger than the original 16 px and stays in the bold face.
+const CURSOR_LABEL_SIZE: f32 = 16.0 * 1.3;
 const INITIAL_SECONDS: f64 = 8.0;
 const MIN_SECONDS: f64 = 4.0;
 const STRIP_HEIGHT: f32 = 200.0;
@@ -60,8 +61,10 @@ const Y_MARGIN_FRACTION: f64 = 0.08;
 const MIN_VOLTAGE_SPAN: f64 = 0.008;
 /// Smallest autoscaled current and power span: 2 mA and 2 mW.
 const MIN_Y_SPAN: f64 = 0.002;
-/// Gap between the voltage, current, and power strips.
+/// Gap above the voltage strip.
 const STRIP_GAP: f32 = 16.0;
+/// Gap between voltage and current, and between current and power.
+const STRIP_GAP_BETWEEN: f32 = STRIP_GAP * 1.3;
 /// Horizontal and vertical inset of egui's central panel frame.
 const CENTRAL_PANEL_MARGIN: f32 = 8.0;
 /// Space Mono's advance width, in font units per em.
@@ -453,7 +456,8 @@ impl ScopeApp {
         self.zoom_time_scale(ui);
         self.follow_plot_width();
         let dragging = self.place_time_window(ui);
-        ui.spacing_mut().item_spacing.y = STRIP_GAP;
+        ui.spacing_mut().item_spacing.y = STRIP_GAP_BETWEEN;
+        ui.add_space(STRIP_GAP);
         let width = ui.available_width();
         let link = ui.id().with("scope_time");
         let time = visible_time(self.view_end, self.window_secs);
@@ -779,24 +783,63 @@ fn trace_plot(
     *drawn.transform.frame()
 }
 
-/// Bold readout at the top of the strip, beside the cursor line.
+/// Bold readout in the gap above the strip, beside the cursor line.
 fn paint_cursor_value(ui: &egui::Ui, strip: &Strip, cursor: &CursorMark, transform: &egui_plot::PlotTransform) {
     let Some(value) = cursor.value else {
         return;
     };
+    let frame = *transform.frame();
+    let room = (STRIP_GAP_BETWEEN - 2.0).max(1.0);
+    let text = format!("{value:.3} {}", strip.unit);
     let galley = ui.painter().layout_no_wrap(
-        format!("{value:.3} {}", strip.unit),
+        text.clone(),
         egui::FontId::new(CURSOR_LABEL_SIZE, egui::FontFamily::Name("Space Mono Bold".into())),
         strip.color,
     );
+    let font_size = fitted_cursor_font_size(CURSOR_LABEL_SIZE, galley.size().y, room);
+    let galley = if font_size == CURSOR_LABEL_SIZE {
+        galley
+    } else {
+        ui.painter().layout_no_wrap(
+            text,
+            egui::FontId::new(font_size, egui::FontFamily::Name("Space Mono Bold".into())),
+            strip.color,
+        )
+    };
     let x = transform.position_from_point_x(cursor.time);
     let text_x = if cursor.label_on_left {
         x - CURSOR_LABEL_GAP as f32 - galley.size().x
     } else {
         x + CURSOR_LABEL_GAP as f32
     };
-    let pos = egui::pos2(text_x, transform.frame().top() + 4.0);
-    ui.painter().galley(pos, galley, strip.color);
+    let min_x = frame.left();
+    let max_x = (frame.right() - galley.size().x).max(min_x);
+    let gap = cursor_gap_above(strip);
+    let mut text_y = frame.top() - gap + (gap - galley.size().y) * 0.5;
+    if text_y + galley.size().y > frame.top() {
+        text_y = frame.top() - galley.size().y;
+    }
+    ui.ctx()
+        .layer_painter(ui.layer_id())
+        .galley(egui::pos2(text_x.clamp(min_x, max_x), text_y), galley, strip.color);
+}
+
+/// The voltage readout uses the original top gap. The others sit in the wider gaps.
+fn cursor_gap_above(strip: &Strip) -> f32 {
+    if strip.metric == Metric::Voltage {
+        STRIP_GAP
+    } else {
+        STRIP_GAP_BETWEEN
+    }
+}
+
+/// Shrink `size` so a label of `measured_height` fits in `room`.
+fn fitted_cursor_font_size(size: f32, measured_height: f32, room: f32) -> f32 {
+    if measured_height <= room || measured_height <= f32::EPSILON {
+        size
+    } else {
+        size * room / measured_height
+    }
 }
 
 /// Upright unit at the left of the strip. The plot's own axis title is rotated.
@@ -1028,7 +1071,7 @@ fn y_axis() -> Vec<AxisHints<'static>> {
 fn window_size(seconds: f64) -> [f32; 2] {
     let plot_inner = (seconds * PIXELS_PER_SECOND) as f32;
     let width = meter_pane_width() + CENTRAL_PANEL_MARGIN * 2.0 + AXIS_THICKNESS + plot_inner;
-    let height = STRIP_HEIGHT * 3.0 + STRIP_GAP * 2.0 + CENTRAL_PANEL_MARGIN * 2.0;
+    let height = STRIP_HEIGHT * 3.0 + STRIP_GAP + STRIP_GAP_BETWEEN * 2.0 + CENTRAL_PANEL_MARGIN * 2.0;
     [width, height]
 }
 
@@ -1075,10 +1118,11 @@ fn rate_label(rate: GraphSampleRate) -> &'static str {
 mod tests {
     use super::{
         AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, GraphSampleRate, MAX_PIXELS_PER_SECOND, MIN_PIXELS_PER_SECOND,
-        MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage, PIXELS_PER_SECOND, Y_MARGIN_FRACTION, clamped_cursor,
-        cursor_label_on_left, cursor_value, format_measurement, initial_window_size, layer_covers_plots,
-        meter_pane_width, minimum_window_size, panned_view_end, pointer_blocks_plots, samples_per_meter_update,
-        scaled_y_range, time_at_pointer, zoomed_pixels_per_second, zoomed_view_end_at_pointer,
+        MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage, PIXELS_PER_SECOND, STRIP_GAP, STRIP_GAP_BETWEEN, STRIP_HEIGHT,
+        Y_MARGIN_FRACTION, clamped_cursor, cursor_label_on_left, cursor_value, fitted_cursor_font_size,
+        format_measurement, initial_window_size, layer_covers_plots, meter_pane_width, minimum_window_size,
+        panned_view_end, pointer_blocks_plots, samples_per_meter_update, scaled_y_range, time_at_pointer,
+        zoomed_pixels_per_second, zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
@@ -1130,7 +1174,10 @@ mod tests {
         let [width, height] = initial_window_size();
         let plot_inner = width - meter_pane_width() - CENTRAL_PANEL_MARGIN * 2.0 - AXIS_THICKNESS;
         assert_eq!(plot_inner, 800.0);
-        assert_eq!(height, 648.0);
+        assert_eq!(
+            height,
+            STRIP_HEIGHT * 3.0 + STRIP_GAP + STRIP_GAP_BETWEEN * 2.0 + CENTRAL_PANEL_MARGIN * 2.0
+        );
 
         let [min_width, min_height] = minimum_window_size();
         let min_plot = min_width - meter_pane_width() - CENTRAL_PANEL_MARGIN * 2.0 - AXIS_THICKNESS;
@@ -1190,6 +1237,13 @@ mod tests {
             next_scale,
         );
         assert!((right_end - view_end).abs() < 1e-9);
+    }
+
+    #[test]
+    fn cursor_readout_shrinks_to_fit_between_the_plots() {
+        let room = STRIP_GAP_BETWEEN - 2.0;
+        assert!((fitted_cursor_font_size(16.0, 20.0, room) - 16.0 * room / 20.0).abs() < 1e-5);
+        assert_eq!(fitted_cursor_font_size(16.0, 10.0, room), 16.0);
     }
 
     #[test]
