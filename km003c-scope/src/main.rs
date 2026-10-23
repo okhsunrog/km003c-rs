@@ -6,7 +6,7 @@
 
 use std::collections::VecDeque;
 use std::fmt::Write as _;
-use std::ops::RangeInclusive;
+use std::ops::{Range, RangeInclusive};
 use std::time::Duration;
 use std::time::Instant;
 
@@ -85,7 +85,7 @@ const METER_BOX_MARGIN: f32 = 8.0;
 /// Room egui reserves for the side panel's separator stroke.
 const SIDE_PANEL_SEPARATOR: f32 = 1.0;
 /// Samples kept so a wider window can reveal history that has already scrolled off.
-const RETAIN_SECS: f64 = 180.0;
+const RETAIN_SECS: f64 = 30.0 * 60.0;
 const USB_RESET_SUPPORTED: bool = !cfg!(target_os = "windows");
 const RATES: [GraphSampleRate; 4] = [
     GraphSampleRate::Sps2,
@@ -560,6 +560,9 @@ impl ScopeApp {
         let width = ui.available_width();
         let link = ui.id().with("scope_time");
         let time = visible_time(self.view_end, self.window_secs);
+        let visible_samples = self
+            .view_end
+            .map(|end| visible_sample_range(&self.samples, end - self.window_secs, end));
         let strips = [
             Strip::new("scope_voltage", Metric::Voltage, VOLTAGE_COLOR, "V", false),
             Strip::new("scope_current", Metric::SignedCurrent, CURRENT_COLOR, "A", false),
@@ -568,8 +571,8 @@ impl ScopeApp {
         let mut plot_width = None;
         let mut plot_left = None;
         for strip in strips {
-            let points = match self.view_end {
-                Some(end) => series(&self.samples, strip.metric, end, self.window_secs),
+            let points = match &visible_samples {
+                Some(range) => series(&self.samples, strip.metric, range.clone()),
                 None => Vec::new(),
             };
             ui.allocate_ui(egui::vec2(width, STRIP_HEIGHT), |ui| {
@@ -900,14 +903,15 @@ fn install_meter_font(ctx: &egui::Context) {
     ctx.set_fonts(fonts);
 }
 
-fn series(samples: &VecDeque<MeasurementSample>, metric: Metric, view_end: f64, window_secs: f64) -> Vec<[f64; 2]> {
-    let oldest = view_end - window_secs;
+fn visible_sample_range(samples: &VecDeque<MeasurementSample>, start: f64, end: f64) -> Range<usize> {
+    let first = samples.partition_point(|sample| sample.elapsed_seconds() < start);
+    let after_last = samples.partition_point(|sample| sample.elapsed_seconds() <= end);
+    first..after_last
+}
+
+fn series(samples: &VecDeque<MeasurementSample>, metric: Metric, range: Range<usize>) -> Vec<[f64; 2]> {
     samples
-        .iter()
-        .filter(|sample| {
-            let elapsed = sample.elapsed_seconds();
-            elapsed >= oldest && elapsed <= view_end
-        })
+        .range(range)
         .map(|sample| [sample.elapsed_seconds(), metric.value(sample)])
         .collect()
 }
@@ -1339,12 +1343,12 @@ fn rate_label(rate: GraphSampleRate) -> &'static str {
 mod tests {
     use super::{
         AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, GraphSampleRate, MAX_PIXELS_PER_SECOND, MIN_PIXELS_PER_SECOND,
-        MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage, PIXELS_PER_SECOND, STRIP_GAP, STRIP_GAP_BETWEEN, STRIP_HEIGHT,
-        Y_MARGIN_FRACTION, clamped_cursor, cursor_label_on_left, cursor_value, fitted_cursor_font_size,
+        MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage, PIXELS_PER_SECOND, RETAIN_SECS, STRIP_GAP, STRIP_GAP_BETWEEN,
+        STRIP_HEIGHT, Y_MARGIN_FRACTION, clamped_cursor, cursor_label_on_left, cursor_value, fitted_cursor_font_size,
         format_max_power, format_measurement, format_temperature, identity_label, initial_window_size,
         layer_covers_plots, meter_pane_width, minimum_window_size, panned_view_end, pointer_blocks_plots,
-        protocol_label, samples_per_meter_update, scaled_y_range, time_at_pointer, zoomed_pixels_per_second,
-        zoomed_view_end_at_pointer,
+        protocol_label, samples_per_meter_update, scaled_y_range, series, time_at_pointer, visible_sample_range,
+        zoomed_pixels_per_second, zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
@@ -1555,6 +1559,21 @@ mod tests {
         assert!((at(-1.0) - 10.0).abs() < 1e-9);
         assert!((at(3.0) - 0.0).abs() < 1e-9);
         assert!(cursor_value(&VecDeque::new(), Metric::Voltage, 1.0).is_none());
+    }
+
+    #[test]
+    fn plots_only_copy_the_visible_sample_range() {
+        assert_eq!(RETAIN_SECS, 1_800.0);
+        let samples = (0..10)
+            .map(|second| voltage_sample(second * 1_000_000, second as f64))
+            .collect::<VecDeque<_>>();
+
+        let range = visible_sample_range(&samples, 3.0, 6.0);
+        assert_eq!(range, 3..7);
+        assert_eq!(
+            series(&samples, Metric::Voltage, range),
+            vec![[3.0, 3.0], [4.0, 4.0], [5.0, 5.0], [6.0, 6.0]]
+        );
     }
 
     fn voltage_sample(elapsed_us: u64, volts: f64) -> MeasurementSample {
