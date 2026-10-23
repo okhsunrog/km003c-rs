@@ -10,6 +10,10 @@ use std::ops::{Range, RangeInclusive};
 use std::time::Duration;
 use std::time::Instant;
 
+use chrono::DateTime;
+use chrono::Local;
+use chrono::TimeDelta;
+use chrono::Utc;
 use eframe::egui;
 use eframe::egui::Color32;
 use eframe::egui::RichText;
@@ -86,6 +90,7 @@ const EVENT_LANE_HEIGHT: f32 = 32.0;
 const EVENT_LANE_GAP: f32 = 3.0;
 const EVENT_TOOLBAR_HEIGHT: f32 = 30.0;
 const EVENT_EXPLORER_WIDTH: f32 = 260.0;
+const PLOT_TITLE_RIGHT_EDGE: f32 = 42.0;
 /// Horizontal inset of egui's side-panel frame, on each side.
 const SIDE_PANEL_INNER_MARGIN: f32 = 8.0;
 /// Padding inside the black meter box, on each side.
@@ -133,6 +138,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         next_marker_id: 0,
         selected_marker_id: None,
         event_explorer_open: false,
+        host_time_origin_utc: None,
         meter: MeterAverage::default(),
         voltage: None,
         current: None,
@@ -189,6 +195,7 @@ struct ScopeApp {
     next_marker_id: u64,
     selected_marker_id: Option<u64>,
     event_explorer_open: bool,
+    host_time_origin_utc: Option<DateTime<Utc>>,
     meter: MeterAverage,
     voltage: Option<f64>,
     current: Option<f64>,
@@ -312,10 +319,12 @@ impl ScopeApp {
                 }
                 SessionEvent::Samples(samples) => {
                     let rate = self.rate;
+                    let mut newest_elapsed = None;
                     for sample in samples {
                         let Some(measurement) = self.accumulator.push(sample, rate) else {
                             continue;
                         };
+                        newest_elapsed = Some(measurement.elapsed_seconds());
                         self.samples.push_back(measurement);
                         if let Some(reading) = self.meter.push(
                             rate,
@@ -331,6 +340,11 @@ impl ScopeApp {
                             self.cc1 = Some(reading.cc1);
                             self.cc2 = Some(reading.cc2);
                         }
+                    }
+                    if self.host_time_origin_utc.is_none()
+                        && let Some(elapsed_seconds) = newest_elapsed
+                    {
+                        self.host_time_origin_utc = Some(timeline_origin_utc(Utc::now(), elapsed_seconds));
                     }
                     self.trim_window();
                 }
@@ -433,6 +447,7 @@ impl ScopeApp {
         self.samples.clear();
         self.markers.clear();
         self.selected_marker_id = None;
+        self.host_time_origin_utc = None;
         self.accumulator = MeasurementAccumulator::default();
         self.meter.reset();
     }
@@ -591,6 +606,7 @@ impl ScopeApp {
 
         let mut clicked = None;
         let selected_id = self.selected_marker_id;
+        let host_time_origin_utc = self.host_time_origin_utc.as_ref();
         egui::ScrollArea::vertical()
             .id_salt("event_explorer_list")
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
@@ -603,7 +619,11 @@ impl ScopeApp {
                 }
                 for marker in &self.markers {
                     let selected = selected_id == Some(marker.id);
-                    let row = format!("{:>10}  {}", format_event_time(marker.elapsed_seconds), marker.name);
+                    let row = format!(
+                        "{:>12}  {}",
+                        format_event_time(host_time_origin_utc, marker.elapsed_seconds),
+                        marker.name
+                    );
                     let response = ui.selectable_label(
                         selected,
                         RichText::new(row)
@@ -616,7 +636,8 @@ impl ScopeApp {
                     if selected {
                         response.on_hover_ui(|ui| {
                             ui.strong(marker.name);
-                            ui.monospace(format_event_time(marker.elapsed_seconds));
+                            ui.monospace(format_event_full_time(host_time_origin_utc, marker.elapsed_seconds));
+                            ui.monospace(format!("Elapsed: {:.3} s", marker.elapsed_seconds));
                             ui.separator();
                             ui.label(&marker.details);
                         });
@@ -835,6 +856,7 @@ impl ScopeApp {
                         marker_lane,
                         cursor,
                         hide_pointer_lines: self.cursor_mode,
+                        host_time_origin_utc: self.host_time_origin_utc.as_ref(),
                     },
                 );
                 plot_width.get_or_insert(f64::from(frame.width()));
@@ -1179,6 +1201,7 @@ struct TraceOverlay<'a> {
     marker_lane: Option<MarkerLane<'a>>,
     cursor: Option<CursorMark>,
     hide_pointer_lines: bool,
+    host_time_origin_utc: Option<&'a DateTime<Utc>>,
 }
 
 #[derive(Clone, Copy)]
@@ -1213,11 +1236,15 @@ fn trace_plot(
         .allow_axis_zoom_drag(false)
         .allow_boxed_zoom(false)
         .set_margin_fraction(egui::vec2(0.0, Y_MARGIN_FRACTION as f32));
+    let formatter_origin = overlay.host_time_origin_utc.cloned();
+    plot = plot.x_axis_formatter(move |mark, range| {
+        format_axis_time(formatter_origin.as_ref(), mark.value, mark.step_size, range)
+    });
     if overlay.hide_pointer_lines {
         plot = plot.cursor_color(Color32::TRANSPARENT);
     }
     if strip.show_time {
-        plot = plot.x_axis_label("Time (s)");
+        plot = plot.x_axis_label(format_time_axis_label(overlay.host_time_origin_utc, time.as_ref()));
     }
     let drawn = plot.show(ui, |plot_ui| {
         plot_ui.set_auto_bounds([false, true]);
@@ -1320,8 +1347,8 @@ fn paint_event_lane_background(ui: &egui::Ui, rect: egui::Rect) {
     ui.painter()
         .rect_filled(rect, 3.0, ui.visuals().widgets.noninteractive.weak_bg_fill);
     ui.painter().text(
-        egui::pos2(rect.left() + 8.0, rect.center().y),
-        egui::Align2::LEFT_CENTER,
+        egui::pos2(rect.left() + PLOT_TITLE_RIGHT_EDGE, rect.center().y),
+        egui::Align2::RIGHT_CENTER,
         "EVENTS",
         egui::FontId::new(9.0, egui::FontFamily::Name("Space Mono".into())),
         ui.visuals().weak_text_color(),
@@ -1385,14 +1412,13 @@ fn fitted_cursor_font_size(size: f32, measured_height: f32, room: f32) -> f32 {
 
 /// Upright unit at the left of the strip. The plot's own axis title is rotated.
 fn paint_upright_unit(ui: &egui::Ui, strip: &Strip, frame: egui::Rect) {
-    let galley = ui
-        .painter()
-        .layout_no_wrap(strip.unit.to_owned(), egui::FontId::proportional(18.0), strip.color);
-    let pos = egui::pos2(
-        frame.left() - AXIS_THICKNESS + 8.0,
-        frame.center().y - galley.size().y * 0.5,
+    ui.painter().text(
+        egui::pos2(frame.left() - AXIS_THICKNESS + PLOT_TITLE_RIGHT_EDGE, frame.center().y),
+        egui::Align2::RIGHT_CENTER,
+        strip.unit,
+        egui::FontId::proportional(18.0),
+        strip.color,
     );
-    ui.painter().galley(pos, galley, strip.color);
 }
 
 struct Strip {
@@ -1521,8 +1547,77 @@ fn pd_timeline_time(event_device_time: f64, anchor_device_time: f64, anchor_time
     (anchor_timeline_time + event_device_time - anchor_device_time).max(0.0)
 }
 
-fn format_event_time(elapsed_seconds: f64) -> String {
-    format!("{elapsed_seconds:.3}s")
+fn elapsed_delta(elapsed_seconds: f64) -> TimeDelta {
+    TimeDelta::microseconds((elapsed_seconds * 1_000_000.0).round() as i64)
+}
+
+fn timeline_origin_utc(observed_at: DateTime<Utc>, elapsed_seconds: f64) -> DateTime<Utc> {
+    observed_at - elapsed_delta(elapsed_seconds)
+}
+
+fn host_time_utc(origin: &DateTime<Utc>, elapsed_seconds: f64) -> DateTime<Utc> {
+    *origin + elapsed_delta(elapsed_seconds)
+}
+
+fn host_time_local(origin: &DateTime<Utc>, elapsed_seconds: f64) -> DateTime<Local> {
+    host_time_utc(origin, elapsed_seconds).with_timezone(&Local)
+}
+
+fn axis_time_format(visible_span_seconds: f64) -> &'static str {
+    if visible_span_seconds >= 3_600.0 {
+        "%H:%M"
+    } else if visible_span_seconds >= 5.0 {
+        "%H:%M:%S"
+    } else {
+        "%H:%M:%S%.3f"
+    }
+}
+
+fn format_axis_time(
+    origin: Option<&DateTime<Utc>>,
+    elapsed_seconds: f64,
+    step_size: f64,
+    visible_range: &RangeInclusive<f64>,
+) -> String {
+    let Some(origin) = origin else {
+        let decimals = if step_size >= 1.0 { 0 } else { 3 };
+        return format!("{elapsed_seconds:.decimals$}");
+    };
+    let span = (*visible_range.end() - *visible_range.start()).abs();
+    let time = host_time_local(origin, elapsed_seconds);
+    let crosses_date = host_time_local(origin, *visible_range.start()).date_naive()
+        != host_time_local(origin, *visible_range.end()).date_naive();
+    if crosses_date {
+        format!("{} {}", time.format("%m-%d"), time.format(axis_time_format(span)))
+    } else {
+        time.format(axis_time_format(span)).to_string()
+    }
+}
+
+fn format_time_axis_label(origin: Option<&DateTime<Utc>>, visible_range: Option<&RangeInclusive<f64>>) -> String {
+    let (Some(origin), Some(range)) = (origin, visible_range) else {
+        return "Elapsed time (s)".to_string();
+    };
+    let center = (*range.start() + *range.end()) * 0.5;
+    format!("Local time · {}", host_time_local(origin, center).format("%b %d, %Y"))
+}
+
+fn format_event_time(origin: Option<&DateTime<Utc>>, elapsed_seconds: f64) -> String {
+    match origin {
+        Some(origin) => host_time_local(origin, elapsed_seconds)
+            .format("%H:%M:%S%.3f")
+            .to_string(),
+        None => format!("+{elapsed_seconds:.3}s"),
+    }
+}
+
+fn format_event_full_time(origin: Option<&DateTime<Utc>>, elapsed_seconds: f64) -> String {
+    match origin {
+        Some(origin) => host_time_local(origin, elapsed_seconds)
+            .format("%Y-%m-%d %H:%M:%S%.3f %Z")
+            .to_string(),
+        None => format!("Elapsed +{elapsed_seconds:.3} s"),
+    }
 }
 
 fn centered_view_end(event_time: f64, window_secs: f64) -> f64 {
@@ -1748,12 +1843,13 @@ mod tests {
         AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, EVENT_LANE_GAP, EVENT_LANE_HEIGHT, EVENT_TOOLBAR_HEIGHT, GraphSampleRate,
         MAX_PIXELS_PER_SECOND, MIN_PIXELS_PER_SECOND, MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage, PIXELS_PER_SECOND,
         RETAIN_SECS, STRIP_GAP_BETWEEN, STRIP_HEIGHT, TimelineCategory, TimelineMarkerSpec, Y_MARGIN_FRACTION,
-        centered_view_end, clamped_cursor, cursor_label_on_left, cursor_value, explorer_viewport_size,
-        fitted_cursor_font_size, format_event_time, format_max_power, format_measurement, format_temperature,
-        identity_label, initial_window_size, layer_covers_plots, meter_pane_width, minimum_window_size,
-        panned_view_end, pd_timeline_marker, pd_timeline_time, pointer_blocks_plots, protocol_label,
-        samples_per_meter_update, scaled_y_range, series, time_at_pointer, usb_vendor_name, visible_sample_range,
-        zoomed_pixels_per_second, zoomed_view_end_at_pointer,
+        axis_time_format, centered_view_end, clamped_cursor, cursor_label_on_left, cursor_value,
+        explorer_viewport_size, fitted_cursor_font_size, format_axis_time, format_event_time, format_max_power,
+        format_measurement, format_temperature, host_time_utc, identity_label, initial_window_size, layer_covers_plots,
+        meter_pane_width, minimum_window_size, panned_view_end, pd_timeline_marker, pd_timeline_time,
+        pointer_blocks_plots, protocol_label, samples_per_meter_update, scaled_y_range, series, time_at_pointer,
+        timeline_origin_utc, usb_vendor_name, visible_sample_range, zoomed_pixels_per_second,
+        zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
@@ -1839,8 +1935,24 @@ mod tests {
         );
         assert_eq!(pd_timeline_marker(&entry(PdLogCategory::Control, "GoodCRC")), None);
         assert!((pd_timeline_time(105.25, 106.0, 12.0) - 11.25).abs() < 1e-9);
-        assert_eq!(format_event_time(11.25), "11.250s");
+        assert_eq!(format_event_time(None, 11.25), "+11.250s");
         assert_eq!(centered_view_end(11.25, 8.0), 15.25);
+    }
+
+    #[test]
+    fn host_time_axis_uses_adaptive_precision() {
+        assert_eq!(axis_time_format(3_600.0), "%H:%M");
+        assert_eq!(axis_time_format(8.0), "%H:%M:%S");
+        assert_eq!(axis_time_format(2.0), "%H:%M:%S%.3f");
+        assert_eq!(axis_time_format(0.25), "%H:%M:%S%.3f");
+
+        let observed = chrono::DateTime::parse_from_rfc3339("2026-10-22T19:47:12.250Z")
+            .unwrap()
+            .to_utc();
+        let origin = timeline_origin_utc(observed, 11.25);
+        assert_eq!(host_time_utc(&origin, 11.25), observed);
+        assert!(format_event_time(Some(&origin), 11.25).ends_with("12.250"));
+        assert!(format_axis_time(Some(&origin), 11.25, 0.1, &(0.0..=2.0)).ends_with("12.250"));
     }
 
     #[test]

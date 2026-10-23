@@ -2590,6 +2590,7 @@ dependencies = [
 name = "km003c-scope"
 version = "0.4.0"
 dependencies = [
+ "chrono",
  "eframe",
  "egui_plot",
  "km003c-lib",
