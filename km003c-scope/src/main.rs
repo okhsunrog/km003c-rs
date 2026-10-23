@@ -29,6 +29,7 @@ use km003c_lib::PdContractStage;
 use km003c_lib::PdEvent;
 use km003c_lib::PdEventData;
 use km003c_lib::PdIdentity;
+use km003c_lib::PdLogCategory;
 use km003c_lib::PdLogEntry;
 use km003c_lib::PdLogger;
 use km003c_lib::PdRevision;
@@ -40,6 +41,7 @@ use km003c_lib::uom::si::electric_current::ampere;
 use km003c_lib::uom::si::electric_potential::volt;
 use km003c_lib::uom::si::frequency::hertz;
 use km003c_lib::uom::si::thermodynamic_temperature::degree_celsius;
+use km003c_lib::uom::si::time::second;
 use tokio::sync::mpsc;
 use tracing::{debug, info};
 use tracing_subscriber::prelude::*;
@@ -78,6 +80,10 @@ const CENTRAL_PANEL_MARGIN: f32 = 8.0;
 const SPACE_MONO_ADVANCE_EM: f32 = 612.0 / 1000.0;
 const METER_VALUE_FONT_SIZE: f32 = 28.0;
 const STATUS_FONT_SIZE: f32 = 13.0;
+const EVENT_LABEL_SIZE: f32 = 12.0;
+const EVENT_CLUSTER_DISTANCE: f32 = 28.0;
+const EVENT_LANE_HEIGHT: f32 = 32.0;
+const EVENT_LANE_GAP: f32 = 3.0;
 /// Horizontal inset of egui's side-panel frame, on each side.
 const SIDE_PANEL_INNER_MARGIN: f32 = 8.0;
 /// Padding inside the black meter box, on each side.
@@ -121,6 +127,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         events,
         accumulator: MeasurementAccumulator::default(),
         samples: VecDeque::new(),
+        markers: VecDeque::new(),
         meter: MeterAverage::default(),
         voltage: None,
         current: None,
@@ -173,6 +180,7 @@ struct ScopeApp {
     events: mpsc::UnboundedReceiver<SessionEvent>,
     accumulator: MeasurementAccumulator,
     samples: VecDeque<MeasurementSample>,
+    markers: VecDeque<TimelineMarker>,
     meter: MeterAverage,
     voltage: Option<f64>,
     current: Option<f64>,
@@ -207,6 +215,41 @@ struct ScopeApp {
     /// The current press started on a floating window, so it must not pan the strips.
     window_has_pointer: bool,
     usb_reset: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TimelineCategory {
+    Connectivity,
+    Protocol,
+    Warning,
+    Info,
+}
+
+impl TimelineCategory {
+    const fn color(self) -> Color32 {
+        match self {
+            Self::Connectivity => Color32::from_rgb(62, 205, 181),
+            Self::Protocol => Color32::from_rgb(90, 170, 255),
+            Self::Warning => Color32::from_rgb(255, 176, 64),
+            Self::Info => Color32::from_gray(170),
+        }
+    }
+
+    const fn priority(self) -> u8 {
+        match self {
+            Self::Info => 0,
+            Self::Protocol => 1,
+            Self::Connectivity => 2,
+            Self::Warning => 3,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct TimelineMarker {
+    elapsed_seconds: f64,
+    category: TimelineCategory,
+    label: &'static str,
 }
 
 impl eframe::App for ScopeApp {
@@ -270,6 +313,9 @@ impl ScopeApp {
                     self.temperature_c = Some(adc.temperature.get::<degree_celsius>());
                 }
                 SessionEvent::StreamingStarted(rate) => {
+                    if let Some(time) = self.samples.back().map(|sample| sample.elapsed_seconds()) {
+                        self.push_marker(time, TimelineCategory::Info, "RATE");
+                    }
                     self.streaming = true;
                     self.rate = rate;
                     // A rate change restarts the device counter. Keep the samples
@@ -289,7 +335,7 @@ impl ScopeApp {
                     self.mark_disconnected();
                     self.status = "Disconnected".to_string();
                 }
-                SessionEvent::PdEvents(events) => self.pd.observe_events(&events),
+                SessionEvent::PdEvents(events) => self.observe_pd_events(&events),
                 SessionEvent::PdStatusUpdate(status) => self.pd.observe_status(status),
                 SessionEvent::PdTrace(_)
                 | SessionEvent::OfflineCatalog(_)
@@ -297,6 +343,39 @@ impl ScopeApp {
                 | SessionEvent::OfflineOperationFailed(_) => {}
                 _ => {}
             }
+        }
+    }
+
+    fn observe_pd_events(&mut self, events: &[PdEvent]) {
+        let entries = self.pd.observe_events(events);
+        let Some(timeline_anchor) = self.samples.back().map(|sample| sample.elapsed_seconds()) else {
+            return;
+        };
+        let device_anchor = self
+            .pd
+            .status
+            .map(|status| status.timestamp.get::<second>())
+            .or_else(|| events.last().map(|event| event.timestamp.get::<second>()));
+        let Some(device_anchor) = device_anchor else {
+            return;
+        };
+
+        for (event, entry) in events.iter().zip(entries) {
+            let Some((category, label)) = pd_timeline_marker(&entry) else {
+                continue;
+            };
+            let time = pd_timeline_time(event.timestamp.get::<second>(), device_anchor, timeline_anchor);
+            self.push_marker(time, category, label);
+        }
+    }
+
+    fn push_marker(&mut self, elapsed_seconds: f64, category: TimelineCategory, label: &'static str) {
+        if elapsed_seconds.is_finite() {
+            self.markers.push_back(TimelineMarker {
+                elapsed_seconds: elapsed_seconds.max(0.0),
+                category,
+                label,
+            });
         }
     }
 
@@ -314,6 +393,7 @@ impl ScopeApp {
         self.cc2 = None;
         self.temperature_c = None;
         self.samples.clear();
+        self.markers.clear();
         self.accumulator = MeasurementAccumulator::default();
         self.meter.reset();
     }
@@ -329,6 +409,13 @@ impl ScopeApp {
             .is_some_and(|sample| sample.elapsed_seconds() < oldest)
         {
             self.samples.pop_front();
+        }
+        while self
+            .markers
+            .front()
+            .is_some_and(|marker| marker.elapsed_seconds < oldest)
+        {
+            self.markers.pop_front();
         }
     }
 
@@ -556,9 +643,11 @@ impl ScopeApp {
         self.zoom_time_scale(ui);
         self.follow_plot_width();
         let dragging = self.place_time_window(ui);
-        ui.spacing_mut().item_spacing.y = STRIP_GAP_BETWEEN;
-        ui.add_space(STRIP_GAP);
+        ui.spacing_mut().item_spacing.y = EVENT_LANE_GAP;
         let width = ui.available_width();
+        let (event_lane_rect, _) = ui.allocate_exact_size(egui::vec2(width, EVENT_LANE_HEIGHT), egui::Sense::hover());
+        paint_event_lane_background(ui, event_lane_rect);
+        ui.spacing_mut().item_spacing.y = STRIP_GAP_BETWEEN;
         let link = ui.id().with("scope_time");
         let time = visible_time(self.view_end, self.window_secs);
         let visible_samples = self
@@ -578,7 +667,22 @@ impl ScopeApp {
             };
             ui.allocate_ui(egui::vec2(width, STRIP_HEIGHT), |ui| {
                 let cursor = self.cursor_mark(strip.metric);
-                let frame = trace_plot(ui, &strip, &points, link, time.clone(), cursor, self.cursor_mode);
+                let marker_lane = (strip.metric == Metric::Voltage).then_some(MarkerLane {
+                    markers: &self.markers,
+                    rect: event_lane_rect,
+                });
+                let frame = trace_plot(
+                    ui,
+                    &strip,
+                    &points,
+                    link,
+                    time.clone(),
+                    TraceOverlay {
+                        marker_lane,
+                        cursor,
+                        hide_pointer_lines: self.cursor_mode,
+                    },
+                );
                 plot_width.get_or_insert(f64::from(frame.width()));
                 plot_left.get_or_insert(frame.left());
             });
@@ -917,6 +1021,18 @@ fn series(samples: &VecDeque<MeasurementSample>, metric: Metric, range: Range<us
         .collect()
 }
 
+struct TraceOverlay<'a> {
+    marker_lane: Option<MarkerLane<'a>>,
+    cursor: Option<CursorMark>,
+    hide_pointer_lines: bool,
+}
+
+#[derive(Clone, Copy)]
+struct MarkerLane<'a> {
+    markers: &'a VecDeque<TimelineMarker>,
+    rect: egui::Rect,
+}
+
 /// Draw one 200-pixel strip. The three strips share the time axis.
 fn trace_plot(
     ui: &mut egui::Ui,
@@ -924,8 +1040,7 @@ fn trace_plot(
     points: &[[f64; 2]],
     link: egui::Id,
     time: Option<RangeInclusive<f64>>,
-    cursor: Option<CursorMark>,
-    hide_pointer_lines: bool,
+    overlay: TraceOverlay<'_>,
 ) -> egui::Rect {
     let width = ui.available_width();
     let mut plot = Plot::new(strip.id)
@@ -943,7 +1058,7 @@ fn trace_plot(
         .allow_axis_zoom_drag(false)
         .allow_boxed_zoom(false)
         .set_margin_fraction(egui::vec2(0.0, Y_MARGIN_FRACTION as f32));
-    if hide_pointer_lines {
+    if overlay.hide_pointer_lines {
         plot = plot.cursor_color(Color32::TRANSPARENT);
     }
     if strip.show_time {
@@ -954,7 +1069,11 @@ fn trace_plot(
         if let Some(time) = time {
             plot_ui.set_plot_bounds_x(time);
         }
-        if let Some(range) = y_axis_range(points, cursor.as_ref().and_then(|mark| mark.value), strip.metric) {
+        if let Some(range) = y_axis_range(
+            points,
+            overlay.cursor.as_ref().and_then(|mark| mark.value),
+            strip.metric,
+        ) {
             plot_ui.set_plot_bounds_y(range);
         }
         plot_ui.line(
@@ -962,7 +1081,7 @@ fn trace_plot(
                 .color(strip.color)
                 .width(1.8),
         );
-        if let Some(cursor) = &cursor {
+        if let Some(cursor) = &overlay.cursor {
             plot_ui.vline(
                 egui_plot::VLine::new(format!("{}-cursor", strip.id), cursor.time)
                     .color(strip.color)
@@ -972,10 +1091,81 @@ fn trace_plot(
         }
     });
     paint_upright_unit(ui, strip, *drawn.transform.frame());
-    if let Some(cursor) = &cursor {
+    if let Some(lane) = overlay.marker_lane {
+        paint_timeline_markers(ui, lane, &drawn.transform);
+    }
+    if let Some(cursor) = &overlay.cursor {
         paint_cursor_value(ui, strip, cursor, &drawn.transform);
     }
     *drawn.transform.frame()
+}
+
+fn paint_timeline_markers(ui: &egui::Ui, lane: MarkerLane<'_>, transform: &egui_plot::PlotTransform) {
+    let frame = *transform.frame();
+    let mut clusters: Vec<(f32, TimelineCategory, &'static str, usize)> = Vec::new();
+    for marker in lane.markers {
+        let x = transform.position_from_point_x(marker.elapsed_seconds);
+        if x < frame.left() || x > frame.right() {
+            continue;
+        }
+        if let Some(cluster) = clusters.last_mut()
+            && x - cluster.0 < EVENT_CLUSTER_DISTANCE
+        {
+            cluster.3 += 1;
+            if marker.category.priority() > cluster.1.priority() {
+                cluster.1 = marker.category;
+            }
+            continue;
+        }
+        clusters.push((x, marker.category, marker.label, 1));
+    }
+
+    let painter = ui.ctx().layer_painter(ui.layer_id()).with_clip_rect(lane.rect);
+    painter.line_segment(
+        [
+            egui::pos2(frame.left(), lane.rect.bottom() - 1.0),
+            egui::pos2(frame.right(), lane.rect.bottom() - 1.0),
+        ],
+        egui::Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color),
+    );
+    let label_y = lane.rect.top() + 3.0;
+    let triangle_y = label_y + EVENT_LABEL_SIZE + 1.0;
+    for (x, category, label, count) in clusters {
+        let color = category.color();
+        let display = if count == 1 {
+            label.to_string()
+        } else {
+            format!("+{count}")
+        };
+        painter.text(
+            egui::pos2(x.clamp(frame.left() + 12.0, frame.right() - 12.0), label_y),
+            egui::Align2::CENTER_TOP,
+            display,
+            egui::FontId::new(EVENT_LABEL_SIZE, egui::FontFamily::Name("Space Mono Bold".into())),
+            color,
+        );
+        painter.add(egui::Shape::convex_polygon(
+            vec![
+                egui::pos2(x - 4.0, triangle_y),
+                egui::pos2(x + 4.0, triangle_y),
+                egui::pos2(x, triangle_y + 6.0),
+            ],
+            color,
+            egui::Stroke::NONE,
+        ));
+    }
+}
+
+fn paint_event_lane_background(ui: &egui::Ui, rect: egui::Rect) {
+    ui.painter()
+        .rect_filled(rect, 3.0, ui.visuals().widgets.noninteractive.weak_bg_fill);
+    ui.painter().text(
+        egui::pos2(rect.left() + 8.0, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        "EVENTS",
+        egui::FontId::new(9.0, egui::FontFamily::Name("Space Mono".into())),
+        ui.visuals().weak_text_color(),
+    );
 }
 
 /// Bold readout in the gap above the strip, beside the cursor line.
@@ -984,7 +1174,11 @@ fn paint_cursor_value(ui: &egui::Ui, strip: &Strip, cursor: &CursorMark, transfo
         return;
     };
     let frame = *transform.frame();
-    let room = (STRIP_GAP_BETWEEN - 2.0).max(1.0);
+    let room = if strip.metric == Metric::Voltage {
+        f32::INFINITY
+    } else {
+        (STRIP_GAP_BETWEEN - 2.0).max(1.0)
+    };
     let text = format!("{value:.3} {}", strip.unit);
     let galley = ui.painter().layout_no_wrap(
         text.clone(),
@@ -1009,23 +1203,15 @@ fn paint_cursor_value(ui: &egui::Ui, strip: &Strip, cursor: &CursorMark, transfo
     };
     let min_x = frame.left();
     let max_x = (frame.right() - galley.size().x).max(min_x);
-    let gap = cursor_gap_above(strip);
-    let mut text_y = frame.top() - gap + (gap - galley.size().y) * 0.5;
-    if text_y + galley.size().y > frame.top() {
-        text_y = frame.top() - galley.size().y;
-    }
+    let text_y = if strip.metric == Metric::Voltage {
+        frame.top() + 4.0
+    } else {
+        let gap = STRIP_GAP_BETWEEN;
+        (frame.top() - gap + (gap - galley.size().y) * 0.5).min(frame.top() - galley.size().y)
+    };
     ui.ctx()
         .layer_painter(ui.layer_id())
         .galley(egui::pos2(text_x.clamp(min_x, max_x), text_y), galley, strip.color);
-}
-
-/// The voltage readout uses the original top gap. The others sit in the wider gaps.
-fn cursor_gap_above(strip: &Strip) -> f32 {
-    if strip.metric == Metric::Voltage {
-        STRIP_GAP
-    } else {
-        STRIP_GAP_BETWEEN
-    }
 }
 
 /// Shrink `size` so a label of `measured_height` fits in `room`.
@@ -1091,8 +1277,9 @@ impl PdView {
         self.status = None;
     }
 
-    fn observe_events(&mut self, events: &[PdEvent]) {
+    fn observe_events(&mut self, events: &[PdEvent]) -> Vec<PdLogEntry> {
         let now = Instant::now();
+        let mut entries = Vec::with_capacity(events.len());
         for event in events {
             match &event.data {
                 PdEventData::Connect => self.tracker.observe_event(true, now),
@@ -1102,7 +1289,9 @@ impl PdView {
             let entry = self.logger.log_event(event);
             log_pd_event(event, &entry);
             self.contract.observe(&entry);
+            entries.push(entry);
         }
+        entries
     }
 
     fn observe_status(&mut self, status: PdStatus) {
@@ -1143,6 +1332,24 @@ fn log_pd_event(event: &PdEvent, entry: &PdLogEntry) {
         PdEventData::Connect | PdEventData::Disconnect => String::new(),
     };
     debug!("PD {}{details}{raw}", entry.summary());
+}
+
+fn pd_timeline_marker(entry: &PdLogEntry) -> Option<(TimelineCategory, &'static str)> {
+    match (entry.category, entry.title.as_str()) {
+        (PdLogCategory::Connect, _) => Some((TimelineCategory::Connectivity, "ATT")),
+        (PdLogCategory::Disconnect, _) => Some((TimelineCategory::Connectivity, "DET")),
+        (_, "Source_Capabilities" | "EPR_Source_Capabilities") => Some((TimelineCategory::Protocol, "NEG")),
+        (_, "PS_RDY") => Some((TimelineCategory::Protocol, "RDY")),
+        (_, "Soft_Reset" | "Hard_Reset") => Some((TimelineCategory::Warning, "RST")),
+        (_, "Reject") => Some((TimelineCategory::Warning, "REJ")),
+        (_, "PR_Swap" | "DR_Swap" | "VCONN_Swap" | "FR_Swap") => Some((TimelineCategory::Protocol, "SWP")),
+        (PdLogCategory::Error, _) => Some((TimelineCategory::Warning, "ERR")),
+        _ => None,
+    }
+}
+
+fn pd_timeline_time(event_device_time: f64, anchor_device_time: f64, anchor_timeline_time: f64) -> f64 {
+    (anchor_timeline_time + event_device_time - anchor_device_time).max(0.0)
 }
 
 fn sink_label(connected: Option<bool>) -> &'static str {
@@ -1301,7 +1508,8 @@ fn y_axis() -> Vec<AxisHints<'static>> {
 fn window_size(seconds: f64) -> [f32; 2] {
     let plot_inner = (seconds * PIXELS_PER_SECOND) as f32;
     let width = meter_pane_width() + CENTRAL_PANEL_MARGIN * 2.0 + AXIS_THICKNESS + plot_inner;
-    let height = STRIP_HEIGHT * 3.0 + STRIP_GAP + STRIP_GAP_BETWEEN * 2.0 + CENTRAL_PANEL_MARGIN * 2.0;
+    let height =
+        EVENT_LANE_HEIGHT + EVENT_LANE_GAP + STRIP_HEIGHT * 3.0 + STRIP_GAP_BETWEEN * 2.0 + CENTRAL_PANEL_MARGIN * 2.0;
     [width, height]
 }
 
@@ -1347,17 +1555,20 @@ fn rate_label(rate: GraphSampleRate) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, GraphSampleRate, MAX_PIXELS_PER_SECOND, MIN_PIXELS_PER_SECOND,
-        MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage, PIXELS_PER_SECOND, RETAIN_SECS, STRIP_GAP, STRIP_GAP_BETWEEN,
-        STRIP_HEIGHT, Y_MARGIN_FRACTION, clamped_cursor, cursor_label_on_left, cursor_value, fitted_cursor_font_size,
-        format_max_power, format_measurement, format_temperature, identity_label, initial_window_size,
-        layer_covers_plots, meter_pane_width, minimum_window_size, panned_view_end, pointer_blocks_plots,
+        AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, EVENT_LANE_GAP, EVENT_LANE_HEIGHT, GraphSampleRate,
+        MAX_PIXELS_PER_SECOND, MIN_PIXELS_PER_SECOND, MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage, PIXELS_PER_SECOND,
+        RETAIN_SECS, STRIP_GAP_BETWEEN, STRIP_HEIGHT, TimelineCategory, Y_MARGIN_FRACTION, clamped_cursor,
+        cursor_label_on_left, cursor_value, fitted_cursor_font_size, format_max_power, format_measurement,
+        format_temperature, identity_label, initial_window_size, layer_covers_plots, meter_pane_width,
+        minimum_window_size, panned_view_end, pd_timeline_marker, pd_timeline_time, pointer_blocks_plots,
         protocol_label, samples_per_meter_update, scaled_y_range, series, time_at_pointer, usb_vendor_name,
         visible_sample_range, zoomed_pixels_per_second, zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
     use km003c_lib::PdIdentity;
+    use km003c_lib::PdLogCategory;
+    use km003c_lib::PdLogEntry;
     use km003c_lib::PdRevision;
     use std::collections::VecDeque;
 
@@ -1401,6 +1612,33 @@ mod tests {
     }
 
     #[test]
+    fn pd_milestones_map_to_timeline_markers() {
+        let entry = |category, title: &str| PdLogEntry {
+            timestamp_seconds: 0.0,
+            category,
+            sop: Some(0),
+            title: title.to_string(),
+            header: None,
+            details: Vec::new(),
+        };
+
+        assert_eq!(
+            pd_timeline_marker(&entry(PdLogCategory::Connect, "Connect")),
+            Some((TimelineCategory::Connectivity, "ATT"))
+        );
+        assert_eq!(
+            pd_timeline_marker(&entry(PdLogCategory::SourceCaps, "Source_Capabilities")),
+            Some((TimelineCategory::Protocol, "NEG"))
+        );
+        assert_eq!(
+            pd_timeline_marker(&entry(PdLogCategory::Control, "Reject")),
+            Some((TimelineCategory::Warning, "REJ"))
+        );
+        assert_eq!(pd_timeline_marker(&entry(PdLogCategory::Control, "GoodCRC")), None);
+        assert!((pd_timeline_time(105.25, 106.0, 12.0) - 11.25).abs() < 1e-9);
+    }
+
+    #[test]
     fn meter_updates_twice_per_second() {
         assert_eq!(samples_per_meter_update(GraphSampleRate::Sps2), 1);
         assert_eq!(samples_per_meter_update(GraphSampleRate::Sps10), 5);
@@ -1440,7 +1678,11 @@ mod tests {
         assert_eq!(plot_inner, 800.0);
         assert_eq!(
             height,
-            STRIP_HEIGHT * 3.0 + STRIP_GAP + STRIP_GAP_BETWEEN * 2.0 + CENTRAL_PANEL_MARGIN * 2.0
+            EVENT_LANE_HEIGHT
+                + EVENT_LANE_GAP
+                + STRIP_HEIGHT * 3.0
+                + STRIP_GAP_BETWEEN * 2.0
+                + CENTRAL_PANEL_MARGIN * 2.0
         );
 
         let [min_width, min_height] = minimum_window_size();
