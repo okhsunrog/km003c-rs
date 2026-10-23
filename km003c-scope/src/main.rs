@@ -84,6 +84,8 @@ const EVENT_LABEL_SIZE: f32 = 12.0;
 const EVENT_CLUSTER_DISTANCE: f32 = 28.0;
 const EVENT_LANE_HEIGHT: f32 = 32.0;
 const EVENT_LANE_GAP: f32 = 3.0;
+const EVENT_TOOLBAR_HEIGHT: f32 = 30.0;
+const EVENT_EXPLORER_WIDTH: f32 = 260.0;
 /// Horizontal inset of egui's side-panel frame, on each side.
 const SIDE_PANEL_INNER_MARGIN: f32 = 8.0;
 /// Padding inside the black meter box, on each side.
@@ -128,6 +130,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         accumulator: MeasurementAccumulator::default(),
         samples: VecDeque::new(),
         markers: VecDeque::new(),
+        next_marker_id: 0,
+        selected_marker_id: None,
+        event_explorer_open: false,
         meter: MeterAverage::default(),
         voltage: None,
         current: None,
@@ -181,6 +186,9 @@ struct ScopeApp {
     accumulator: MeasurementAccumulator,
     samples: VecDeque<MeasurementSample>,
     markers: VecDeque<TimelineMarker>,
+    next_marker_id: u64,
+    selected_marker_id: Option<u64>,
+    event_explorer_open: bool,
     meter: MeterAverage,
     voltage: Option<f64>,
     current: Option<f64>,
@@ -245,11 +253,21 @@ impl TimelineCategory {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 struct TimelineMarker {
+    id: u64,
     elapsed_seconds: f64,
     category: TimelineCategory,
     label: &'static str,
+    name: &'static str,
+    details: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TimelineMarkerSpec {
+    category: TimelineCategory,
+    label: &'static str,
+    name: &'static str,
 }
 
 impl eframe::App for ScopeApp {
@@ -262,7 +280,14 @@ impl eframe::App for ScopeApp {
             .resizable(false)
             .exact_size(meter_pane_width())
             .show(ui, |ui| self.side(ui));
+        if self.event_explorer_open {
+            egui::Panel::right("event_explorer")
+                .resizable(false)
+                .exact_size(EVENT_EXPLORER_WIDTH)
+                .show(ui, |ui| self.event_explorer(ui));
+        }
         egui::CentralPanel::default().show(ui, |ui| self.scope(ui));
+        self.event_explorer_toggle(ui.ctx());
         self.device_info_dialog(ui.ctx());
         self.pd_info_dialog(ui.ctx());
     }
@@ -314,7 +339,15 @@ impl ScopeApp {
                 }
                 SessionEvent::StreamingStarted(rate) => {
                     if let Some(time) = self.samples.back().map(|sample| sample.elapsed_seconds()) {
-                        self.push_marker(time, TimelineCategory::Info, "RATE");
+                        self.push_marker(
+                            time,
+                            TimelineMarkerSpec {
+                                category: TimelineCategory::Info,
+                                label: "RATE",
+                                name: "Sample rate",
+                            },
+                            format!("Streaming changed to {}", rate_label(rate)),
+                        );
                     }
                     self.streaming = true;
                     self.rate = rate;
@@ -361,20 +394,25 @@ impl ScopeApp {
         };
 
         for (event, entry) in events.iter().zip(entries) {
-            let Some((category, label)) = pd_timeline_marker(&entry) else {
+            let Some(spec) = pd_timeline_marker(&entry) else {
                 continue;
             };
             let time = pd_timeline_time(event.timestamp.get::<second>(), device_anchor, timeline_anchor);
-            self.push_marker(time, category, label);
+            self.push_marker(time, spec, pd_marker_details(&entry));
         }
     }
 
-    fn push_marker(&mut self, elapsed_seconds: f64, category: TimelineCategory, label: &'static str) {
+    fn push_marker(&mut self, elapsed_seconds: f64, spec: TimelineMarkerSpec, details: String) {
         if elapsed_seconds.is_finite() {
+            let id = self.next_marker_id;
+            self.next_marker_id = self.next_marker_id.wrapping_add(1);
             self.markers.push_back(TimelineMarker {
+                id,
                 elapsed_seconds: elapsed_seconds.max(0.0),
-                category,
-                label,
+                category: spec.category,
+                label: spec.label,
+                name: spec.name,
+                details,
             });
         }
     }
@@ -394,6 +432,7 @@ impl ScopeApp {
         self.temperature_c = None;
         self.samples.clear();
         self.markers.clear();
+        self.selected_marker_id = None;
         self.accumulator = MeasurementAccumulator::default();
         self.meter.reset();
     }
@@ -416,6 +455,12 @@ impl ScopeApp {
             .is_some_and(|marker| marker.elapsed_seconds < oldest)
         {
             self.markers.pop_front();
+        }
+        if self
+            .selected_marker_id
+            .is_some_and(|id| !self.markers.iter().any(|marker| marker.id == id))
+        {
+            self.selected_marker_id = None;
         }
     }
 
@@ -467,7 +512,6 @@ impl ScopeApp {
                 self.pd_info_open = true;
             }
         });
-
         ui.add_space(8.0);
         ui.checkbox(&mut self.autoscroll, "Autoscroll");
         let cursor_was_off = !self.cursor_mode;
@@ -489,6 +533,114 @@ impl ScopeApp {
         if self.streaming && self.rate != previous_rate {
             let _ = self.session.set_sample_rate(self.rate);
         }
+    }
+
+    fn event_explorer_toggle(&mut self, ctx: &egui::Context) {
+        let clicked = egui::Area::new("event_explorer_toggle".into())
+            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-8.0, 4.0))
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                let (rect, response) = ui.allocate_exact_size(egui::vec2(30.0, 24.0), egui::Sense::click());
+                let visuals = ui.style().interact(&response);
+                ui.painter().rect_filled(rect, 5.0, visuals.weak_bg_fill);
+                ui.painter()
+                    .rect_stroke(rect, 5.0, visuals.bg_stroke, egui::StrokeKind::Inside);
+
+                let icon = rect.shrink2(egui::vec2(7.0, 5.0));
+                let divider_x = icon.right() - icon.width() * 0.32;
+                ui.painter()
+                    .rect_stroke(icon, 2.0, visuals.fg_stroke, egui::StrokeKind::Inside);
+                ui.painter().line_segment(
+                    [egui::pos2(divider_x, icon.top()), egui::pos2(divider_x, icon.bottom())],
+                    visuals.fg_stroke,
+                );
+                ui.painter().rect_filled(
+                    egui::Rect::from_min_max(
+                        egui::pos2(divider_x + 1.0, icon.top() + 1.0),
+                        egui::pos2(icon.right() - 1.0, icon.bottom() - 1.0),
+                    ),
+                    1.0,
+                    visuals.fg_stroke.color.gamma_multiply(0.25),
+                );
+
+                let clicked = response.clicked();
+                response.on_hover_text("Event Explorer");
+                clicked
+            })
+            .inner;
+        if clicked {
+            self.toggle_event_explorer(ctx);
+        }
+    }
+
+    fn toggle_event_explorer(&mut self, ctx: &egui::Context) {
+        let opening = !self.event_explorer_open;
+        if let Some(current_size) = ctx.input(|input| input.viewport().inner_rect.map(|rect| rect.size())) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(explorer_viewport_size(
+                current_size,
+                opening,
+            )));
+        }
+        self.event_explorer_open = opening;
+    }
+
+    fn event_explorer(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(EVENT_TOOLBAR_HEIGHT);
+        ui.heading("Events");
+        ui.separator();
+
+        let mut clicked = None;
+        let selected_id = self.selected_marker_id;
+        egui::ScrollArea::vertical()
+            .id_salt("event_explorer_list")
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+            .auto_shrink([false, false])
+            .stick_to_bottom(selected_id.is_none())
+            .show(ui, |ui| {
+                if self.markers.is_empty() {
+                    ui.weak("No events observed");
+                    return;
+                }
+                for marker in &self.markers {
+                    let selected = selected_id == Some(marker.id);
+                    let row = format!("{:>10}  {}", format_event_time(marker.elapsed_seconds), marker.name);
+                    let response = ui.selectable_label(
+                        selected,
+                        RichText::new(row)
+                            .font(egui::FontId::new(12.0, egui::FontFamily::Name("Space Mono".into())))
+                            .color(marker.category.color()),
+                    );
+                    if response.clicked() {
+                        clicked = Some(marker.id);
+                    }
+                    if selected {
+                        response.on_hover_ui(|ui| {
+                            ui.strong(marker.name);
+                            ui.monospace(format_event_time(marker.elapsed_seconds));
+                            ui.separator();
+                            ui.label(&marker.details);
+                        });
+                    }
+                }
+            });
+
+        if let Some(id) = clicked {
+            self.select_marker(id);
+        }
+    }
+
+    fn select_marker(&mut self, id: u64) {
+        let Some(time) = self
+            .markers
+            .iter()
+            .find(|marker| marker.id == id)
+            .map(|marker| marker.elapsed_seconds)
+        else {
+            return;
+        };
+        self.selected_marker_id = Some(id);
+        self.autoscroll = false;
+        self.view_end = Some(centered_view_end(time, self.window_secs));
     }
 
     fn device_info_dialog(&mut self, ctx: &egui::Context) {
@@ -640,6 +792,7 @@ impl ScopeApp {
     }
 
     fn scope(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(EVENT_TOOLBAR_HEIGHT);
         self.zoom_time_scale(ui);
         self.follow_plot_width();
         let dragging = self.place_time_window(ui);
@@ -670,6 +823,7 @@ impl ScopeApp {
                 let marker_lane = (strip.metric == Metric::Voltage).then_some(MarkerLane {
                     markers: &self.markers,
                     rect: event_lane_rect,
+                    selected_id: self.selected_marker_id,
                 });
                 let frame = trace_plot(
                     ui,
@@ -1031,6 +1185,7 @@ struct TraceOverlay<'a> {
 struct MarkerLane<'a> {
     markers: &'a VecDeque<TimelineMarker>,
     rect: egui::Rect,
+    selected_id: Option<u64>,
 }
 
 /// Draw one 200-pixel strip. The three strips share the time axis.
@@ -1102,7 +1257,7 @@ fn trace_plot(
 
 fn paint_timeline_markers(ui: &egui::Ui, lane: MarkerLane<'_>, transform: &egui_plot::PlotTransform) {
     let frame = *transform.frame();
-    let mut clusters: Vec<(f32, TimelineCategory, &'static str, usize)> = Vec::new();
+    let mut clusters: Vec<(f32, TimelineCategory, &'static str, usize, bool)> = Vec::new();
     for marker in lane.markers {
         let x = transform.position_from_point_x(marker.elapsed_seconds);
         if x < frame.left() || x > frame.right() {
@@ -1112,12 +1267,13 @@ fn paint_timeline_markers(ui: &egui::Ui, lane: MarkerLane<'_>, transform: &egui_
             && x - cluster.0 < EVENT_CLUSTER_DISTANCE
         {
             cluster.3 += 1;
+            cluster.4 |= lane.selected_id == Some(marker.id);
             if marker.category.priority() > cluster.1.priority() {
                 cluster.1 = marker.category;
             }
             continue;
         }
-        clusters.push((x, marker.category, marker.label, 1));
+        clusters.push((x, marker.category, marker.label, 1, lane.selected_id == Some(marker.id)));
     }
 
     let painter = ui.ctx().layer_painter(ui.layer_id()).with_clip_rect(lane.rect);
@@ -1130,7 +1286,7 @@ fn paint_timeline_markers(ui: &egui::Ui, lane: MarkerLane<'_>, transform: &egui_
     );
     let label_y = lane.rect.top() + 3.0;
     let triangle_y = label_y + EVENT_LABEL_SIZE + 1.0;
-    for (x, category, label, count) in clusters {
+    for (x, category, label, count, selected) in clusters {
         let color = category.color();
         let display = if count == 1 {
             label.to_string()
@@ -1142,7 +1298,7 @@ fn paint_timeline_markers(ui: &egui::Ui, lane: MarkerLane<'_>, transform: &egui_
             egui::Align2::CENTER_TOP,
             display,
             egui::FontId::new(EVENT_LABEL_SIZE, egui::FontFamily::Name("Space Mono Bold".into())),
-            color,
+            if selected { Color32::WHITE } else { color },
         );
         painter.add(egui::Shape::convex_polygon(
             vec![
@@ -1151,7 +1307,11 @@ fn paint_timeline_markers(ui: &egui::Ui, lane: MarkerLane<'_>, transform: &egui_
                 egui::pos2(x, triangle_y + 6.0),
             ],
             color,
-            egui::Stroke::NONE,
+            if selected {
+                egui::Stroke::new(1.5, Color32::WHITE)
+            } else {
+                egui::Stroke::NONE
+            },
         ));
     }
 }
@@ -1334,22 +1494,48 @@ fn log_pd_event(event: &PdEvent, entry: &PdLogEntry) {
     debug!("PD {}{details}{raw}", entry.summary());
 }
 
-fn pd_timeline_marker(entry: &PdLogEntry) -> Option<(TimelineCategory, &'static str)> {
-    match (entry.category, entry.title.as_str()) {
-        (PdLogCategory::Connect, _) => Some((TimelineCategory::Connectivity, "ATT")),
-        (PdLogCategory::Disconnect, _) => Some((TimelineCategory::Connectivity, "DET")),
-        (_, "Source_Capabilities" | "EPR_Source_Capabilities") => Some((TimelineCategory::Protocol, "NEG")),
-        (_, "PS_RDY") => Some((TimelineCategory::Protocol, "RDY")),
-        (_, "Soft_Reset" | "Hard_Reset") => Some((TimelineCategory::Warning, "RST")),
-        (_, "Reject") => Some((TimelineCategory::Warning, "REJ")),
-        (_, "PR_Swap" | "DR_Swap" | "VCONN_Swap" | "FR_Swap") => Some((TimelineCategory::Protocol, "SWP")),
-        (PdLogCategory::Error, _) => Some((TimelineCategory::Warning, "ERR")),
-        _ => None,
+fn pd_timeline_marker(entry: &PdLogEntry) -> Option<TimelineMarkerSpec> {
+    let (category, label, name) = match (entry.category, entry.title.as_str()) {
+        (PdLogCategory::Connect, _) => (TimelineCategory::Connectivity, "ATT", "Attached"),
+        (PdLogCategory::Disconnect, _) => (TimelineCategory::Connectivity, "DET", "Detached"),
+        (_, "Source_Capabilities" | "EPR_Source_Capabilities") => (TimelineCategory::Protocol, "NEG", "Negotiation"),
+        (_, "PS_RDY") => (TimelineCategory::Protocol, "RDY", "Power ready"),
+        (_, "Soft_Reset" | "Hard_Reset") => (TimelineCategory::Warning, "RST", "PD reset"),
+        (_, "Reject") => (TimelineCategory::Warning, "REJ", "Request rejected"),
+        (_, "PR_Swap" | "DR_Swap" | "VCONN_Swap" | "FR_Swap") => (TimelineCategory::Protocol, "SWP", "Role swap"),
+        (PdLogCategory::Error, _) => (TimelineCategory::Warning, "ERR", "PD decode error"),
+        _ => return None,
+    };
+    Some(TimelineMarkerSpec { category, label, name })
+}
+
+fn pd_marker_details(entry: &PdLogEntry) -> String {
+    if entry.details.is_empty() {
+        entry.summary()
+    } else {
+        format!("{}\n{}", entry.summary(), entry.details.join("\n"))
     }
 }
 
 fn pd_timeline_time(event_device_time: f64, anchor_device_time: f64, anchor_timeline_time: f64) -> f64 {
     (anchor_timeline_time + event_device_time - anchor_device_time).max(0.0)
+}
+
+fn format_event_time(elapsed_seconds: f64) -> String {
+    format!("{elapsed_seconds:.3}s")
+}
+
+fn centered_view_end(event_time: f64, window_secs: f64) -> f64 {
+    event_time + window_secs * 0.5
+}
+
+fn explorer_viewport_size(current: egui::Vec2, opening: bool) -> egui::Vec2 {
+    let delta = if opening {
+        EVENT_EXPLORER_WIDTH
+    } else {
+        -EVENT_EXPLORER_WIDTH
+    };
+    egui::vec2((current.x + delta).max(1.0), current.y)
 }
 
 fn sink_label(connected: Option<bool>) -> &'static str {
@@ -1508,8 +1694,12 @@ fn y_axis() -> Vec<AxisHints<'static>> {
 fn window_size(seconds: f64) -> [f32; 2] {
     let plot_inner = (seconds * PIXELS_PER_SECOND) as f32;
     let width = meter_pane_width() + CENTRAL_PANEL_MARGIN * 2.0 + AXIS_THICKNESS + plot_inner;
-    let height =
-        EVENT_LANE_HEIGHT + EVENT_LANE_GAP + STRIP_HEIGHT * 3.0 + STRIP_GAP_BETWEEN * 2.0 + CENTRAL_PANEL_MARGIN * 2.0;
+    let height = EVENT_TOOLBAR_HEIGHT
+        + EVENT_LANE_HEIGHT
+        + EVENT_LANE_GAP
+        + STRIP_HEIGHT * 3.0
+        + STRIP_GAP_BETWEEN * 2.0
+        + CENTRAL_PANEL_MARGIN * 2.0;
     [width, height]
 }
 
@@ -1555,14 +1745,15 @@ fn rate_label(rate: GraphSampleRate) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, EVENT_LANE_GAP, EVENT_LANE_HEIGHT, GraphSampleRate,
+        AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, EVENT_LANE_GAP, EVENT_LANE_HEIGHT, EVENT_TOOLBAR_HEIGHT, GraphSampleRate,
         MAX_PIXELS_PER_SECOND, MIN_PIXELS_PER_SECOND, MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage, PIXELS_PER_SECOND,
-        RETAIN_SECS, STRIP_GAP_BETWEEN, STRIP_HEIGHT, TimelineCategory, Y_MARGIN_FRACTION, clamped_cursor,
-        cursor_label_on_left, cursor_value, fitted_cursor_font_size, format_max_power, format_measurement,
-        format_temperature, identity_label, initial_window_size, layer_covers_plots, meter_pane_width,
-        minimum_window_size, panned_view_end, pd_timeline_marker, pd_timeline_time, pointer_blocks_plots,
-        protocol_label, samples_per_meter_update, scaled_y_range, series, time_at_pointer, usb_vendor_name,
-        visible_sample_range, zoomed_pixels_per_second, zoomed_view_end_at_pointer,
+        RETAIN_SECS, STRIP_GAP_BETWEEN, STRIP_HEIGHT, TimelineCategory, TimelineMarkerSpec, Y_MARGIN_FRACTION,
+        centered_view_end, clamped_cursor, cursor_label_on_left, cursor_value, explorer_viewport_size,
+        fitted_cursor_font_size, format_event_time, format_max_power, format_measurement, format_temperature,
+        identity_label, initial_window_size, layer_covers_plots, meter_pane_width, minimum_window_size,
+        panned_view_end, pd_timeline_marker, pd_timeline_time, pointer_blocks_plots, protocol_label,
+        samples_per_meter_update, scaled_y_range, series, time_at_pointer, usb_vendor_name, visible_sample_range,
+        zoomed_pixels_per_second, zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
@@ -1624,18 +1815,32 @@ mod tests {
 
         assert_eq!(
             pd_timeline_marker(&entry(PdLogCategory::Connect, "Connect")),
-            Some((TimelineCategory::Connectivity, "ATT"))
+            Some(TimelineMarkerSpec {
+                category: TimelineCategory::Connectivity,
+                label: "ATT",
+                name: "Attached",
+            })
         );
         assert_eq!(
             pd_timeline_marker(&entry(PdLogCategory::SourceCaps, "Source_Capabilities")),
-            Some((TimelineCategory::Protocol, "NEG"))
+            Some(TimelineMarkerSpec {
+                category: TimelineCategory::Protocol,
+                label: "NEG",
+                name: "Negotiation",
+            })
         );
         assert_eq!(
             pd_timeline_marker(&entry(PdLogCategory::Control, "Reject")),
-            Some((TimelineCategory::Warning, "REJ"))
+            Some(TimelineMarkerSpec {
+                category: TimelineCategory::Warning,
+                label: "REJ",
+                name: "Request rejected",
+            })
         );
         assert_eq!(pd_timeline_marker(&entry(PdLogCategory::Control, "GoodCRC")), None);
         assert!((pd_timeline_time(105.25, 106.0, 12.0) - 11.25).abs() < 1e-9);
+        assert_eq!(format_event_time(11.25), "11.250s");
+        assert_eq!(centered_view_end(11.25, 8.0), 15.25);
     }
 
     #[test]
@@ -1678,7 +1883,8 @@ mod tests {
         assert_eq!(plot_inner, 800.0);
         assert_eq!(
             height,
-            EVENT_LANE_HEIGHT
+            EVENT_TOOLBAR_HEIGHT
+                + EVENT_LANE_HEIGHT
                 + EVENT_LANE_GAP
                 + STRIP_HEIGHT * 3.0
                 + STRIP_GAP_BETWEEN * 2.0
@@ -1689,6 +1895,10 @@ mod tests {
         let min_plot = min_width - meter_pane_width() - CENTRAL_PANEL_MARGIN * 2.0 - AXIS_THICKNESS;
         assert_eq!(min_plot, 400.0);
         assert_eq!(min_height, height);
+
+        let original = eframe::egui::vec2(width, height);
+        let expanded = explorer_viewport_size(original, true);
+        assert_eq!(explorer_viewport_size(expanded, false), original);
     }
 
     #[test]
