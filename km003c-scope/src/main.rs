@@ -31,6 +31,7 @@ use km003c_lib::PdEventData;
 use km003c_lib::PdIdentity;
 use km003c_lib::PdLogEntry;
 use km003c_lib::PdLogger;
+use km003c_lib::PdRevision;
 use km003c_lib::PdStatus;
 use km003c_lib::Session;
 use km003c_lib::SessionEvent;
@@ -76,7 +77,7 @@ const CENTRAL_PANEL_MARGIN: f32 = 8.0;
 /// Space Mono's advance width, in font units per em.
 const SPACE_MONO_ADVANCE_EM: f32 = 612.0 / 1000.0;
 const METER_VALUE_FONT_SIZE: f32 = 28.0;
-const TEMPERATURE_FONT_SIZE: f32 = 14.0;
+const STATUS_FONT_SIZE: f32 = 13.0;
 /// Horizontal inset of egui's side-panel frame, on each side.
 const SIDE_PANEL_INNER_MARGIN: f32 = 8.0;
 /// Padding inside the black meter box, on each side.
@@ -541,7 +542,12 @@ impl ScopeApp {
                 ui.add_space(10.0);
                 ui.separator();
                 ui.add_space(4.0);
-                temperature_reading(ui, self.temperature_c);
+                status_strip(
+                    ui,
+                    self.temperature_c,
+                    self.pd.logger.revision(),
+                    self.pd.logger.source_max_power_w(),
+                );
             });
     }
 
@@ -716,29 +722,62 @@ fn format_measurement(value: Option<f64>, unit: &str) -> String {
 
 fn format_temperature(value: Option<f64>) -> String {
     match value {
-        Some(value) if value.is_finite() => format!("{value:.1} °C"),
-        _ => "—.- °C".to_string(),
+        Some(value) if value.is_finite() => format!("{value:.0}°C"),
+        _ => "-".to_string(),
     }
 }
 
-fn temperature_reading(ui: &mut egui::Ui, value: Option<f64>) {
-    ui.horizontal(|ui| {
-        thermometer_icon(ui);
-        ui.label(meter_text(format_temperature(value), TEMPERATURE_FONT_SIZE).color(Color32::LIGHT_GRAY));
-    });
+fn protocol_label(revision: Option<PdRevision>) -> &'static str {
+    match revision {
+        Some(PdRevision::Revision1) => "PD1.0",
+        Some(PdRevision::Revision2) => "PD2.0",
+        Some(PdRevision::Revision3) => "PD3.0",
+        None => "-",
+    }
 }
 
-fn thermometer_icon(ui: &mut egui::Ui) {
-    let size = egui::vec2(8.0, TEMPERATURE_FONT_SIZE);
-    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+fn format_max_power(watts: Option<f64>) -> String {
+    match watts {
+        Some(watts) if watts.is_finite() => format!("{watts:.0}W"),
+        _ => "-".to_string(),
+    }
+}
+
+fn status_strip(ui: &mut egui::Ui, temperature_c: Option<f64>, revision: Option<PdRevision>, max_power_w: Option<f64>) {
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width(), STATUS_FONT_SIZE + 3.0),
+        egui::Sense::hover(),
+    );
+    let font = egui::FontId::new(STATUS_FONT_SIZE, egui::FontFamily::Name("Space Mono".into()));
+    let color = Color32::LIGHT_GRAY;
+    let text_y = rect.center().y;
+
+    paint_thermometer(ui.painter(), rect);
+    let fields = [
+        (rect.left() + 12.0, format_temperature(temperature_c)),
+        (rect.left() + rect.width() * 0.46, protocol_label(revision).to_string()),
+        (rect.left() + rect.width() * 0.75, format_max_power(max_power_w)),
+    ];
+    for (x, text) in fields {
+        ui.painter().text(
+            egui::pos2(x, text_y),
+            egui::Align2::LEFT_CENTER,
+            text,
+            font.clone(),
+            color,
+        );
+    }
+}
+
+fn paint_thermometer(painter: &egui::Painter, rect: egui::Rect) {
     let color = Color32::from_rgb(255, 145, 96);
-    let center_x = rect.center().x;
+    let center_x = rect.left() + 4.0;
     let bulb = egui::pos2(center_x, rect.bottom() - 3.0);
-    ui.painter().line_segment(
+    painter.line_segment(
         [egui::pos2(center_x, rect.top() + 1.0), bulb],
         egui::Stroke::new(2.0, color),
     );
-    ui.painter().circle_filled(bulb, 3.0, color);
+    painter.circle_filled(bulb, 3.0, color);
 }
 
 /// Outer width of the left pane: one meter line, the black box, and the panel frame.
@@ -1302,13 +1341,15 @@ mod tests {
         AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, GraphSampleRate, MAX_PIXELS_PER_SECOND, MIN_PIXELS_PER_SECOND,
         MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage, PIXELS_PER_SECOND, STRIP_GAP, STRIP_GAP_BETWEEN, STRIP_HEIGHT,
         Y_MARGIN_FRACTION, clamped_cursor, cursor_label_on_left, cursor_value, fitted_cursor_font_size,
-        format_measurement, format_temperature, identity_label, initial_window_size, layer_covers_plots,
-        meter_pane_width, minimum_window_size, panned_view_end, pointer_blocks_plots, samples_per_meter_update,
-        scaled_y_range, time_at_pointer, zoomed_pixels_per_second, zoomed_view_end_at_pointer,
+        format_max_power, format_measurement, format_temperature, identity_label, initial_window_size,
+        layer_covers_plots, meter_pane_width, minimum_window_size, panned_view_end, pointer_blocks_plots,
+        protocol_label, samples_per_meter_update, scaled_y_range, time_at_pointer, zoomed_pixels_per_second,
+        zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
     use km003c_lib::PdIdentity;
+    use km003c_lib::PdRevision;
     use std::collections::VecDeque;
 
     #[test]
@@ -1330,8 +1371,14 @@ mod tests {
 
     #[test]
     fn secondary_telemetry_has_compact_labels() {
-        assert_eq!(format_temperature(Some(33.04)), "33.0 °C");
-        assert_eq!(format_temperature(None), "—.- °C");
+        assert_eq!(format_temperature(Some(30.6)), "31°C");
+        assert_eq!(format_temperature(Some(-255.6)), "-256°C");
+        assert_eq!(format_temperature(None), "-");
+        assert_eq!(protocol_label(Some(PdRevision::Revision3)), "PD3.0");
+        assert_eq!(protocol_label(None), "-");
+        assert_eq!(format_max_power(Some(20.0)), "20W");
+        assert_eq!(format_max_power(Some(523.0)), "523W");
+        assert_eq!(format_max_power(None), "-");
         assert_eq!(
             identity_label(PdIdentity {
                 vendor_id: 0x413c,
