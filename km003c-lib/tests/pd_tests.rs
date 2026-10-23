@@ -13,7 +13,7 @@ use km003c_lib::usbpd::protocol_layer::message::data::request::PowerSource;
 #[cfg(feature = "usbpd")]
 use km003c_lib::usbpd::protocol_layer::message::extended::Extended;
 #[cfg(feature = "usbpd")]
-use km003c_lib::{DecodedPdEvent, PdChunkState, PdEvent, PdSessionDecoder};
+use km003c_lib::{DecodedPdEvent, PdChunkState, PdEvent, PdIdentity, PdRevision, PdSessionDecoder};
 
 fn parse_pd_events(frame: &str) -> km003c_lib::PdEventStream {
     let raw = RawPacket::try_from(Bytes::from(hex::decode(frame).unwrap())).unwrap();
@@ -147,6 +147,23 @@ fn semantically_decodes_recorded_pd_negotiation_with_source_state() {
         Some(Payload::Data(Data::SourceCapabilities(_)))
     ));
     assert!(decoder.source_capabilities().is_some());
+    assert_eq!(decoder.revision(), Some(PdRevision::Revision3));
+
+    // The following PD2.0 GoodCRC is sent by the sink and must not downgrade
+    // the source revision shown in the summary.
+    decoder.decode_event(&stream.events[1]);
+    assert_eq!(decoder.revision(), Some(PdRevision::Revision3));
+
+    let source_good_crc = PdEvent {
+        timestamp: uom::si::f64::Time::new::<millisecond>(1.0),
+        data: PdEventData::PdMessage {
+            sop: 0,
+            // PD2.0 GoodCRC sent with the Source/DFP role bits.
+            wire_data: hex::decode("6101").unwrap(),
+        },
+    };
+    decoder.decode_event(&source_good_crc);
+    assert_eq!(decoder.revision(), Some(PdRevision::Revision3));
 
     let DecodedPdEvent::Message(request) = decoder.decode_event(&stream.events[2]) else {
         panic!("expected Request message");
@@ -157,6 +174,31 @@ fn semantically_decodes_recorded_pd_negotiation_with_source_state() {
             PowerSource::FixedVariableSupply(_) | PowerSource::Battery(_) | PowerSource::Pps(_) | PowerSource::Avs(_)
         )))
     ));
+}
+
+#[cfg(feature = "usbpd")]
+#[test]
+fn retains_discover_identity_acknowledgement() {
+    // Four-object PD3.x VDM: Discover Identity ACK, ID Header, Cert Stat and Product VDO.
+    let event = PdEvent {
+        timestamp: uom::si::f64::Time::new::<millisecond>(1.0),
+        data: PdEventData::PdMessage {
+            sop: 0,
+            wire_data: hex::decode("af4141a000ff3c4100000000000000013412").unwrap(),
+        },
+    };
+    let mut decoder = PdSessionDecoder::new();
+
+    assert!(matches!(decoder.decode_event(&event), DecodedPdEvent::Message(_)));
+    assert_eq!(decoder.revision(), Some(PdRevision::Revision3));
+    assert_eq!(
+        decoder.identity(),
+        Some(PdIdentity {
+            vendor_id: 0x413c,
+            product_id: Some(0x1234),
+            device_bcd: Some(0x0100),
+        })
+    );
 }
 
 #[cfg(feature = "usbpd")]

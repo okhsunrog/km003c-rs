@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `KM003C::set_graph_sample_rate()` switches an active ADC queue stream to a
+  new rate by stopping and restarting graph mode, and
+  `KM003C::graph_sample_rate()` reports the selected rate.
 - The release workflow builds `km003c` wheels for Linux, macOS and Windows on
   both x86-64 and arm64 plus a source distribution, and uploads them to PyPI
   through trusted publishing, so `pip install km003c` no longer requires a Rust
@@ -43,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Memory reads now honor the encryption flag in the confirmation header.
+  KM003C firmware 2.0.5 returns device information, calibration, and hardware
+  ID as padded plaintext; decrypting them produced garbage and caused
+  StreamingAuth to remain at level 0. On a KM003C running 2.0.5 this restores
+  device information and authenticated AdcQueue streaming at 50 and 1000 SPS.
 - The source distribution now contains the two license files it names in its
   metadata. PyPI rejects an sdist whose `License-File` entries are missing from
   the archive, which is why 0.4.0 reached PyPI as wheels only.

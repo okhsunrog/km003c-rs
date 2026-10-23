@@ -7,10 +7,14 @@
 
 use thiserror::Error;
 use uom::si::f64::Time;
+use usbpd::PowerRole;
 use usbpd::protocol_layer::message::data::Data;
 use usbpd::protocol_layer::message::data::source_capabilities::SourceCapabilities;
+use usbpd::protocol_layer::message::data::vendor_defined::{ProductVDO, VdmHeader, VdmIdentityHeader};
 use usbpd::protocol_layer::message::extended::chunked::{ChunkResult, ChunkedMessageAssembler};
-use usbpd::protocol_layer::message::header::{ExtendedMessageType, Header, MessageType};
+use usbpd::protocol_layer::message::header::{
+    ControlMessageType, ExtendedMessageType, Header, MessageType, SpecificationRevision,
+};
 use usbpd::protocol_layer::message::{Message, ParseError, Payload};
 
 use crate::pd::{PdEvent, PdEventData};
@@ -59,6 +63,33 @@ pub struct PdDecodeFailure {
     pub wire_data: Vec<u8>,
 }
 
+/// USB PD specification revision encoded in a message header.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PdRevision {
+    Revision1,
+    Revision2,
+    /// The wire header identifies all USB PD 3.x revisions with the same value.
+    Revision3,
+}
+
+impl std::fmt::Display for PdRevision {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Revision1 => "PD1.0",
+            Self::Revision2 => "PD2.0",
+            Self::Revision3 => "PD3.x",
+        })
+    }
+}
+
+/// Identity returned by a standard SOP Discover Identity acknowledgement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PdIdentity {
+    pub vendor_id: u16,
+    pub product_id: Option<u16>,
+    pub device_bcd: Option<u16>,
+}
+
 /// Result of decoding one KM003C PD event.
 #[derive(Debug, Clone)]
 pub enum DecodedPdEvent {
@@ -77,6 +108,8 @@ pub enum DecodedPdEvent {
 #[derive(Debug, Clone, Default)]
 pub struct PdSessionDecoder {
     source_capabilities: Option<SourceCapabilities>,
+    revision: Option<PdRevision>,
+    identity: Option<PdIdentity>,
     epr_assembler: ChunkedMessageAssembler,
 }
 
@@ -95,13 +128,22 @@ impl PdSessionDecoder {
 
     /// Clear all connection-specific decoding state.
     pub fn reset(&mut self) {
-        self.source_capabilities = None;
-        self.epr_assembler.reset();
+        *self = Self::default();
     }
 
     /// Most recently observed SPR source capabilities.
     pub fn source_capabilities(&self) -> Option<&SourceCapabilities> {
         self.source_capabilities.as_ref()
+    }
+
+    /// Most recently observed source specification revision on SOP traffic.
+    pub const fn revision(&self) -> Option<PdRevision> {
+        self.revision
+    }
+
+    /// Most recently observed SOP Discover Identity acknowledgement.
+    pub const fn identity(&self) -> Option<PdIdentity> {
+        self.identity
     }
 
     /// Decode one KM003C PD event.
@@ -130,9 +172,7 @@ impl PdSessionDecoder {
 
         match parse_message_with_state(wire_data, self.source_capabilities.as_ref()) {
             Ok(message) => {
-                if let Some(Payload::Data(Data::SourceCapabilities(capabilities))) = &message.payload {
-                    self.source_capabilities = Some(capabilities.clone());
-                }
+                self.observe_message_state(sop, &message);
 
                 DecodedPdEvent::Message(DecodedPdMessage {
                     timestamp,
@@ -157,6 +197,46 @@ impl PdSessionDecoder {
                 },
             ),
             Err(error) => self.failure(timestamp, sop, error.into(), wire_data),
+        }
+    }
+
+    fn observe_message_state(&mut self, sop: u8, message: &Message) {
+        // Cable-plug traffic has its own identity and revision. The summary is
+        // for the source/sink pair on SOP.
+        if sop != 0 {
+            return;
+        }
+
+        let is_good_crc = matches!(
+            message.header.message_type(),
+            MessageType::Control(ControlMessageType::GoodCRC)
+        );
+        if matches!(message.header.port_power_role(), PowerRole::Source) && !is_good_crc {
+            self.revision = message.header.spec_revision().ok().map(|revision| match revision {
+                SpecificationRevision::R1_0 => PdRevision::Revision1,
+                SpecificationRevision::R2_0 => PdRevision::Revision2,
+                SpecificationRevision::R3_X => PdRevision::Revision3,
+            });
+        }
+
+        match &message.payload {
+            Some(Payload::Data(Data::SourceCapabilities(capabilities))) => {
+                self.source_capabilities = Some(capabilities.clone());
+            }
+            Some(Payload::Data(Data::VendorDefined((VdmHeader::Structured(header), data))))
+                if header.0 & 0x1f == 1 && (header.0 >> 6) & 0x03 == 1 =>
+            {
+                let Some(identity_header) = data.first().copied().map(VdmIdentityHeader) else {
+                    return;
+                };
+                let product = data.get(2).copied().map(ProductVDO);
+                self.identity = Some(PdIdentity {
+                    vendor_id: identity_header.vid(),
+                    product_id: product.map(|value| value.pid()),
+                    device_bcd: product.map(|value| value.bcd_device()),
+                });
+            }
+            _ => {}
         }
     }
 

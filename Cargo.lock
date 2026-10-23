@@ -2587,6 +2587,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "km003c-scope"
+version = "0.4.0"
+dependencies = [
+ "chrono",
+ "eframe",
+ "egui_plot",
+ "km003c-lib",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "kurbo"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
