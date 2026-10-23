@@ -5,6 +5,7 @@
 //! strips — voltage, current, and power — at 100 pixels per second.
 
 use std::collections::VecDeque;
+use std::fmt::Write as _;
 use std::ops::RangeInclusive;
 use std::time::Duration;
 use std::time::Instant;
@@ -24,8 +25,11 @@ use km003c_lib::MeasurementSample;
 use km003c_lib::Metric;
 use km003c_lib::PdConnectionTracker;
 use km003c_lib::PdContract;
+use km003c_lib::PdContractStage;
 use km003c_lib::PdEvent;
 use km003c_lib::PdEventData;
+use km003c_lib::PdIdentity;
+use km003c_lib::PdLogEntry;
 use km003c_lib::PdLogger;
 use km003c_lib::PdStatus;
 use km003c_lib::Session;
@@ -34,8 +38,10 @@ use km003c_lib::pd_log::format_pdo;
 use km003c_lib::uom::si::electric_current::ampere;
 use km003c_lib::uom::si::electric_potential::volt;
 use km003c_lib::uom::si::frequency::hertz;
+use km003c_lib::uom::si::thermodynamic_temperature::degree_celsius;
 use tokio::sync::mpsc;
-use tracing::info;
+use tracing::{debug, info};
+use tracing_subscriber::prelude::*;
 
 const VOLTAGE_COLOR: Color32 = Color32::from_rgb(80, 220, 120);
 const CURRENT_COLOR: Color32 = Color32::from_rgb(90, 170, 255);
@@ -70,6 +76,7 @@ const CENTRAL_PANEL_MARGIN: f32 = 8.0;
 /// Space Mono's advance width, in font units per em.
 const SPACE_MONO_ADVANCE_EM: f32 = 612.0 / 1000.0;
 const METER_VALUE_FONT_SIZE: f32 = 28.0;
+const TEMPERATURE_FONT_SIZE: f32 = 14.0;
 /// Horizontal inset of egui's side-panel frame, on each side.
 const SIDE_PANEL_INNER_MARGIN: f32 = 8.0;
 /// Padding inside the black meter box, on each side.
@@ -78,6 +85,7 @@ const METER_BOX_MARGIN: f32 = 8.0;
 const SIDE_PANEL_SEPARATOR: f32 = 1.0;
 /// Samples kept so a wider window can reveal history that has already scrolled off.
 const RETAIN_SECS: f64 = 180.0;
+const USB_RESET_SUPPORTED: bool = !cfg!(target_os = "windows");
 const RATES: [GraphSampleRate; 4] = [
     GraphSampleRate::Sps2,
     GraphSampleRate::Sps10,
@@ -87,14 +95,23 @@ const RATES: [GraphSampleRate; 4] = [
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
+    let log_filter = std::env::var("RUST_LOG")
+        .unwrap_or_else(|_| "info".to_string())
+        .parse::<tracing_subscriber::filter::Targets>()
+        .unwrap_or_else(|error| {
+            eprintln!("Ignoring invalid RUST_LOG filter: {error}");
+            "info".parse().expect("the default log filter is valid")
+        });
+    tracing_subscriber::registry()
+        .with(log_filter)
+        .with(tracing_subscriber::fmt::layer())
+        .init();
     info!("Starting KM003C scope");
 
     let (session, events) = Session::spawn();
     let rate = GraphSampleRate::Sps50;
-    // A USB reset re-enumerates the meter. macOS handles that badly, so leave
-    // it off unless the user asks.
-    let usb_reset = !cfg!(target_os = "macos");
+    // WinUSB cannot reset devices, and macOS handles re-enumeration badly.
+    let usb_reset = USB_RESET_SUPPORTED && !cfg!(target_os = "macos");
     let _ = session.connect(rate, usb_reset);
 
     let app = ScopeApp {
@@ -106,6 +123,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         voltage: None,
         current: None,
         power: None,
+        cc1: None,
+        cc2: None,
+        temperature_c: None,
         status: "Connecting...".to_string(),
         device: None,
         device_info_open: false,
@@ -155,6 +175,9 @@ struct ScopeApp {
     voltage: Option<f64>,
     current: Option<f64>,
     power: Option<f64>,
+    cc1: Option<f64>,
+    cc2: Option<f64>,
+    temperature_c: Option<f64>,
     status: String,
     device: Option<DeviceState>,
     device_info_open: bool,
@@ -224,18 +247,25 @@ impl ScopeApp {
                             continue;
                         };
                         self.samples.push_back(measurement);
-                        if let Some((voltage, current, power)) = self.meter.push(
+                        if let Some(reading) = self.meter.push(
                             rate,
                             Metric::Voltage.value(&measurement),
                             Metric::SignedCurrent.value(&measurement),
                             Metric::SignedPower.value(&measurement),
+                            Metric::Cc1.value(&measurement),
+                            Metric::Cc2.value(&measurement),
                         ) {
-                            self.voltage = Some(voltage);
-                            self.current = Some(current);
-                            self.power = Some(power);
+                            self.voltage = Some(reading.voltage);
+                            self.current = Some(reading.current);
+                            self.power = Some(reading.power);
+                            self.cc1 = Some(reading.cc1);
+                            self.cc2 = Some(reading.cc2);
                         }
                     }
                     self.trim_window();
+                }
+                SessionEvent::AdcUpdate(adc) => {
+                    self.temperature_c = Some(adc.temperature.get::<degree_celsius>());
                 }
                 SessionEvent::StreamingStarted(rate) => {
                     self.streaming = true;
@@ -278,6 +308,9 @@ impl ScopeApp {
         self.voltage = None;
         self.current = None;
         self.power = None;
+        self.cc1 = None;
+        self.cc2 = None;
+        self.temperature_c = None;
         self.samples.clear();
         self.accumulator = MeasurementAccumulator::default();
         self.meter.reset();
@@ -310,8 +343,15 @@ impl ScopeApp {
     fn controls(&mut self, ui: &mut egui::Ui) {
         ui.label(self.status.as_str());
         ui.add_space(8.0);
-        ui.checkbox(&mut self.usb_reset, "USB reset on connect")
-            .on_hover_text("Applied the next time Connect runs. Leave this off on macOS.");
+        ui.add_enabled(
+            USB_RESET_SUPPORTED,
+            egui::Checkbox::new(&mut self.usb_reset, "USB reset on connect"),
+        )
+        .on_hover_text(if USB_RESET_SUPPORTED {
+            "Applied the next time Connect runs. Leave this off on macOS."
+        } else {
+            "WinUSB does not support USB device reset."
+        });
         ui.add_space(8.0);
 
         if self.connected {
@@ -401,41 +441,90 @@ impl ScopeApp {
             self.pd_info_open = false;
             return;
         }
+        if !self.pd_info_open {
+            return;
+        }
         let sink = sink_label(self.pd.tracker.connected());
-        let mode = self.pd.contract.to_string();
+        let revision = self
+            .pd
+            .logger
+            .revision()
+            .map(|revision| revision.to_string())
+            .unwrap_or_else(|| "Not observed".to_string());
+        let contract = if self.pd.contract.stage() == PdContractStage::None {
+            "Not observed".to_string()
+        } else {
+            self.pd.contract.to_string()
+        };
+        let source_pdos = self
+            .pd
+            .logger
+            .source_pdo_count()
+            .map(|count| count.to_string())
+            .unwrap_or_else(|| "Not observed".to_string());
+        let max_power = self
+            .pd
+            .logger
+            .source_max_power_w()
+            .map(|watts| format!("{watts:.0} W"))
+            .unwrap_or_else(|| "Not observed".to_string());
+        let identity = self
+            .pd
+            .logger
+            .identity()
+            .map(identity_label)
+            .unwrap_or_else(|| "Not observed".to_string());
         let status = self.pd.status;
+        let vbus = self.voltage.or_else(|| status.map(|value| value.vbus.get::<volt>()));
+        let ibus = self.current.or_else(|| status.map(|value| value.ibus.get::<ampere>()));
+        let cc1 = self.cc1.or_else(|| status.map(|value| value.cc1.get::<volt>()));
+        let cc2 = self.cc2.or_else(|| status.map(|value| value.cc2.get::<volt>()));
         let offered = self.pd.offered_modes();
-        egui::Window::new("PD Info")
-            .open(&mut self.pd_info_open)
-            .collapsible(false)
-            .resizable(false)
-            .default_pos(egui::pos2(64.0, 64.0))
-            .show(ctx, |ui| {
-                egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
-                    egui::Grid::new("pd_info").num_columns(2).striped(true).show(ui, |ui| {
-                        let mut row = |label: &str, value: &str| {
-                            ui.label(label);
-                            ui.label(if value.is_empty() { "—" } else { value });
-                            ui.end_row();
-                        };
-                        row("Sink", sink);
-                        row("Mode", &mode);
-                        if let Some(status) = status {
-                            row("VBUS", &format!("{:.3} V", status.vbus.get::<volt>()));
-                            row("IBUS", &format!("{:.3} A", status.ibus.get::<ampere>()));
-                            row("CC1", &format!("{:.3} V", status.cc1.get::<volt>()));
-                            row("CC2", &format!("{:.3} V", status.cc2.get::<volt>()));
-                        }
-                        if offered.is_empty() {
-                            row("Offered", "—");
-                        } else {
-                            for (index, offer) in offered.iter().enumerate() {
-                                row(if index == 0 { "Offered" } else { "" }, offer);
+        let close_requested = ctx.show_viewport_immediate(
+            egui::ViewportId::from_hash_of("pd_info_viewport"),
+            egui::ViewportBuilder::default()
+                .with_title("PD Info")
+                .with_inner_size([430.0, 480.0])
+                .with_min_inner_size([360.0, 260.0]),
+            |ui, class| {
+                let close_requested = class != egui::ViewportClass::EmbeddedWindow
+                    && ui.ctx().input(|input| input.viewport().close_requested());
+                egui::Frame::new().inner_margin(8.0).show(ui, |ui| {
+                    egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
+                        egui::Grid::new("pd_info").num_columns(2).striped(true).show(ui, |ui| {
+                            let mut row = |label: &str, value: &str| {
+                                ui.label(label);
+                                ui.label(if value.is_empty() { "—" } else { value });
+                                ui.end_row();
+                            };
+                            row("PD revision", &revision);
+                            row("Contract", &contract);
+                            row("Source PDOs", &source_pdos);
+                            row("Maximum power", &max_power);
+                            row("Identity", &identity);
+                            row("Downstream sink", sink);
+                            if let (Some(vbus), Some(ibus), Some(cc1), Some(cc2)) = (vbus, ibus, cc1, cc2) {
+                                row("VBUS", &format!("{vbus:.3} V"));
+                                row("IBUS", &format!("{ibus:.3} A"));
+                                row("CC1", &format!("{cc1:.3} V"));
+                                row("CC2", &format!("{cc2:.3} V"));
                             }
-                        }
+                            if offered.is_empty() {
+                                row("Offered", "Not observed");
+                            } else {
+                                for (index, offer) in offered.iter().enumerate() {
+                                    row(if index == 0 { "Offered" } else { "" }, offer);
+                                }
+                            }
+                        });
                     });
                 });
-            });
+                close_requested
+            },
+        );
+        if close_requested {
+            self.pd_info_open = false;
+        }
     }
 
     fn readings(&self, ui: &mut egui::Ui) {
@@ -449,6 +538,10 @@ impl ScopeApp {
                 reading(ui, self.current, "A", CURRENT_COLOR);
                 ui.add_space(12.0);
                 reading(ui, self.power, "W", POWER_COLOR);
+                ui.add_space(10.0);
+                ui.separator();
+                ui.add_space(4.0);
+                temperature_reading(ui, self.temperature_c);
             });
     }
 
@@ -621,6 +714,33 @@ fn format_measurement(value: Option<f64>, unit: &str) -> String {
     format!("{number} {unit}")
 }
 
+fn format_temperature(value: Option<f64>) -> String {
+    match value {
+        Some(value) if value.is_finite() => format!("{value:.1} °C"),
+        _ => "—.- °C".to_string(),
+    }
+}
+
+fn temperature_reading(ui: &mut egui::Ui, value: Option<f64>) {
+    ui.horizontal(|ui| {
+        thermometer_icon(ui);
+        ui.label(meter_text(format_temperature(value), TEMPERATURE_FONT_SIZE).color(Color32::LIGHT_GRAY));
+    });
+}
+
+fn thermometer_icon(ui: &mut egui::Ui) {
+    let size = egui::vec2(8.0, TEMPERATURE_FONT_SIZE);
+    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+    let color = Color32::from_rgb(255, 145, 96);
+    let center_x = rect.center().x;
+    let bulb = egui::pos2(center_x, rect.bottom() - 3.0);
+    ui.painter().line_segment(
+        [egui::pos2(center_x, rect.top() + 1.0), bulb],
+        egui::Stroke::new(2.0, color),
+    );
+    ui.painter().circle_filled(bulb, 3.0, color);
+}
+
 /// Outer width of the left pane: one meter line, the black box, and the panel frame.
 fn meter_pane_width() -> f32 {
     let columns = format_measurement(Some(-99.99999), "W").chars().count() as f32;
@@ -645,6 +765,17 @@ struct MeterAverage {
     voltage: f64,
     current: f64,
     power: f64,
+    cc1: f64,
+    cc2: f64,
+}
+
+#[derive(Debug, PartialEq)]
+struct MeterReading {
+    voltage: f64,
+    current: f64,
+    power: f64,
+    cc1: f64,
+    cc2: f64,
 }
 
 impl MeterAverage {
@@ -653,27 +784,47 @@ impl MeterAverage {
     }
 
     /// Average the next half-second of samples. Returns the mean once the window is full.
-    fn push(&mut self, rate: GraphSampleRate, voltage: f64, current: f64, power: f64) -> Option<(f64, f64, f64)> {
+    fn push(
+        &mut self,
+        rate: GraphSampleRate,
+        voltage: f64,
+        current: f64,
+        power: f64,
+        cc1: f64,
+        cc2: f64,
+    ) -> Option<MeterReading> {
         if self.rate != Some(rate) {
             self.rate = Some(rate);
             self.count = 0;
             self.voltage = 0.0;
             self.current = 0.0;
             self.power = 0.0;
+            self.cc1 = 0.0;
+            self.cc2 = 0.0;
         }
         self.voltage += voltage;
         self.current += current;
         self.power += power;
+        self.cc1 += cc1;
+        self.cc2 += cc2;
         self.count += 1;
         if self.count < samples_per_meter_update(rate) {
             return None;
         }
         let count = f64::from(self.count);
-        let averaged = (self.voltage / count, self.current / count, self.power / count);
+        let averaged = MeterReading {
+            voltage: self.voltage / count,
+            current: self.current / count,
+            power: self.power / count,
+            cc1: self.cc1 / count,
+            cc2: self.cc2 / count,
+        };
         self.count = 0;
         self.voltage = 0.0;
         self.current = 0.0;
         self.power = 0.0;
+        self.cc1 = 0.0;
+        self.cc2 = 0.0;
         Some(averaged)
     }
 }
@@ -905,6 +1056,7 @@ impl PdView {
                 PdEventData::PdMessage { .. } => {}
             }
             let entry = self.logger.log_event(event);
+            log_pd_event(event, &entry);
             self.contract.observe(&entry);
         }
     }
@@ -930,11 +1082,41 @@ impl PdView {
     }
 }
 
+fn log_pd_event(event: &PdEvent, entry: &PdLogEntry) {
+    let details = if entry.details.is_empty() {
+        String::new()
+    } else {
+        format!(" | {}", entry.details.join(" ; "))
+    };
+    let raw = match &event.data {
+        PdEventData::PdMessage { wire_data, .. } => {
+            let mut hex = String::with_capacity(wire_data.len() * 2);
+            for byte in wire_data {
+                let _ = write!(hex, "{byte:02x}");
+            }
+            format!(" | raw={hex}")
+        }
+        PdEventData::Connect | PdEventData::Disconnect => String::new(),
+    };
+    debug!("PD {}{details}{raw}", entry.summary());
+}
+
 fn sink_label(connected: Option<bool>) -> &'static str {
     match connected {
         Some(true) => "Attached",
         Some(false) => "Not attached",
         None => "Detecting",
+    }
+}
+
+fn identity_label(identity: PdIdentity) -> String {
+    let vendor = match identity.vendor_id {
+        0x413c => "Dell",
+        _ => "Unknown vendor",
+    };
+    match identity.product_id {
+        Some(product_id) => format!("{vendor} (VID {:04X}, PID {product_id:04X})", identity.vendor_id),
+        None => format!("{vendor} (VID {:04X})", identity.vendor_id),
     }
 }
 
@@ -1120,12 +1302,13 @@ mod tests {
         AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, GraphSampleRate, MAX_PIXELS_PER_SECOND, MIN_PIXELS_PER_SECOND,
         MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage, PIXELS_PER_SECOND, STRIP_GAP, STRIP_GAP_BETWEEN, STRIP_HEIGHT,
         Y_MARGIN_FRACTION, clamped_cursor, cursor_label_on_left, cursor_value, fitted_cursor_font_size,
-        format_measurement, initial_window_size, layer_covers_plots, meter_pane_width, minimum_window_size,
-        panned_view_end, pointer_blocks_plots, samples_per_meter_update, scaled_y_range, time_at_pointer,
-        zoomed_pixels_per_second, zoomed_view_end_at_pointer,
+        format_measurement, format_temperature, identity_label, initial_window_size, layer_covers_plots,
+        meter_pane_width, minimum_window_size, panned_view_end, pointer_blocks_plots, samples_per_meter_update,
+        scaled_y_range, time_at_pointer, zoomed_pixels_per_second, zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
+    use km003c_lib::PdIdentity;
     use std::collections::VecDeque;
 
     #[test]
@@ -1146,6 +1329,20 @@ mod tests {
     }
 
     #[test]
+    fn secondary_telemetry_has_compact_labels() {
+        assert_eq!(format_temperature(Some(33.04)), "33.0 °C");
+        assert_eq!(format_temperature(None), "—.- °C");
+        assert_eq!(
+            identity_label(PdIdentity {
+                vendor_id: 0x413c,
+                product_id: Some(0x1234),
+                device_bcd: Some(0x0100),
+            }),
+            "Dell (VID 413C, PID 1234)"
+        );
+    }
+
+    #[test]
     fn meter_updates_twice_per_second() {
         assert_eq!(samples_per_meter_update(GraphSampleRate::Sps2), 1);
         assert_eq!(samples_per_meter_update(GraphSampleRate::Sps10), 5);
@@ -1153,20 +1350,29 @@ mod tests {
         assert_eq!(samples_per_meter_update(GraphSampleRate::Sps1000), 500);
 
         let mut meter = MeterAverage::default();
-        assert!(meter.push(GraphSampleRate::Sps2, 1.0, 2.0, 3.0).is_some());
+        assert!(meter.push(GraphSampleRate::Sps2, 1.0, 2.0, 3.0, 4.0, 5.0).is_some());
 
         let mut meter = MeterAverage::default();
         for sample in 0..4 {
             assert!(
                 meter
-                    .push(GraphSampleRate::Sps10, f64::from(sample), 0.0, 0.0)
+                    .push(
+                        GraphSampleRate::Sps10,
+                        f64::from(sample),
+                        0.0,
+                        0.0,
+                        f64::from(sample) * 2.0,
+                        f64::from(sample) * 3.0,
+                    )
                     .is_none()
             );
         }
-        let (voltage, _, _) = meter.push(GraphSampleRate::Sps10, 4.0, 0.0, 0.0).unwrap();
-        assert!((voltage - 2.0).abs() < 1e-9);
+        let reading = meter.push(GraphSampleRate::Sps10, 4.0, 0.0, 0.0, 8.0, 12.0).unwrap();
+        assert!((reading.voltage - 2.0).abs() < 1e-9);
+        assert!((reading.cc1 - 4.0).abs() < 1e-9);
+        assert!((reading.cc2 - 6.0).abs() < 1e-9);
 
-        assert!(meter.push(GraphSampleRate::Sps50, 10.0, 0.0, 0.0).is_none());
+        assert!(meter.push(GraphSampleRate::Sps50, 10.0, 0.0, 0.0, 0.0, 0.0).is_none());
     }
 
     #[test]

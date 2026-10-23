@@ -584,18 +584,24 @@ impl KM003C {
 
         let mut device = timeout(DEFAULT_TIMEOUT, async { device_info.open().await }).await??;
 
-        // Optionally reset device (skip on MacOS if having issues)
+        // Optionally reset device (skip on MacOS if having issues).
         if !config.skip_reset {
             info!("Resetting device...");
-            device.reset().await?;
-            // CRITICAL: Device needs 1.5 seconds to fully initialize after reset
-            // (validated through protocol research - 100ms is insufficient for AdcQueue)
-            crate::runtime::sleep(Duration::from_millis(1500)).await;
-            // Re-enumerate and reopen after reset (old handle may be invalid).
-            device = timeout(DEFAULT_TIMEOUT, async {
-                find_device(&reopen_selector).await?.open().await.map_err(KMError::from)
-            })
-            .await??;
+            match device.reset().await {
+                Ok(()) => {
+                    // The device needs 1.5 seconds to fully initialize after reset.
+                    crate::runtime::sleep(Duration::from_millis(1500)).await;
+                    // Re-enumerate and reopen after reset (old handle may be invalid).
+                    device = timeout(DEFAULT_TIMEOUT, async {
+                        find_device(&reopen_selector).await?.open().await.map_err(KMError::from)
+                    })
+                    .await??;
+                }
+                Err(error) if error.kind() == nusb::ErrorKind::Unsupported => {
+                    warn!("USB reset is not supported by this platform or driver; continuing without reset");
+                }
+                Err(error) => return Err(error.into()),
+            }
         } else {
             debug!("Skipping USB reset (skip_reset=true)");
         }

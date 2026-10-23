@@ -21,7 +21,8 @@ use usbpd::units::{ElectricCurrent, ElectricPotential, Power};
 
 use crate::pd::PdEvent;
 use crate::pd_decode::{
-    DecodedPdEvent, DecodedPdMessage, PdChunkState, PdChunkStatus, PdDecodeFailure, PdSessionDecoder,
+    DecodedPdEvent, DecodedPdMessage, PdChunkState, PdChunkStatus, PdDecodeFailure, PdIdentity, PdRevision,
+    PdSessionDecoder,
 };
 
 // usbpd stores quantities as `u32` in milliamperes, millivolts and
@@ -122,6 +123,30 @@ impl PdLogger {
         self.session.source_capabilities()
     }
 
+    /// Most recently observed source USB PD revision on SOP traffic.
+    pub const fn revision(&self) -> Option<PdRevision> {
+        self.session.revision()
+    }
+
+    /// Most recently observed SOP Discover Identity acknowledgement.
+    pub const fn identity(&self) -> Option<PdIdentity> {
+        self.session.identity()
+    }
+
+    /// Number of most recently advertised SPR source PDOs.
+    pub fn source_pdo_count(&self) -> Option<usize> {
+        self.source_capabilities().map(|capabilities| capabilities.pdos().len())
+    }
+
+    /// Maximum power advertised by any retained SPR source PDO.
+    pub fn source_max_power_w(&self) -> Option<f64> {
+        self.source_capabilities()?
+            .pdos()
+            .iter()
+            .filter_map(pdo_max_power_w)
+            .reduce(f64::max)
+    }
+
     pub fn log_event(&mut self, event: &PdEvent) -> PdLogEntry {
         match self.session.decode_event(event) {
             DecodedPdEvent::Connect { timestamp } => connection_entry(timestamp.get::<second>(), true),
@@ -189,8 +214,16 @@ fn connection_entry(timestamp_seconds: f64, connected: bool) -> PdLogEntry {
 }
 
 fn format_header(header: &Header) -> String {
+    let revision = header
+        .spec_revision()
+        .map(|revision| match revision {
+            usbpd::protocol_layer::message::header::SpecificationRevision::R1_0 => "PD1.0",
+            usbpd::protocol_layer::message::header::SpecificationRevision::R2_0 => "PD2.0",
+            usbpd::protocol_layer::message::header::SpecificationRevision::R3_X => "PD3.x",
+        })
+        .unwrap_or("reserved revision");
     format!(
-        "ID={}, {:?}/{:?}",
+        "ID={}, {revision}, {:?}/{:?}",
         header.message_id(),
         header.port_power_role(),
         header.port_data_role()
@@ -463,6 +496,20 @@ pub fn format_pdo(pdo: &PowerDataObject) -> String {
     }
 }
 
+/// Maximum power represented by one source PDO, in watts.
+pub fn pdo_max_power_w(pdo: &PowerDataObject) -> Option<f64> {
+    match pdo {
+        PowerDataObject::FixedSupply(fixed) => Some(fixed.voltage().volts() * fixed.max_current().amps()),
+        PowerDataObject::Battery(battery) => Some(battery.max_power().watts()),
+        PowerDataObject::VariableSupply(variable) => {
+            Some(variable.max_voltage().volts() * variable.max_current().amps())
+        }
+        PowerDataObject::Augmented(Augmented::Spr(pps)) => Some(pps.max_voltage().volts() * pps.max_current().amps()),
+        PowerDataObject::Augmented(Augmented::Epr(avs)) => Some(avs.pd_power().watts()),
+        PowerDataObject::Augmented(Augmented::Unknown(_)) | PowerDataObject::Unknown(_) => None,
+    }
+}
+
 fn format_capabilities(capabilities: &[PowerDataObject], title: &str) -> Vec<String> {
     let mut lines = vec![format!("[{title}]")];
     for (index, pdo) in capabilities.iter().enumerate() {
@@ -498,7 +545,8 @@ mod tests {
 
     #[test]
     fn source_capabilities_list_their_pdos() {
-        let entry = PdLogger::new().log_event(&message(1_500.0, SOURCE_CAPS));
+        let mut logger = PdLogger::new();
+        let entry = logger.log_event(&message(1_500.0, SOURCE_CAPS));
 
         assert_eq!(entry.category, PdLogCategory::SourceCaps);
         assert_eq!(entry.title, "Source_Capabilities");
@@ -509,6 +557,9 @@ mod tests {
         // Fractional volts survive: usbpd's u32 storage used to cut 3.3 V to 3.
         assert!(entry.details[6].starts_with("PDO[6]: PPS 3.3-"), "{}", entry.details[6]);
         assert!(entry.summary().starts_with("[1.500s] SOP0: Source_Capabilities (ID="));
+        assert!(entry.summary().contains("PD3.x, Source/Dfp"));
+        assert_eq!(logger.source_pdo_count(), Some(6));
+        assert!(logger.source_max_power_w().is_some_and(|watts| watts >= 65.0));
     }
 
     #[test]
@@ -541,5 +592,6 @@ mod tests {
     fn good_crc_is_recognised() {
         let entry = PdLogger::new().log_event(&message(0.0, "4102"));
         assert!(entry.is_good_crc());
+        assert!(entry.summary().contains("PD2.0, Sink/Ufp"));
     }
 }

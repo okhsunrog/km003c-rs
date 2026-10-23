@@ -47,7 +47,8 @@ pub use pd_connection::PdConnectionTracker;
 pub use pd_contract::{PdContract, PdContractStage};
 #[cfg(feature = "usbpd")]
 pub use pd_decode::{
-    DecodedPdEvent, DecodedPdMessage, PdChunkState, PdChunkStatus, PdDecodeError, PdDecodeFailure, PdSessionDecoder,
+    DecodedPdEvent, DecodedPdMessage, PdChunkState, PdChunkStatus, PdDecodeError, PdDecodeFailure, PdIdentity,
+    PdRevision, PdSessionDecoder,
 };
 #[cfg(feature = "usbpd")]
 pub use pd_log::{PdLogCategory, PdLogEntry, PdLogger};

@@ -17,6 +17,7 @@ use thiserror::Error;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
+use crate::adc::AdcDataSimple;
 use crate::device::{PID, VID};
 use crate::error::KMError;
 use crate::packet::{Attribute, AttributeSet};
@@ -34,6 +35,8 @@ const MAX_ERRORS: u32 = 10;
 /// such as while a phone sleeps, yet keeps answering PD requests. At the
 /// slowest rate a sample is due every 0.5 s.
 const STALL_TIMEOUT: Duration = Duration::from_secs(3);
+/// Slow telemetry absent from AdcQueue, including temperature and internal VDD.
+const ADC_TELEMETRY_INTERVAL: Duration = Duration::from_secs(1);
 
 /// What the session task reports to the front end.
 #[derive(Debug, Clone)]
@@ -47,6 +50,8 @@ pub enum SessionEvent {
     ConnectionFailed { error: String, retry_when_present: bool },
     /// New AdcQueue samples.
     Samples(Vec<AdcQueueSample>),
+    /// Periodic single-shot ADC telemetry collected without stopping AdcQueue.
+    AdcUpdate(AdcDataSimple),
     /// PD events from the device's PD monitor.
     PdEvents(Vec<PdEvent>),
     /// PD status (CC line voltages).
@@ -371,6 +376,9 @@ async fn stream(
     // Initial StopGraph to ensure clean state
     info!("Sending initial StopGraph to ensure clean state");
     let _ = device.stop_graph_mode().await;
+    if let Err(error) = device.enable_pd_monitor().await {
+        warn!("Could not explicitly enable PD monitoring; continuing with status polling: {error}");
+    }
 
     let mut current_rate = initial_rate;
     if let Err(e) = start_streaming(&mut device, current_rate, tx).await {
@@ -389,6 +397,7 @@ async fn stream(
     let mut reconnect_when_present = false;
     let mut terminal_error = None;
     let mut last_samples = Instant::now();
+    let mut last_adc_telemetry = Instant::now();
 
     loop {
         // Check for commands from the UI (non-blocking)
@@ -492,11 +501,21 @@ async fn stream(
             }
         }
 
-        // Request the regular streams and the opt-in firmware trace.
-        let mask = streaming_attribute_mask(pd_trace_enabled);
+        // Keep draining AdcQueue while periodically adding slow ADC telemetry.
+        let request_adc = last_adc_telemetry.elapsed() >= ADC_TELEMETRY_INTERVAL;
+        if request_adc {
+            // Keep the request cadence bounded even if this firmware omits ADC
+            // from a chained response.
+            last_adc_telemetry = Instant::now();
+        }
+        let mask = streaming_attribute_mask(pd_trace_enabled, request_adc);
         match device.request_data(mask).await {
             Ok(packet) => {
                 error_count = 0;
+
+                if let Some(adc) = packet.get_adc() {
+                    let _ = tx.send(SessionEvent::AdcUpdate(*adc));
+                }
 
                 if let Some(queue_data) = packet.get_adc_queue()
                     && !queue_data.samples.is_empty()
@@ -561,6 +580,7 @@ async fn stream(
 
     info!("Stopping streaming");
     let _ = device.stop_graph_mode().await;
+    let _ = device.disable_pd_monitor().await;
     let _ = tx.send(SessionEvent::Disconnected {
         retry_when_present: reconnect_when_present,
     });
@@ -569,8 +589,11 @@ async fn stream(
     }
 }
 
-fn streaming_attribute_mask(pd_trace_enabled: bool) -> AttributeSet {
-    let mask = AttributeSet::single(Attribute::AdcQueue).with(Attribute::PdPacket);
+fn streaming_attribute_mask(pd_trace_enabled: bool, adc_telemetry: bool) -> AttributeSet {
+    let mut mask = AttributeSet::single(Attribute::AdcQueue).with(Attribute::PdPacket);
+    if adc_telemetry {
+        mask = mask.with(Attribute::Adc);
+    }
     if pd_trace_enabled {
         mask.with(Attribute::PdTrace)
     } else {
@@ -604,15 +627,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn firmware_trace_is_only_requested_when_enabled() {
-        let disabled = streaming_attribute_mask(false);
+    fn optional_streaming_attributes_are_only_requested_when_due() {
+        let disabled = streaming_attribute_mask(false, false);
         assert!(disabled.contains(Attribute::AdcQueue));
         assert!(disabled.contains(Attribute::PdPacket));
+        assert!(!disabled.contains(Attribute::Adc));
         assert!(!disabled.contains(Attribute::PdTrace));
 
-        let enabled = streaming_attribute_mask(true);
+        let enabled = streaming_attribute_mask(true, true);
         assert!(enabled.contains(Attribute::AdcQueue));
         assert!(enabled.contains(Attribute::PdPacket));
+        assert!(enabled.contains(Attribute::Adc));
         assert!(enabled.contains(Attribute::PdTrace));
     }
 
