@@ -683,30 +683,44 @@ impl ScopeApp {
         let Some(device) = self.device.clone() else {
             return;
         };
-        egui::Window::new("Device Info")
-            .open(&mut self.device_info_open)
-            .collapsible(false)
-            .resizable(false)
-            .show(ctx, |ui| {
-                egui::Grid::new("device_info")
-                    .num_columns(2)
-                    .striped(true)
-                    .show(ui, |ui| {
-                        let mut row = |label: &str, value: &str| {
-                            ui.label(label);
-                            ui.label(if value.is_empty() { "—" } else { value });
-                            ui.end_row();
-                        };
-                        row("Model", &device.info.model);
-                        row("Serial", &device.info.serial_id);
-                        row("Firmware", &device.info.fw_version);
-                        row("Firmware date", &device.info.fw_date);
-                        row("Hardware", &device.info.hw_version);
-                        row("Manufactured", &device.info.mfg_date);
-                        row("UUID", &device.info.uuid);
-                        row("Hardware ID", &device.hardware_id.to_string());
-                    });
-            });
+        if !self.device_info_open {
+            return;
+        }
+        let close_requested = ctx.show_viewport_immediate(
+            egui::ViewportId::from_hash_of("device_info_viewport"),
+            egui::ViewportBuilder::default()
+                .with_title("Device Info")
+                .with_inner_size([480.0, 280.0])
+                .with_min_inner_size([360.0, 220.0]),
+            |ui, class| {
+                let close_requested = class != egui::ViewportClass::EmbeddedWindow
+                    && ui.ctx().input(|input| input.viewport().close_requested());
+                egui::CentralPanel::default().show(ui, |ui| {
+                    egui::Grid::new("device_info")
+                        .num_columns(2)
+                        .striped(true)
+                        .show(ui, |ui| {
+                            let mut row = |label: &str, value: &str| {
+                                ui.label(label);
+                                ui.label(if value.is_empty() { "—" } else { value });
+                                ui.end_row();
+                            };
+                            row("Model", &device.info.model);
+                            row("Serial", &device.info.serial_id);
+                            row("Firmware", &device.info.fw_version);
+                            row("Firmware date", &device.info.fw_date);
+                            row("Hardware", &device.info.hw_version);
+                            row("Manufactured", &device.info.mfg_date);
+                            row("UUID", &device.info.uuid);
+                            row("Hardware ID", &device.hardware_id.to_string());
+                        });
+                });
+                close_requested
+            },
+        );
+        if close_requested {
+            self.device_info_open = false;
+        }
     }
 
     fn pd_info_dialog(&mut self, ctx: &egui::Context) {
@@ -762,8 +776,8 @@ impl ScopeApp {
             |ui, class| {
                 let close_requested = class != egui::ViewportClass::EmbeddedWindow
                     && ui.ctx().input(|input| input.viewport().close_requested());
-                egui::Frame::new().inner_margin(8.0).show(ui, |ui| {
-                    egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
                         egui::Grid::new("pd_info").num_columns(2).striped(true).show(ui, |ui| {
                             let mut row = |label: &str, value: &str| {
                                 ui.label(label);
