@@ -18,6 +18,8 @@ use eframe::egui;
 use eframe::egui::Color32;
 use eframe::egui::RichText;
 use egui_plot::AxisHints;
+use egui_plot::GridInput;
+use egui_plot::GridMark;
 use egui_plot::HPlacement;
 use egui_plot::Line;
 use egui_plot::Plot;
@@ -411,7 +413,13 @@ impl ScopeApp {
             let Some(spec) = pd_timeline_marker(&entry) else {
                 continue;
             };
-            let time = pd_timeline_time(event.timestamp.get::<second>(), device_anchor, timeline_anchor);
+            let wraps_at_24_bits = matches!(&event.data, PdEventData::Connect | PdEventData::Disconnect);
+            let time = pd_timeline_time(
+                event.timestamp.get::<second>(),
+                device_anchor,
+                timeline_anchor,
+                wraps_at_24_bits,
+            );
             self.push_marker(time, spec, pd_marker_details(&entry));
         }
     }
@@ -420,9 +428,17 @@ impl ScopeApp {
         if elapsed_seconds.is_finite() {
             let id = self.next_marker_id;
             self.next_marker_id = self.next_marker_id.wrapping_add(1);
+            let elapsed_seconds = elapsed_seconds.max(0.0);
+            info!(
+                "EVENT {} +{elapsed_seconds:.3}s {} {} | {}",
+                format_event_full_time(self.host_time_origin_utc.as_ref(), elapsed_seconds),
+                spec.label,
+                spec.name,
+                details.replace('\n', " | ")
+            );
             self.markers.push_back(TimelineMarker {
                 id,
-                elapsed_seconds: elapsed_seconds.max(0.0),
+                elapsed_seconds,
                 category: spec.category,
                 label: spec.label,
                 name: spec.name,
@@ -1240,6 +1256,8 @@ fn trace_plot(
     plot = plot.x_axis_formatter(move |mark, range| {
         format_axis_time(formatter_origin.as_ref(), mark.value, mark.step_size, range)
     });
+    let grid_origin = overlay.host_time_origin_utc.cloned();
+    plot = plot.x_grid_spacer(move |input| host_time_grid_marks(grid_origin.as_ref(), input));
     if overlay.hide_pointer_lines {
         plot = plot.cursor_color(Color32::TRANSPARENT);
     }
@@ -1543,7 +1561,19 @@ fn pd_marker_details(entry: &PdLogEntry) -> String {
     }
 }
 
-fn pd_timeline_time(event_device_time: f64, anchor_device_time: f64, anchor_timeline_time: f64) -> f64 {
+fn pd_timeline_time(
+    event_device_time: f64,
+    anchor_device_time: f64,
+    anchor_timeline_time: f64,
+    wraps_at_24_bits: bool,
+) -> f64 {
+    const CONNECTION_TIMESTAMP_WRAP_SECONDS: f64 = (1_u64 << 24) as f64 / 1_000.0;
+    let event_device_time = if wraps_at_24_bits {
+        let wraps = ((anchor_device_time - event_device_time) / CONNECTION_TIMESTAMP_WRAP_SECONDS).round();
+        event_device_time + wraps * CONNECTION_TIMESTAMP_WRAP_SECONDS
+    } else {
+        event_device_time
+    };
     (anchor_timeline_time + event_device_time - anchor_device_time).max(0.0)
 }
 
@@ -1563,13 +1593,99 @@ fn host_time_local(origin: &DateTime<Utc>, elapsed_seconds: f64) -> DateTime<Loc
     host_time_utc(origin, elapsed_seconds).with_timezone(&Local)
 }
 
-fn axis_time_format(visible_span_seconds: f64) -> &'static str {
-    if visible_span_seconds >= 3_600.0 {
-        "%H:%M"
-    } else if visible_span_seconds >= 5.0 {
-        "%H:%M:%S"
+fn clock_grid_steps(base_step_size: f64) -> [f64; 3] {
+    const STEPS: [f64; 11] = [
+        0.01,
+        0.1,
+        1.0,
+        10.0,
+        60.0,
+        600.0,
+        3_600.0,
+        21_600.0,
+        86_400.0,
+        604_800.0,
+        2_592_000.0,
+    ];
+    let index = STEPS
+        .iter()
+        .position(|step| *step >= base_step_size.abs())
+        .unwrap_or(STEPS.len() - 1)
+        .min(STEPS.len() - 3);
+    [STEPS[index], STEPS[index + 1], STEPS[index + 2]]
+}
+
+fn host_time_grid_marks(origin: Option<&DateTime<Utc>>, input: GridInput) -> Vec<GridMark> {
+    if input.base_step_size.abs() < f64::EPSILON {
+        return Vec::new();
+    }
+    let origin_seconds = origin.map_or(0.0, |origin| {
+        origin.timestamp() as f64 + f64::from(origin.timestamp_subsec_nanos()) / 1_000_000_000.0
+    });
+    let bounds = if input.bounds.0 <= input.bounds.1 {
+        input.bounds
     } else {
-        "%H:%M:%S%.3f"
+        (input.bounds.1, input.bounds.0)
+    };
+    let absolute_bounds = (origin_seconds + bounds.0, origin_seconds + bounds.1);
+    let steps = clock_grid_steps(input.base_step_size);
+    let mut marks = Vec::new();
+
+    for step in steps {
+        let first = (absolute_bounds.0 / step).ceil() * step;
+        let count = (((absolute_bounds.1 - first) / step).floor() as isize + 1).max(0) as usize;
+        for index in 0..count.min(10_000) {
+            let absolute = first + index as f64 * step;
+            marks.push(GridMark {
+                value: absolute - origin_seconds,
+                step_size: step,
+            });
+        }
+    }
+
+    marks.sort_by(|left, right| left.value.total_cmp(&right.value));
+    let epsilon = steps[0] * 1e-4;
+    let mut deduplicated: Vec<GridMark> = Vec::with_capacity(marks.len());
+    for mark in marks {
+        if let Some(previous) = deduplicated.last_mut()
+            && (previous.value - mark.value).abs() < epsilon
+        {
+            if previous.step_size < mark.step_size {
+                *previous = mark;
+            }
+        } else {
+            deduplicated.push(mark);
+        }
+    }
+    deduplicated
+}
+
+fn axis_fraction_digits(step_size: f64) -> usize {
+    if step_size >= 1.0 {
+        0
+    } else if step_size >= 0.1 {
+        1
+    } else {
+        2
+    }
+}
+
+fn format_axis_clock(time: DateTime<Local>, digits: usize) -> String {
+    let rounding = match digits {
+        0 => TimeDelta::milliseconds(500),
+        1 => TimeDelta::milliseconds(50),
+        _ => TimeDelta::milliseconds(5),
+    };
+    let rounded = time + rounding;
+    let base = rounded.format("%H:%M:%S");
+    if digits == 0 {
+        base.to_string()
+    } else {
+        let fraction = match digits {
+            1 => rounded.timestamp_subsec_millis() / 100,
+            _ => rounded.timestamp_subsec_millis() / 10,
+        };
+        format!("{base}.{fraction:0digits$}")
     }
 }
 
@@ -1579,18 +1695,19 @@ fn format_axis_time(
     step_size: f64,
     visible_range: &RangeInclusive<f64>,
 ) -> String {
+    let digits = axis_fraction_digits(step_size);
     let Some(origin) = origin else {
-        let decimals = if step_size >= 1.0 { 0 } else { 3 };
-        return format!("{elapsed_seconds:.decimals$}");
+        return format!("{elapsed_seconds:.digits$}");
     };
-    let span = (*visible_range.end() - *visible_range.start()).abs();
     let time = host_time_local(origin, elapsed_seconds);
     let crosses_date = host_time_local(origin, *visible_range.start()).date_naive()
         != host_time_local(origin, *visible_range.end()).date_naive();
+    let date = time.format("%m-%d").to_string();
+    let formatted = format_axis_clock(time, digits);
     if crosses_date {
-        format!("{} {}", time.format("%m-%d"), time.format(axis_time_format(span)))
+        format!("{date} {formatted}")
     } else {
-        time.format(axis_time_format(span)).to_string()
+        formatted
     }
 }
 
@@ -1843,13 +1960,13 @@ mod tests {
         AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, EVENT_LANE_GAP, EVENT_LANE_HEIGHT, EVENT_TOOLBAR_HEIGHT, GraphSampleRate,
         MAX_PIXELS_PER_SECOND, MIN_PIXELS_PER_SECOND, MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage, PIXELS_PER_SECOND,
         RETAIN_SECS, STRIP_GAP_BETWEEN, STRIP_HEIGHT, TimelineCategory, TimelineMarkerSpec, Y_MARGIN_FRACTION,
-        axis_time_format, centered_view_end, clamped_cursor, cursor_label_on_left, cursor_value,
+        axis_fraction_digits, centered_view_end, clamped_cursor, clock_grid_steps, cursor_label_on_left, cursor_value,
         explorer_viewport_size, fitted_cursor_font_size, format_axis_time, format_event_time, format_max_power,
-        format_measurement, format_temperature, host_time_utc, identity_label, initial_window_size, layer_covers_plots,
-        meter_pane_width, minimum_window_size, panned_view_end, pd_timeline_marker, pd_timeline_time,
-        pointer_blocks_plots, protocol_label, samples_per_meter_update, scaled_y_range, series, time_at_pointer,
-        timeline_origin_utc, usb_vendor_name, visible_sample_range, zoomed_pixels_per_second,
-        zoomed_view_end_at_pointer,
+        format_measurement, format_temperature, host_time_grid_marks, host_time_utc, identity_label,
+        initial_window_size, layer_covers_plots, meter_pane_width, minimum_window_size, panned_view_end,
+        pd_timeline_marker, pd_timeline_time, pointer_blocks_plots, protocol_label, samples_per_meter_update,
+        scaled_y_range, series, time_at_pointer, timeline_origin_utc, usb_vendor_name, visible_sample_range,
+        zoomed_pixels_per_second, zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
@@ -1934,25 +2051,56 @@ mod tests {
             })
         );
         assert_eq!(pd_timeline_marker(&entry(PdLogCategory::Control, "GoodCRC")), None);
-        assert!((pd_timeline_time(105.25, 106.0, 12.0) - 11.25).abs() < 1e-9);
+        assert!((pd_timeline_time(105.25, 106.0, 12.0, false) - 11.25).abs() < 1e-9);
+        // Connection event timestamps are 24-bit milliseconds and wrap every
+        // 16,777.216 seconds, unlike the wider PD status timestamp.
+        assert!((pd_timeline_time(2.5, 16_780.0, 12.0, true) - 11.716).abs() < 1e-9);
         assert_eq!(format_event_time(None, 11.25), "+11.250s");
         assert_eq!(centered_view_end(11.25, 8.0), 15.25);
     }
 
     #[test]
     fn host_time_axis_uses_adaptive_precision() {
-        assert_eq!(axis_time_format(3_600.0), "%H:%M");
-        assert_eq!(axis_time_format(8.0), "%H:%M:%S");
-        assert_eq!(axis_time_format(2.0), "%H:%M:%S%.3f");
-        assert_eq!(axis_time_format(0.25), "%H:%M:%S%.3f");
+        assert_eq!(clock_grid_steps(0.001), [0.01, 0.1, 1.0]);
+        assert_eq!(clock_grid_steps(0.05), [0.1, 1.0, 10.0]);
+        assert_eq!(axis_fraction_digits(1.0), 0);
+        assert_eq!(axis_fraction_digits(0.1), 1);
+        assert_eq!(axis_fraction_digits(0.01), 2);
 
-        let observed = chrono::DateTime::parse_from_rfc3339("2026-10-22T19:47:12.250Z")
+        let observed = chrono::DateTime::parse_from_rfc3339("2026-10-22T18:46:59.843Z")
             .unwrap()
             .to_utc();
-        let origin = timeline_origin_utc(observed, 11.25);
-        assert_eq!(host_time_utc(&origin, 11.25), observed);
-        assert!(format_event_time(Some(&origin), 11.25).ends_with("12.250"));
-        assert!(format_axis_time(Some(&origin), 11.25, 0.1, &(0.0..=2.0)).ends_with("12.250"));
+        let origin = timeline_origin_utc(observed, 0.0);
+        assert_eq!(host_time_utc(&origin, 0.0), observed);
+        assert!(format_event_time(Some(&origin), 0.0).ends_with("59.843"));
+
+        let marks = host_time_grid_marks(
+            Some(&origin),
+            egui_plot::GridInput {
+                bounds: (0.0, 1.2),
+                base_step_size: 0.05,
+            },
+        );
+        let tenth = marks.iter().find(|mark| mark.step_size == 0.1).unwrap();
+        let whole = marks.iter().find(|mark| mark.step_size == 1.0).unwrap();
+        assert!(format_axis_time(Some(&origin), tenth.value, tenth.step_size, &(0.0..=1.2)).ends_with("59.9"));
+        let whole_label = format_axis_time(Some(&origin), whole.value, whole.step_size, &(0.0..=1.2));
+        let origin_seconds = origin.timestamp() as f64 + f64::from(origin.timestamp_subsec_nanos()) / 1_000_000_000.0;
+        let absolute_seconds = origin_seconds + whole.value;
+        assert!((absolute_seconds - absolute_seconds.round()).abs() < 1e-6);
+        assert!(!whole_label.contains('.'), "{whole_label:?}");
+
+        let fine_marks = host_time_grid_marks(
+            Some(&origin),
+            egui_plot::GridInput {
+                bounds: (0.0, 0.05),
+                base_step_size: 0.005,
+            },
+        );
+        let hundredth = fine_marks.iter().find(|mark| mark.step_size == 0.01).unwrap();
+        assert!(
+            format_axis_time(Some(&origin), hundredth.value, hundredth.step_size, &(0.0..=0.05)).ends_with("59.85")
+        );
     }
 
     #[test]
