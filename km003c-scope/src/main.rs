@@ -99,8 +99,8 @@ const SIDE_PANEL_INNER_MARGIN: f32 = 8.0;
 const METER_BOX_MARGIN: f32 = 8.0;
 /// Room egui reserves for the side panel's separator stroke.
 const SIDE_PANEL_SEPARATOR: f32 = 1.0;
-/// Samples kept so a wider window can reveal history that has already scrolled off.
-const RETAIN_SECS: f64 = 30.0 * 60.0;
+/// Newest samples kept, at any rate. This is 10 hours at 50/s and 30 minutes at 1000/s.
+const MAX_SAMPLES: usize = 1_800_000;
 const USB_RESET_SUPPORTED: bool = !cfg!(target_os = "windows");
 include!(concat!(env!("OUT_DIR"), "/usb_vendors.rs"));
 const RATES: [GraphSampleRate; 4] = [
@@ -469,17 +469,12 @@ impl ScopeApp {
     }
 
     fn trim_window(&mut self) {
-        let Some(latest) = self.samples.back().map(|sample| sample.elapsed_seconds()) else {
+        trim_to_max_samples(&mut self.samples, MAX_SAMPLES);
+        let Some(oldest) = self.samples.front().map(|sample| sample.elapsed_seconds()) else {
+            self.markers.clear();
+            self.selected_marker_id = None;
             return;
         };
-        let oldest = latest - self.window_secs.max(RETAIN_SECS);
-        while self
-            .samples
-            .front()
-            .is_some_and(|sample| sample.elapsed_seconds() < oldest)
-        {
-            self.samples.pop_front();
-        }
         while self
             .markers
             .front()
@@ -1811,6 +1806,13 @@ fn scaled_y_range(min_y: f64, max_y: f64, min_span: f64) -> RangeInclusive<f64> 
     (mid - half)..=(mid + half)
 }
 
+fn trim_to_max_samples<T>(items: &mut VecDeque<T>, max_samples: usize) {
+    let overflow = items.len().saturating_sub(max_samples);
+    if overflow > 0 {
+        items.drain(..overflow);
+    }
+}
+
 /// Time span ending at the newest sample. The right edge stays on that sample.
 fn visible_time(view_end: Option<f64>, window_secs: f64) -> Option<RangeInclusive<f64>> {
     let end = view_end?;
@@ -1958,15 +1960,15 @@ fn rate_label(rate: GraphSampleRate) -> &'static str {
 mod tests {
     use super::{
         AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, EVENT_LANE_GAP, EVENT_LANE_HEIGHT, EVENT_TOOLBAR_HEIGHT, GraphSampleRate,
-        MAX_PIXELS_PER_SECOND, MIN_PIXELS_PER_SECOND, MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage, PIXELS_PER_SECOND,
-        RETAIN_SECS, STRIP_GAP_BETWEEN, STRIP_HEIGHT, TimelineCategory, TimelineMarkerSpec, Y_MARGIN_FRACTION,
+        MAX_PIXELS_PER_SECOND, MAX_SAMPLES, MIN_PIXELS_PER_SECOND, MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage,
+        PIXELS_PER_SECOND, STRIP_GAP_BETWEEN, STRIP_HEIGHT, TimelineCategory, TimelineMarkerSpec, Y_MARGIN_FRACTION,
         axis_fraction_digits, centered_view_end, clamped_cursor, clock_grid_steps, cursor_label_on_left, cursor_value,
         explorer_viewport_size, fitted_cursor_font_size, format_axis_time, format_event_time, format_max_power,
         format_measurement, format_temperature, host_time_grid_marks, host_time_utc, identity_label,
         initial_window_size, layer_covers_plots, meter_pane_width, minimum_window_size, panned_view_end,
         pd_timeline_marker, pd_timeline_time, pointer_blocks_plots, protocol_label, samples_per_meter_update,
-        scaled_y_range, series, time_at_pointer, timeline_origin_utc, usb_vendor_name, visible_sample_range,
-        zoomed_pixels_per_second, zoomed_view_end_at_pointer,
+        scaled_y_range, series, time_at_pointer, timeline_origin_utc, trim_to_max_samples, usb_vendor_name,
+        visible_sample_range, zoomed_pixels_per_second, zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
@@ -2281,8 +2283,19 @@ mod tests {
     }
 
     #[test]
+    fn history_keeps_the_newest_fixed_sample_count() {
+        assert_eq!(MAX_SAMPLES, 1_800_000);
+        let mut samples = (0..5)
+            .map(|second| voltage_sample(second * 1_000_000, second as f64))
+            .collect::<VecDeque<_>>();
+        trim_to_max_samples(&mut samples, 3);
+        assert_eq!(samples.len(), 3);
+        assert_eq!(samples.front().unwrap().elapsed_us, 2_000_000);
+        assert_eq!(samples.back().unwrap().elapsed_us, 4_000_000);
+    }
+
+    #[test]
     fn plots_only_copy_the_visible_sample_range() {
-        assert_eq!(RETAIN_SECS, 1_800.0);
         let samples = (0..10)
             .map(|second| voltage_sample(second * 1_000_000, second as f64))
             .collect::<VecDeque<_>>();
