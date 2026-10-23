@@ -1324,8 +1324,8 @@ fn paint_timeline_markers(ui: &egui::Ui, lane: MarkerLane<'_>, transform: &egui_
         ],
         egui::Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color),
     );
-    let label_y = lane.rect.top() + 3.0;
-    let triangle_y = label_y + EVENT_LABEL_SIZE + 1.0;
+    let label_y = lane.rect.top() + 1.0;
+    let triangle_y = label_y + 2.0 + EVENT_LABEL_SIZE + 1.0;
     for (x, category, label, count, selected) in clusters {
         let color = category.color();
         let display = if count == 1 {
