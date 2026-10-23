@@ -87,6 +87,7 @@ const SIDE_PANEL_SEPARATOR: f32 = 1.0;
 /// Samples kept so a wider window can reveal history that has already scrolled off.
 const RETAIN_SECS: f64 = 30.0 * 60.0;
 const USB_RESET_SUPPORTED: bool = !cfg!(target_os = "windows");
+include!(concat!(env!("OUT_DIR"), "/usb_vendors.rs"));
 const RATES: [GraphSampleRate; 4] = [
     GraphSampleRate::Sps2,
     GraphSampleRate::Sps10,
@@ -1153,14 +1154,18 @@ fn sink_label(connected: Option<bool>) -> &'static str {
 }
 
 fn identity_label(identity: PdIdentity) -> String {
-    let vendor = match identity.vendor_id {
-        0x413c => "Dell",
-        _ => "Unknown vendor",
-    };
+    let vendor = usb_vendor_name(identity.vendor_id).unwrap_or("Unknown vendor");
     match identity.product_id {
         Some(product_id) => format!("{vendor} (VID {:04X}, PID {product_id:04X})", identity.vendor_id),
         None => format!("{vendor} (VID {:04X})", identity.vendor_id),
     }
+}
+
+fn usb_vendor_name(vendor_id: u16) -> Option<&'static str> {
+    let index = USB_VENDOR_NAMES
+        .binary_search_by_key(&vendor_id, |(candidate, _)| *candidate)
+        .ok()?;
+    Some(USB_VENDOR_NAMES[index].1)
 }
 
 /// Autoscaled Y range. A wider trace keeps its own span.
@@ -1347,8 +1352,8 @@ mod tests {
         STRIP_HEIGHT, Y_MARGIN_FRACTION, clamped_cursor, cursor_label_on_left, cursor_value, fitted_cursor_font_size,
         format_max_power, format_measurement, format_temperature, identity_label, initial_window_size,
         layer_covers_plots, meter_pane_width, minimum_window_size, panned_view_end, pointer_blocks_plots,
-        protocol_label, samples_per_meter_update, scaled_y_range, series, time_at_pointer, visible_sample_range,
-        zoomed_pixels_per_second, zoomed_view_end_at_pointer,
+        protocol_label, samples_per_meter_update, scaled_y_range, series, time_at_pointer, usb_vendor_name,
+        visible_sample_range, zoomed_pixels_per_second, zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
@@ -1383,13 +1388,15 @@ mod tests {
         assert_eq!(format_max_power(Some(20.0)), "20W");
         assert_eq!(format_max_power(Some(523.0)), "523W");
         assert_eq!(format_max_power(None), "-");
+        assert_eq!(usb_vendor_name(0x413c), Some("Dell Computer Corp."));
+        assert_eq!(usb_vendor_name(0x0000), None);
         assert_eq!(
             identity_label(PdIdentity {
                 vendor_id: 0x413c,
                 product_id: Some(0x1234),
                 device_bcd: Some(0x0100),
             }),
-            "Dell (VID 413C, PID 1234)"
+            "Dell Computer Corp. (VID 413C, PID 1234)"
         );
     }
 
