@@ -237,7 +237,7 @@ struct ScopeApp {
     plot_left: Option<f32>,
     /// Plot-aligned area of the buffer overview, from the previous frame.
     overview_frame: Option<egui::Rect>,
-    /// The current press started in the bright window, so it keeps panning until release.
+    /// The current press started on the overview, so it keeps panning until release.
     overview_grabbed: bool,
     /// Press position when the gesture started on the overview.
     overview_press: Option<egui::Pos2>,
@@ -1101,10 +1101,10 @@ impl ScopeApp {
         })
     }
 
-    /// A press on the overview either grabs the bright window or jumps the view there.
+    /// A press anywhere on the overview centers the visible window and grabs it until release.
     ///
-    /// The grab stays latched until release. Rechecking the press against the moved
-    /// window dropped fast drags once the window slid off the original point.
+    /// A click leaves that centered window in place. A drag keeps panning from there,
+    /// on the bright window and on the dimmed buffer alike.
     fn begin_overview_gesture(&mut self, primary_pressed: bool, origin: Option<egui::Pos2>) {
         if !primary_pressed {
             return;
@@ -1120,24 +1120,8 @@ impl ScopeApp {
             return;
         }
         self.overview_press = Some(origin);
-        self.overview_grabbed = self.overview_pointer_in_window(origin);
-        if !self.overview_grabbed {
-            self.center_overview_at(origin.x);
-        }
-    }
-
-    fn overview_pointer_in_window(&self, pos: egui::Pos2) -> bool {
-        let Some(frame) = self.overview_frame else {
-            return false;
-        };
-        let Some((buf_start, buf_end)) = sample_buffer_span(&self.samples) else {
-            return false;
-        };
-        let view_end = self.view_end.unwrap_or(buf_end);
-        let (left, right) = overview_window_fraction(view_end - self.window_secs, view_end, buf_start, buf_end);
-        let x0 = frame.left() + left as f32 * frame.width();
-        let x1 = frame.left() + right as f32 * frame.width();
-        pos.x >= x0 && pos.x <= x1
+        self.overview_grabbed = true;
+        self.center_overview_at(origin.x);
     }
 
     fn center_overview_at(&mut self, pointer_x: f32) {
