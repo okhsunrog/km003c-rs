@@ -92,6 +92,7 @@ const EVENT_LANE_HEIGHT: f32 = 32.0;
 const EVENT_LANE_GAP: f32 = 3.0;
 const EVENT_TOOLBAR_HEIGHT: f32 = 30.0;
 const EVENT_EXPLORER_WIDTH: f32 = 260.0;
+const BUFFER_BAR_HEIGHT: f32 = 8.0;
 const PLOT_TITLE_RIGHT_EDGE: f32 = 42.0;
 /// Horizontal inset of egui's side-panel frame, on each side.
 const SIDE_PANEL_INNER_MARGIN: f32 = 8.0;
@@ -491,13 +492,17 @@ impl ScopeApp {
     }
 
     fn side(&mut self, ui: &mut egui::Ui) {
-        let meter_height = ui.available_height() * 0.5;
+        let meter_height = (ui.available_height() - BUFFER_BAR_HEIGHT).max(0.0) * 0.5;
         let width = ui.available_width();
         ui.allocate_ui(egui::vec2(width, meter_height), |ui| self.readings(ui));
         ui.add_space(8.0);
+        let controls_height = (ui.available_height() - BUFFER_BAR_HEIGHT).max(0.0);
         egui::ScrollArea::vertical()
             .id_salt("controls")
+            .auto_shrink([false, false])
+            .max_height(controls_height)
             .show(ui, |ui| self.controls(ui));
+        self.buffer_meter(ui);
     }
 
     fn controls(&mut self, ui: &mut egui::Ui) {
@@ -659,6 +664,28 @@ impl ScopeApp {
         if let Some(id) = clicked {
             self.select_marker(id);
         }
+    }
+
+    fn buffer_meter(&self, ui: &mut egui::Ui) {
+        let pane = ui.clip_rect();
+        let rect = egui::Rect::from_min_max(
+            egui::pos2(pane.left(), pane.bottom() - BUFFER_BAR_HEIGHT),
+            pane.right_bottom(),
+        );
+        let fraction = buffer_fraction(self.samples.len(), MAX_SAMPLES);
+        let painter = ui.ctx().layer_painter(ui.layer_id());
+        painter.rect_filled(rect, 0.0, ui.visuals().extreme_bg_color);
+        if fraction > 0.0 {
+            let mut filled = rect;
+            filled.max.x = rect.left() + rect.width() * fraction;
+            painter.rect_filled(filled, 0.0, ui.visuals().selection.bg_fill);
+        }
+        ui.interact(rect, ui.id().with("buffer_meter"), egui::Sense::hover())
+            .on_hover_text(buffer_meter_label(
+                self.samples.len(),
+                MAX_SAMPLES,
+                self.rate.frequency().get::<hertz>(),
+            ));
     }
 
     fn select_marker(&mut self, id: u64) {
@@ -1827,6 +1854,40 @@ fn trim_to_max_samples<T>(items: &mut VecDeque<T>, max_samples: usize) {
     }
 }
 
+fn buffer_fraction(len: usize, max_samples: usize) -> f32 {
+    if max_samples == 0 {
+        0.0
+    } else {
+        (len as f32 / max_samples as f32).clamp(0.0, 1.0)
+    }
+}
+
+/// Percent full, and how long the free space lasts at `samples_per_second`.
+fn buffer_meter_label(len: usize, max_samples: usize, samples_per_second: f64) -> String {
+    let percent = f64::from(buffer_fraction(len, max_samples)) * 100.0;
+    let remaining = max_samples.saturating_sub(len);
+    let seconds = if samples_per_second > 0.0 {
+        remaining as f64 / samples_per_second
+    } else {
+        0.0
+    };
+    format!("{percent:.3}% ({})", format_buffer_time(seconds))
+}
+
+fn format_buffer_time(seconds: f64) -> String {
+    let total = seconds.round().max(0.0) as u64;
+    let hours = total / 3600;
+    let minutes = (total % 3600) / 60;
+    let secs = total % 60;
+    if hours > 0 {
+        format!("{hours}h {minutes}m {secs}s")
+    } else if minutes > 0 {
+        format!("{minutes}m {secs}s")
+    } else {
+        format!("{secs}s")
+    }
+}
+
 /// Time span ending at the newest sample. The right edge stays on that sample.
 fn visible_time(view_end: Option<f64>, window_secs: f64) -> Option<RangeInclusive<f64>> {
     let end = view_end?;
@@ -1976,13 +2037,13 @@ mod tests {
         AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, EVENT_LANE_GAP, EVENT_LANE_HEIGHT, EVENT_TOOLBAR_HEIGHT, GraphSampleRate,
         MAX_PIXELS_PER_SECOND, MAX_SAMPLES, MIN_PIXELS_PER_SECOND, MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage,
         PIXELS_PER_SECOND, STRIP_GAP_BETWEEN, STRIP_HEIGHT, TimelineCategory, TimelineMarkerSpec, Y_MARGIN_FRACTION,
-        axis_fraction_digits, centered_view_end, clamped_cursor, clock_grid_steps, cursor_label_on_left, cursor_value,
-        explorer_viewport_size, fitted_cursor_font_size, format_axis_time, format_event_time, format_max_power,
-        format_measurement, format_temperature, host_time_grid_marks, host_time_utc, identity_label,
-        initial_window_size, layer_covers_plots, meter_pane_width, minimum_window_size, panned_view_end,
-        pd_timeline_marker, pd_timeline_time, pointer_blocks_plots, protocol_label, samples_per_meter_update,
-        scaled_y_range, series, time_at_pointer, timeline_origin_utc, trim_to_max_samples, usb_vendor_name,
-        visible_sample_range, zoomed_pixels_per_second, zoomed_view_end_at_pointer,
+        axis_fraction_digits, buffer_fraction, buffer_meter_label, centered_view_end, clamped_cursor, clock_grid_steps,
+        cursor_label_on_left, cursor_value, explorer_viewport_size, fitted_cursor_font_size, format_axis_time,
+        format_event_time, format_max_power, format_measurement, format_temperature, host_time_grid_marks,
+        host_time_utc, identity_label, initial_window_size, layer_covers_plots, meter_pane_width, minimum_window_size,
+        panned_view_end, pd_timeline_marker, pd_timeline_time, pointer_blocks_plots, protocol_label,
+        samples_per_meter_update, scaled_y_range, series, time_at_pointer, timeline_origin_utc, trim_to_max_samples,
+        usb_vendor_name, visible_sample_range, zoomed_pixels_per_second, zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
@@ -2306,6 +2367,12 @@ mod tests {
         assert_eq!(samples.len(), 3);
         assert_eq!(samples.front().unwrap().elapsed_us, 2_000_000);
         assert_eq!(samples.back().unwrap().elapsed_us, 4_000_000);
+        assert_eq!(buffer_fraction(0, MAX_SAMPLES), 0.0);
+        assert!((buffer_fraction(MAX_SAMPLES / 2, MAX_SAMPLES) - 0.5).abs() < 1e-6);
+        assert_eq!(buffer_fraction(MAX_SAMPLES, MAX_SAMPLES), 1.0);
+        assert_eq!(buffer_meter_label(22_374, MAX_SAMPLES, 50.0), "1.243% (9h 52m 33s)");
+        assert_eq!(buffer_meter_label(0, MAX_SAMPLES, 50.0), "0.000% (10h 0m 0s)");
+        assert_eq!(buffer_meter_label(MAX_SAMPLES, MAX_SAMPLES, 50.0), "100.000% (0s)");
     }
 
     #[test]
