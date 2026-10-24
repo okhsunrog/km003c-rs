@@ -55,7 +55,8 @@ use tracing_subscriber::prelude::*;
 const VOLTAGE_COLOR: Color32 = Color32::from_rgb(80, 220, 120);
 const CURRENT_COLOR: Color32 = Color32::from_rgb(90, 170, 255);
 const POWER_COLOR: Color32 = Color32::from_rgb(255, 176, 64);
-const AXIS_THICKNESS: f32 = 100.0;
+/// Shared Y-axis width. Wide enough for a signed engineering tick such as `20.004 V`, so the strips stay aligned.
+const AXIS_THICKNESS: f32 = 80.0;
 const PIXELS_PER_SECOND: f64 = 100.0;
 const MIN_PIXELS_PER_SECOND: f64 = 10.0;
 const MAX_PIXELS_PER_SECOND: f64 = 1_000.0;
@@ -95,7 +96,6 @@ const EVENT_LANE_GAP: f32 = 3.0;
 const EVENT_TOOLBAR_HEIGHT: f32 = 30.0;
 const EVENT_EXPLORER_WIDTH: f32 = 260.0;
 const BUFFER_BAR_HEIGHT: f32 = 8.0;
-const PLOT_TITLE_RIGHT_EDGE: f32 = 42.0;
 /// Horizontal inset of egui's side-panel frame, on each side.
 const SIDE_PANEL_INNER_MARGIN: f32 = 8.0;
 /// Padding inside the black meter box, on each side.
@@ -880,12 +880,14 @@ impl ScopeApp {
         self.zoom_time_scale(ui);
         self.follow_plot_width();
         let dragging = self.place_time_window(ui);
+        self.clamp_view();
         let width = ui.available_width();
         ui.spacing_mut().item_spacing.y = EVENT_LANE_GAP;
         let (overview_rect, _) = ui.allocate_exact_size(egui::vec2(width, OVERVIEW_HEIGHT), egui::Sense::hover());
         self.paint_overview(ui, overview_rect);
         let (event_lane_rect, _) = ui.allocate_exact_size(egui::vec2(width, EVENT_LANE_HEIGHT), egui::Sense::hover());
-        paint_event_lane_background(ui, event_lane_rect);
+        let event_lane_left = self.plot_left.unwrap_or(event_lane_rect.left() + AXIS_THICKNESS);
+        paint_event_lane_background(ui, event_lane_rect, event_lane_left);
         ui.spacing_mut().item_spacing.y = STRIP_GAP_BETWEEN;
         let link = ui.id().with("scope_time");
         let time = visible_time(self.view_end, self.window_secs);
@@ -941,8 +943,9 @@ impl ScopeApp {
 
     /// Wheel over the strips changes pixels per second for every plot.
     ///
-    /// Scrolling up shows less time. Autoscroll keeps the newest sample on the
-    /// right edge. Otherwise the time under the pointer stays where it is.
+    /// Scrolling up shows less time. With Autoscroll on, the newest sample stays
+    /// on the right once the trace is longer than the window. Otherwise the time
+    /// under the pointer stays where it is.
     fn zoom_time_scale(&mut self, ui: &egui::Ui) {
         let rect = ui.available_rect_before_wrap();
         if !ui.rect_contains_pointer(rect) || pointer_over_floating_window(ui) {
@@ -982,7 +985,8 @@ impl ScopeApp {
     /// Dragging moves every strip along time and leaves Autoscroll off.
     ///
     /// Cursor mode keeps Autoscroll. The marker sits on the time under the pointer.
-    /// With Autoscroll on, the right edge stays on the newest sample.
+    /// With Autoscroll on, the first sample stays on the left until the trace fills
+    /// the window, and then the right edge follows the newest sample.
     fn place_time_window(&mut self, ui: &egui::Ui) -> bool {
         let rect = ui.available_rect_before_wrap();
         let (primary_down, primary_pressed, primary_clicked, delta_x, origin, pointer_x) = ui.input(|input| {
@@ -1069,6 +1073,17 @@ impl ScopeApp {
             return true;
         }
         false
+    }
+
+    /// Keep the visible window from starting before the oldest sample.
+    fn clamp_view(&mut self) {
+        let Some((buf_start, buf_end)) = sample_buffer_span(&self.samples) else {
+            return;
+        };
+        let Some(end) = self.view_end else {
+            return;
+        };
+        self.view_end = Some(clamped_view_end(end, buf_start, buf_end, self.window_secs));
     }
 
     fn cursor_mark(&self, metric: Metric) -> Option<CursorMark> {
@@ -1419,7 +1434,7 @@ fn trace_plot(
         .width(width)
         .height(STRIP_HEIGHT)
         .show_grid(true)
-        .custom_y_axes(y_axis())
+        .custom_y_axes(y_axis(strip.unit))
         .show_axes([strip.show_time, true])
         .link_axis(link, [true, false])
         .link_cursor(link, [true, false])
@@ -1468,7 +1483,6 @@ fn trace_plot(
             );
         }
     });
-    paint_upright_unit(ui, strip, *drawn.transform.frame());
     if let Some(lane) = overlay.marker_lane {
         paint_timeline_markers(ui, lane, &drawn.transform);
     }
@@ -1539,11 +1553,11 @@ fn paint_timeline_markers(ui: &egui::Ui, lane: MarkerLane<'_>, transform: &egui_
     }
 }
 
-fn paint_event_lane_background(ui: &egui::Ui, rect: egui::Rect) {
+fn paint_event_lane_background(ui: &egui::Ui, rect: egui::Rect, plot_left: f32) {
     ui.painter()
         .rect_filled(rect, 3.0, ui.visuals().widgets.noninteractive.weak_bg_fill);
     ui.painter().text(
-        egui::pos2(rect.left() + PLOT_TITLE_RIGHT_EDGE, rect.center().y),
+        egui::pos2(plot_left - 4.0, rect.center().y),
         egui::Align2::RIGHT_CENTER,
         "EVENTS",
         egui::FontId::new(9.0, egui::FontFamily::Name("Space Mono".into())),
@@ -1604,17 +1618,6 @@ fn fitted_cursor_font_size(size: f32, measured_height: f32, room: f32) -> f32 {
     } else {
         size * room / measured_height
     }
-}
-
-/// Upright unit at the left of the strip. The plot's own axis title is rotated.
-fn paint_upright_unit(ui: &egui::Ui, strip: &Strip, frame: egui::Rect) {
-    ui.painter().text(
-        egui::pos2(frame.left() - AXIS_THICKNESS + PLOT_TITLE_RIGHT_EDGE, frame.center().y),
-        egui::Align2::RIGHT_CENTER,
-        strip.unit,
-        egui::FontId::proportional(18.0),
-        strip.color,
-    );
 }
 
 struct Strip {
@@ -2054,12 +2057,7 @@ fn overview_time_at_x(pointer_x: f32, frame_left: f32, frame_width: f32, buf_sta
 
 /// Put `time` at the center of the visible window, keeping the window inside the buffer when it fits.
 fn overview_centered_view_end(time: f64, buf_start: f64, buf_end: f64, window_secs: f64) -> f64 {
-    let view_end = time + window_secs * 0.5;
-    let buffer_span = buf_end - buf_start;
-    if window_secs >= buffer_span {
-        return view_end.clamp(buf_end, buf_start + window_secs);
-    }
-    view_end.clamp(buf_start + window_secs, buf_end)
+    clamped_view_end(time + window_secs * 0.5, buf_start, buf_end, window_secs)
 }
 
 /// Dragging the bright region to the right moves the visible window later in time.
@@ -2073,11 +2071,20 @@ fn overview_dragged_view_end(
 ) -> f64 {
     let span = (buf_end - buf_start).max(f64::EPSILON);
     let moved = view_end + f64::from(drag_x) / f64::from(width.max(1.0)) * span;
-    let buffer_span = buf_end - buf_start;
-    if window_secs >= buffer_span {
-        return moved.clamp(buf_end, buf_start + window_secs);
+    clamped_view_end(moved, buf_start, buf_end, window_secs)
+}
+
+/// The left edge never moves before the oldest sample.
+///
+/// While the recording is shorter than the window, that sample stays on the left
+/// and new samples extend toward the right. Once it is longer, the window stays
+/// inside the stored span.
+fn clamped_view_end(view_end: f64, buf_start: f64, buf_end: f64, window_secs: f64) -> f64 {
+    let earliest_end = buf_start + window_secs;
+    if buf_end <= earliest_end {
+        return earliest_end;
     }
-    moved.clamp(buf_start + window_secs, buf_end)
+    view_end.clamp(earliest_end, buf_end)
 }
 
 /// Min/max of each screen column, so the full buffer stays readable.
@@ -2146,7 +2153,7 @@ fn paint_overview_curve(
     painter.add(egui::Shape::line(screen, egui::Stroke::new(1.0, color)));
 }
 
-/// Time span ending at the newest sample. The right edge stays on that sample.
+/// Visible time span. `view_end` is the right edge.
 fn visible_time(view_end: Option<f64>, window_secs: f64) -> Option<RangeInclusive<f64>> {
     let end = view_end?;
     Some((end - window_secs)..=end)
@@ -2229,12 +2236,52 @@ struct CursorMark {
     label_on_left: bool,
 }
 
-fn y_axis() -> Vec<AxisHints<'static>> {
+fn y_axis(unit: &'static str) -> Vec<AxisHints<'static>> {
     vec![
         AxisHints::new_y()
             .min_thickness(AXIS_THICKNESS)
-            .placement(HPlacement::Left),
+            .placement(HPlacement::Left)
+            .formatter(move |mark, range| format_engineering_tick(mark.value, mark.step_size, range, unit)),
     ]
+}
+
+/// Tick text in V/mV/µV, A/mA/µA, or W/mW/µW, using one scale for the whole axis.
+fn format_engineering_tick(value: f64, step: f64, range: &RangeInclusive<f64>, unit: &str) -> String {
+    let reference = range.start().abs().max(range.end().abs());
+    let (factor, prefix) = engineering_scale(reference);
+    let decimals = tick_decimals(step.abs() / factor);
+    let magnitude = format_tick_magnitude(value / factor, decimals);
+    format!("{magnitude} {prefix}{unit}")
+}
+
+/// Prefix that keeps the larger end of the axis in a familiar range.
+fn engineering_scale(reference: f64) -> (f64, &'static str) {
+    let magnitude = reference.abs();
+    if !magnitude.is_finite() || magnitude == 0.0 || (1.0..1_000.0).contains(&magnitude) {
+        (1.0, "")
+    } else if magnitude >= 1_000.0 {
+        (1_000.0, "k")
+    } else if magnitude >= 1.0e-3 {
+        (1.0e-3, "m")
+    } else {
+        (1.0e-6, "µ")
+    }
+}
+
+fn tick_decimals(step: f64) -> usize {
+    if !step.is_finite() || step <= 0.0 {
+        return 0;
+    }
+    (-step.log10().floor()).clamp(0.0, 6.0) as usize
+}
+
+fn format_tick_magnitude(value: f64, decimals: usize) -> String {
+    let text = format!("{value:.decimals$}");
+    if text.chars().all(|ch| matches!(ch, '-' | '0' | '.')) {
+        text.trim_start_matches('-').to_string()
+    } else {
+        text
+    }
 }
 
 /// Meter pane, central-panel padding, one Y axis, and `seconds` of plot at 100 px/s.
@@ -2298,10 +2345,10 @@ mod tests {
         MAX_PIXELS_PER_SECOND, MAX_SAMPLES, MIN_PIXELS_PER_SECOND, MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage,
         OVERVIEW_HEIGHT, PIXELS_PER_SECOND, STRIP_GAP_BETWEEN, STRIP_HEIGHT, TimelineCategory, TimelineMarkerSpec,
         Y_MARGIN_FRACTION, axis_fraction_digits, buffer_fraction, buffer_meter_label, centered_view_end,
-        clamped_cursor, clock_grid_steps, cursor_label_on_left, cursor_value, explorer_viewport_size,
-        fitted_cursor_font_size, format_axis_time, format_event_time, format_max_power, format_measurement,
-        format_temperature, host_time_grid_marks, host_time_utc, identity_label, initial_window_size,
-        layer_covers_plots, meter_pane_width, minimum_window_size, overview_centered_view_end,
+        clamped_cursor, clamped_view_end, clock_grid_steps, cursor_label_on_left, cursor_value, explorer_viewport_size,
+        fitted_cursor_font_size, format_axis_time, format_engineering_tick, format_event_time, format_max_power,
+        format_measurement, format_temperature, host_time_grid_marks, host_time_utc, identity_label,
+        initial_window_size, layer_covers_plots, meter_pane_width, minimum_window_size, overview_centered_view_end,
         overview_dragged_view_end, overview_time_at_x, overview_window_fraction, panned_view_end, pd_timeline_marker,
         pd_timeline_time, pointer_blocks_plots, protocol_label, samples_per_meter_update, scaled_y_range, series,
         time_at_pointer, timeline_origin_utc, trim_to_max_samples, usb_vendor_name, visible_sample_range,
@@ -2579,6 +2626,22 @@ mod tests {
     }
 
     #[test]
+    fn y_ticks_use_engineering_units() {
+        assert_eq!(format_engineering_tick(5.0, 1.0, &(0.0..=20.0), "V"), "5 V");
+        assert_eq!(format_engineering_tick(0.008, 0.002, &(0.0..=0.008), "V"), "8 mV");
+        assert_eq!(format_engineering_tick(5.002, 0.002, &(4.996..=5.004), "V"), "5.002 V");
+        assert_eq!(format_engineering_tick(0.02, 0.005, &(0.0..=0.02), "A"), "20 mA");
+        assert_eq!(format_engineering_tick(-0.01, 0.005, &(-0.02..=0.0), "A"), "-10 mA");
+        assert_eq!(format_engineering_tick(0.0005, 0.0001, &(0.0..=0.0005), "A"), "500 µA");
+        assert_eq!(format_engineering_tick(1_500.0, 500.0, &(0.0..=2_000.0), "W"), "1.5 kW");
+        assert_eq!(format_engineering_tick(0.0, 0.002, &(0.0..=0.008), "V"), "0 mV");
+        assert_eq!(
+            format_engineering_tick(-1.0e-12, 0.002, &(4.996..=5.004), "V"),
+            "0.000 V"
+        );
+    }
+
+    #[test]
     fn dragging_the_device_info_window_does_not_pan_the_strips() {
         assert!(pointer_blocks_plots(false, true, true));
         assert!(pointer_blocks_plots(true, true, false));
@@ -2592,6 +2655,13 @@ mod tests {
     fn dragging_moves_all_strips_along_time() {
         assert_eq!(panned_view_end(10.0, 100.0, 100.0), 9.0);
         assert_eq!(panned_view_end(10.0, -50.0, 100.0), 10.5);
+        assert_eq!(
+            clamped_view_end(panned_view_end(8.0, 200.0, 100.0), 0.0, 30.0, 8.0),
+            8.0
+        );
+        assert_eq!(clamped_view_end(2.0, 0.0, 2.0, 8.0), 8.0);
+        assert_eq!(clamped_view_end(20.0, 0.0, 20.0, 8.0), 20.0);
+        assert_eq!(clamped_view_end(1.5, 1.0, 1.5, 8.0), 9.0);
     }
 
     #[test]
