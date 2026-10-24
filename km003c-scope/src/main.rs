@@ -70,6 +70,8 @@ const CURSOR_LABEL_SIZE: f32 = 16.0 * 1.3;
 const INITIAL_SECONDS: f64 = 8.0;
 const MIN_SECONDS: f64 = 4.0;
 const STRIP_HEIGHT: f32 = 200.0;
+/// Full-buffer preview above the event lane, one sixth of a measurement strip.
+const OVERVIEW_HEIGHT: f32 = STRIP_HEIGHT / 6.0;
 /// Vertical padding around an autoscaled trace, as a fraction of its span.
 const Y_MARGIN_FRACTION: f64 = 0.08;
 /// Smallest autoscaled voltage span: 8 mV.
@@ -165,6 +167,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         cursor_time: None,
         plot_width: None,
         plot_left: None,
+        overview_frame: None,
+        overview_grabbed: false,
+        overview_press: None,
         window_has_pointer: false,
         usb_reset,
     };
@@ -230,6 +235,12 @@ struct ScopeApp {
     plot_width: Option<f64>,
     /// Screen position of the inner plot's left edge, from the previous frame.
     plot_left: Option<f32>,
+    /// Plot-aligned area of the buffer overview, from the previous frame.
+    overview_frame: Option<egui::Rect>,
+    /// The current press started in the bright window, so it keeps panning until release.
+    overview_grabbed: bool,
+    /// Press position when the gesture started on the overview.
+    overview_press: Option<egui::Pos2>,
     /// The current press started on a floating window, so it must not pan the strips.
     window_has_pointer: bool,
     usb_reset: bool,
@@ -869,8 +880,10 @@ impl ScopeApp {
         self.zoom_time_scale(ui);
         self.follow_plot_width();
         let dragging = self.place_time_window(ui);
-        ui.spacing_mut().item_spacing.y = EVENT_LANE_GAP;
         let width = ui.available_width();
+        ui.spacing_mut().item_spacing.y = EVENT_LANE_GAP;
+        let (overview_rect, _) = ui.allocate_exact_size(egui::vec2(width, OVERVIEW_HEIGHT), egui::Sense::hover());
+        self.paint_overview(ui, overview_rect);
         let (event_lane_rect, _) = ui.allocate_exact_size(egui::vec2(width, EVENT_LANE_HEIGHT), egui::Sense::hover());
         paint_event_lane_background(ui, event_lane_rect);
         ui.spacing_mut().item_spacing.y = STRIP_GAP_BETWEEN;
@@ -972,29 +985,66 @@ impl ScopeApp {
     /// With Autoscroll on, the right edge stays on the newest sample.
     fn place_time_window(&mut self, ui: &egui::Ui) -> bool {
         let rect = ui.available_rect_before_wrap();
-        let (primary_down, delta_x, origin, pointer_x) = ui.input(|input| {
+        let (primary_down, primary_pressed, primary_clicked, delta_x, origin, pointer_x) = ui.input(|input| {
             (
                 input.pointer.primary_down(),
+                input.pointer.primary_pressed(),
+                input.pointer.primary_clicked(),
                 input.pointer.delta().x,
                 input.pointer.press_origin(),
                 input.pointer.latest_pos().map(|pos| pos.x),
             )
         });
-        let drag_started_on_plots = origin.is_some_and(|origin| rect.contains(origin));
         let origin_on_window = origin.is_some_and(|pos| {
             ui.ctx()
                 .layer_id_at(pos)
                 .is_some_and(|layer| layer_covers_plots(layer.order))
         });
         self.window_has_pointer = pointer_blocks_plots(self.window_has_pointer, primary_down, origin_on_window);
+        if !self.window_has_pointer {
+            self.begin_overview_gesture(primary_pressed, origin);
+        }
+        let dragging_overview = self.overview_grabbed && primary_down && delta_x != 0.0 && !self.window_has_pointer;
+        let on_overview = self.overview_press.is_some()
+            || origin.is_some_and(|pos| self.overview_frame.is_some_and(|frame| frame.contains(pos)));
+        let drag_started_on_plots = origin.is_some_and(|origin| rect.contains(origin)) && !on_overview;
         let interacting_with_plots = drag_started_on_plots && !self.window_has_pointer;
         let placing_cursor = self.cursor_mode && primary_down && interacting_with_plots;
         let panning = primary_down && interacting_with_plots && delta_x != 0.0 && !self.cursor_mode;
         if self.autoscroll
             && !panning
+            && !dragging_overview
             && let Some(latest) = self.samples.back()
         {
             self.view_end = Some(latest.elapsed_seconds());
+        }
+        if dragging_overview {
+            self.autoscroll = false;
+            if let Some((buf_start, buf_end)) = sample_buffer_span(&self.samples)
+                && let Some(frame) = self.overview_frame
+            {
+                let end = self.view_end.unwrap_or(buf_end);
+                self.view_end = Some(overview_dragged_view_end(
+                    end,
+                    delta_x,
+                    frame.width(),
+                    buf_start,
+                    buf_end,
+                    self.window_secs,
+                ));
+            }
+            return true;
+        }
+        if primary_clicked
+            && self.overview_grabbed
+            && !self.window_has_pointer
+            && let Some(press) = self.overview_press
+        {
+            self.center_overview_at(press.x);
+        }
+        if !primary_down {
+            self.overview_grabbed = false;
+            self.overview_press = None;
         }
         if placing_cursor {
             if let (Some(pointer_x), Some(end)) = (pointer_x, self.view_end) {
@@ -1034,6 +1084,98 @@ impl ScopeApp {
             value: cursor_value(&self.samples, metric, time),
             label_on_left,
         })
+    }
+
+    /// A press on the overview either grabs the bright window or jumps the view there.
+    ///
+    /// The grab stays latched until release. Rechecking the press against the moved
+    /// window dropped fast drags once the window slid off the original point.
+    fn begin_overview_gesture(&mut self, primary_pressed: bool, origin: Option<egui::Pos2>) {
+        if !primary_pressed {
+            return;
+        }
+        let Some(origin) = origin else {
+            self.overview_grabbed = false;
+            self.overview_press = None;
+            return;
+        };
+        if !self.overview_frame.is_some_and(|frame| frame.contains(origin)) {
+            self.overview_grabbed = false;
+            self.overview_press = None;
+            return;
+        }
+        self.overview_press = Some(origin);
+        self.overview_grabbed = self.overview_pointer_in_window(origin);
+        if !self.overview_grabbed {
+            self.center_overview_at(origin.x);
+        }
+    }
+
+    fn overview_pointer_in_window(&self, pos: egui::Pos2) -> bool {
+        let Some(frame) = self.overview_frame else {
+            return false;
+        };
+        let Some((buf_start, buf_end)) = sample_buffer_span(&self.samples) else {
+            return false;
+        };
+        let view_end = self.view_end.unwrap_or(buf_end);
+        let (left, right) = overview_window_fraction(view_end - self.window_secs, view_end, buf_start, buf_end);
+        let x0 = frame.left() + left as f32 * frame.width();
+        let x1 = frame.left() + right as f32 * frame.width();
+        pos.x >= x0 && pos.x <= x1
+    }
+
+    fn center_overview_at(&mut self, pointer_x: f32) {
+        let Some(frame) = self.overview_frame else {
+            return;
+        };
+        let Some((buf_start, buf_end)) = sample_buffer_span(&self.samples) else {
+            return;
+        };
+        let time = overview_time_at_x(pointer_x, frame.left(), frame.width(), buf_start, buf_end);
+        self.view_end = Some(overview_centered_view_end(time, buf_start, buf_end, self.window_secs));
+        self.autoscroll = false;
+    }
+
+    fn paint_overview(&mut self, ui: &egui::Ui, row: egui::Rect) {
+        let left = self.plot_left.unwrap_or(row.left() + AXIS_THICKNESS);
+        let width = self.plot_width.unwrap_or(f64::from((row.right() - left).max(1.0)));
+        let frame = egui::Rect::from_min_size(egui::pos2(left, row.top()), egui::vec2(width as f32, row.height()));
+        self.overview_frame = Some(frame);
+        let painter = ui.ctx().layer_painter(ui.layer_id());
+        painter.rect_filled(frame, 0.0, Color32::BLACK);
+        let Some((buf_start, buf_end)) = sample_buffer_span(&self.samples) else {
+            return;
+        };
+        let columns = (frame.width() as usize).clamp(1, 1200);
+        for (metric, color) in [
+            (Metric::SignedPower, POWER_COLOR),
+            (Metric::SignedCurrent, CURRENT_COLOR),
+            (Metric::Voltage, VOLTAGE_COLOR),
+        ] {
+            let points = overview_envelope(&self.samples, metric, columns);
+            paint_overview_curve(&painter, frame, &points, buf_start, buf_end, color);
+        }
+        let view_end = self.view_end.unwrap_or(buf_end);
+        let (left_edge, right_edge) =
+            overview_window_fraction(view_end - self.window_secs, view_end, buf_start, buf_end);
+        let window_left = frame.left() + left_edge as f32 * frame.width();
+        let window_right = frame.left() + right_edge as f32 * frame.width();
+        let shade = Color32::from_rgba_unmultiplied(176, 176, 176, 150);
+        if window_left > frame.left() {
+            painter.rect_filled(
+                egui::Rect::from_min_max(frame.left_top(), egui::pos2(window_left, frame.bottom())),
+                0.0,
+                shade,
+            );
+        }
+        if window_right < frame.right() {
+            painter.rect_filled(
+                egui::Rect::from_min_max(egui::pos2(window_right, frame.top()), frame.right_bottom()),
+                0.0,
+                shade,
+            );
+        }
     }
 }
 
@@ -1888,6 +2030,122 @@ fn format_buffer_time(seconds: f64) -> String {
     }
 }
 
+fn sample_buffer_span(samples: &VecDeque<MeasurementSample>) -> Option<(f64, f64)> {
+    Some((samples.front()?.elapsed_seconds(), samples.back()?.elapsed_seconds()))
+}
+
+/// Fraction of the stored buffer covered by the visible window, clamped to the buffer.
+fn overview_window_fraction(view_start: f64, view_end: f64, buf_start: f64, buf_end: f64) -> (f64, f64) {
+    if buf_end <= buf_start {
+        return (0.0, 1.0);
+    }
+    let span = buf_end - buf_start;
+    (
+        ((view_start - buf_start) / span).clamp(0.0, 1.0),
+        ((view_end - buf_start) / span).clamp(0.0, 1.0),
+    )
+}
+
+/// Time in the stored buffer at a horizontal position in the overview.
+fn overview_time_at_x(pointer_x: f32, frame_left: f32, frame_width: f32, buf_start: f64, buf_end: f64) -> f64 {
+    let fraction = f64::from(pointer_x - frame_left) / f64::from(frame_width.max(1.0));
+    buf_start + fraction.clamp(0.0, 1.0) * (buf_end - buf_start)
+}
+
+/// Put `time` at the center of the visible window, keeping the window inside the buffer when it fits.
+fn overview_centered_view_end(time: f64, buf_start: f64, buf_end: f64, window_secs: f64) -> f64 {
+    let view_end = time + window_secs * 0.5;
+    let buffer_span = buf_end - buf_start;
+    if window_secs >= buffer_span {
+        return view_end.clamp(buf_end, buf_start + window_secs);
+    }
+    view_end.clamp(buf_start + window_secs, buf_end)
+}
+
+/// Dragging the bright region to the right moves the visible window later in time.
+fn overview_dragged_view_end(
+    view_end: f64,
+    drag_x: f32,
+    width: f32,
+    buf_start: f64,
+    buf_end: f64,
+    window_secs: f64,
+) -> f64 {
+    let span = (buf_end - buf_start).max(f64::EPSILON);
+    let moved = view_end + f64::from(drag_x) / f64::from(width.max(1.0)) * span;
+    let buffer_span = buf_end - buf_start;
+    if window_secs >= buffer_span {
+        return moved.clamp(buf_end, buf_start + window_secs);
+    }
+    moved.clamp(buf_start + window_secs, buf_end)
+}
+
+/// Min/max of each screen column, so the full buffer stays readable.
+fn overview_envelope(samples: &VecDeque<MeasurementSample>, metric: Metric, columns: usize) -> Vec<[f64; 2]> {
+    let len = samples.len();
+    if len == 0 || columns == 0 {
+        return Vec::new();
+    }
+    let mut points = Vec::with_capacity(columns * 2);
+    for column in 0..columns {
+        let start = column * len / columns;
+        let end = ((column + 1) * len / columns).max(start + 1).min(len);
+        let mut min_y = f64::INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+        let t0 = samples[start].elapsed_seconds();
+        let mut t1 = t0;
+        for sample in samples.range(start..end) {
+            let y = metric.value(sample);
+            t1 = sample.elapsed_seconds();
+            if y.is_finite() {
+                min_y = min_y.min(y);
+                max_y = max_y.max(y);
+            }
+        }
+        if min_y.is_finite() {
+            points.push([t0, max_y]);
+            if (max_y - min_y).abs() > f64::EPSILON {
+                points.push([t1, min_y]);
+            }
+        }
+    }
+    points
+}
+
+fn paint_overview_curve(
+    painter: &egui::Painter,
+    frame: egui::Rect,
+    points: &[[f64; 2]],
+    buf_start: f64,
+    buf_end: f64,
+    color: Color32,
+) {
+    if points.len() < 2 {
+        return;
+    }
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    for point in points {
+        min_y = min_y.min(point[1]);
+        max_y = max_y.max(point[1]);
+    }
+    if !min_y.is_finite() {
+        return;
+    }
+    let span_y = (max_y - min_y).max(f64::EPSILON);
+    let span_x = (buf_end - buf_start).max(f64::EPSILON);
+    let plot = frame.shrink(1.0);
+    let screen = points
+        .iter()
+        .map(|point| {
+            let x = plot.left() + ((point[0] - buf_start) / span_x).clamp(0.0, 1.0) as f32 * plot.width();
+            let y = plot.bottom() - ((point[1] - min_y) / span_y).clamp(0.0, 1.0) as f32 * plot.height();
+            egui::pos2(x, y)
+        })
+        .collect();
+    painter.add(egui::Shape::line(screen, egui::Stroke::new(1.0, color)));
+}
+
 /// Time span ending at the newest sample. The right edge stays on that sample.
 fn visible_time(view_end: Option<f64>, window_secs: f64) -> Option<RangeInclusive<f64>> {
     let end = view_end?;
@@ -1984,6 +2242,8 @@ fn window_size(seconds: f64) -> [f32; 2] {
     let plot_inner = (seconds * PIXELS_PER_SECOND) as f32;
     let width = meter_pane_width() + CENTRAL_PANEL_MARGIN * 2.0 + AXIS_THICKNESS + plot_inner;
     let height = EVENT_TOOLBAR_HEIGHT
+        + OVERVIEW_HEIGHT
+        + EVENT_LANE_GAP
         + EVENT_LANE_HEIGHT
         + EVENT_LANE_GAP
         + STRIP_HEIGHT * 3.0
@@ -2036,14 +2296,16 @@ mod tests {
     use super::{
         AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, EVENT_LANE_GAP, EVENT_LANE_HEIGHT, EVENT_TOOLBAR_HEIGHT, GraphSampleRate,
         MAX_PIXELS_PER_SECOND, MAX_SAMPLES, MIN_PIXELS_PER_SECOND, MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage,
-        PIXELS_PER_SECOND, STRIP_GAP_BETWEEN, STRIP_HEIGHT, TimelineCategory, TimelineMarkerSpec, Y_MARGIN_FRACTION,
-        axis_fraction_digits, buffer_fraction, buffer_meter_label, centered_view_end, clamped_cursor, clock_grid_steps,
-        cursor_label_on_left, cursor_value, explorer_viewport_size, fitted_cursor_font_size, format_axis_time,
-        format_event_time, format_max_power, format_measurement, format_temperature, host_time_grid_marks,
-        host_time_utc, identity_label, initial_window_size, layer_covers_plots, meter_pane_width, minimum_window_size,
-        panned_view_end, pd_timeline_marker, pd_timeline_time, pointer_blocks_plots, protocol_label,
-        samples_per_meter_update, scaled_y_range, series, time_at_pointer, timeline_origin_utc, trim_to_max_samples,
-        usb_vendor_name, visible_sample_range, zoomed_pixels_per_second, zoomed_view_end_at_pointer,
+        OVERVIEW_HEIGHT, PIXELS_PER_SECOND, STRIP_GAP_BETWEEN, STRIP_HEIGHT, TimelineCategory, TimelineMarkerSpec,
+        Y_MARGIN_FRACTION, axis_fraction_digits, buffer_fraction, buffer_meter_label, centered_view_end,
+        clamped_cursor, clock_grid_steps, cursor_label_on_left, cursor_value, explorer_viewport_size,
+        fitted_cursor_font_size, format_axis_time, format_event_time, format_max_power, format_measurement,
+        format_temperature, host_time_grid_marks, host_time_utc, identity_label, initial_window_size,
+        layer_covers_plots, meter_pane_width, minimum_window_size, overview_centered_view_end,
+        overview_dragged_view_end, overview_time_at_x, overview_window_fraction, panned_view_end, pd_timeline_marker,
+        pd_timeline_time, pointer_blocks_plots, protocol_label, samples_per_meter_update, scaled_y_range, series,
+        time_at_pointer, timeline_origin_utc, trim_to_max_samples, usb_vendor_name, visible_sample_range,
+        zoomed_pixels_per_second, zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
@@ -2221,6 +2483,8 @@ mod tests {
         assert_eq!(
             height,
             EVENT_TOOLBAR_HEIGHT
+                + OVERVIEW_HEIGHT
+                + EVENT_LANE_GAP
                 + EVENT_LANE_HEIGHT
                 + EVENT_LANE_GAP
                 + STRIP_HEIGHT * 3.0
@@ -2373,6 +2637,21 @@ mod tests {
         assert_eq!(buffer_meter_label(22_374, MAX_SAMPLES, 50.0), "1.243% (9h 52m 33s)");
         assert_eq!(buffer_meter_label(0, MAX_SAMPLES, 50.0), "0.000% (10h 0m 0s)");
         assert_eq!(buffer_meter_label(MAX_SAMPLES, MAX_SAMPLES, 50.0), "100.000% (0s)");
+    }
+
+    #[test]
+    fn overview_box_tracks_the_visible_window() {
+        let (left, right) = overview_window_fraction(40.0, 50.0, 0.0, 100.0);
+        assert!((left - 0.4).abs() < 1e-9);
+        assert!((right - 0.5).abs() < 1e-9);
+        let (zoomed_out_left, zoomed_out_right) = overview_window_fraction(30.0, 50.0, 0.0, 100.0);
+        assert!((zoomed_out_right - zoomed_out_left) > (right - left));
+        assert!((overview_dragged_view_end(50.0, 10.0, 100.0, 0.0, 100.0, 10.0) - 60.0).abs() < 1e-9);
+        assert!((overview_dragged_view_end(98.0, 10.0, 100.0, 0.0, 100.0, 10.0) - 100.0).abs() < 1e-9);
+        assert!((overview_time_at_x(80.0, 0.0, 100.0, 0.0, 100.0) - 80.0).abs() < 1e-9);
+        assert!((overview_centered_view_end(80.0, 0.0, 100.0, 10.0) - 85.0).abs() < 1e-9);
+        assert!((overview_centered_view_end(2.0, 0.0, 100.0, 10.0) - 10.0).abs() < 1e-9);
+        assert!((overview_centered_view_end(98.0, 0.0, 100.0, 10.0) - 100.0).abs() < 1e-9);
     }
 
     #[test]
