@@ -10,6 +10,8 @@ pub mod offline;
 pub mod offline_view;
 pub mod packet;
 pub mod pd;
+#[cfg(feature = "usbpd")]
+pub mod pd_cable;
 pub mod pd_connection;
 #[cfg(feature = "usbpd")]
 pub mod pd_contract;
@@ -42,6 +44,11 @@ pub use offline::{LogMetadata, LogMetadataResponse, OfflineLog, OfflineLogSample
 pub use offline_view::{OfflineRecordingView, OfflineViewSample};
 pub use packet::{Attribute, AttributeSet, LogicalPacket, PacketPeek, RawPacket};
 pub use pd::{PdEvent, PdEventData, PdEventStream, PdStatus};
+#[cfg(feature = "usbpd")]
+pub use pd_cable::{
+    PdActiveCableDetails, PdCableActiveElement, PdCableConnector, PdCableCurrent, PdCableIdentity, PdCableKind,
+    PdCableLatency, PdCableMedium, PdCableSpeed, PdCableTermination, PdCableVoltage,
+};
 pub use pd_connection::PdConnectionTracker;
 #[cfg(feature = "usbpd")]
 pub use pd_contract::{PdContract, PdContractStage};

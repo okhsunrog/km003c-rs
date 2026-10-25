@@ -18,6 +18,7 @@ use usbpd::protocol_layer::message::header::{
 use usbpd::protocol_layer::message::{Message, ParseError, Payload};
 
 use crate::pd::{PdEvent, PdEventData};
+use crate::pd_cable::{PdCableIdentity, decode_cable_identity};
 
 /// A semantically decoded USB PD message with its KM003C capture metadata.
 #[derive(Debug, Clone)]
@@ -110,6 +111,8 @@ pub struct PdSessionDecoder {
     source_capabilities: Option<SourceCapabilities>,
     revision: Option<PdRevision>,
     identity: Option<PdIdentity>,
+    cable_discovery_targets: Vec<u8>,
+    cable_identities: Vec<PdCableIdentity>,
     epr_assembler: ChunkedMessageAssembler,
 }
 
@@ -144,6 +147,21 @@ impl PdSessionDecoder {
     /// Most recently observed SOP Discover Identity acknowledgement.
     pub const fn identity(&self) -> Option<PdIdentity> {
         self.identity
+    }
+
+    /// Whether a Discover Identity request addressed to a cable plug was observed.
+    pub fn cable_discovery_requested(&self) -> bool {
+        !self.cable_discovery_targets.is_empty()
+    }
+
+    /// Raw KM003C SOP selectors targeted by observed cable Discover Identity requests.
+    pub fn cable_discovery_targets(&self) -> &[u8] {
+        &self.cable_discovery_targets
+    }
+
+    /// Most recently observed cable identity for each KM003C SOP selector.
+    pub fn cable_identities(&self) -> &[PdCableIdentity] {
+        &self.cable_identities
     }
 
     /// Decode one KM003C PD event.
@@ -201,6 +219,27 @@ impl PdSessionDecoder {
     }
 
     fn observe_message_state(&mut self, sop: u8, message: &Message) {
+        if let Some(Payload::Data(Data::VendorDefined((VdmHeader::Structured(header), data)))) = &message.payload
+            && header.0 & 0x1f == 1
+        {
+            let command_type = (header.0 >> 6) & 0x03;
+            if sop != 0 && command_type == 0 {
+                if !self.cable_discovery_targets.contains(&sop) {
+                    self.cable_discovery_targets.push(sop);
+                }
+            } else if sop != 0
+                && command_type == 1
+                && let Ok(revision) = message.header.spec_revision()
+                && let Some(identity) = decode_cable_identity(sop, revision, data.as_slice())
+            {
+                if let Some(existing) = self.cable_identities.iter_mut().find(|existing| existing.sop == sop) {
+                    *existing = identity;
+                } else {
+                    self.cable_identities.push(identity);
+                }
+            }
+        }
+
         // Cable-plug traffic has its own identity and revision. The summary is
         // for the source/sink pair on SOP.
         if sop != 0 {

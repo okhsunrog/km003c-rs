@@ -203,6 +203,42 @@ fn retains_discover_identity_acknowledgement() {
 
 #[cfg(feature = "usbpd")]
 #[test]
+fn retains_passively_observed_cable_identity() {
+    let request = PdEvent {
+        timestamp: uom::si::f64::Time::new::<millisecond>(1.0),
+        data: PdEventData::PdMessage {
+            sop: 1,
+            // One-object PD3.x structured VDM: Discover Identity request.
+            wire_data: hex::decode("af1101a000ff").unwrap(),
+        },
+    };
+    let response = PdEvent {
+        timestamp: uom::si::f64::Time::new::<millisecond>(2.0),
+        data: PdEventData::PdMessage {
+            sop: 1,
+            // Discover Identity ACK: ID Header, Cert Stat, Product and Passive Cable VDO.
+            wire_data: hex::decode("af5141a000ff3c410018443322110001341244260a12").unwrap(),
+        },
+    };
+    let mut decoder = PdSessionDecoder::new();
+
+    assert!(matches!(decoder.decode_event(&request), DecodedPdEvent::Message(_)));
+    assert!(decoder.cable_discovery_requested());
+    assert!(decoder.cable_identities().is_empty());
+
+    assert!(matches!(decoder.decode_event(&response), DecodedPdEvent::Message(_)));
+    let cable = &decoder.cable_identities()[0];
+    assert_eq!(cable.sop, 1);
+    assert_eq!(cable.vendor_id, 0x413c);
+    assert_eq!(cable.product_id, 0x1234);
+    assert_eq!(cable.kind, km003c_lib::PdCableKind::Passive);
+    assert_eq!(cable.vbus_current, km003c_lib::PdCableCurrent::Amps5);
+    assert_eq!(cable.maximum_vbus_voltage, Some(km003c_lib::PdCableVoltage::Volts50));
+    assert_eq!(cable.highest_speed, km003c_lib::PdCableSpeed::Usb4Gen4);
+}
+
+#[cfg(feature = "usbpd")]
+#[test]
 fn connection_events_reset_semantic_decoder_state() {
     let stream = parse_pd_events(
         "41a90205100000168bfa1200de130000750602009f80fa120000a1632c9101082cd102002cc103002cb10400454106003c21dcc08781fa12000041028b85fa1200008210dc7003238786fa1200002101878afa120000a305878afa1200004104",
@@ -210,6 +246,14 @@ fn connection_events_reset_semantic_decoder_state() {
     let mut decoder = PdSessionDecoder::new();
     decoder.decode_event(&stream.events[0]);
     assert!(decoder.source_capabilities().is_some());
+    decoder.decode_event(&PdEvent {
+        timestamp: uom::si::f64::Time::new::<millisecond>(1.0),
+        data: PdEventData::PdMessage {
+            sop: 1,
+            wire_data: hex::decode("af5141a000ff3c410018443322110001341244260a12").unwrap(),
+        },
+    });
+    assert!(!decoder.cable_identities().is_empty());
 
     let connect = PdEvent {
         timestamp: uom::si::f64::Time::new::<millisecond>(1_250_000.0),
@@ -217,6 +261,7 @@ fn connection_events_reset_semantic_decoder_state() {
     };
     assert!(matches!(decoder.decode_event(&connect), DecodedPdEvent::Connect { .. }));
     assert!(decoder.source_capabilities().is_none());
+    assert!(decoder.cable_identities().is_empty());
 
     decoder.decode_event(&stream.events[0]);
     assert!(decoder.source_capabilities().is_some());

@@ -29,6 +29,7 @@ use km003c_lib::GraphSampleRate;
 use km003c_lib::MeasurementAccumulator;
 use km003c_lib::MeasurementSample;
 use km003c_lib::Metric;
+use km003c_lib::PdCableIdentity;
 use km003c_lib::PdConnectionTracker;
 use km003c_lib::PdContract;
 use km003c_lib::PdContractStage;
@@ -799,6 +800,10 @@ impl ScopeApp {
             .identity()
             .map(identity_label)
             .unwrap_or_else(|| "Not observed".to_string());
+        let cable_rows = cable_info_rows(
+            self.pd.logger.cable_discovery_requested(),
+            self.pd.logger.cable_identities(),
+        );
         let status = self.pd.status;
         let vbus = self.voltage.or_else(|| status.map(|value| value.vbus.get::<volt>()));
         let ibus = self.current.or_else(|| status.map(|value| value.ibus.get::<ampere>()));
@@ -809,7 +814,7 @@ impl ScopeApp {
             egui::ViewportId::from_hash_of("pd_info_viewport"),
             egui::ViewportBuilder::default()
                 .with_title("PD Info")
-                .with_inner_size([430.0, 480.0])
+                .with_inner_size([500.0, 650.0])
                 .with_min_inner_size([360.0, 260.0]),
             |ui, class| {
                 let close_requested = class != egui::ViewportClass::EmbeddedWindow
@@ -827,6 +832,9 @@ impl ScopeApp {
                             row("Source PDOs", &source_pdos);
                             row("Maximum power", &max_power);
                             row("Identity", &identity);
+                            for (label, value) in &cable_rows {
+                                row(label, value);
+                            }
                             row("Downstream sink", sink);
                             if let (Some(vbus), Some(ibus), Some(cc1), Some(cc2)) = (vbus, ibus, cc1, cc2) {
                                 row("VBUS", &format!("{vbus:.3} V"));
@@ -1929,6 +1937,134 @@ fn identity_label(identity: PdIdentity) -> String {
         Some(product_id) => format!("{vendor} (VID {:04X}, PID {product_id:04X})", identity.vendor_id),
         None => format!("{vendor} (VID {:04X})", identity.vendor_id),
     }
+}
+
+fn cable_info_rows(discovery_requested: bool, cables: &[PdCableIdentity]) -> Vec<(String, String)> {
+    let mut rows = Vec::new();
+    let observation = match (discovery_requested, cables.is_empty()) {
+        (false, true) => "Not observed",
+        (true, true) => "Host query observed; no response",
+        (false, false) => "Cable response observed",
+        (true, false) => "Host query and cable response observed",
+    };
+    rows.push(("Cable discovery".to_string(), observation.to_string()));
+
+    for (index, cable) in cables.iter().enumerate() {
+        let suffix = if cables.len() == 1 {
+            String::new()
+        } else {
+            format!(" {}", index + 1)
+        };
+        let vendor = usb_vendor_name(cable.vendor_id).unwrap_or("Unknown vendor");
+        rows.push((
+            format!("Cable{suffix}"),
+            format!(
+                "{} · {vendor} (VID {:04X}, PID {:04X})",
+                cable.kind, cable.vendor_id, cable.product_id
+            ),
+        ));
+
+        let mut power = format!("{}", cable.vbus_current);
+        if let Some(voltage) = cable.maximum_vbus_voltage {
+            write!(power, " · {voltage}").expect("writing to a String cannot fail");
+        }
+        if let Some(epr_capable) = cable.epr_capable {
+            power.push_str(if epr_capable {
+                " · EPR capable"
+            } else {
+                " · Not EPR capable"
+            });
+        }
+        rows.push((format!("Cable power{suffix}"), power));
+        rows.push((format!("Cable data{suffix}"), cable.highest_speed.to_string()));
+        rows.push((format!("Cable connector{suffix}"), cable.connector.to_string()));
+        rows.push((format!("Cable latency{suffix}"), cable.latency.to_string()));
+        rows.push((format!("Cable VCONN{suffix}"), cable.termination.to_string()));
+
+        rows.push((
+            format!("Cable identity{suffix}"),
+            format!("XID {:08X} · device {:04X}", cable.xid, cable.device_bcd),
+        ));
+
+        let mut versions = format!("HW {} · FW {}", cable.hardware_version, cable.firmware_version);
+        if let Some(version) = cable.vdo_version {
+            write!(versions, " · VDO 1.{version}").expect("writing to a String cannot fail");
+        }
+        rows.push((format!("Cable versions{suffix}"), versions));
+
+        let mut features = Vec::new();
+        if let Some(vbus_through_cable) = cable.vbus_through_cable {
+            features.push(if vbus_through_cable {
+                "VBUS through cable"
+            } else {
+                "No VBUS passthrough"
+            });
+        }
+        if let Some(sop_double_prime_present) = cable.sop_double_prime_present {
+            features.push(if sop_double_prime_present {
+                "SOP'' controller present"
+            } else {
+                "No SOP'' controller"
+            });
+        }
+        if let Some(sbu_supported) = cable.sbu_supported {
+            features.push(if sbu_supported {
+                "SBU supported"
+            } else {
+                "No SBU support"
+            });
+        }
+        if let Some(sbu_active) = cable.sbu_active {
+            features.push(if sbu_active { "Active SBU" } else { "Passive SBU" });
+        }
+        if !features.is_empty() {
+            rows.push((format!("Cable features{suffix}"), features.join(" · ")));
+        }
+
+        if let Some(active) = cable.active_details {
+            rows.push((
+                format!("Active cable{suffix}"),
+                format!(
+                    "{} · {} · {} lane(s) · {}",
+                    active.medium,
+                    active.active_element,
+                    active.lanes,
+                    if active.optically_isolated {
+                        "optically isolated"
+                    } else {
+                        "not optically isolated"
+                    }
+                ),
+            ));
+            let mut support = Vec::new();
+            if active.usb4_supported {
+                support.push("USB4");
+            }
+            if active.usb32_supported {
+                support.push("USB 3.2");
+            }
+            if active.usb2_supported {
+                support.push("USB 2.0");
+            }
+            rows.push((
+                format!("Active support{suffix}"),
+                if support.is_empty() {
+                    "No USB support advertised".to_string()
+                } else {
+                    support.join(" · ")
+                },
+            ));
+            rows.push((
+                format!("Cable thermal{suffix}"),
+                format!(
+                    "Max {}°C · shutdown {}°C",
+                    active.maximum_operating_temperature_c, active.shutdown_temperature_c
+                ),
+            ));
+        }
+    }
+
+    rows
 }
 
 fn usb_vendor_name(vendor_id: u16) -> Option<&'static str> {

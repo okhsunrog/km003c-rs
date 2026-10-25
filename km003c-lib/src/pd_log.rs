@@ -20,6 +20,7 @@ use usbpd::protocol_layer::message::header::{
 use usbpd::units::{ElectricCurrent, ElectricPotential, Power};
 
 use crate::pd::PdEvent;
+use crate::pd_cable::PdCableIdentity;
 use crate::pd_decode::{
     DecodedPdEvent, DecodedPdMessage, PdChunkState, PdChunkStatus, PdDecodeFailure, PdIdentity, PdRevision,
     PdSessionDecoder,
@@ -131,6 +132,16 @@ impl PdLogger {
     /// Most recently observed SOP Discover Identity acknowledgement.
     pub const fn identity(&self) -> Option<PdIdentity> {
         self.session.identity()
+    }
+
+    /// Whether the captured host attempted cable Discover Identity.
+    pub fn cable_discovery_requested(&self) -> bool {
+        self.session.cable_discovery_requested()
+    }
+
+    /// Most recently observed cable identities, keyed by their raw SOP selectors.
+    pub fn cable_identities(&self) -> &[PdCableIdentity] {
+        self.session.cable_identities()
     }
 
     /// Number of most recently advertised SPR source PDOs.
