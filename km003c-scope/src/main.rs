@@ -8,7 +8,6 @@ use std::collections::VecDeque;
 use std::fmt::Write as _;
 use std::ops::{Range, RangeInclusive};
 use std::time::Duration;
-use std::time::Instant;
 
 use chrono::DateTime;
 use chrono::Local;
@@ -44,6 +43,7 @@ use km003c_lib::PdStatus;
 use km003c_lib::Session;
 use km003c_lib::SessionEvent;
 use km003c_lib::pd_log::format_pdo;
+use km003c_lib::runtime::Instant;
 use km003c_lib::uom::si::electric_current::ampere;
 use km003c_lib::uom::si::electric_potential::volt;
 use km003c_lib::uom::si::frequency::hertz;
@@ -51,8 +51,12 @@ use km003c_lib::uom::si::thermodynamic_temperature::degree_celsius;
 use km003c_lib::uom::si::time::second;
 use tokio::sync::mpsc;
 use tracing::{debug, info};
+#[cfg(not(target_arch = "wasm32"))]
 use tracing_subscriber::prelude::*;
 
+#[cfg(target_arch = "wasm32")]
+mod browser_files;
+mod console_log;
 mod session_file;
 
 const VOLTAGE_COLOR: Color32 = Color32::from_rgb(80, 220, 120);
@@ -72,6 +76,8 @@ const CURSOR_LABEL_MARGIN: f64 = 110.0 * 1.3;
 /// Largest cursor readout. It is 30% larger than the original 16 px and stays in the bold face.
 const CURSOR_LABEL_SIZE: f32 = 16.0 * 1.3;
 const INITIAL_SECONDS: f64 = 8.0;
+/// Smallest time window, in seconds. The desktop window cannot be shorter than this.
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 const MIN_SECONDS: f64 = 4.0;
 const STRIP_HEIGHT: f32 = 200.0;
 /// Full-buffer preview above the event lane, one sixth of a measurement strip.
@@ -112,6 +118,7 @@ const METER_BOX_MARGIN: f32 = 8.0;
 const SIDE_PANEL_SEPARATOR: f32 = 1.0;
 /// Newest samples kept, at any rate. This is 10 hours at 50/s and 30 minutes at 1000/s.
 const MAX_SAMPLES: usize = 1_800_000;
+#[cfg(not(target_arch = "wasm32"))]
 const USB_RESET_SUPPORTED: bool = !cfg!(target_os = "windows");
 include!(concat!(env!("OUT_DIR"), "/usb_vendors.rs"));
 const RATES: [GraphSampleRate; 4] = [
@@ -121,6 +128,7 @@ const RATES: [GraphSampleRate; 4] = [
     GraphSampleRate::Sps1000,
 ];
 
+#[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let log_filter = std::env::var("RUST_LOG")
@@ -142,53 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // WinUSB cannot reset devices, and macOS handles re-enumeration badly.
     let usb_reset = USB_RESET_SUPPORTED && !cfg!(target_os = "macos");
     let _ = session.connect(rate, usb_reset);
-
-    let app = ScopeApp {
-        session,
-        events,
-        accumulator: MeasurementAccumulator::default(),
-        samples: VecDeque::new(),
-        markers: VecDeque::new(),
-        next_marker_id: 0,
-        selected_marker_id: None,
-        event_explorer_open: false,
-        host_time_origin_utc: None,
-        meter: MeterAverage::default(),
-        voltage: None,
-        current: None,
-        power: None,
-        cc1: None,
-        cc2: None,
-        temperature_c: None,
-        status: "Connecting...".to_string(),
-        device: None,
-        device_info_open: false,
-        pd: PdView::default(),
-        pd_info_open: false,
-        connected: false,
-        streaming: false,
-        rate,
-        window_secs: INITIAL_SECONDS,
-        pixels_per_second: PIXELS_PER_SECOND,
-        view_end: None,
-        autoscroll: true,
-        cursor_mode: false,
-        cursor_time: None,
-        plot_width: None,
-        plot_left: None,
-        overview_frame: None,
-        overview_grabbed: false,
-        overview_press: None,
-        window_has_pointer: false,
-        usb_reset,
-        disconnected_at: None,
-        timeline_shift_us: 0,
-        live_tail_us: None,
-        dataset_breaks: Vec::new(),
-        file_tx,
-        file_rx,
-        file_busy: false,
-    };
+    let app = ScopeApp::new(session, events, file_tx, file_rx, rate, usb_reset, "Connecting...");
 
     let [width, height] = initial_window_size();
     let [min_width, _] = minimum_window_size();
@@ -210,10 +172,63 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)
 }
 
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    use wasm_bindgen::JsCast;
+
+    console_error_panic_hook::set_once();
+    let _ = eframe::WebLogger::init(log::LevelFilter::Info);
+    console_log::init();
+    info!("Starting KM003C scope");
+    wasm_bindgen_futures::spawn_local(async {
+        let canvas = web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| document.get_element_by_id("km003c-scope"))
+            .and_then(|element| element.dyn_into::<web_sys::HtmlCanvasElement>().ok())
+            .expect("the page has a km003c-scope canvas");
+        let (session, events) = Session::spawn();
+        let (file_tx, file_rx) = std::sync::mpsc::channel();
+        let rate = GraphSampleRate::Sps50;
+        let app = ScopeApp::new(
+            session,
+            events,
+            file_tx,
+            file_rx,
+            rate,
+            "Click Connect to select the KM003C",
+        );
+        let result = eframe::WebRunner::new()
+            .start(
+                canvas,
+                eframe::WebOptions::default(),
+                Box::new(move |cc| {
+                    install_meter_font(&cc.egui_ctx);
+                    Ok(Box::new(app))
+                }),
+            )
+            .await;
+        if let Some(notice) = web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| document.get_element_by_id("notice"))
+        {
+            match result {
+                Ok(()) => {
+                    notice.remove();
+                }
+                Err(error) => notice.set_text_content(Some(&format!(
+                    "Could not start the scope (WebGL2 is required): {error:?}"
+                ))),
+            }
+        }
+    });
+}
+
 enum FileMessage {
-    Saved(std::path::PathBuf),
+    Saved(String),
     Failed(String),
     Loaded(session_file::SessionData),
+    #[cfg(target_arch = "wasm32")]
+    Cancelled,
 }
 
 struct ScopeApp {
@@ -265,6 +280,8 @@ struct ScopeApp {
     overview_press: Option<egui::Pos2>,
     /// The current press started on a floating window, so it must not pan the strips.
     window_has_pointer: bool,
+    /// Host bus reset before the next desktop connect. The browser has no usable reset.
+    #[cfg(not(target_arch = "wasm32"))]
     usb_reset: bool,
     /// Wall time of the latest disconnect, while captured samples are still in the buffer.
     disconnected_at: Option<DateTime<Utc>>,
@@ -277,6 +294,9 @@ struct ScopeApp {
     file_tx: std::sync::mpsc::Sender<FileMessage>,
     file_rx: std::sync::mpsc::Receiver<FileMessage>,
     file_busy: bool,
+    /// Browser permission dialog started from Connect. Absent on desktop.
+    #[cfg(target_arch = "wasm32")]
+    device_prompt: Option<mpsc::UnboundedReceiver<Result<nusb::Device, String>>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -344,6 +364,7 @@ struct TimelineMarkerSpec {
 
 impl eframe::App for ScopeApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.poll_device_prompt();
         self.drain_events();
         self.poll_file_ops();
         if self.file_busy {
@@ -352,6 +373,15 @@ impl eframe::App for ScopeApp {
         let repaint = if self.streaming { 16 } else { 100 };
         ui.ctx().request_repaint_after(Duration::from_millis(repaint));
 
+        #[cfg(target_arch = "wasm32")]
+        {
+            let console_height = console_log::panel_height(ui.available_height(), window_size(INITIAL_SECONDS)[1]);
+            egui::Panel::bottom("web_console")
+                .exact_size(console_height)
+                .resizable(false)
+                .frame(egui::Frame::new().fill(Color32::BLACK).inner_margin(8.0))
+                .show(ui, web_console);
+        }
         egui::Panel::left("side")
             .resizable(false)
             .exact_size(meter_pane_width())
@@ -369,7 +399,229 @@ impl eframe::App for ScopeApp {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+fn web_console(ui: &mut egui::Ui) {
+    let font = egui::FontId::new(13.0, egui::FontFamily::Name("Space Mono".into()));
+    ui.spacing_mut().item_spacing.y = 1.0;
+    let lines = console_log::snapshot();
+    egui::ScrollArea::both()
+        .auto_shrink([false, false])
+        .stick_to_bottom(true)
+        .show(ui, |ui| {
+            for line in lines {
+                let mut job = egui::text::LayoutJob::default();
+                let dim = egui::TextFormat {
+                    font_id: font.clone(),
+                    color: console_log::DIM,
+                    ..Default::default()
+                };
+                let level = egui::TextFormat {
+                    font_id: font.clone(),
+                    color: line.level_color,
+                    ..Default::default()
+                };
+                let message = egui::TextFormat {
+                    font_id: font.clone(),
+                    color: console_log::MESSAGE,
+                    ..Default::default()
+                };
+                job.append(&line.time, 0.0, dim.clone());
+                job.append(" ", 0.0, dim.clone());
+                job.append(&line.level, 0.0, level);
+                job.append(&format!(" {}: ", line.target), 0.0, dim);
+                job.append(&line.message, 0.0, message);
+                ui.add(
+                    egui::Label::new(job)
+                        .selectable(true)
+                        .wrap_mode(egui::TextWrapMode::Extend),
+                );
+            }
+        });
+}
+
+/// A native info window uses the operating system's close button.
+/// The browser draws the same window inside the page, so that button is an egui X.
+fn show_info_dialog(
+    ctx: &egui::Context,
+    open: &mut bool,
+    id: &str,
+    title: &str,
+    default_size: [f32; 2],
+    min_size: [f32; 2],
+    add_contents: impl FnOnce(&mut egui::Ui),
+) {
+    if !*open {
+        return;
+    }
+    if ctx.embed_viewports() {
+        egui::Window::new(title)
+            .id(egui::Id::new(id))
+            .open(open)
+            .default_size(default_size)
+            .min_size(min_size)
+            .collapsible(false)
+            .show(ctx, |ui| {
+                if ui.input(|input| input.key_pressed(egui::Key::Escape)) {
+                    ui.close();
+                }
+                add_contents(ui);
+            });
+        return;
+    }
+
+    let mut add_contents = Some(add_contents);
+    let close_requested = ctx.show_viewport_immediate(
+        egui::ViewportId::from_hash_of(id),
+        egui::ViewportBuilder::default()
+            .with_title(title)
+            .with_inner_size(default_size)
+            .with_min_inner_size(min_size),
+        move |ui, class| {
+            let close_requested = class != egui::ViewportClass::EmbeddedWindow
+                && ui.ctx().input(|input| input.viewport().close_requested());
+            if let Some(add_contents) = add_contents.take() {
+                egui::CentralPanel::default().show(ui, add_contents);
+            }
+            close_requested
+        },
+    );
+    if close_requested {
+        *open = false;
+    }
+}
+
 impl ScopeApp {
+    fn new(
+        session: Session,
+        events: mpsc::UnboundedReceiver<SessionEvent>,
+        file_tx: std::sync::mpsc::Sender<FileMessage>,
+        file_rx: std::sync::mpsc::Receiver<FileMessage>,
+        rate: GraphSampleRate,
+        #[cfg(not(target_arch = "wasm32"))] usb_reset: bool,
+        status: impl Into<String>,
+    ) -> Self {
+        Self {
+            session,
+            events,
+            accumulator: MeasurementAccumulator::default(),
+            samples: VecDeque::new(),
+            markers: VecDeque::new(),
+            next_marker_id: 0,
+            selected_marker_id: None,
+            event_explorer_open: false,
+            host_time_origin_utc: None,
+            meter: MeterAverage::default(),
+            voltage: None,
+            current: None,
+            power: None,
+            cc1: None,
+            cc2: None,
+            temperature_c: None,
+            status: status.into(),
+            device: None,
+            device_info_open: false,
+            pd: PdView::default(),
+            pd_info_open: false,
+            connected: false,
+            streaming: false,
+            rate,
+            window_secs: INITIAL_SECONDS,
+            pixels_per_second: PIXELS_PER_SECOND,
+            view_end: None,
+            autoscroll: true,
+            cursor_mode: false,
+            cursor_time: None,
+            plot_width: None,
+            plot_left: None,
+            overview_frame: None,
+            overview_grabbed: false,
+            overview_press: None,
+            window_has_pointer: false,
+            #[cfg(not(target_arch = "wasm32"))]
+            usb_reset,
+            disconnected_at: None,
+            timeline_shift_us: 0,
+            live_tail_us: None,
+            dataset_breaks: Vec::new(),
+            file_tx,
+            file_rx,
+            file_busy: false,
+            #[cfg(target_arch = "wasm32")]
+            device_prompt: None,
+        }
+    }
+
+    fn poll_device_prompt(&mut self) {
+        #[cfg(target_arch = "wasm32")]
+        {
+            let received = self.device_prompt.as_mut().and_then(|prompt| match prompt.try_recv() {
+                Ok(result) => Some(result),
+                Err(mpsc::error::TryRecvError::Empty) => None,
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    Some(Err("Connection failed: the browser dialog closed".to_string()))
+                }
+            });
+            let Some(result) = received else {
+                return;
+            };
+            self.device_prompt = None;
+            match result {
+                Ok(device) => {
+                    self.status = "Connecting...".to_string();
+                    let _ = self.session.connect_device(device, self.rate);
+                }
+                Err(error) => self.status = error,
+            }
+        }
+    }
+
+    fn connection_prompt_open(&self) -> bool {
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.device_prompt.is_some()
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            false
+        }
+    }
+
+    fn request_connect(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.status = "Connecting...".to_string();
+            let _ = self.session.connect(self.rate, self.usb_reset);
+        }
+        #[cfg(target_arch = "wasm32")]
+        self.choose_device();
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn choose_device(&mut self) {
+        if self.device_prompt.is_some() {
+            return;
+        }
+        let Some(window) = web_sys::window() else {
+            self.status = "WebUSB needs a browser window.".to_string();
+            return;
+        };
+        let navigator =
+            js_sys::Reflect::get(window.as_ref(), &"navigator".into()).unwrap_or(wasm_bindgen::JsValue::NULL);
+        let usb_available =
+            js_sys::Reflect::get(&navigator, &"usb".into()).is_ok_and(|usb| !usb.is_null() && !usb.is_undefined());
+        if !window.is_secure_context() || !usb_available {
+            self.status = "WebUSB needs desktop Chrome or Edge on HTTPS or localhost.".to_string();
+            return;
+        }
+        let (tx, rx) = mpsc::unbounded_channel();
+        self.device_prompt = Some(rx);
+        self.status = "Select the KM003C in the browser dialog.".to_string();
+        // The permission request has to start in this click, before any await.
+        wasm_bindgen_futures::spawn_local(async move {
+            let _ = tx.send(open_browser_device().await);
+        });
+    }
+
     fn drain_events(&mut self) {
         while let Ok(event) = self.events.try_recv() {
             match event {
@@ -586,52 +838,134 @@ impl ScopeApp {
         while let Ok(message) = self.file_rx.try_recv() {
             self.file_busy = false;
             match message {
-                FileMessage::Saved(path) => self.status = format!("Saved {}", path.display()),
+                FileMessage::Saved(name) => self.status = format!("Saved {name}"),
                 FileMessage::Failed(error) => self.status = error,
                 FileMessage::Loaded(session) => self.apply_loaded_session(session),
+                #[cfg(target_arch = "wasm32")]
+                FileMessage::Cancelled => self.status = self.activity_status(),
             }
         }
     }
 
+    #[cfg(target_arch = "wasm32")]
+    fn activity_status(&self) -> String {
+        if self.streaming {
+            format!("Streaming at {}", rate_label(self.rate))
+        } else if self.connected {
+            "Connected".to_string()
+        } else if !self.samples.is_empty() {
+            "Disconnected".to_string()
+        } else {
+            "Click Connect to select the KM003C".to_string()
+        }
+    }
+
     fn save_session(&mut self) {
-        let Some(path) = rfd::FileDialog::new()
-            .add_filter("KM003C session", &["kmss"])
-            .set_file_name("session.kmss")
-            .save_file()
-        else {
-            return;
-        };
-        let path = ensure_session_extension(path);
-        let snapshot = self.session_snapshot();
-        self.file_busy = true;
-        self.status = "Saving session...".to_string();
-        let tx = self.file_tx.clone();
-        std::thread::spawn(move || {
-            let message = match session_file::write_session(&path, &snapshot) {
-                Ok(()) => FileMessage::Saved(path),
-                Err(error) => FileMessage::Failed(format!("Save failed: {error}")),
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let Some(path) = rfd::FileDialog::new()
+                .add_filter("KM003C session", &["kmss"])
+                .set_file_name("session.kmss")
+                .save_file()
+            else {
+                return;
             };
-            let _ = tx.send(message);
-        });
+            let path = ensure_session_extension(path);
+            let snapshot = self.session_snapshot();
+            self.file_busy = true;
+            self.status = "Saving session...".to_string();
+            let tx = self.file_tx.clone();
+            std::thread::spawn(move || {
+                let message = match session_file::write_session(&path, &snapshot) {
+                    Ok(()) => FileMessage::Saved(path.display().to_string()),
+                    Err(error) => FileMessage::Failed(format!("Save failed: {error}")),
+                };
+                let _ = tx.send(message);
+            });
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let pending = match browser_files::begin_save("session.kmss") {
+                Ok(pending) => pending,
+                Err(browser_files::BrowserFileError::Cancelled) => return,
+                Err(browser_files::BrowserFileError::Message(error)) => {
+                    self.status = format!("Save failed: {error}");
+                    return;
+                }
+            };
+            let snapshot = self.session_snapshot();
+            self.file_busy = true;
+            self.status = "Saving session...".to_string();
+            let tx = self.file_tx.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let message = match pending.confirm().await {
+                    Ok(confirmed) => match session_file::encode(&snapshot) {
+                        Ok(bytes) => match confirmed.write(&bytes).await {
+                            Ok(name) => FileMessage::Saved(ensure_download_name(&name)),
+                            Err(browser_files::BrowserFileError::Cancelled) => FileMessage::Cancelled,
+                            Err(browser_files::BrowserFileError::Message(error)) => {
+                                FileMessage::Failed(format!("Save failed: {error}"))
+                            }
+                        },
+                        Err(error) => FileMessage::Failed(format!("Save failed: {error}")),
+                    },
+                    Err(browser_files::BrowserFileError::Cancelled) => FileMessage::Cancelled,
+                    Err(browser_files::BrowserFileError::Message(error)) => {
+                        FileMessage::Failed(format!("Save failed: {error}"))
+                    }
+                };
+                let _ = tx.send(message);
+            });
+        }
     }
 
     fn load_session(&mut self) {
-        let Some(path) = rfd::FileDialog::new()
-            .add_filter("KM003C session", &["kmss"])
-            .pick_file()
-        else {
-            return;
-        };
-        self.file_busy = true;
-        self.status = "Loading session...".to_string();
-        let tx = self.file_tx.clone();
-        std::thread::spawn(move || {
-            let message = match session_file::read_session(&path) {
-                Ok(session) => FileMessage::Loaded(session),
-                Err(error) => FileMessage::Failed(format!("Load failed: {error}")),
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let Some(path) = rfd::FileDialog::new()
+                .add_filter("KM003C session", &["kmss"])
+                .pick_file()
+            else {
+                return;
             };
-            let _ = tx.send(message);
-        });
+            self.file_busy = true;
+            self.status = "Loading session...".to_string();
+            let tx = self.file_tx.clone();
+            std::thread::spawn(move || {
+                let message = match session_file::read_session(&path) {
+                    Ok(session) => FileMessage::Loaded(session),
+                    Err(error) => FileMessage::Failed(format!("Load failed: {error}")),
+                };
+                let _ = tx.send(message);
+            });
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let pending = match browser_files::begin_open() {
+                Ok(pending) => pending,
+                Err(browser_files::BrowserFileError::Cancelled) => return,
+                Err(browser_files::BrowserFileError::Message(error)) => {
+                    self.status = format!("Load failed: {error}");
+                    return;
+                }
+            };
+            self.file_busy = true;
+            self.status = "Loading session...".to_string();
+            let tx = self.file_tx.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let message = match pending.read().await {
+                    Ok(bytes) => match session_file::decode(&bytes) {
+                        Ok(session) => FileMessage::Loaded(session),
+                        Err(error) => FileMessage::Failed(format!("Load failed: {error}")),
+                    },
+                    Err(browser_files::BrowserFileError::Cancelled) => FileMessage::Cancelled,
+                    Err(browser_files::BrowserFileError::Message(error)) => {
+                        FileMessage::Failed(format!("Load failed: {error}"))
+                    }
+                };
+                let _ = tx.send(message);
+            });
+        }
     }
 
     fn session_snapshot(&self) -> session_file::SessionData {
@@ -970,12 +1304,11 @@ impl ScopeApp {
         let height = ui.spacing().interact_size.y;
         ui.columns(2, |columns| {
             let label = if self.connected { "Disconnect" } else { "Connect" };
-            if pane_button(&mut columns[0], true, label, height).clicked() {
+            if pane_button(&mut columns[0], !self.connection_prompt_open(), label, height).clicked() {
                 if self.connected {
                     let _ = self.session.disconnect();
                 } else {
-                    self.status = "Connecting...".to_string();
-                    let _ = self.session.connect(self.rate, self.usb_reset);
+                    self.request_connect();
                 }
             }
             if pane_button(&mut columns[1], true, "Clear session", height)
@@ -1017,21 +1350,26 @@ impl ScopeApp {
     fn controls(&mut self, ui: &mut egui::Ui) {
         ui.label(self.status.as_str());
         ui.add_space(8.0);
-        ui.add_enabled(
-            USB_RESET_SUPPORTED,
-            egui::Checkbox::new(&mut self.usb_reset, "USB reset on connect"),
-        )
-        .on_hover_text(if USB_RESET_SUPPORTED {
-            "Applied the next time Connect runs. Leave this off on macOS."
-        } else {
-            "WinUSB does not support USB device reset."
-        });
-        ui.add_space(8.0);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let reset_supported = usb_reset_supported();
+            ui.add_enabled(
+                reset_supported,
+                egui::Checkbox::new(&mut self.usb_reset, "USB reset on connect"),
+            )
+            .on_hover_text(if reset_supported {
+                "Applied the next time Connect runs. Leave this off on macOS."
+            } else {
+                "WinUSB does not support USB device reset."
+            });
+            ui.add_space(8.0);
+        }
         self.session_buttons(ui);
         ui.add_space(8.0);
         ui.checkbox(&mut self.autoscroll, "Autoscroll");
         let cursor_was_off = !self.cursor_mode;
-        ui.checkbox(&mut self.cursor_mode, "Cursor");
+        ui.checkbox(&mut self.cursor_mode, "Cursor")
+            .on_hover_text("Right-click a plot to place the cursor, and drag with the right button to move it. Left-drag moves the time window.");
         if self.cursor_mode && cursor_was_off {
             self.cursor_time = self.view_end.map(|end| end - self.window_secs * 0.5);
         }
@@ -1197,44 +1535,35 @@ impl ScopeApp {
         let Some(device) = self.device.clone() else {
             return;
         };
-        if !self.device_info_open {
-            return;
-        }
-        let close_requested = ctx.show_viewport_immediate(
-            egui::ViewportId::from_hash_of("device_info_viewport"),
-            egui::ViewportBuilder::default()
-                .with_title("Device Info")
-                .with_inner_size([480.0, 280.0])
-                .with_min_inner_size([360.0, 220.0]),
-            |ui, class| {
-                let close_requested = class != egui::ViewportClass::EmbeddedWindow
-                    && ui.ctx().input(|input| input.viewport().close_requested());
-                egui::CentralPanel::default().show(ui, |ui| {
-                    egui::Grid::new("device_info")
-                        .num_columns(2)
-                        .striped(true)
-                        .show(ui, |ui| {
-                            let mut row = |label: &str, value: &str| {
-                                ui.label(label);
-                                ui.label(if value.is_empty() { "—" } else { value });
-                                ui.end_row();
-                            };
-                            row("Model", &device.info.model);
-                            row("Serial", &device.info.serial_id);
-                            row("Firmware", &device.info.fw_version);
-                            row("Firmware date", &device.info.fw_date);
-                            row("Hardware", &device.info.hw_version);
-                            row("Manufactured", &device.info.mfg_date);
-                            row("UUID", &device.info.uuid);
-                            row("Hardware ID", &device.hardware_id.to_string());
-                        });
-                });
-                close_requested
+        let hardware_id = device.hardware_id.to_string();
+        show_info_dialog(
+            ctx,
+            &mut self.device_info_open,
+            "device_info_viewport",
+            "Device Info",
+            [480.0, 280.0],
+            [360.0, 220.0],
+            move |ui| {
+                egui::Grid::new("device_info")
+                    .num_columns(2)
+                    .striped(true)
+                    .show(ui, |ui| {
+                        let mut row = |label: &str, value: &str| {
+                            ui.label(label);
+                            ui.label(if value.is_empty() { "—" } else { value });
+                            ui.end_row();
+                        };
+                        row("Model", &device.info.model);
+                        row("Serial", &device.info.serial_id);
+                        row("Firmware", &device.info.fw_version);
+                        row("Firmware date", &device.info.fw_date);
+                        row("Hardware", &device.info.hw_version);
+                        row("Manufactured", &device.info.mfg_date);
+                        row("UUID", &device.info.uuid);
+                        row("Hardware ID", &hardware_id);
+                    });
             },
         );
-        if close_requested {
-            self.device_info_open = false;
-        }
     }
 
     fn pd_info_dialog(&mut self, ctx: &egui::Context) {
@@ -1285,54 +1614,47 @@ impl ScopeApp {
         let cc1 = self.cc1.or_else(|| status.map(|value| value.cc1.get::<volt>()));
         let cc2 = self.cc2.or_else(|| status.map(|value| value.cc2.get::<volt>()));
         let offered = self.pd.offered_modes();
-        let close_requested = ctx.show_viewport_immediate(
-            egui::ViewportId::from_hash_of("pd_info_viewport"),
-            egui::ViewportBuilder::default()
-                .with_title("PD Info")
-                .with_inner_size([500.0, 650.0])
-                .with_min_inner_size([360.0, 260.0]),
-            |ui, class| {
-                let close_requested = class != egui::ViewportClass::EmbeddedWindow
-                    && ui.ctx().input(|input| input.viewport().close_requested());
-                egui::CentralPanel::default().show(ui, |ui| {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        egui::Grid::new("pd_info").num_columns(2).striped(true).show(ui, |ui| {
-                            let mut row = |label: &str, value: &str| {
-                                ui.label(label);
-                                ui.label(if value.is_empty() { "—" } else { value });
-                                ui.end_row();
-                            };
-                            row("PD revision", &revision);
-                            row("Contract", &contract);
-                            row("Source PDOs", &source_pdos);
-                            row("Maximum power", &max_power);
-                            row("Identity", &identity);
-                            for (label, value) in &cable_rows {
-                                row(label, value);
+        show_info_dialog(
+            ctx,
+            &mut self.pd_info_open,
+            "pd_info_viewport",
+            "PD Info",
+            [500.0, 650.0],
+            [360.0, 260.0],
+            move |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    egui::Grid::new("pd_info").num_columns(2).striped(true).show(ui, |ui| {
+                        let mut row = |label: &str, value: &str| {
+                            ui.label(label);
+                            ui.label(if value.is_empty() { "—" } else { value });
+                            ui.end_row();
+                        };
+                        row("PD revision", &revision);
+                        row("Contract", &contract);
+                        row("Source PDOs", &source_pdos);
+                        row("Maximum power", &max_power);
+                        row("Identity", &identity);
+                        for (label, value) in &cable_rows {
+                            row(label, value);
+                        }
+                        row("Downstream sink", sink);
+                        if let (Some(vbus), Some(ibus), Some(cc1), Some(cc2)) = (vbus, ibus, cc1, cc2) {
+                            row("VBUS", &format!("{vbus:.3} V"));
+                            row("IBUS", &format!("{ibus:.3} A"));
+                            row("CC1", &format!("{cc1:.3} V"));
+                            row("CC2", &format!("{cc2:.3} V"));
+                        }
+                        if offered.is_empty() {
+                            row("Offered", "Not observed");
+                        } else {
+                            for (index, offer) in offered.iter().enumerate() {
+                                row(if index == 0 { "Offered" } else { "" }, offer);
                             }
-                            row("Downstream sink", sink);
-                            if let (Some(vbus), Some(ibus), Some(cc1), Some(cc2)) = (vbus, ibus, cc1, cc2) {
-                                row("VBUS", &format!("{vbus:.3} V"));
-                                row("IBUS", &format!("{ibus:.3} A"));
-                                row("CC1", &format!("{cc1:.3} V"));
-                                row("CC2", &format!("{cc2:.3} V"));
-                            }
-                            if offered.is_empty() {
-                                row("Offered", "Not observed");
-                            } else {
-                                for (index, offer) in offered.iter().enumerate() {
-                                    row(if index == 0 { "Offered" } else { "" }, offer);
-                                }
-                            }
-                        });
+                        }
                     });
                 });
-                close_requested
             },
         );
-        if close_requested {
-            self.pd_info_open = false;
-        }
     }
 
     fn readings(&self, ui: &mut egui::Ui) {
@@ -1468,21 +1790,35 @@ impl ScopeApp {
         self.window_secs = plot_width / self.pixels_per_second;
     }
 
-    /// Dragging moves every strip along time and leaves Autoscroll off.
+    /// Left-drag moves every strip along time and leaves Autoscroll off.
     ///
-    /// Cursor mode keeps Autoscroll. The marker sits on the time under the pointer.
+    /// That pan is independent of the cursor. A right-click on the strips turns
+    /// the cursor on at that time, and holding the right button drags it.
     /// With Autoscroll on, the first sample stays on the left until the trace fills
     /// the window, and then the right edge follows the newest sample.
     fn place_time_window(&mut self, ui: &egui::Ui) -> bool {
         let rect = ui.available_rect_before_wrap();
-        let (primary_down, primary_pressed, primary_clicked, delta_x, origin, pointer_x) = ui.input(|input| {
+        let (
+            primary_down,
+            primary_pressed,
+            primary_clicked,
+            secondary_down,
+            secondary_clicked,
+            delta_x,
+            origin,
+            pointer_x,
+            interact_pos,
+        ) = ui.input(|input| {
             (
                 input.pointer.primary_down(),
                 input.pointer.primary_pressed(),
                 input.pointer.primary_clicked(),
+                input.pointer.secondary_down(),
+                input.pointer.secondary_clicked(),
                 input.pointer.delta().x,
                 input.pointer.press_origin(),
                 input.pointer.latest_pos().map(|pos| pos.x),
+                input.pointer.interact_pos(),
             )
         });
         let origin_on_window = origin.is_some_and(|pos| {
@@ -1490,7 +1826,11 @@ impl ScopeApp {
                 .layer_id_at(pos)
                 .is_some_and(|layer| layer_covers_plots(layer.order))
         });
-        self.window_has_pointer = pointer_blocks_plots(self.window_has_pointer, primary_down, origin_on_window);
+        self.window_has_pointer = pointer_blocks_plots(
+            self.window_has_pointer,
+            primary_down || secondary_down,
+            origin_on_window,
+        );
         if !self.window_has_pointer {
             self.begin_overview_gesture(primary_pressed, origin);
         }
@@ -1499,8 +1839,8 @@ impl ScopeApp {
             || origin.is_some_and(|pos| self.overview_frame.is_some_and(|frame| frame.contains(pos)));
         let drag_started_on_plots = origin.is_some_and(|origin| rect.contains(origin)) && !on_overview;
         let interacting_with_plots = drag_started_on_plots && !self.window_has_pointer;
-        let placing_cursor = self.cursor_mode && primary_down && interacting_with_plots;
-        let panning = primary_down && interacting_with_plots && delta_x != 0.0 && !self.cursor_mode;
+        let moving_cursor = secondary_down && interacting_with_plots;
+        let panning = primary_down && interacting_with_plots && delta_x != 0.0 && !moving_cursor;
         if self.autoscroll
             && !panning
             && !dragging_overview
@@ -1535,18 +1875,22 @@ impl ScopeApp {
             self.overview_grabbed = false;
             self.overview_press = None;
         }
-        if placing_cursor {
-            if let (Some(pointer_x), Some(end)) = (pointer_x, self.view_end) {
+        if moving_cursor {
+            self.cursor_mode = true;
+            if let Some(pointer_x) = pointer_x {
                 let plot_left = self.plot_left.unwrap_or(rect.left() + AXIS_THICKNESS);
-                self.cursor_time = Some(time_at_pointer(
-                    pointer_x,
-                    plot_left,
-                    end,
-                    self.window_secs,
-                    self.pixels_per_second,
-                ));
+                self.place_cursor_at_pointer(pointer_x, plot_left);
             }
-            return true;
+        } else if secondary_clicked
+            && !self.window_has_pointer
+            && let Some(pos) = interact_pos
+        {
+            let on_overview_click = self.overview_frame.is_some_and(|frame| frame.contains(pos));
+            if rect.contains(pos) && !on_overview_click {
+                self.cursor_mode = true;
+                let plot_left = self.plot_left.unwrap_or(rect.left() + AXIS_THICKNESS);
+                self.place_cursor_at_pointer(pos.x, plot_left);
+            }
         }
         if self.cursor_mode && self.cursor_time.is_none() {
             self.cursor_time = self.view_end.map(|end| end - self.window_secs * 0.5);
@@ -1558,6 +1902,19 @@ impl ScopeApp {
             return true;
         }
         false
+    }
+
+    fn place_cursor_at_pointer(&mut self, pointer_x: f32, plot_left: f32) {
+        let Some(end) = self.view_end else {
+            return;
+        };
+        self.cursor_time = Some(time_at_pointer(
+            pointer_x,
+            plot_left,
+            end,
+            self.window_secs,
+            self.pixels_per_second,
+        ));
     }
 
     /// Keep the visible window from starting before the oldest sample.
@@ -1669,6 +2026,11 @@ impl ScopeApp {
                 [egui::pos2(x, frame.top()), egui::pos2(x, frame.bottom())],
                 egui::Stroke::new(2.0, OVERVIEW_GAP_COLOR),
             );
+        }
+        if self.cursor_mode
+            && let Some(time) = self.cursor_time
+        {
+            paint_overview_cursor(&painter, frame, &map, time);
         }
     }
 }
@@ -2074,11 +2436,7 @@ fn paint_cursor_value(ui: &egui::Ui, strip: &Strip, cursor: &CursorMark, transfo
         return;
     };
     let frame = *transform.frame();
-    let room = if strip.metric == Metric::Voltage {
-        f32::INFINITY
-    } else {
-        (STRIP_GAP_BETWEEN - 2.0).max(1.0)
-    };
+    let room = (STRIP_GAP_BETWEEN - 2.0).max(1.0);
     let text = format!("{value:.3} {}", strip.unit);
     let galley = ui.painter().layout_no_wrap(
         text.clone(),
@@ -2103,12 +2461,8 @@ fn paint_cursor_value(ui: &egui::Ui, strip: &Strip, cursor: &CursorMark, transfo
     };
     let min_x = frame.left();
     let max_x = (frame.right() - galley.size().x).max(min_x);
-    let text_y = if strip.metric == Metric::Voltage {
-        frame.top() + 4.0
-    } else {
-        let gap = STRIP_GAP_BETWEEN;
-        (frame.top() - gap + (gap - galley.size().y) * 0.5).min(frame.top() - galley.size().y)
-    };
+    let gap = STRIP_GAP_BETWEEN;
+    let text_y = (frame.top() - gap + (gap - galley.size().y) * 0.5).min(frame.top() - galley.size().y);
     ui.ctx()
         .layer_painter(ui.layer_id())
         .galley(egui::pos2(text_x.clamp(min_x, max_x), text_y), galley, strip.color);
@@ -2911,6 +3265,27 @@ fn overview_segments(
         .collect()
 }
 
+/// A white caret and line on the full-buffer navigator. No numbers.
+fn paint_overview_cursor(painter: &egui::Painter, frame: egui::Rect, map: &OverviewMap, time: f64) {
+    let x = frame.left() + map.time_to_fraction(time).clamp(0.0, 1.0) as f32 * frame.width();
+    let color = Color32::WHITE;
+    painter.line_segment(
+        [egui::pos2(x, frame.top()), egui::pos2(x, frame.bottom())],
+        egui::Stroke::new(1.5, color),
+    );
+    let half = 4.0;
+    let height = 6.0;
+    painter.add(egui::Shape::convex_polygon(
+        vec![
+            egui::pos2(x - half, frame.top()),
+            egui::pos2(x + half, frame.top()),
+            egui::pos2(x, frame.top() + height),
+        ],
+        color,
+        egui::Stroke::NONE,
+    ));
+}
+
 fn paint_overview_segments(
     painter: &egui::Painter,
     frame: egui::Rect,
@@ -2985,8 +3360,8 @@ fn pointer_over_floating_window(ui: &egui::Ui) -> bool {
 }
 
 /// A press that starts on a floating window keeps blocking the strips until release.
-fn pointer_blocks_plots(blocked: bool, primary_down: bool, origin_on_window: bool) -> bool {
-    primary_down && (blocked || origin_on_window)
+fn pointer_blocks_plots(blocked: bool, button_down: bool, origin_on_window: bool) -> bool {
+    button_down && (blocked || origin_on_window)
 }
 
 /// Time at a screen position, clamped to the visible window.
@@ -3039,11 +3414,42 @@ fn seconds_to_us(seconds: f64) -> u64 {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+fn usb_reset_supported() -> bool {
+    USB_RESET_SUPPORTED
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn ensure_session_extension(mut path: std::path::PathBuf) -> std::path::PathBuf {
     if path.extension().is_none() {
         path.set_extension("kmss");
     }
     path
+}
+
+#[cfg(target_arch = "wasm32")]
+fn ensure_download_name(name: &str) -> String {
+    let name = name.trim();
+    if name.is_empty() {
+        "session.kmss".to_string()
+    } else if name.to_ascii_lowercase().ends_with(".kmss") {
+        name.to_string()
+    } else {
+        format!("{name}.kmss")
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn open_browser_device() -> Result<nusb::Device, String> {
+    let filters = [nusb::DeviceSelector::all().with_vid_pid(0x5FC9, 0x0063)];
+    let info = nusb::request_device(&filters)
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "No device selected. Click Connect to try again.".to_string())?;
+    km003c_lib::runtime::timeout(Duration::from_secs(10), async { info.open().await })
+        .await
+        .map_err(|_| "Timed out opening the KM003C.".to_string())?
+        .map_err(|error| error.to_string())
 }
 
 fn wall_gap_us(disconnected_at: DateTime<Utc>, resumed_at: DateTime<Utc>) -> u64 {
@@ -3199,17 +3605,18 @@ fn window_size(seconds: f64) -> [f32; 2] {
         + OVERVIEW_HEIGHT
         + EVENT_LANE_GAP
         + EVENT_LANE_HEIGHT
-        + EVENT_LANE_GAP
+        + STRIP_GAP_BETWEEN * 3.0
         + STRIP_HEIGHT * 3.0
-        + STRIP_GAP_BETWEEN * 2.0
         + CENTRAL_PANEL_MARGIN * 2.0;
     [width, height]
 }
 
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 fn initial_window_size() -> [f32; 2] {
     window_size(INITIAL_SECONDS)
 }
 
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 fn minimum_window_size() -> [f32; 2] {
     window_size(MIN_SECONDS)
 }
@@ -3284,6 +3691,15 @@ mod tests {
     use km003c_lib::PdLogEntry;
     use km003c_lib::PdRevision;
     use std::collections::VecDeque;
+
+    #[test]
+    fn navigator_keeps_a_cursor_that_is_outside_the_visible_window() {
+        let map = overview_map_from_segments(&[(0.0, 100.0)], 100.0).unwrap();
+        let cursor = map.time_to_fraction(10.0);
+        let window_left = map.time_to_fraction(92.0);
+        assert!(cursor < window_left);
+        assert!((0.0..=1.0).contains(&cursor));
+    }
 
     #[test]
     fn meter_decimals_share_one_column() {
@@ -3460,9 +3876,8 @@ mod tests {
                 + OVERVIEW_HEIGHT
                 + EVENT_LANE_GAP
                 + EVENT_LANE_HEIGHT
-                + EVENT_LANE_GAP
+                + STRIP_GAP_BETWEEN * 3.0
                 + STRIP_HEIGHT * 3.0
-                + STRIP_GAP_BETWEEN * 2.0
                 + CENTRAL_PANEL_MARGIN * 2.0
         );
 
@@ -3731,5 +4146,80 @@ mod tests {
             dp_uv: 0,
             dm_uv: 0,
         }
+    }
+
+    #[test]
+    fn embedded_info_window_closes_from_its_title_bar() {
+        use eframe::egui;
+        let ctx = egui::Context::default();
+        ctx.set_embed_viewports(true);
+        let mut open = true;
+        let mut raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(900.0, 700.0))),
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(raw.clone(), |ui| {
+            super::show_info_dialog(
+                ui.ctx(),
+                &mut open,
+                "device_info_viewport",
+                "Device Info",
+                [480.0, 280.0],
+                [360.0, 220.0],
+                |ui| {
+                    ui.label("Model");
+                },
+            );
+        });
+        output.textures_delta.clear();
+        assert!(open, "the dialog stays open until the title-bar X is pressed");
+        let rect = ctx
+            .memory(|memory| memory.area_rect(egui::Id::new("device_info_viewport")))
+            .expect("the embedded dialog has a window");
+        let click = egui::pos2(rect.right() - 14.0, rect.top() + 10.0);
+        raw.events.clear();
+        raw.events.push(egui::Event::PointerMoved(click));
+        let mut output = ctx.run_ui(raw.clone(), |ui| {
+            super::show_info_dialog(
+                ui.ctx(),
+                &mut open,
+                "device_info_viewport",
+                "Device Info",
+                [480.0, 280.0],
+                [360.0, 220.0],
+                |ui| {
+                    ui.label("Model");
+                },
+            );
+        });
+        output.textures_delta.clear();
+        raw.events.clear();
+        raw.events.push(egui::Event::PointerButton {
+            pos: click,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::default(),
+        });
+        raw.events.push(egui::Event::PointerButton {
+            pos: click,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::default(),
+        });
+        let mut output = ctx.run_ui(raw, |ui| {
+            super::show_info_dialog(
+                ui.ctx(),
+                &mut open,
+                "device_info_viewport",
+                "Device Info",
+                [480.0, 280.0],
+                [360.0, 220.0],
+                |ui| {
+                    ui.label("Model");
+                },
+            );
+        });
+        output.textures_delta.clear();
+        assert!(!open, "the title-bar X closes the embedded info dialog");
     }
 }

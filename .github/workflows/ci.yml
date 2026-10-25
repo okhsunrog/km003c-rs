@@ -84,7 +84,7 @@ jobs:
       - run: uv run pytest -q test_bindings.py
 
   browser:
-    name: Browser egui (WebUSB)
+    name: Browser egui and scope (WebUSB)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -96,5 +96,9 @@ jobs:
         with:
           key: wasm-egui
       - run: cargo check -p km003c-egui --target wasm32-unknown-unknown --locked
+      - run: cargo check -p km003c-scope --target wasm32-unknown-unknown --locked
       - run: cargo install trunk --version 0.21.14 --locked
       - run: trunk build --release
+      - name: Build the scope page
+        working-directory: km003c-scope
+        run: trunk build --release

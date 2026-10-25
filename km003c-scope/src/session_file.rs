@@ -19,8 +19,11 @@
 //! i64 deltas from the previous sample, and the first sample in a chunk is a
 //! delta from zero. Charge and energy are raw little-endian f64 bits.
 
+#[cfg(not(target_arch = "wasm32"))]
 use std::fs;
+#[cfg(not(target_arch = "wasm32"))]
 use std::io::Cursor;
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 
 use km003c_lib::MeasurementSample;
@@ -110,6 +113,7 @@ pub struct StoredEvent {
     pub details: String,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn write_session(path: &Path, data: &SessionData) -> Result<(), String> {
     let bytes = encode(data)?;
     let tmp = path.with_extension("kmss.partial");
@@ -117,6 +121,7 @@ pub fn write_session(path: &Path, data: &SessionData) -> Result<(), String> {
     fs::rename(&tmp, path).map_err(|error| error.to_string())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn read_session(path: &Path) -> Result<SessionData, String> {
     let bytes = fs::read(path).map_err(|error| error.to_string())?;
     decode(&bytes)
@@ -468,11 +473,34 @@ fn apply_delta_i64(prev: i64, delta: i64) -> Result<i64, String> {
 }
 
 fn compress(bytes: &[u8]) -> Result<Vec<u8>, String> {
-    zstd::stream::encode_all(Cursor::new(bytes), ZSTD_LEVEL).map_err(|error| error.to_string())
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        zstd::stream::encode_all(Cursor::new(bytes), ZSTD_LEVEL).map_err(|error| error.to_string())
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        // The browser has no C toolchain for libzstd. This level is the pure-Rust
+        // match for the desktop compressor's level 1, and both decoders accept either frame.
+        let _ = ZSTD_LEVEL;
+        let mut compressed = Vec::new();
+        ruzstd::encoding::compress(bytes, &mut compressed, ruzstd::encoding::CompressionLevel::Fastest);
+        Ok(compressed)
+    }
 }
 
 fn decompress(bytes: &[u8]) -> Result<Vec<u8>, String> {
-    zstd::stream::decode_all(Cursor::new(bytes)).map_err(|error| error.to_string())
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        zstd::stream::decode_all(Cursor::new(bytes)).map_err(|error| error.to_string())
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let mut source = bytes;
+        let mut decoder = ruzstd::decoding::StreamingDecoder::new(&mut source).map_err(|error| error.to_string())?;
+        let mut decoded = Vec::new();
+        std::io::Read::read_to_end(&mut decoder, &mut decoded).map_err(|error| error.to_string())?;
+        Ok(decoded)
+    }
 }
 
 fn write_u16(out: &mut Vec<u8>, value: u16) {
@@ -666,5 +694,26 @@ mod tests {
             dp_uv: 1,
             dm_uv: -1,
         }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn browser_zstd_frames_open_on_the_desktop_and_the_reverse() {
+        let raw = b"km003c session sample sample sample sample".repeat(32);
+        let desktop = zstd::stream::encode_all(Cursor::new(raw.as_slice()), ZSTD_LEVEL).unwrap();
+        let mut source = desktop.as_slice();
+        let mut browser_decoder = ruzstd::decoding::StreamingDecoder::new(&mut source).unwrap();
+        let mut decoded = Vec::new();
+        std::io::Read::read_to_end(&mut browser_decoder, &mut decoded).unwrap();
+        assert_eq!(decoded, raw);
+
+        let mut browser = Vec::new();
+        ruzstd::encoding::compress(
+            raw.as_slice(),
+            &mut browser,
+            ruzstd::encoding::CompressionLevel::Fastest,
+        );
+        let back = zstd::stream::decode_all(Cursor::new(browser.as_slice())).unwrap();
+        assert_eq!(back, raw);
     }
 }
