@@ -17,7 +17,9 @@ path = "src/main.rs"
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 km003c-lib = { workspace = true, features = ["usbpd"] }
 egui_plot = "0.37.0"
+rfd = "0.15"
 tracing.workspace = true
+zstd = "0.13"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 eframe = "0.36.2"

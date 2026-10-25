@@ -53,6 +53,8 @@ use tokio::sync::mpsc;
 use tracing::{debug, info};
 use tracing_subscriber::prelude::*;
 
+mod session_file;
+
 const VOLTAGE_COLOR: Color32 = Color32::from_rgb(80, 220, 120);
 const CURRENT_COLOR: Color32 = Color32::from_rgb(90, 170, 255);
 const POWER_COLOR: Color32 = Color32::from_rgb(255, 176, 64);
@@ -74,6 +76,11 @@ const MIN_SECONDS: f64 = 4.0;
 const STRIP_HEIGHT: f32 = 200.0;
 /// Full-buffer preview above the event lane, one sixth of a measurement strip.
 const OVERVIEW_HEIGHT: f32 = STRIP_HEIGHT / 6.0;
+/// A jump this long is a capture boundary even when no break was stored.
+const OVERVIEW_LARGE_GAP_SECS: f64 = 60.0;
+/// Width of a gap mark. Every break between captures uses this, not the real duration.
+const OVERVIEW_GAP_MARK_PX: f32 = 8.0;
+const OVERVIEW_GAP_COLOR: Color32 = Color32::from_rgb(220, 64, 64);
 /// Vertical padding around an autoscaled trace, as a fraction of its span.
 const Y_MARGIN_FRACTION: f64 = 0.08;
 /// Smallest autoscaled voltage span: 8 mV.
@@ -130,6 +137,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting KM003C scope");
 
     let (session, events) = Session::spawn();
+    let (file_tx, file_rx) = std::sync::mpsc::channel();
     let rate = GraphSampleRate::Sps50;
     // WinUSB cannot reset devices, and macOS handles re-enumeration badly.
     let usb_reset = USB_RESET_SUPPORTED && !cfg!(target_os = "macos");
@@ -173,6 +181,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         overview_press: None,
         window_has_pointer: false,
         usb_reset,
+        disconnected_at: None,
+        timeline_shift_us: 0,
+        live_tail_us: None,
+        dataset_breaks: Vec::new(),
+        file_tx,
+        file_rx,
+        file_busy: false,
     };
 
     let [width, height] = initial_window_size();
@@ -193,6 +208,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     )
     .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)
+}
+
+enum FileMessage {
+    Saved(std::path::PathBuf),
+    Failed(String),
+    Loaded(session_file::SessionData),
 }
 
 struct ScopeApp {
@@ -245,6 +266,17 @@ struct ScopeApp {
     /// The current press started on a floating window, so it must not pan the strips.
     window_has_pointer: bool,
     usb_reset: bool,
+    /// Wall time of the latest disconnect, while captured samples are still in the buffer.
+    disconnected_at: Option<DateTime<Utc>>,
+    /// Added to device elapsed time so a later connection continues after the previous capture.
+    timeline_shift_us: i64,
+    /// Elapsed time of the newest sample received from the live device.
+    live_tail_us: Option<u64>,
+    /// Elapsed time of the last sample before each reconnect gap.
+    dataset_breaks: Vec<f64>,
+    file_tx: std::sync::mpsc::Sender<FileMessage>,
+    file_rx: std::sync::mpsc::Receiver<FileMessage>,
+    file_busy: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -273,6 +305,24 @@ impl TimelineCategory {
             Self::Warning => 3,
         }
     }
+
+    const fn as_code(self) -> u8 {
+        match self {
+            Self::Connectivity => 0,
+            Self::Protocol => 1,
+            Self::Warning => 2,
+            Self::Info => 3,
+        }
+    }
+
+    fn from_code(code: u8) -> Self {
+        match code {
+            0 => Self::Connectivity,
+            1 => Self::Protocol,
+            2 => Self::Warning,
+            _ => Self::Info,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -280,8 +330,8 @@ struct TimelineMarker {
     id: u64,
     elapsed_seconds: f64,
     category: TimelineCategory,
-    label: &'static str,
-    name: &'static str,
+    label: String,
+    name: String,
     details: String,
 }
 
@@ -295,6 +345,10 @@ struct TimelineMarkerSpec {
 impl eframe::App for ScopeApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.drain_events();
+        self.poll_file_ops();
+        if self.file_busy {
+            ui.ctx().request_repaint();
+        }
         let repaint = if self.streaming { 16 } else { 100 };
         ui.ctx().request_repaint_after(Duration::from_millis(repaint));
 
@@ -334,21 +388,22 @@ impl ScopeApp {
                 }
                 SessionEvent::Samples(samples) => {
                     let rate = self.rate;
+                    let shift_us = self.timeline_shift_us;
                     let mut newest_elapsed = None;
                     for sample in samples {
-                        let Some(measurement) = self.accumulator.push(sample, rate) else {
+                        let Some(mut measurement) = self.accumulator.push(sample, rate) else {
                             continue;
                         };
+                        measurement.elapsed_us = stored_elapsed_us(measurement.elapsed_us, shift_us);
                         newest_elapsed = Some(measurement.elapsed_seconds());
-                        self.samples.push_back(measurement);
-                        if let Some(reading) = self.meter.push(
-                            rate,
-                            Metric::Voltage.value(&measurement),
-                            Metric::SignedCurrent.value(&measurement),
-                            Metric::SignedPower.value(&measurement),
-                            Metric::Cc1.value(&measurement),
-                            Metric::Cc2.value(&measurement),
-                        ) {
+                        self.live_tail_us = Some(measurement.elapsed_us);
+                        let voltage = Metric::Voltage.value(&measurement);
+                        let current = Metric::SignedCurrent.value(&measurement);
+                        let power = Metric::SignedPower.value(&measurement);
+                        let cc1 = Metric::Cc1.value(&measurement);
+                        let cc2 = Metric::Cc2.value(&measurement);
+                        self.insert_measurement(measurement);
+                        if let Some(reading) = self.meter.push(rate, voltage, current, power, cc1, cc2) {
                             self.voltage = Some(reading.voltage);
                             self.current = Some(reading.current);
                             self.power = Some(reading.power);
@@ -367,7 +422,8 @@ impl ScopeApp {
                     self.temperature_c = Some(adc.temperature.get::<degree_celsius>());
                 }
                 SessionEvent::StreamingStarted(rate) => {
-                    if let Some(time) = self.samples.back().map(|sample| sample.elapsed_seconds()) {
+                    let reconnecting = self.disconnected_at.is_some();
+                    if !reconnecting && let Some(time) = self.samples.back().map(|sample| sample.elapsed_seconds()) {
                         self.push_marker(
                             time,
                             TimelineMarkerSpec {
@@ -380,8 +436,10 @@ impl ScopeApp {
                     }
                     self.streaming = true;
                     self.rate = rate;
-                    // A rate change restarts the device counter. Keep the samples
-                    // and the elapsed time so the new points continue the trace.
+                    // A fresh stream has its own sequence counter. After a disconnect,
+                    // move the elapsed clock forward by the time spent away so the new
+                    // samples land at the tail, with a gap before them.
+                    self.resume_timeline();
                     self.accumulator.reset_continuity();
                     self.meter.reset();
                     self.status = format!("Streaming at {}", rate_label(rate));
@@ -410,7 +468,7 @@ impl ScopeApp {
 
     fn observe_pd_events(&mut self, events: &[PdEvent]) {
         let entries = self.pd.observe_events(events);
-        let Some(timeline_anchor) = self.samples.back().map(|sample| sample.elapsed_seconds()) else {
+        let Some(timeline_anchor) = self.capture_time() else {
             return;
         };
         let device_anchor = self
@@ -453,8 +511,8 @@ impl ScopeApp {
                 id,
                 elapsed_seconds,
                 category: spec.category,
-                label: spec.label,
-                name: spec.name,
+                label: spec.label.to_string(),
+                name: spec.name.to_string(),
                 details,
             });
         }
@@ -473,12 +531,400 @@ impl ScopeApp {
         self.cc1 = None;
         self.cc2 = None;
         self.temperature_c = None;
+        if self.disconnected_at.is_none() && !self.samples.is_empty() {
+            self.disconnected_at = Some(Utc::now());
+        }
+        self.accumulator.reset_continuity();
+        self.meter.reset();
+    }
+
+    /// Drop the captured trace. A live stream keeps running and starts again at zero.
+    fn clear_session(&mut self) {
         self.samples.clear();
         self.markers.clear();
         self.selected_marker_id = None;
+        self.dataset_breaks.clear();
         self.host_time_origin_utc = None;
-        self.accumulator = MeasurementAccumulator::default();
+        self.timeline_shift_us = 0;
+        self.live_tail_us = None;
+        self.disconnected_at = None;
+        self.view_end = None;
+        self.cursor_time = None;
+        self.voltage = None;
+        self.current = None;
+        self.power = None;
+        self.cc1 = None;
+        self.cc2 = None;
+        self.accumulator.reset();
         self.meter.reset();
+        self.status = if self.streaming {
+            format!("Streaming at {}", rate_label(self.rate))
+        } else if self.connected {
+            "Connected".to_string()
+        } else {
+            "Session cleared".to_string()
+        };
+    }
+
+    /// Place the next capture after the samples already stored.
+    fn resume_timeline(&mut self) {
+        let Some(disconnected_at) = self.disconnected_at.take() else {
+            return;
+        };
+        let Some(last) = self.capture_time() else {
+            return;
+        };
+        let gap_us = wall_gap_us(disconnected_at, Utc::now());
+        if gap_us == 0 {
+            return;
+        }
+        self.dataset_breaks.push(last);
+        self.timeline_shift_us = timeline_shift_after_gap(self.timeline_shift_us, gap_us);
+    }
+
+    fn poll_file_ops(&mut self) {
+        while let Ok(message) = self.file_rx.try_recv() {
+            self.file_busy = false;
+            match message {
+                FileMessage::Saved(path) => self.status = format!("Saved {}", path.display()),
+                FileMessage::Failed(error) => self.status = error,
+                FileMessage::Loaded(session) => self.apply_loaded_session(session),
+            }
+        }
+    }
+
+    fn save_session(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("KM003C session", &["kmss"])
+            .set_file_name("session.kmss")
+            .save_file()
+        else {
+            return;
+        };
+        let path = ensure_session_extension(path);
+        let snapshot = self.session_snapshot();
+        self.file_busy = true;
+        self.status = "Saving session...".to_string();
+        let tx = self.file_tx.clone();
+        std::thread::spawn(move || {
+            let message = match session_file::write_session(&path, &snapshot) {
+                Ok(()) => FileMessage::Saved(path),
+                Err(error) => FileMessage::Failed(format!("Save failed: {error}")),
+            };
+            let _ = tx.send(message);
+        });
+    }
+
+    fn load_session(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("KM003C session", &["kmss"])
+            .pick_file()
+        else {
+            return;
+        };
+        self.file_busy = true;
+        self.status = "Loading session...".to_string();
+        let tx = self.file_tx.clone();
+        std::thread::spawn(move || {
+            let message = match session_file::read_session(&path) {
+                Ok(session) => FileMessage::Loaded(session),
+                Err(error) => FileMessage::Failed(format!("Load failed: {error}")),
+            };
+            let _ = tx.send(message);
+        });
+    }
+
+    fn session_snapshot(&self) -> session_file::SessionData {
+        session_file::SessionData {
+            host_origin_utc_us: self.host_time_origin_utc.map(|origin| origin.timestamp_micros()),
+            breaks_us: self.dataset_breaks.iter().copied().map(seconds_to_us).collect(),
+            samples: self.samples.iter().copied().collect(),
+            events: self
+                .markers
+                .iter()
+                .map(|marker| session_file::StoredEvent {
+                    elapsed_us: seconds_to_us(marker.elapsed_seconds),
+                    category: marker.category.as_code(),
+                    label: marker.label.clone(),
+                    name: marker.name.clone(),
+                    details: marker.details.clone(),
+                })
+                .collect(),
+        }
+    }
+
+    /// Append a saved capture onto the same UTC clock as the samples already on screen.
+    ///
+    /// The navigator keeps the real gap between the two origins. While a capture is
+    /// streaming, the load stops at 95% of the buffer so new samples have room.
+    fn apply_loaded_session(&mut self, mut session: session_file::SessionData) {
+        let file_len = session.samples.len();
+        let budget = session_file::load_sample_budget(self.samples.len(), file_len, MAX_SAMPLES, self.streaming);
+        if budget == 0 {
+            self.status = if file_len == 0 {
+                "Session file has no samples".to_string()
+            } else {
+                "Buffer is full; no samples loaded".to_string()
+            };
+            return;
+        }
+        let kept = session.samples.split_off(file_len - budget);
+        let first_us = kept[0].elapsed_us;
+        let last_us = kept[kept.len() - 1].elapsed_us;
+        let events: Vec<_> = session
+            .events
+            .into_iter()
+            .filter(|event| (first_us..=last_us).contains(&event.elapsed_us))
+            .collect();
+        let breaks: Vec<_> = session
+            .breaks_us
+            .into_iter()
+            .filter(|gap| (first_us..last_us).contains(gap))
+            .collect();
+
+        if self.samples.is_empty() {
+            self.install_loaded_session(kept, events, breaks, session.host_origin_utc_us, last_us);
+        } else {
+            self.prepend_loaded_session(kept, events, breaks, first_us, last_us, session.host_origin_utc_us);
+        }
+        self.dataset_breaks
+            .extend(large_gap_breaks(&self.samples, OVERVIEW_LARGE_GAP_SECS));
+        self.sort_markers();
+        self.dataset_breaks
+            .sort_by(|left, right| left.partial_cmp(right).unwrap_or(std::cmp::Ordering::Equal));
+        self.dataset_breaks.dedup();
+        self.trim_window();
+        self.status = if budget == file_len {
+            format!("Loaded {budget} samples")
+        } else {
+            format!("Loaded {budget} of {file_len} samples")
+        };
+    }
+
+    fn install_loaded_session(
+        &mut self,
+        samples: Vec<MeasurementSample>,
+        events: Vec<session_file::StoredEvent>,
+        breaks: Vec<u64>,
+        host_origin_utc_us: Option<i64>,
+        last_us: u64,
+    ) {
+        self.samples = samples.into();
+        self.dataset_breaks = breaks.into_iter().map(us_to_seconds).collect();
+        for event in events {
+            let elapsed_us = event.elapsed_us;
+            self.push_stored_event(event, elapsed_us);
+        }
+        self.host_time_origin_utc = host_origin_utc_us.and_then(DateTime::from_timestamp_micros);
+        self.accumulator = MeasurementAccumulator::default();
+        if self.streaming {
+            self.dataset_breaks.push(us_to_seconds(last_us));
+            self.timeline_shift_us = elapsed_shift(last_us.saturating_add(session_file::SESSION_GAP_US));
+            self.accumulator.reset_continuity();
+        } else {
+            self.timeline_shift_us = elapsed_shift(last_us);
+            self.disconnected_at = Some(Utc::now());
+        }
+    }
+
+    fn prepend_loaded_session(
+        &mut self,
+        mut samples: Vec<MeasurementSample>,
+        events: Vec<session_file::StoredEvent>,
+        breaks: Vec<u64>,
+        first_us: u64,
+        last_us: u64,
+        host_origin_utc_us: Option<i64>,
+    ) {
+        if let (Some(current_origin), Some(file_origin)) = (
+            self.host_time_origin_utc.map(|origin| origin.timestamp_micros()),
+            host_origin_utc_us,
+        ) {
+            self.merge_loaded_on_clock(samples, events, breaks, current_origin, file_origin);
+            return;
+        }
+        let current_first = self.samples.front().map(|sample| sample.elapsed_us).unwrap_or(0);
+        let place = session_file::place_loaded_before(current_first, first_us, last_us, session_file::SESSION_GAP_US);
+        if place.current_pad_us > 0 {
+            let pad_seconds = us_to_seconds(place.current_pad_us);
+            for sample in &mut self.samples {
+                sample.elapsed_us = sample.elapsed_us.saturating_add(place.current_pad_us);
+            }
+            for marker in &mut self.markers {
+                marker.elapsed_seconds += pad_seconds;
+            }
+            for gap in &mut self.dataset_breaks {
+                *gap += pad_seconds;
+            }
+            if let Some(end) = &mut self.view_end {
+                *end += pad_seconds;
+            }
+            if let Some(cursor) = &mut self.cursor_time {
+                *cursor += pad_seconds;
+            }
+            self.timeline_shift_us = self.timeline_shift_us.saturating_add_unsigned(place.current_pad_us);
+            if let Some(origin) = &mut self.host_time_origin_utc {
+                *origin -= TimeDelta::microseconds(place.current_pad_us as i64);
+            }
+        }
+        for sample in &mut samples {
+            sample.elapsed_us = session_file::map_loaded_elapsed(sample.elapsed_us, first_us, place.loaded_base_us);
+        }
+        let loaded_last = session_file::map_loaded_elapsed(last_us, first_us, place.loaded_base_us);
+        self.dataset_breaks.push(us_to_seconds(loaded_last));
+        self.dataset_breaks.extend(
+            breaks
+                .into_iter()
+                .map(|gap| us_to_seconds(session_file::map_loaded_elapsed(gap, first_us, place.loaded_base_us))),
+        );
+        for event in events {
+            let elapsed_us = session_file::map_loaded_elapsed(event.elapsed_us, first_us, place.loaded_base_us);
+            self.push_stored_event(event, elapsed_us);
+        }
+        let mut combined = VecDeque::from(samples);
+        combined.append(&mut self.samples);
+        self.samples = combined;
+    }
+
+    /// Place both captures on one clock, using each session's host-time origin.
+    fn merge_loaded_on_clock(
+        &mut self,
+        mut samples: Vec<MeasurementSample>,
+        events: Vec<session_file::StoredEvent>,
+        breaks: Vec<u64>,
+        current_origin_us: i64,
+        file_origin_us: i64,
+    ) {
+        let mut earliest = i128::MAX;
+        let mut note = |origin: i64, elapsed_us: u64| {
+            earliest = earliest.min(session_file::absolute_us(origin, elapsed_us));
+        };
+        for sample in &self.samples {
+            note(current_origin_us, sample.elapsed_us);
+        }
+        for sample in &samples {
+            note(file_origin_us, sample.elapsed_us);
+        }
+        for marker in &self.markers {
+            note(current_origin_us, seconds_to_us(marker.elapsed_seconds));
+        }
+        for event in &events {
+            note(file_origin_us, event.elapsed_us);
+        }
+        for gap in &self.dataset_breaks {
+            note(current_origin_us, seconds_to_us(*gap));
+        }
+        for gap in &breaks {
+            note(file_origin_us, *gap);
+        }
+        let rebase = |origin: i64, elapsed_us: u64| {
+            session_file::elapsed_on_origin(session_file::absolute_us(origin, elapsed_us), earliest)
+        };
+        let loaded_span = (
+            samples.first().map(|sample| rebase(file_origin_us, sample.elapsed_us)),
+            samples.last().map(|sample| rebase(file_origin_us, sample.elapsed_us)),
+        );
+        let current_span = (
+            self.samples
+                .front()
+                .map(|sample| rebase(current_origin_us, sample.elapsed_us)),
+            self.samples
+                .back()
+                .map(|sample| rebase(current_origin_us, sample.elapsed_us)),
+        );
+
+        for sample in &mut self.samples {
+            sample.elapsed_us = rebase(current_origin_us, sample.elapsed_us);
+        }
+        for sample in &mut samples {
+            sample.elapsed_us = rebase(file_origin_us, sample.elapsed_us);
+        }
+        for marker in &mut self.markers {
+            marker.elapsed_seconds = us_to_seconds(rebase(current_origin_us, seconds_to_us(marker.elapsed_seconds)));
+        }
+        for gap in &mut self.dataset_breaks {
+            *gap = us_to_seconds(rebase(current_origin_us, seconds_to_us(*gap)));
+        }
+        if let Some(end) = &mut self.view_end {
+            *end = us_to_seconds(rebase(current_origin_us, seconds_to_us(*end)));
+        }
+        if let Some(cursor) = &mut self.cursor_time {
+            *cursor = us_to_seconds(rebase(current_origin_us, seconds_to_us(*cursor)));
+        }
+        if let Some(tail) = self.live_tail_us {
+            self.live_tail_us = Some(rebase(current_origin_us, tail));
+        }
+        self.timeline_shift_us = add_shift(self.timeline_shift_us, i128::from(current_origin_us) - earliest);
+        self.dataset_breaks
+            .extend(breaks.into_iter().map(|gap| us_to_seconds(rebase(file_origin_us, gap))));
+        if let (Some(loaded_last), Some(current_first)) = (loaded_span.1, current_span.0)
+            && loaded_last < current_first
+        {
+            self.dataset_breaks.push(us_to_seconds(loaded_last));
+        }
+        if let (Some(current_last), Some(loaded_first)) = (current_span.1, loaded_span.0)
+            && current_last < loaded_first
+        {
+            self.dataset_breaks.push(us_to_seconds(current_last));
+        }
+        for event in events {
+            let elapsed_us = rebase(file_origin_us, event.elapsed_us);
+            self.push_stored_event(event, elapsed_us);
+        }
+        let mut combined = samples;
+        combined.extend(self.samples.drain(..));
+        combined.sort_by_key(|sample| sample.elapsed_us);
+        self.samples = combined.into();
+        if let Ok(micros) = i64::try_from(earliest) {
+            self.host_time_origin_utc = DateTime::from_timestamp_micros(micros);
+        }
+    }
+
+    fn insert_measurement(&mut self, sample: MeasurementSample) {
+        self.live_tail_us = Some(sample.elapsed_us);
+        let index = self
+            .samples
+            .partition_point(|existing| existing.elapsed_us < sample.elapsed_us);
+        self.samples.insert(index, sample);
+    }
+
+    fn capture_time(&self) -> Option<f64> {
+        self.live_tail_us
+            .map(us_to_seconds)
+            .or_else(|| self.samples.back().map(|sample| sample.elapsed_seconds()))
+    }
+
+    fn autoscroll_end(&self) -> Option<f64> {
+        if self.streaming
+            && let Some(tail) = self.live_tail_us
+        {
+            return Some(us_to_seconds(tail));
+        }
+        self.samples.back().map(|sample| sample.elapsed_seconds())
+    }
+
+    fn push_stored_event(&mut self, event: session_file::StoredEvent, elapsed_us: u64) {
+        let id = self.next_marker_id;
+        self.next_marker_id = self.next_marker_id.wrapping_add(1);
+        self.markers.push_back(TimelineMarker {
+            id,
+            elapsed_seconds: us_to_seconds(elapsed_us),
+            category: TimelineCategory::from_code(event.category),
+            label: event.label,
+            name: event.name,
+            details: event.details,
+        });
+    }
+
+    fn sort_markers(&mut self) {
+        let mut markers: Vec<_> = self.markers.drain(..).collect();
+        markers.sort_by(|left, right| {
+            left.elapsed_seconds
+                .partial_cmp(&right.elapsed_seconds)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| left.id.cmp(&right.id))
+        });
+        self.markers.extend(markers);
     }
 
     fn trim_window(&mut self) {
@@ -486,8 +932,10 @@ impl ScopeApp {
         let Some(oldest) = self.samples.front().map(|sample| sample.elapsed_seconds()) else {
             self.markers.clear();
             self.selected_marker_id = None;
+            self.dataset_breaks.clear();
             return;
         };
+        self.dataset_breaks.retain(|gap| *gap >= oldest);
         while self
             .markers
             .front()
@@ -517,6 +965,55 @@ impl ScopeApp {
         self.buffer_meter(ui);
     }
 
+    /// Connect, session files, and device dialogs, in two equal columns.
+    fn session_buttons(&mut self, ui: &mut egui::Ui) {
+        let height = ui.spacing().interact_size.y;
+        ui.columns(2, |columns| {
+            let label = if self.connected { "Disconnect" } else { "Connect" };
+            if pane_button(&mut columns[0], true, label, height).clicked() {
+                if self.connected {
+                    let _ = self.session.disconnect();
+                } else {
+                    self.status = "Connecting...".to_string();
+                    let _ = self.session.connect(self.rate, self.usb_reset);
+                }
+            }
+            if pane_button(&mut columns[1], true, "Clear session", height)
+                .on_hover_text("Drop the captured trace. A live capture starts again from empty.")
+                .clicked()
+            {
+                self.clear_session();
+            }
+        });
+        ui.columns(2, |columns| {
+            if pane_button(
+                &mut columns[0],
+                !self.samples.is_empty() && !self.file_busy,
+                "Save session",
+                height,
+            )
+            .on_hover_text("Write the waveforms and events to a session file")
+            .clicked()
+            {
+                self.save_session();
+            }
+            if pane_button(&mut columns[1], !self.file_busy, "Load session", height)
+                .on_hover_text("Append a saved session on its real clock. A live capture keeps 5% of the buffer free.")
+                .clicked()
+            {
+                self.load_session();
+            }
+        });
+        ui.columns(2, |columns| {
+            if pane_button(&mut columns[0], self.device.is_some(), "Device Info", height).clicked() {
+                self.device_info_open = true;
+            }
+            if pane_button(&mut columns[1], self.device.is_some(), "PD Info", height).clicked() {
+                self.pd_info_open = true;
+            }
+        });
+    }
+
     fn controls(&mut self, ui: &mut egui::Ui) {
         ui.label(self.status.as_str());
         ui.add_space(8.0);
@@ -530,31 +1027,7 @@ impl ScopeApp {
             "WinUSB does not support USB device reset."
         });
         ui.add_space(8.0);
-
-        if self.connected {
-            if ui.button("Disconnect").clicked() {
-                let _ = self.session.disconnect();
-            }
-        } else if ui.button("Connect").clicked() {
-            self.status = "Connecting...".to_string();
-            let _ = self.session.connect(self.rate, self.usb_reset);
-        }
-
-        ui.add_space(8.0);
-        ui.horizontal(|ui| {
-            if ui
-                .add_enabled(self.device.is_some(), egui::Button::new("Device Info"))
-                .clicked()
-            {
-                self.device_info_open = true;
-            }
-            if ui
-                .add_enabled(self.device.is_some(), egui::Button::new("PD Info"))
-                .clicked()
-            {
-                self.pd_info_open = true;
-            }
-        });
+        self.session_buttons(ui);
         ui.add_space(8.0);
         ui.checkbox(&mut self.autoscroll, "Autoscroll");
         let cursor_was_off = !self.cursor_mode;
@@ -566,8 +1039,10 @@ impl ScopeApp {
         ui.add_space(8.0);
         ui.label("Sample rate");
         let previous_rate = self.rate;
+        let rate_width = pane_column_width(ui);
         egui::ComboBox::from_id_salt("sample_rate")
             .selected_text(rate_label(self.rate))
+            .width(rate_width)
             .show_ui(ui, |ui| {
                 for rate in RATES {
                     ui.selectable_value(&mut self.rate, rate, rate_label(rate));
@@ -663,7 +1138,7 @@ impl ScopeApp {
                     }
                     if selected {
                         response.on_hover_ui(|ui| {
-                            ui.strong(marker.name);
+                            ui.strong(marker.name.as_str());
                             ui.monospace(format_event_full_time(host_time_origin_utc, marker.elapsed_seconds));
                             ui.monospace(format!("Elapsed: {:.3} s", marker.elapsed_seconds));
                             ui.separator();
@@ -899,6 +1374,7 @@ impl ScopeApp {
         ui.spacing_mut().item_spacing.y = STRIP_GAP_BETWEEN;
         let link = ui.id().with("scope_time");
         let time = visible_time(self.view_end, self.window_secs);
+        let plot_breaks = with_large_gaps(&self.samples, &self.dataset_breaks);
         let visible_samples = self
             .view_end
             .map(|end| visible_sample_range(&self.samples, end - self.window_secs, end));
@@ -915,7 +1391,7 @@ impl ScopeApp {
                 None => Vec::new(),
             };
             ui.allocate_ui(egui::vec2(width, STRIP_HEIGHT), |ui| {
-                let cursor = self.cursor_mark(strip.metric);
+                let cursor = self.cursor_mark(strip.metric, &plot_breaks);
                 let marker_lane = (strip.metric == Metric::Voltage).then_some(MarkerLane {
                     markers: &self.markers,
                     rect: event_lane_rect,
@@ -927,6 +1403,7 @@ impl ScopeApp {
                     &points,
                     link,
                     time.clone(),
+                    &plot_breaks,
                     TraceOverlay {
                         marker_lane,
                         cursor,
@@ -964,7 +1441,8 @@ impl ScopeApp {
         if scroll == 0.0 {
             return;
         }
-        let next_scale = zoomed_pixels_per_second(self.pixels_per_second, scroll);
+        let floor = minimum_pixels_for_span(self.plot_width, sample_buffer_span(&self.samples));
+        let next_scale = zoomed_pixels_per_second(self.pixels_per_second, scroll, floor);
         if !self.autoscroll
             && let (Some(pointer_x), Some(end), Some(plot_width), Some(plot_left)) =
                 (pointer_x, self.view_end, self.plot_width, self.plot_left)
@@ -1026,22 +1504,21 @@ impl ScopeApp {
         if self.autoscroll
             && !panning
             && !dragging_overview
-            && let Some(latest) = self.samples.back()
+            && let Some(latest) = self.autoscroll_end()
         {
-            self.view_end = Some(latest.elapsed_seconds());
+            self.view_end = Some(latest);
         }
         if dragging_overview {
             self.autoscroll = false;
-            if let Some((buf_start, buf_end)) = sample_buffer_span(&self.samples)
-                && let Some(frame) = self.overview_frame
+            if let Some(frame) = self.overview_frame
+                && let Some(map) = overview_map(&self.samples, &self.dataset_breaks, frame.width())
             {
-                let end = self.view_end.unwrap_or(buf_end);
+                let end = self.view_end.unwrap_or(map.end);
                 self.view_end = Some(overview_dragged_view_end(
                     end,
                     delta_x,
                     frame.width(),
-                    buf_start,
-                    buf_end,
+                    &map,
                     self.window_secs,
                 ));
             }
@@ -1094,7 +1571,7 @@ impl ScopeApp {
         self.view_end = Some(clamped_view_end(end, buf_start, buf_end, self.window_secs));
     }
 
-    fn cursor_mark(&self, metric: Metric) -> Option<CursorMark> {
+    fn cursor_mark(&self, metric: Metric, breaks: &[f64]) -> Option<CursorMark> {
         if !self.cursor_mode {
             return None;
         }
@@ -1104,7 +1581,7 @@ impl ScopeApp {
             .is_some_and(|end| cursor_label_on_left(time, end, self.pixels_per_second));
         Some(CursorMark {
             time,
-            value: cursor_value(&self.samples, metric, time),
+            value: cursor_value(&self.samples, metric, time, breaks),
             label_on_left,
         })
     }
@@ -1136,11 +1613,12 @@ impl ScopeApp {
         let Some(frame) = self.overview_frame else {
             return;
         };
-        let Some((buf_start, buf_end)) = sample_buffer_span(&self.samples) else {
+        let Some(map) = overview_map(&self.samples, &self.dataset_breaks, frame.width()) else {
             return;
         };
-        let time = overview_time_at_x(pointer_x, frame.left(), frame.width(), buf_start, buf_end);
-        self.view_end = Some(overview_centered_view_end(time, buf_start, buf_end, self.window_secs));
+        let fraction = f64::from(((pointer_x - frame.left()) / frame.width().max(1.0)).clamp(0.0, 1.0));
+        let time = map.fraction_to_time(fraction);
+        self.view_end = Some(overview_centered_view_end(time, map.start, map.end, self.window_secs));
         self.autoscroll = false;
     }
 
@@ -1151,23 +1629,22 @@ impl ScopeApp {
         self.overview_frame = Some(frame);
         let painter = ui.ctx().layer_painter(ui.layer_id());
         painter.rect_filled(frame, 0.0, Color32::BLACK);
-        let Some((buf_start, buf_end)) = sample_buffer_span(&self.samples) else {
+        let Some(map) = overview_map(&self.samples, &self.dataset_breaks, frame.width()) else {
             return;
         };
+        let breaks = with_large_gaps(&self.samples, &self.dataset_breaks);
         let columns = (frame.width() as usize).clamp(1, 1200);
         for (metric, color) in [
             (Metric::SignedPower, POWER_COLOR),
             (Metric::SignedCurrent, CURRENT_COLOR),
             (Metric::Voltage, VOLTAGE_COLOR),
         ] {
-            let points = overview_envelope(&self.samples, metric, columns);
-            paint_overview_curve(&painter, frame, &points, buf_start, buf_end, color);
+            let points = overview_segments(&self.samples, metric, columns, &breaks);
+            paint_overview_segments(&painter, frame, &points, &map, color);
         }
-        let view_end = self.view_end.unwrap_or(buf_end);
-        let (left_edge, right_edge) =
-            overview_window_fraction(view_end - self.window_secs, view_end, buf_start, buf_end);
-        let window_left = frame.left() + left_edge as f32 * frame.width();
-        let window_right = frame.left() + right_edge as f32 * frame.width();
+        let view_end = self.view_end.unwrap_or(map.end);
+        let window_left = frame.left() + map.time_to_fraction(view_end - self.window_secs) as f32 * frame.width();
+        let window_right = frame.left() + map.time_to_fraction(view_end) as f32 * frame.width();
         let shade = Color32::from_rgba_unmultiplied(176, 176, 176, 150);
         if window_left > frame.left() {
             painter.rect_filled(
@@ -1181,6 +1658,16 @@ impl ScopeApp {
                 egui::Rect::from_min_max(egui::pos2(window_right, frame.top()), frame.right_bottom()),
                 0.0,
                 shade,
+            );
+        }
+        for piece in &map.pieces {
+            if !piece.collapsed {
+                continue;
+            }
+            let x = frame.left() + ((piece.visual_start + piece.visual_end) * 0.5) as f32 * frame.width();
+            painter.line_segment(
+                [egui::pos2(x, frame.top()), egui::pos2(x, frame.bottom())],
+                egui::Stroke::new(2.0, OVERVIEW_GAP_COLOR),
             );
         }
     }
@@ -1270,6 +1757,17 @@ fn meter_pane_width() -> f32 {
     let columns = format_measurement(Some(-99.99999), "W").chars().count() as f32;
     let text = columns * SPACE_MONO_ADVANCE_EM * METER_VALUE_FONT_SIZE;
     (text + METER_BOX_MARGIN * 2.0 + SIDE_PANEL_INNER_MARGIN * 2.0 + SIDE_PANEL_SEPARATOR).ceil()
+}
+
+fn pane_button(ui: &mut egui::Ui, enabled: bool, label: &str, height: f32) -> egui::Response {
+    let size = egui::vec2(ui.available_width(), height);
+    ui.add_enabled_ui(enabled, |ui| ui.add_sized(size, egui::Button::new(label)))
+        .inner
+}
+
+fn pane_column_width(ui: &egui::Ui) -> f32 {
+    let spacing = ui.spacing().item_spacing.x;
+    (ui.available_width() - spacing) / 2.0
 }
 
 fn meter_text(text: impl Into<String>, size: f32) -> RichText {
@@ -1419,6 +1917,7 @@ fn trace_plot(
     points: &[[f64; 2]],
     link: egui::Id,
     time: Option<RangeInclusive<f64>>,
+    breaks: &[f64],
     overlay: TraceOverlay<'_>,
 ) -> egui::Rect {
     let width = ui.available_width();
@@ -1461,11 +1960,17 @@ fn trace_plot(
         ) {
             plot_ui.set_plot_bounds_y(range);
         }
-        plot_ui.line(
-            Line::new(strip.id, PlotPoints::new(points.to_vec()))
-                .color(strip.color)
-                .width(1.8),
-        );
+        let segments = split_series(points, breaks);
+        for (index, segment) in segments.iter().enumerate() {
+            if segment.len() < 2 {
+                continue;
+            }
+            plot_ui.line(
+                Line::new(format!("{}-{index}", strip.id), PlotPoints::new(segment.clone()))
+                    .color(strip.color)
+                    .width(1.8),
+            );
+        }
         if let Some(cursor) = &overlay.cursor {
             plot_ui.vline(
                 egui_plot::VLine::new(format!("{}-cursor", strip.id), cursor.time)
@@ -1486,7 +1991,7 @@ fn trace_plot(
 
 fn paint_timeline_markers(ui: &egui::Ui, lane: MarkerLane<'_>, transform: &egui_plot::PlotTransform) {
     let frame = *transform.frame();
-    let mut clusters: Vec<(f32, TimelineCategory, &'static str, usize, bool)> = Vec::new();
+    let mut clusters: Vec<(f32, TimelineCategory, &str, usize, bool)> = Vec::new();
     for marker in lane.markers {
         let x = transform.position_from_point_x(marker.elapsed_seconds);
         if x < frame.left() || x > frame.right() {
@@ -1502,7 +2007,13 @@ fn paint_timeline_markers(ui: &egui::Ui, lane: MarkerLane<'_>, transform: &egui_
             }
             continue;
         }
-        clusters.push((x, marker.category, marker.label, 1, lane.selected_id == Some(marker.id)));
+        clusters.push((
+            x,
+            marker.category,
+            marker.label.as_str(),
+            1,
+            lane.selected_id == Some(marker.id),
+        ));
     }
 
     let painter = ui.ctx().layer_painter(ui.layer_id()).with_clip_rect(lane.rect);
@@ -1888,8 +2399,17 @@ fn format_time_axis_label(origin: Option<&DateTime<Utc>>, visible_range: Option<
     let (Some(origin), Some(range)) = (origin, visible_range) else {
         return "Elapsed time (s)".to_string();
     };
-    let center = (*range.start() + *range.end()) * 0.5;
-    format!("Local time · {}", host_time_local(origin, center).format("%b %d, %Y"))
+    let start = host_time_local(origin, *range.start());
+    let end = host_time_local(origin, *range.end());
+    if start.date_naive() != end.date_naive() {
+        format!(
+            "Local time · {} – {}",
+            start.format("%b %d, %Y"),
+            end.format("%b %d, %Y")
+        )
+    } else {
+        format!("Local time · {}", end.format("%b %d, %Y"))
+    }
 }
 
 fn format_event_time(origin: Option<&DateTime<Utc>>, elapsed_seconds: f64) -> String {
@@ -2157,22 +2677,153 @@ fn sample_buffer_span(samples: &VecDeque<MeasurementSample>) -> Option<(f64, f64
     Some((samples.front()?.elapsed_seconds(), samples.back()?.elapsed_seconds()))
 }
 
-/// Fraction of the stored buffer covered by the visible window, clamped to the buffer.
-fn overview_window_fraction(view_start: f64, view_end: f64, buf_start: f64, buf_end: f64) -> (f64, f64) {
-    if buf_end <= buf_start {
-        return (0.0, 1.0);
-    }
-    let span = buf_end - buf_start;
-    (
-        ((view_start - buf_start) / span).clamp(0.0, 1.0),
-        ((view_end - buf_start) / span).clamp(0.0, 1.0),
-    )
+struct OverviewPiece {
+    start: f64,
+    end: f64,
+    visual_start: f64,
+    visual_end: f64,
+    collapsed: bool,
 }
 
-/// Time in the stored buffer at a horizontal position in the overview.
-fn overview_time_at_x(pointer_x: f32, frame_left: f32, frame_width: f32, buf_start: f64, buf_end: f64) -> f64 {
-    let fraction = f64::from(pointer_x - frame_left) / f64::from(frame_width.max(1.0));
-    buf_start + fraction.clamp(0.0, 1.0) * (buf_end - buf_start)
+struct OverviewMap {
+    start: f64,
+    end: f64,
+    pieces: Vec<OverviewPiece>,
+}
+
+impl OverviewMap {
+    fn time_to_fraction(&self, time: f64) -> f64 {
+        let time = time.clamp(self.start, self.end);
+        for (index, piece) in self.pieces.iter().enumerate() {
+            let last = index + 1 == self.pieces.len();
+            if time <= piece.end || last {
+                let span = (piece.end - piece.start).max(f64::EPSILON);
+                let along = ((time - piece.start) / span).clamp(0.0, 1.0);
+                return piece.visual_start + along * (piece.visual_end - piece.visual_start);
+            }
+        }
+        1.0
+    }
+
+    fn fraction_to_time(&self, fraction: f64) -> f64 {
+        let fraction = fraction.clamp(0.0, 1.0);
+        for (index, piece) in self.pieces.iter().enumerate() {
+            let last = index + 1 == self.pieces.len();
+            if fraction <= piece.visual_end || last {
+                let span = (piece.visual_end - piece.visual_start).max(f64::EPSILON);
+                let along = ((fraction - piece.visual_start) / span).clamp(0.0, 1.0);
+                return piece.start + along * (piece.end - piece.start);
+            }
+        }
+        self.end
+    }
+}
+
+fn large_gap_breaks(samples: &VecDeque<MeasurementSample>, min_gap: f64) -> Vec<f64> {
+    let mut breaks = Vec::new();
+    for index in 1..samples.len() {
+        let previous = samples[index - 1].elapsed_seconds();
+        let time = samples[index].elapsed_seconds();
+        if time - previous >= min_gap {
+            breaks.push(previous);
+        }
+    }
+    breaks
+}
+
+/// Stored breaks plus every large jump, so each loaded session gets its own mark.
+fn with_large_gaps(samples: &VecDeque<MeasurementSample>, breaks: &[f64]) -> Vec<f64> {
+    let mut combined = breaks.to_vec();
+    combined.extend(large_gap_breaks(samples, OVERVIEW_LARGE_GAP_SECS));
+    combined.sort_by(|left, right| left.partial_cmp(right).unwrap_or(std::cmp::Ordering::Equal));
+    combined.dedup();
+    combined
+}
+
+fn overview_map(samples: &VecDeque<MeasurementSample>, breaks: &[f64], width_px: f32) -> Option<OverviewMap> {
+    let breaks = with_large_gaps(samples, breaks);
+    let ranges = dataset_ranges(samples, &breaks);
+    let mut segments = Vec::new();
+    for range in ranges {
+        if range.is_empty() {
+            continue;
+        }
+        let start = samples[range.start].elapsed_seconds();
+        let end = samples[range.end - 1].elapsed_seconds();
+        segments.push((start, end.max(start)));
+    }
+    overview_map_from_segments(&segments, width_px)
+}
+
+fn overview_map_from_segments(segments: &[(f64, f64)], width_px: f32) -> Option<OverviewMap> {
+    if segments.is_empty() {
+        return None;
+    }
+    struct RawPiece {
+        start: f64,
+        end: f64,
+        collapsed: bool,
+        duration: f64,
+    }
+    let mut raw = Vec::new();
+    for (index, (start, end)) in segments.iter().enumerate() {
+        if index > 0 {
+            let previous_end = segments[index - 1].1;
+            let gap = *start - previous_end;
+            if gap > 0.0 {
+                raw.push(RawPiece {
+                    start: previous_end,
+                    end: *start,
+                    collapsed: true,
+                    duration: gap,
+                });
+            }
+        }
+        raw.push(RawPiece {
+            start: *start,
+            end: *end,
+            collapsed: false,
+            duration: (*end - *start).max(1.0),
+        });
+    }
+    let width_px = width_px.max(1.0);
+    let collapsed = raw.iter().filter(|piece| piece.collapsed).count() as f32;
+    let mark_px = if collapsed == 0.0 {
+        0.0
+    } else {
+        OVERVIEW_GAP_MARK_PX.min(width_px * 0.5 / collapsed)
+    };
+    let collapsed_px = mark_px * collapsed;
+    let time_px = (width_px - collapsed_px).max(1.0);
+    let time_total: f64 = raw
+        .iter()
+        .filter(|piece| !piece.collapsed)
+        .map(|piece| piece.duration)
+        .sum();
+    let time_total = time_total.max(f64::EPSILON);
+    let mut visual = 0.0;
+    let mut pieces = Vec::with_capacity(raw.len());
+    for (index, piece) in raw.iter().enumerate() {
+        let share = if piece.collapsed {
+            f64::from(mark_px / width_px)
+        } else {
+            f64::from(time_px / width_px) * (piece.duration / time_total)
+        };
+        let visual_end = if index + 1 == raw.len() { 1.0 } else { visual + share };
+        pieces.push(OverviewPiece {
+            start: piece.start,
+            end: piece.end,
+            visual_start: visual,
+            visual_end,
+            collapsed: piece.collapsed,
+        });
+        visual = visual_end;
+    }
+    Some(OverviewMap {
+        start: segments[0].0,
+        end: segments.last().unwrap().1,
+        pieces,
+    })
 }
 
 /// Put `time` at the center of the visible window, keeping the window inside the buffer when it fits.
@@ -2181,17 +2832,11 @@ fn overview_centered_view_end(time: f64, buf_start: f64, buf_end: f64, window_se
 }
 
 /// Dragging the bright region to the right moves the visible window later in time.
-fn overview_dragged_view_end(
-    view_end: f64,
-    drag_x: f32,
-    width: f32,
-    buf_start: f64,
-    buf_end: f64,
-    window_secs: f64,
-) -> f64 {
-    let span = (buf_end - buf_start).max(f64::EPSILON);
-    let moved = view_end + f64::from(drag_x) / f64::from(width.max(1.0)) * span;
-    clamped_view_end(moved, buf_start, buf_end, window_secs)
+fn overview_dragged_view_end(view_end: f64, drag_x: f32, width: f32, map: &OverviewMap, window_secs: f64) -> f64 {
+    let center = view_end - window_secs * 0.5;
+    let visual = map.time_to_fraction(center) + f64::from(drag_x) / f64::from(width.max(1.0));
+    let moved_center = map.fraction_to_time(visual);
+    clamped_view_end(moved_center + window_secs * 0.5, map.start, map.end, window_secs)
 }
 
 /// The left edge never moves before the oldest sample.
@@ -2208,15 +2853,23 @@ fn clamped_view_end(view_end: f64, buf_start: f64, buf_end: f64, window_secs: f6
 }
 
 /// Min/max of each screen column, so the full buffer stays readable.
-fn overview_envelope(samples: &VecDeque<MeasurementSample>, metric: Metric, columns: usize) -> Vec<[f64; 2]> {
-    let len = samples.len();
+fn overview_envelope(
+    samples: &VecDeque<MeasurementSample>,
+    metric: Metric,
+    columns: usize,
+    range: Range<usize>,
+) -> Vec<[f64; 2]> {
+    let len = range.len();
     if len == 0 || columns == 0 {
         return Vec::new();
     }
+    let columns = columns.min(len);
     let mut points = Vec::with_capacity(columns * 2);
     for column in 0..columns {
-        let start = column * len / columns;
-        let end = ((column + 1) * len / columns).max(start + 1).min(len);
+        let start = range.start + column * len / columns;
+        let end = (range.start + (column + 1) * len / columns)
+            .max(start + 1)
+            .min(range.end);
         let mut min_y = f64::INFINITY;
         let mut max_y = f64::NEG_INFINITY;
         let t0 = samples[start].elapsed_seconds();
@@ -2239,33 +2892,66 @@ fn overview_envelope(samples: &VecDeque<MeasurementSample>, metric: Metric, colu
     points
 }
 
-fn paint_overview_curve(
+/// One overview trace per capture, so a reconnect gap is empty space on the time axis.
+fn overview_segments(
+    samples: &VecDeque<MeasurementSample>,
+    metric: Metric,
+    columns: usize,
+    breaks: &[f64],
+) -> Vec<Vec<[f64; 2]>> {
+    let total = samples.len();
+    dataset_ranges(samples, breaks)
+        .into_iter()
+        .filter(|range| range.len() >= 2)
+        .map(|range| {
+            let share = (columns * range.len() / total.max(1)).clamp(1, columns.max(1));
+            overview_envelope(samples, metric, share, range)
+        })
+        .filter(|points| points.len() >= 2)
+        .collect()
+}
+
+fn paint_overview_segments(
     painter: &egui::Painter,
     frame: egui::Rect,
-    points: &[[f64; 2]],
-    buf_start: f64,
-    buf_end: f64,
+    segments: &[Vec<[f64; 2]>],
+    map: &OverviewMap,
     color: Color32,
 ) {
-    if points.len() < 2 {
-        return;
-    }
     let mut min_y = f64::INFINITY;
     let mut max_y = f64::NEG_INFINITY;
-    for point in points {
-        min_y = min_y.min(point[1]);
-        max_y = max_y.max(point[1]);
+    for segment in segments {
+        for point in segment {
+            min_y = min_y.min(point[1]);
+            max_y = max_y.max(point[1]);
+        }
     }
     if !min_y.is_finite() {
         return;
     }
+    for segment in segments {
+        paint_overview_curve(painter, frame, segment, map, color, (min_y, max_y));
+    }
+}
+
+fn paint_overview_curve(
+    painter: &egui::Painter,
+    frame: egui::Rect,
+    points: &[[f64; 2]],
+    map: &OverviewMap,
+    color: Color32,
+    y_span: (f64, f64),
+) {
+    let (min_y, max_y) = y_span;
+    if points.len() < 2 || !min_y.is_finite() {
+        return;
+    }
     let span_y = (max_y - min_y).max(f64::EPSILON);
-    let span_x = (buf_end - buf_start).max(f64::EPSILON);
     let plot = frame.shrink(1.0);
     let screen = points
         .iter()
         .map(|point| {
-            let x = plot.left() + ((point[0] - buf_start) / span_x).clamp(0.0, 1.0) as f32 * plot.width();
+            let x = plot.left() + map.time_to_fraction(point[0]) as f32 * plot.width();
             let y = plot.bottom() - ((point[1] - min_y) / span_y).clamp(0.0, 1.0) as f32 * plot.height();
             egui::pos2(x, y)
         })
@@ -2318,8 +3004,106 @@ fn cursor_label_on_left(cursor: f64, view_end: f64, pixels_per_second: f64) -> b
     (view_end - cursor) * pixels_per_second < CURSOR_LABEL_MARGIN
 }
 
+/// Elapsed microseconds stored on a sample. `shift_us` is the reconnect gap accumulated so far.
+fn stored_elapsed_us(raw_elapsed_us: u64, shift_us: i64) -> u64 {
+    let value = i128::from(raw_elapsed_us) + i128::from(shift_us);
+    if value <= 0 {
+        0
+    } else {
+        u64::try_from(value).unwrap_or(u64::MAX)
+    }
+}
+
+fn timeline_shift_after_gap(shift_us: i64, gap_us: u64) -> i64 {
+    shift_us.saturating_add_unsigned(gap_us)
+}
+
+fn elapsed_shift(elapsed_us: u64) -> i64 {
+    i64::try_from(elapsed_us).unwrap_or(i64::MAX)
+}
+
+fn add_shift(shift_us: i64, delta_us: i128) -> i64 {
+    let value = i128::from(shift_us) + delta_us;
+    i64::try_from(value).unwrap_or(if value > 0 { i64::MAX } else { i64::MIN })
+}
+
+fn us_to_seconds(us: u64) -> f64 {
+    us as f64 / 1_000_000.0
+}
+
+fn seconds_to_us(seconds: f64) -> u64 {
+    if !seconds.is_finite() || seconds <= 0.0 {
+        0
+    } else {
+        (seconds * 1_000_000.0).round() as u64
+    }
+}
+
+fn ensure_session_extension(mut path: std::path::PathBuf) -> std::path::PathBuf {
+    if path.extension().is_none() {
+        path.set_extension("kmss");
+    }
+    path
+}
+
+fn wall_gap_us(disconnected_at: DateTime<Utc>, resumed_at: DateTime<Utc>) -> u64 {
+    resumed_at
+        .signed_duration_since(disconnected_at)
+        .num_microseconds()
+        .unwrap_or(0)
+        .max(0) as u64
+}
+
+/// True when `left` and `right` sit on opposite sides of a reconnect gap.
+fn crosses_dataset_break(left: f64, right: f64, breaks: &[f64]) -> bool {
+    let index = breaks.partition_point(|gap| *gap < left);
+    index < breaks.len() && breaks[index] < right
+}
+
+/// Index ranges of samples that belong to one continuous capture.
+fn dataset_ranges(samples: &VecDeque<MeasurementSample>, breaks: &[f64]) -> Vec<Range<usize>> {
+    if samples.is_empty() {
+        return Vec::new();
+    }
+    let mut ranges = Vec::new();
+    let mut start = 0;
+    for index in 1..samples.len() {
+        let previous = samples[index - 1].elapsed_seconds();
+        let time = samples[index].elapsed_seconds();
+        if crosses_dataset_break(previous, time, breaks) {
+            ranges.push(start..index);
+            start = index;
+        }
+    }
+    ranges.push(start..samples.len());
+    ranges
+}
+
+/// Split a polyline so a reconnect gap is not drawn as a ramp.
+fn split_series(points: &[[f64; 2]], breaks: &[f64]) -> Vec<Vec<[f64; 2]>> {
+    if points.is_empty() {
+        return Vec::new();
+    }
+    let mut segments = Vec::new();
+    let mut segment: Vec<[f64; 2]> = Vec::new();
+    for point in points {
+        if let Some(previous) = segment.last()
+            && crosses_dataset_break(previous[0], point[0], breaks)
+        {
+            segments.push(std::mem::take(&mut segment));
+        }
+        segment.push(*point);
+    }
+    if !segment.is_empty() {
+        segments.push(segment);
+    }
+    segments
+}
+
 /// Curve value at `time`, linearly between the surrounding samples.
-fn cursor_value(samples: &VecDeque<MeasurementSample>, metric: Metric, time: f64) -> Option<f64> {
+///
+/// A time that falls in a reconnect gap has no value. The two captures are not one ramp.
+fn cursor_value(samples: &VecDeque<MeasurementSample>, metric: Metric, time: f64, breaks: &[f64]) -> Option<f64> {
     if samples.is_empty() {
         return None;
     }
@@ -2332,6 +3116,9 @@ fn cursor_value(samples: &VecDeque<MeasurementSample>, metric: Metric, time: f64
     }
     let left = &samples[index - 1];
     let right = &samples[index];
+    if crosses_dataset_break(left.elapsed_seconds(), right.elapsed_seconds(), breaks) {
+        return None;
+    }
     Some(interpolated_value(
         left.elapsed_seconds(),
         metric.value(left),
@@ -2428,9 +3215,24 @@ fn minimum_window_size() -> [f32; 2] {
 }
 
 /// Scrolling up increases pixels per second. The result stays inside the zoom limits.
-fn zoomed_pixels_per_second(current: f64, scroll_y: f32) -> f64 {
+fn zoomed_pixels_per_second(current: f64, scroll_y: f32, min_pixels: f64) -> f64 {
     let factor = (-f64::from(scroll_y) * SCROLL_ZOOM_SPEED).exp();
-    (current * factor).clamp(MIN_PIXELS_PER_SECOND, MAX_PIXELS_PER_SECOND)
+    (current * factor).clamp(min_pixels, MAX_PIXELS_PER_SECOND)
+}
+
+/// The furthest zoom-out that still fits the stored span in the plot.
+fn minimum_pixels_for_span(plot_width: Option<f64>, span: Option<(f64, f64)>) -> f64 {
+    let Some(width) = plot_width else {
+        return MIN_PIXELS_PER_SECOND;
+    };
+    let Some((start, end)) = span else {
+        return MIN_PIXELS_PER_SECOND;
+    };
+    let duration = end - start;
+    if duration <= 1.0 {
+        return MIN_PIXELS_PER_SECOND;
+    }
+    (width / duration).clamp(1.0e-6, MIN_PIXELS_PER_SECOND)
 }
 
 /// Move the right edge so `pointer_x` still marks the same time at `next_scale`.
@@ -2463,16 +3265,17 @@ mod tests {
     use super::{
         AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, EVENT_LANE_GAP, EVENT_LANE_HEIGHT, EVENT_TOOLBAR_HEIGHT, GraphSampleRate,
         MAX_PIXELS_PER_SECOND, MAX_SAMPLES, MIN_PIXELS_PER_SECOND, MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage,
-        OVERVIEW_HEIGHT, PIXELS_PER_SECOND, STRIP_GAP_BETWEEN, STRIP_HEIGHT, TimelineCategory, TimelineMarkerSpec,
-        Y_MARGIN_FRACTION, axis_fraction_digits, buffer_fraction, buffer_meter_label, centered_view_end,
-        clamped_cursor, clamped_view_end, clock_grid_steps, cursor_label_on_left, cursor_value, explorer_viewport_size,
-        fitted_cursor_font_size, format_axis_time, format_engineering_tick, format_event_time, format_max_power,
-        format_measurement, format_temperature, host_time_grid_marks, host_time_utc, identity_label,
-        initial_window_size, layer_covers_plots, meter_pane_width, minimum_window_size, overview_centered_view_end,
-        overview_dragged_view_end, overview_time_at_x, overview_window_fraction, panned_view_end, pd_timeline_marker,
-        pd_timeline_time, pointer_blocks_plots, protocol_label, samples_per_meter_update, scaled_y_range, series,
-        time_at_pointer, timeline_origin_utc, trim_to_max_samples, usb_vendor_name, visible_sample_range,
-        zoomed_pixels_per_second, zoomed_view_end_at_pointer,
+        OVERVIEW_HEIGHT, OVERVIEW_LARGE_GAP_SECS, PIXELS_PER_SECOND, STRIP_GAP_BETWEEN, STRIP_HEIGHT, TimelineCategory,
+        TimelineMarkerSpec, Y_MARGIN_FRACTION, axis_fraction_digits, buffer_fraction, buffer_meter_label,
+        centered_view_end, clamped_cursor, clamped_view_end, clock_grid_steps, crosses_dataset_break,
+        cursor_label_on_left, cursor_value, dataset_ranges, explorer_viewport_size, fitted_cursor_font_size,
+        format_axis_time, format_engineering_tick, format_event_time, format_max_power, format_measurement,
+        format_temperature, host_time_grid_marks, host_time_utc, identity_label, initial_window_size, large_gap_breaks,
+        layer_covers_plots, meter_pane_width, minimum_pixels_for_span, minimum_window_size, overview_centered_view_end,
+        overview_dragged_view_end, overview_map_from_segments, panned_view_end, pd_timeline_marker, pd_timeline_time,
+        pointer_blocks_plots, protocol_label, samples_per_meter_update, scaled_y_range, series, split_series,
+        stored_elapsed_us, time_at_pointer, timeline_origin_utc, timeline_shift_after_gap, trim_to_max_samples,
+        usb_vendor_name, visible_sample_range, wall_gap_us, zoomed_pixels_per_second, zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
@@ -2607,6 +3410,10 @@ mod tests {
         assert!(
             format_axis_time(Some(&origin), hundredth.value, hundredth.step_size, &(0.0..=0.05)).ends_with("59.85")
         );
+        let across_days = format_axis_time(Some(&origin), 0.0, 3_600.0, &(0.0..=86_400.0));
+        assert!(across_days.contains('-'), "{across_days}");
+        let same_day = format_axis_time(Some(&origin), 0.0, 1.0, &(0.0..=10.0));
+        assert!(!same_day.contains('-'), "{same_day}");
     }
 
     #[test]
@@ -2671,16 +3478,21 @@ mod tests {
 
     #[test]
     fn mouse_wheel_changes_pixels_per_second_for_the_whole_scope() {
-        let zoomed_in = zoomed_pixels_per_second(PIXELS_PER_SECOND, -100.0);
-        let zoomed_out = zoomed_pixels_per_second(PIXELS_PER_SECOND, 100.0);
+        let zoomed_in = zoomed_pixels_per_second(PIXELS_PER_SECOND, -100.0, MIN_PIXELS_PER_SECOND);
+        let zoomed_out = zoomed_pixels_per_second(PIXELS_PER_SECOND, 100.0, MIN_PIXELS_PER_SECOND);
         assert!(zoomed_in > PIXELS_PER_SECOND);
         assert!(zoomed_out < PIXELS_PER_SECOND);
         assert_eq!(
-            zoomed_pixels_per_second(MAX_PIXELS_PER_SECOND, -1_000.0),
+            zoomed_pixels_per_second(MAX_PIXELS_PER_SECOND, -1_000.0, MIN_PIXELS_PER_SECOND),
             MAX_PIXELS_PER_SECOND
         );
         assert_eq!(
-            zoomed_pixels_per_second(MIN_PIXELS_PER_SECOND, 1_000.0),
+            zoomed_pixels_per_second(MIN_PIXELS_PER_SECOND, 1_000.0, MIN_PIXELS_PER_SECOND),
+            MIN_PIXELS_PER_SECOND
+        );
+        assert!(minimum_pixels_for_span(Some(800.0), Some((0.0, 86_400.0))) < MIN_PIXELS_PER_SECOND);
+        assert_eq!(
+            minimum_pixels_for_span(Some(800.0), Some((0.0, 8.0))),
             MIN_PIXELS_PER_SECOND
         );
     }
@@ -2804,11 +3616,31 @@ mod tests {
             voltage_sample(1_000_000, 20.0),
             voltage_sample(2_000_000, 0.0),
         ]);
-        let at = |time| cursor_value(&samples, Metric::Voltage, time).unwrap();
+        let at = |time| cursor_value(&samples, Metric::Voltage, time, &[]).unwrap();
         assert!((at(0.5) - 15.0).abs() < 1e-9);
         assert!((at(-1.0) - 10.0).abs() < 1e-9);
         assert!((at(3.0) - 0.0).abs() < 1e-9);
-        assert!(cursor_value(&VecDeque::new(), Metric::Voltage, 1.0).is_none());
+        assert!(cursor_value(&VecDeque::new(), Metric::Voltage, 1.0, &[]).is_none());
+        assert!(cursor_value(&samples, Metric::Voltage, 1.5, &[1.0]).is_none());
+    }
+
+    #[test]
+    fn reconnect_appends_after_a_gap() {
+        let disconnected = chrono::DateTime::from_timestamp(1_700_000_000, 0).unwrap();
+        let resumed = disconnected + chrono::TimeDelta::seconds(5);
+        let gap_us = wall_gap_us(disconnected, resumed);
+        assert_eq!(gap_us, 5_000_000);
+        let shift = timeline_shift_after_gap(1_000_000, gap_us);
+        assert_eq!(stored_elapsed_us(0, shift), 6_000_000);
+        assert_eq!(stored_elapsed_us(20_000, shift), 6_020_000);
+
+        let points = [[0.0, 1.0], [1.0, 2.0], [6.0, 3.0], [6.02, 4.0]];
+        let segments = split_series(&points, &[1.0]);
+        assert_eq!(segments.len(), 2);
+        assert_eq!(segments[0], vec![[0.0, 1.0], [1.0, 2.0]]);
+        assert_eq!(segments[1], vec![[6.0, 3.0], [6.02, 4.0]]);
+        assert!(!crosses_dataset_break(0.0, 1.0, &[1.0]));
+        assert!(crosses_dataset_break(1.0, 6.0, &[1.0]));
     }
 
     #[test]
@@ -2831,14 +3663,29 @@ mod tests {
 
     #[test]
     fn overview_box_tracks_the_visible_window() {
-        let (left, right) = overview_window_fraction(40.0, 50.0, 0.0, 100.0);
-        assert!((left - 0.4).abs() < 1e-9);
-        assert!((right - 0.5).abs() < 1e-9);
-        let (zoomed_out_left, zoomed_out_right) = overview_window_fraction(30.0, 50.0, 0.0, 100.0);
-        assert!((zoomed_out_right - zoomed_out_left) > (right - left));
-        assert!((overview_dragged_view_end(50.0, 10.0, 100.0, 0.0, 100.0, 10.0) - 60.0).abs() < 1e-9);
-        assert!((overview_dragged_view_end(98.0, 10.0, 100.0, 0.0, 100.0, 10.0) - 100.0).abs() < 1e-9);
-        assert!((overview_time_at_x(80.0, 0.0, 100.0, 0.0, 100.0) - 80.0).abs() < 1e-9);
+        let map = overview_map_from_segments(&[(0.0, 100.0)], 100.0).unwrap();
+        assert!((overview_dragged_view_end(50.0, 10.0, 100.0, &map, 10.0) - 60.0).abs() < 1e-6);
+        assert!((overview_dragged_view_end(98.0, 10.0, 100.0, &map, 10.0) - 100.0).abs() < 1e-6);
+        let gapped =
+            overview_map_from_segments(&[(0.0, 10.0), (3_610.0, 3_620.0), (10_000.0, 10_010.0)], 200.0).unwrap();
+        let first_gap = gapped.time_to_fraction(3_610.0) - gapped.time_to_fraction(10.0);
+        let second_gap = gapped.time_to_fraction(10_000.0) - gapped.time_to_fraction(3_620.0);
+        assert!(first_gap < 0.1, "{first_gap}");
+        assert!(second_gap < 0.1, "{second_gap}");
+        assert!(gapped.time_to_fraction(10.0) > 0.2);
+        let reconnect = overview_map_from_segments(&[(0.0, 30.0), (35.0, 65.0)], 100.0).unwrap();
+        let short_gap = reconnect.time_to_fraction(35.0) - reconnect.time_to_fraction(30.0);
+        assert!((short_gap - 0.08).abs() < 0.02, "{short_gap}");
+        let samples = VecDeque::from([
+            voltage_sample(0, 1.0),
+            voltage_sample(10_000_000, 1.0),
+            voltage_sample(3_610_000_000, 1.0),
+            voltage_sample(3_620_000_000, 1.0),
+            voltage_sample(10_000_000_000, 1.0),
+        ]);
+        let found = large_gap_breaks(&samples, OVERVIEW_LARGE_GAP_SECS);
+        assert_eq!(found.len(), 2);
+        assert_eq!(dataset_ranges(&samples, &found).len(), 3);
         assert!((overview_centered_view_end(80.0, 0.0, 100.0, 10.0) - 85.0).abs() < 1e-9);
         assert!((overview_centered_view_end(2.0, 0.0, 100.0, 10.0) - 10.0).abs() < 1e-9);
         assert!((overview_centered_view_end(98.0, 0.0, 100.0, 10.0) - 100.0).abs() < 1e-9);
