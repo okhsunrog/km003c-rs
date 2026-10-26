@@ -1,6 +1,8 @@
 /target
 /km003c-slint/target
 
+.DS_Store
+
 # Python
 __pycache__/
 *.py[cod]

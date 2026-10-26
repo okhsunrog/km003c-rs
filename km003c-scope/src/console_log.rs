@@ -50,6 +50,21 @@ pub fn panel_height(available: f32, plots: f32) -> f32 {
     (available - plots).max(MIN_HEIGHT)
 }
 
+/// Plain text of the visible console, one line per event, in terminal order.
+pub fn plain_text() -> String {
+    LINES
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .iter()
+        .map(format_line)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn format_line(line: &Line) -> String {
+    format!("{} {} {}: {}", line.time, line.level, line.target, line.message)
+}
+
 pub fn snapshot() -> Vec<Entry> {
     LINES
         .lock()
@@ -176,6 +191,21 @@ mod tests {
     fn console_fills_the_space_under_the_plots() {
         assert_eq!(panel_height(1_000.0, 760.0), 240.0);
         assert_eq!(panel_height(800.0, 760.0), MIN_HEIGHT);
+    }
+
+    #[test]
+    fn copied_console_uses_the_same_line_as_the_screen() {
+        let line = Line {
+            time: "19:23:34.479".to_string(),
+            level: level_label(Level::WARN).to_string(),
+            level_color: level_color(Level::WARN),
+            target: "km003c_lib::session".to_string(),
+            message: "Temperature poll was empty  temperature_c=-256.0".to_string(),
+        };
+        assert_eq!(
+            format_line(&line),
+            "19:23:34.479  WARN km003c_lib::session: Temperature poll was empty  temperature_c=-256.0"
+        );
     }
 
     #[test]

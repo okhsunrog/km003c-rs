@@ -103,6 +103,11 @@ const CENTRAL_PANEL_MARGIN: f32 = 8.0;
 const SPACE_MONO_ADVANCE_EM: f32 = 612.0 / 1000.0;
 const METER_VALUE_FONT_SIZE: f32 = 28.0;
 const STATUS_FONT_SIZE: f32 = 13.0;
+/// Shown when the meter repeats an empty temperature register and the last real reading is held.
+const TEMPERATURE_STALE_COLOR: Color32 = Color32::from_rgb(255, 80, 80);
+const TEMPERATURE_COLOR: Color32 = Color32::from_rgb(255, 145, 96);
+/// Raw register i16::MIN, which is an empty reading, not a temperature.
+const INVALID_TEMPERATURE_C: f64 = -256.0;
 const EVENT_LABEL_SIZE: f32 = 12.0;
 const EVENT_CLUSTER_DISTANCE: f32 = 28.0;
 const EVENT_LANE_HEIGHT: f32 = 32.0;
@@ -248,6 +253,8 @@ struct ScopeApp {
     cc1: Option<f64>,
     cc2: Option<f64>,
     temperature_c: Option<f64>,
+    /// The number on screen is the previous reading; the latest packet had no temperature.
+    temperature_stale: bool,
     status: String,
     device: Option<DeviceState>,
     device_info_open: bool,
@@ -363,16 +370,20 @@ struct TimelineMarkerSpec {
 }
 
 impl eframe::App for ScopeApp {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Runs while a browser tab is hidden. `ui` does not, and that is when
+        // samples would otherwise sit unread until the window is focused again.
         self.poll_device_prompt();
         self.drain_events();
         self.poll_file_ops();
         if self.file_busy {
-            ui.ctx().request_repaint();
+            ctx.request_repaint();
         }
         let repaint = if self.streaming { 16 } else { 100 };
-        ui.ctx().request_repaint_after(Duration::from_millis(repaint));
+        ctx.request_repaint_after(Duration::from_millis(repaint));
+    }
 
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         #[cfg(target_arch = "wasm32")]
         {
             let console_height = console_log::panel_height(ui.available_height(), window_size(INITIAL_SECONDS)[1]);
@@ -401,6 +412,7 @@ impl eframe::App for ScopeApp {
 
 #[cfg(target_arch = "wasm32")]
 fn web_console(ui: &mut egui::Ui) {
+    let console_rect = ui.max_rect();
     let font = egui::FontId::new(13.0, egui::FontFamily::Name("Space Mono".into()));
     ui.spacing_mut().item_spacing.y = 1.0;
     let lines = console_log::snapshot();
@@ -437,6 +449,46 @@ fn web_console(ui: &mut egui::Ui) {
                 );
             }
         });
+    copy_console_button(ui, console_rect);
+}
+
+#[cfg(target_arch = "wasm32")]
+fn copy_console_button(ui: &mut egui::Ui, console_rect: egui::Rect) {
+    let copied_id = ui.id().with("console_copied_at");
+    let now = ui.input(|input| input.time);
+    let recently_copied = ui.data(|data| {
+        data.get_temp::<f64>(copied_id)
+            .is_some_and(|copied_at| now - copied_at < 1.2)
+    });
+    let label = if recently_copied { "Copied" } else { "Copy" };
+    let width = if recently_copied { 68.0 } else { 52.0 };
+    let rect = egui::Rect::from_min_size(
+        egui::pos2(console_rect.right() - width - 10.0, console_rect.top()),
+        egui::vec2(width, 22.0),
+    );
+    let color = if recently_copied {
+        Color32::from_rgb(50, 190, 80)
+    } else {
+        console_log::DIM
+    };
+    let response = ui.put(
+        rect,
+        egui::Button::new(
+            egui::RichText::new(label)
+                .font(egui::FontId::new(12.0, egui::FontFamily::Name("Space Mono".into())))
+                .color(color),
+        )
+        .small()
+        .fill(Color32::from_rgba_premultiplied(12, 12, 12, 220))
+        .stroke(egui::Stroke::new(1.0, Color32::from_rgb(64, 64, 64)))
+        .corner_radius(4),
+    );
+    if response.clicked() {
+        ui.ctx().copy_text(console_log::plain_text());
+        ui.data_mut(|data| data.insert_temp(copied_id, now));
+        ui.ctx().request_repaint_after(Duration::from_millis(1300));
+    }
+    response.on_hover_text("Copy the console");
 }
 
 /// A native info window uses the operating system's close button.
@@ -517,6 +569,7 @@ impl ScopeApp {
             cc1: None,
             cc2: None,
             temperature_c: None,
+            temperature_stale: false,
             status: status.into(),
             device: None,
             device_info_open: false,
@@ -671,7 +724,10 @@ impl ScopeApp {
                     self.trim_window();
                 }
                 SessionEvent::AdcUpdate(adc) => {
-                    self.temperature_c = Some(adc.temperature.get::<degree_celsius>());
+                    let (temperature, stale) =
+                        accept_temperature(self.temperature_c, adc.temperature.get::<degree_celsius>());
+                    self.temperature_c = temperature;
+                    self.temperature_stale = stale;
                 }
                 SessionEvent::StreamingStarted(rate) => {
                     let reconnecting = self.disconnected_at.is_some();
@@ -783,6 +839,7 @@ impl ScopeApp {
         self.cc1 = None;
         self.cc2 = None;
         self.temperature_c = None;
+        self.temperature_stale = false;
         if self.disconnected_at.is_none() && !self.samples.is_empty() {
             self.disconnected_at = Some(Utc::now());
         }
@@ -1674,6 +1731,7 @@ impl ScopeApp {
                 status_strip(
                     ui,
                     self.temperature_c,
+                    self.temperature_stale,
                     self.pd.logger.revision(),
                     self.pd.logger.source_max_power_w(),
                 );
@@ -2061,6 +2119,18 @@ fn format_temperature(value: Option<f64>) -> String {
     }
 }
 
+/// Keep the last real temperature when the meter sends the empty register.
+///
+/// The second value is whether that number is stale. With no earlier reading,
+/// the display stays blank instead of showing -256°C.
+fn accept_temperature(current: Option<f64>, reading: f64) -> (Option<f64>, bool) {
+    if reading.is_finite() && reading > INVALID_TEMPERATURE_C {
+        (Some(reading), false)
+    } else {
+        (current, current.is_some())
+    }
+}
+
 fn protocol_label(revision: Option<PdRevision>) -> &'static str {
     match revision {
         Some(PdRevision::Revision1) => "PD1.0",
@@ -2077,22 +2147,45 @@ fn format_max_power(watts: Option<f64>) -> String {
     }
 }
 
-fn status_strip(ui: &mut egui::Ui, temperature_c: Option<f64>, revision: Option<PdRevision>, max_power_w: Option<f64>) {
+fn status_strip(
+    ui: &mut egui::Ui,
+    temperature_c: Option<f64>,
+    temperature_stale: bool,
+    revision: Option<PdRevision>,
+    max_power_w: Option<f64>,
+) {
     let (rect, _) = ui.allocate_exact_size(
         egui::vec2(ui.available_width(), STATUS_FONT_SIZE + 3.0),
         egui::Sense::hover(),
     );
     let font = egui::FontId::new(STATUS_FONT_SIZE, egui::FontFamily::Name("Space Mono".into()));
-    let color = Color32::LIGHT_GRAY;
     let text_y = rect.center().y;
+    let text_color = if temperature_stale {
+        TEMPERATURE_STALE_COLOR
+    } else {
+        Color32::LIGHT_GRAY
+    };
+    let icon_color = if temperature_stale {
+        TEMPERATURE_STALE_COLOR
+    } else {
+        TEMPERATURE_COLOR
+    };
 
-    paint_thermometer(ui.painter(), rect);
+    paint_thermometer(ui.painter(), rect, icon_color);
     let fields = [
-        (rect.left() + 12.0, format_temperature(temperature_c)),
-        (rect.left() + rect.width() * 0.46, protocol_label(revision).to_string()),
-        (rect.left() + rect.width() * 0.75, format_max_power(max_power_w)),
+        (rect.left() + 12.0, format_temperature(temperature_c), text_color),
+        (
+            rect.left() + rect.width() * 0.46,
+            protocol_label(revision).to_string(),
+            Color32::LIGHT_GRAY,
+        ),
+        (
+            rect.left() + rect.width() * 0.75,
+            format_max_power(max_power_w),
+            Color32::LIGHT_GRAY,
+        ),
     ];
-    for (x, text) in fields {
+    for (x, text, color) in fields {
         ui.painter().text(
             egui::pos2(x, text_y),
             egui::Align2::LEFT_CENTER,
@@ -2101,10 +2194,17 @@ fn status_strip(ui: &mut egui::Ui, temperature_c: Option<f64>, revision: Option<
             color,
         );
     }
+    if temperature_stale {
+        ui.interact(
+            egui::Rect::from_min_size(rect.min, egui::vec2(rect.width() * 0.4, rect.height())),
+            ui.id().with("stale_temperature"),
+            egui::Sense::hover(),
+        )
+        .on_hover_text("Last valid temperature. The meter sent an empty reading.");
+    }
 }
 
-fn paint_thermometer(painter: &egui::Painter, rect: egui::Rect) {
-    let color = Color32::from_rgb(255, 145, 96);
+fn paint_thermometer(painter: &egui::Painter, rect: egui::Rect, color: Color32) {
     let center_x = rect.left() + 4.0;
     let bulb = egui::pos2(center_x, rect.bottom() - 3.0);
     painter.line_segment(
@@ -3671,18 +3771,19 @@ fn rate_label(rate: GraphSampleRate) -> &'static str {
 mod tests {
     use super::{
         AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, EVENT_LANE_GAP, EVENT_LANE_HEIGHT, EVENT_TOOLBAR_HEIGHT, GraphSampleRate,
-        MAX_PIXELS_PER_SECOND, MAX_SAMPLES, MIN_PIXELS_PER_SECOND, MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage,
-        OVERVIEW_HEIGHT, OVERVIEW_LARGE_GAP_SECS, PIXELS_PER_SECOND, STRIP_GAP_BETWEEN, STRIP_HEIGHT, TimelineCategory,
-        TimelineMarkerSpec, Y_MARGIN_FRACTION, axis_fraction_digits, buffer_fraction, buffer_meter_label,
-        centered_view_end, clamped_cursor, clamped_view_end, clock_grid_steps, crosses_dataset_break,
-        cursor_label_on_left, cursor_value, dataset_ranges, explorer_viewport_size, fitted_cursor_font_size,
-        format_axis_time, format_engineering_tick, format_event_time, format_max_power, format_measurement,
-        format_temperature, host_time_grid_marks, host_time_utc, identity_label, initial_window_size, large_gap_breaks,
-        layer_covers_plots, meter_pane_width, minimum_pixels_for_span, minimum_window_size, overview_centered_view_end,
-        overview_dragged_view_end, overview_map_from_segments, panned_view_end, pd_timeline_marker, pd_timeline_time,
-        pointer_blocks_plots, protocol_label, samples_per_meter_update, scaled_y_range, series, split_series,
-        stored_elapsed_us, time_at_pointer, timeline_origin_utc, timeline_shift_after_gap, trim_to_max_samples,
-        usb_vendor_name, visible_sample_range, wall_gap_us, zoomed_pixels_per_second, zoomed_view_end_at_pointer,
+        INVALID_TEMPERATURE_C, MAX_PIXELS_PER_SECOND, MAX_SAMPLES, MIN_PIXELS_PER_SECOND, MIN_VOLTAGE_SPAN, MIN_Y_SPAN,
+        MeterAverage, OVERVIEW_HEIGHT, OVERVIEW_LARGE_GAP_SECS, PIXELS_PER_SECOND, STRIP_GAP_BETWEEN, STRIP_HEIGHT,
+        TimelineCategory, TimelineMarkerSpec, Y_MARGIN_FRACTION, accept_temperature, axis_fraction_digits,
+        buffer_fraction, buffer_meter_label, centered_view_end, clamped_cursor, clamped_view_end, clock_grid_steps,
+        crosses_dataset_break, cursor_label_on_left, cursor_value, dataset_ranges, explorer_viewport_size,
+        fitted_cursor_font_size, format_axis_time, format_engineering_tick, format_event_time, format_max_power,
+        format_measurement, format_temperature, host_time_grid_marks, host_time_utc, identity_label,
+        initial_window_size, large_gap_breaks, layer_covers_plots, meter_pane_width, minimum_pixels_for_span,
+        minimum_window_size, overview_centered_view_end, overview_dragged_view_end, overview_map_from_segments,
+        panned_view_end, pd_timeline_marker, pd_timeline_time, pointer_blocks_plots, protocol_label,
+        samples_per_meter_update, scaled_y_range, series, split_series, stored_elapsed_us, time_at_pointer,
+        timeline_origin_utc, timeline_shift_after_gap, trim_to_max_samples, usb_vendor_name, visible_sample_range,
+        wall_gap_us, zoomed_pixels_per_second, zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
@@ -3723,6 +3824,14 @@ mod tests {
         assert_eq!(format_temperature(Some(30.6)), "31°C");
         assert_eq!(format_temperature(Some(-255.6)), "-256°C");
         assert_eq!(format_temperature(None), "-");
+        assert_eq!(accept_temperature(None, 30.6), (Some(30.6), false));
+        assert_eq!(accept_temperature(Some(30.6), 31.2), (Some(31.2), false));
+        assert_eq!(
+            accept_temperature(Some(30.6), INVALID_TEMPERATURE_C),
+            (Some(30.6), true)
+        );
+        assert_eq!(accept_temperature(None, INVALID_TEMPERATURE_C), (None, false));
+        assert_eq!(accept_temperature(Some(30.6), f64::NAN), (Some(30.6), true));
         assert_eq!(protocol_label(Some(PdRevision::Revision3)), "PD3.0");
         assert_eq!(protocol_label(None), "-");
         assert_eq!(format_max_power(Some(20.0)), "20W");
