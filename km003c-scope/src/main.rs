@@ -59,9 +59,10 @@ mod browser_files;
 mod console_log;
 mod session_file;
 
-const VOLTAGE_COLOR: Color32 = Color32::from_rgb(80, 220, 120);
-const CURRENT_COLOR: Color32 = Color32::from_rgb(90, 170, 255);
-const POWER_COLOR: Color32 = Color32::from_rgb(255, 176, 64);
+/// Same green, red, and blue as the meter's VBUS, IBUS, and power fields.
+const VOLTAGE_COLOR: Color32 = Color32::from_rgb(46, 196, 154);
+const CURRENT_COLOR: Color32 = Color32::from_rgb(235, 96, 114);
+const POWER_COLOR: Color32 = Color32::from_rgb(48, 156, 245);
 /// Shared Y-axis width. Wide enough for a signed engineering tick such as `20.004 V`, so the strips stay aligned.
 const AXIS_THICKNESS: f32 = 80.0;
 const PIXELS_PER_SECOND: f64 = 100.0;
@@ -101,11 +102,13 @@ const STRIP_GAP_BETWEEN: f32 = STRIP_GAP * 1.3;
 const CENTRAL_PANEL_MARGIN: f32 = 8.0;
 /// Space Mono's advance width, in font units per em.
 const SPACE_MONO_ADVANCE_EM: f32 = 612.0 / 1000.0;
-const METER_VALUE_FONT_SIZE: f32 = 28.0;
-const STATUS_FONT_SIZE: f32 = 13.0;
+const METER_VALUE_FONT_SIZE: f32 = 36.0;
+const METER_LABEL_FONT_SIZE: f32 = 11.0;
+const METER_BAR_HEIGHT: f32 = 68.0;
+const METER_BAR_GAP: f32 = 3.0;
+const METER_FOOTER_HEIGHT: f32 = 78.0;
 /// Shown when the meter repeats an empty temperature register and the last real reading is held.
 const TEMPERATURE_STALE_COLOR: Color32 = Color32::from_rgb(255, 80, 80);
-const TEMPERATURE_COLOR: Color32 = Color32::from_rgb(255, 145, 96);
 /// Raw register i16::MIN, which is an empty reading, not a temperature.
 const INVALID_TEMPERATURE_C: f64 = -256.0;
 const EVENT_LABEL_SIZE: f32 = 12.0;
@@ -117,8 +120,6 @@ const EVENT_EXPLORER_WIDTH: f32 = 260.0;
 const BUFFER_BAR_HEIGHT: f32 = 8.0;
 /// Horizontal inset of egui's side-panel frame, on each side.
 const SIDE_PANEL_INNER_MARGIN: f32 = 8.0;
-/// Padding inside the black meter box, on each side.
-const METER_BOX_MARGIN: f32 = 8.0;
 /// Room egui reserves for the side panel's separator stroke.
 const SIDE_PANEL_SEPARATOR: f32 = 1.0;
 /// Newest samples kept, at any rate. This is 10 hours at 50/s and 30 minutes at 1000/s.
@@ -252,6 +253,8 @@ struct ScopeApp {
     power: Option<f64>,
     cc1: Option<f64>,
     cc2: Option<f64>,
+    dp: Option<f64>,
+    dm: Option<f64>,
     temperature_c: Option<f64>,
     /// The number on screen is the previous reading; the latest packet had no temperature.
     temperature_stale: bool,
@@ -568,6 +571,8 @@ impl ScopeApp {
             power: None,
             cc1: None,
             cc2: None,
+            dp: None,
+            dm: None,
             temperature_c: None,
             temperature_stale: false,
             status: status.into(),
@@ -707,13 +712,17 @@ impl ScopeApp {
                         let power = Metric::SignedPower.value(&measurement);
                         let cc1 = Metric::Cc1.value(&measurement);
                         let cc2 = Metric::Cc2.value(&measurement);
+                        let dp = Metric::DPlus.value(&measurement);
+                        let dm = Metric::DMinus.value(&measurement);
                         self.insert_measurement(measurement);
-                        if let Some(reading) = self.meter.push(rate, voltage, current, power, cc1, cc2) {
+                        if let Some(reading) = self.meter.push(rate, voltage, current, power, cc1, cc2, dp, dm) {
                             self.voltage = Some(reading.voltage);
                             self.current = Some(reading.current);
                             self.power = Some(reading.power);
                             self.cc1 = Some(reading.cc1);
                             self.cc2 = Some(reading.cc2);
+                            self.dp = Some(reading.dp);
+                            self.dm = Some(reading.dm);
                         }
                     }
                     if self.host_time_origin_utc.is_none()
@@ -838,6 +847,8 @@ impl ScopeApp {
         self.power = None;
         self.cc1 = None;
         self.cc2 = None;
+        self.dp = None;
+        self.dm = None;
         self.temperature_c = None;
         self.temperature_stale = false;
         if self.disconnected_at.is_none() && !self.samples.is_empty() {
@@ -864,6 +875,8 @@ impl ScopeApp {
         self.power = None;
         self.cc1 = None;
         self.cc2 = None;
+        self.dp = None;
+        self.dm = None;
         self.accumulator.reset();
         self.meter.reset();
         self.status = if self.streaming {
@@ -1715,27 +1728,90 @@ impl ScopeApp {
     }
 
     fn readings(&self, ui: &mut egui::Ui) {
-        egui::Frame::new()
-            .fill(Color32::BLACK)
-            .inner_margin(METER_BOX_MARGIN)
-            .corner_radius(4.0)
-            .show(ui, |ui| {
-                reading(ui, self.voltage, "V", VOLTAGE_COLOR);
-                ui.add_space(12.0);
-                reading(ui, self.current, "A", CURRENT_COLOR);
-                ui.add_space(12.0);
-                reading(ui, self.power, "W", POWER_COLOR);
-                ui.add_space(10.0);
-                ui.separator();
-                ui.add_space(4.0);
-                status_strip(
-                    ui,
-                    self.temperature_c,
-                    self.temperature_stale,
-                    self.pd.logger.revision(),
-                    self.pd.logger.source_max_power_w(),
-                );
-            });
+        let width = ui.available_width();
+        let height = METER_BAR_HEIGHT * 3.0 + METER_BAR_GAP * 2.0 + METER_FOOTER_HEIGHT;
+        let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+        let painter = ui.painter().clone();
+        painter.rect_filled(rect, 4.0, Color32::BLACK);
+
+        let mut top = rect.top();
+        paint_meter_bar(
+            &painter,
+            egui::Rect::from_min_size(egui::pos2(rect.left(), top), egui::vec2(rect.width(), METER_BAR_HEIGHT)),
+            "VBUS",
+            &format_meter_value(self.voltage),
+            "V",
+            VOLTAGE_COLOR,
+        );
+        top += METER_BAR_HEIGHT + METER_BAR_GAP;
+        let current_bar =
+            egui::Rect::from_min_size(egui::pos2(rect.left(), top), egui::vec2(rect.width(), METER_BAR_HEIGHT));
+        paint_meter_bar(
+            &painter,
+            current_bar,
+            "IBUS",
+            &format_meter_value(self.current),
+            "A",
+            CURRENT_COLOR,
+        );
+        if let Some(up) = current_flows_up(self.current) {
+            paint_flow_arrow(
+                &painter,
+                egui::pos2(current_bar.right() - 18.0, current_bar.top() + 14.0),
+                up,
+            );
+        }
+        top += METER_BAR_HEIGHT + METER_BAR_GAP;
+        let power_bar =
+            egui::Rect::from_min_size(egui::pos2(rect.left(), top), egui::vec2(rect.width(), METER_BAR_HEIGHT));
+        paint_meter_bar(
+            &painter,
+            power_bar,
+            "PWR",
+            &format_meter_value(self.power),
+            "W",
+            POWER_COLOR,
+        );
+        let temperature_color = if self.temperature_stale {
+            TEMPERATURE_STALE_COLOR
+        } else {
+            Color32::WHITE
+        };
+        paint_meter_temperature(
+            &painter,
+            power_bar,
+            &format_temperature(self.temperature_c),
+            temperature_color,
+        );
+        if self.temperature_stale {
+            let hover = egui::Rect::from_min_size(
+                egui::pos2(power_bar.right() - 72.0, power_bar.top()),
+                egui::vec2(72.0, 18.0),
+            );
+            ui.interact(hover, ui.id().with("stale_temperature"), egui::Sense::hover())
+                .on_hover_text("Last valid temperature. The meter sent an empty reading.");
+        }
+
+        let footer = egui::Rect::from_min_max(
+            egui::pos2(rect.left(), power_bar.bottom() + METER_BAR_GAP),
+            rect.right_bottom(),
+        );
+        let cc1 = self
+            .cc1
+            .or_else(|| self.pd.status.map(|status| status.cc1.get::<volt>()));
+        let cc2 = self
+            .cc2
+            .or_else(|| self.pd.status.map(|status| status.cc2.get::<volt>()));
+        paint_meter_footer(
+            &painter,
+            footer,
+            &meter_protocol_line(self.pd.logger.revision(), self.pd.logger.source_max_power_w()),
+            &meter_contract_line(self.pd.contract.request()),
+            self.dp,
+            self.dm,
+            cc1,
+            cc2,
+        );
     }
 
     fn scope(&mut self, ui: &mut egui::Ui) {
@@ -2093,23 +2169,19 @@ impl ScopeApp {
     }
 }
 
-fn reading(ui: &mut egui::Ui, value: Option<f64>, unit: &str, color: Color32) {
-    ui.add(
-        egui::Label::new(meter_text(format_measurement(value, unit), METER_VALUE_FONT_SIZE).color(color))
-            .wrap_mode(egui::TextWrapMode::Extend),
-    );
+/// Three decimals, with room for a sign and three digits before the point.
+fn format_meter_value(value: Option<f64>) -> String {
+    match value {
+        Some(value) if value.is_finite() => format!("{value:8.3}"),
+        _ => "—".to_string(),
+    }
 }
 
-/// Sign, two integer digits, and six decimal places, so the points line up.
-fn format_measurement(value: Option<f64>, unit: &str) -> String {
-    let number = match value {
-        Some(value) if value.is_finite() => {
-            let sign = if value.is_sign_negative() { '-' } else { ' ' };
-            format!("{sign}{abs:9.6}", abs = value.abs())
-        }
-        _ => " ".repeat(10),
-    };
-    format!("{number} {unit}")
+fn format_meter_volts(value: Option<f64>) -> String {
+    match value {
+        Some(value) if value.is_finite() => format!("{value:.3}V"),
+        _ => "—".to_string(),
+    }
 }
 
 fn format_temperature(value: Option<f64>) -> String {
@@ -2140,85 +2212,233 @@ fn protocol_label(revision: Option<PdRevision>) -> &'static str {
     }
 }
 
-fn format_max_power(watts: Option<f64>) -> String {
-    match watts {
-        Some(watts) if watts.is_finite() => format!("{watts:.0}W"),
-        _ => "-".to_string(),
+/// Left edge of the reading. One sign column may sit under the field name; the digits start after it.
+fn meter_value_origin_x(bar_left: f32) -> f32 {
+    let label_span = 4.0 * SPACE_MONO_ADVANCE_EM * METER_LABEL_FONT_SIZE;
+    let sign_width = SPACE_MONO_ADVANCE_EM * METER_VALUE_FONT_SIZE;
+    bar_left + 8.0 + label_span - sign_width
+}
+
+fn meter_font(size: f32, bold: bool) -> egui::FontId {
+    let family = if bold { "Space Mono Bold" } else { "Space Mono" };
+    egui::FontId::new(size, egui::FontFamily::Name(family.into()))
+}
+
+fn paint_meter_bar(painter: &egui::Painter, rect: egui::Rect, label: &str, value: &str, unit: &str, fill: Color32) {
+    painter.rect_filled(rect, 0.0, fill);
+    painter.text(
+        egui::pos2(rect.left() + 8.0, rect.top() + 3.0),
+        egui::Align2::LEFT_TOP,
+        label,
+        meter_font(METER_LABEL_FONT_SIZE, false),
+        Color32::WHITE,
+    );
+    let label_bottom = rect.top() + 3.0 + METER_LABEL_FONT_SIZE;
+    painter.text(
+        egui::pos2(meter_value_origin_x(rect.left()), (label_bottom + rect.bottom()) * 0.5),
+        egui::Align2::LEFT_CENTER,
+        value,
+        meter_font(METER_VALUE_FONT_SIZE, true),
+        Color32::WHITE,
+    );
+    painter.text(
+        egui::pos2(rect.right() - 8.0, rect.bottom() - 6.0),
+        egui::Align2::RIGHT_BOTTOM,
+        unit,
+        meter_font(14.0, false),
+        Color32::WHITE,
+    );
+}
+
+fn paint_meter_temperature(painter: &egui::Painter, bar: egui::Rect, text: &str, color: Color32) {
+    let origin = egui::pos2(bar.right() - 58.0, bar.top() + 5.0);
+    let bulb = egui::pos2(origin.x + 3.0, origin.y + 11.0);
+    painter.line_segment(
+        [egui::pos2(origin.x + 3.0, origin.y), bulb],
+        egui::Stroke::new(1.5, color),
+    );
+    painter.circle_filled(bulb, 2.2, color);
+    painter.text(
+        egui::pos2(origin.x + 10.0, origin.y + 6.0),
+        egui::Align2::LEFT_CENTER,
+        text,
+        meter_font(12.0, false),
+        color,
+    );
+}
+
+fn paint_flow_arrow(painter: &egui::Painter, center: egui::Pos2, up: bool) {
+    let half = 5.0;
+    let height = 8.0;
+    let tip_y = if up {
+        center.y - height * 0.5
+    } else {
+        center.y + height * 0.5
+    };
+    let base_y = if up {
+        center.y + height * 0.5
+    } else {
+        center.y - height * 0.5
+    };
+    painter.add(egui::Shape::convex_polygon(
+        vec![
+            egui::pos2(center.x - half, base_y),
+            egui::pos2(center.x + half, base_y),
+            egui::pos2(center.x, tip_y),
+        ],
+        Color32::WHITE,
+        egui::Stroke::NONE,
+    ));
+}
+
+fn current_flows_up(current: Option<f64>) -> Option<bool> {
+    match current {
+        Some(value) if value.is_finite() && value > 0.0 => Some(true),
+        Some(value) if value.is_finite() && value < 0.0 => Some(false),
+        _ => None,
     }
 }
 
-fn status_strip(
-    ui: &mut egui::Ui,
-    temperature_c: Option<f64>,
-    temperature_stale: bool,
-    revision: Option<PdRevision>,
-    max_power_w: Option<f64>,
+fn paint_meter_footer(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    protocol: &str,
+    contract: &str,
+    dp: Option<f64>,
+    dm: Option<f64>,
+    cc1: Option<f64>,
+    cc2: Option<f64>,
 ) {
-    let (rect, _) = ui.allocate_exact_size(
-        egui::vec2(ui.available_width(), STATUS_FONT_SIZE + 3.0),
-        egui::Sense::hover(),
+    let left = rect.left() + 8.0;
+    painter.text(
+        egui::pos2(left, rect.top() + 4.0),
+        egui::Align2::LEFT_TOP,
+        "Protocol",
+        meter_font(METER_LABEL_FONT_SIZE, false),
+        Color32::from_rgb(170, 170, 170),
     );
-    let font = egui::FontId::new(STATUS_FONT_SIZE, egui::FontFamily::Name("Space Mono".into()));
-    let text_y = rect.center().y;
-    let text_color = if temperature_stale {
-        TEMPERATURE_STALE_COLOR
-    } else {
-        Color32::LIGHT_GRAY
-    };
-    let icon_color = if temperature_stale {
-        TEMPERATURE_STALE_COLOR
-    } else {
-        TEMPERATURE_COLOR
-    };
+    painter.text(
+        egui::pos2(left, rect.top() + 18.0),
+        egui::Align2::LEFT_TOP,
+        protocol,
+        meter_font(16.0, true),
+        Color32::WHITE,
+    );
+    painter.text(
+        egui::pos2(left, rect.top() + 42.0),
+        egui::Align2::LEFT_TOP,
+        contract,
+        meter_font(12.0, false),
+        Color32::WHITE,
+    );
 
-    paint_thermometer(ui.painter(), rect, icon_color);
-    let fields = [
-        (rect.left() + 12.0, format_temperature(temperature_c), text_color),
+    let rows = [
+        (format_meter_volts(dp), Some(VOLTAGE_COLOR), None),
+        (format_meter_volts(dm), None, None),
         (
-            rect.left() + rect.width() * 0.46,
-            protocol_label(revision).to_string(),
-            Color32::LIGHT_GRAY,
+            format_meter_volts(cc1),
+            None,
+            Some(("CC1", Color32::from_rgb(240, 196, 32), Color32::BLACK)),
         ),
         (
-            rect.left() + rect.width() * 0.75,
-            format_max_power(max_power_w),
-            Color32::LIGHT_GRAY,
+            format_meter_volts(cc2),
+            None,
+            Some(("CC2", Color32::from_rgb(40, 90, 220), Color32::WHITE)),
         ),
     ];
-    for (x, text, color) in fields {
-        ui.painter().text(
-            egui::pos2(x, text_y),
-            egui::Align2::LEFT_CENTER,
-            text,
-            font.clone(),
-            color,
+    let row_h = 16.0;
+    let mut y = rect.top() + 6.0;
+    for (volts, dot, badge) in rows {
+        let text_right = rect.right() - 6.0;
+        painter.text(
+            egui::pos2(text_right, y + row_h * 0.5),
+            egui::Align2::RIGHT_CENTER,
+            &volts,
+            meter_font(11.0, false),
+            Color32::WHITE,
         );
-    }
-    if temperature_stale {
-        ui.interact(
-            egui::Rect::from_min_size(rect.min, egui::vec2(rect.width() * 0.4, rect.height())),
-            ui.id().with("stale_temperature"),
-            egui::Sense::hover(),
-        )
-        .on_hover_text("Last valid temperature. The meter sent an empty reading.");
+        let volts_width = volts.chars().count() as f32 * SPACE_MONO_ADVANCE_EM * 11.0;
+        let mark_x = text_right - volts_width - 8.0;
+        if let Some(color) = dot {
+            painter.circle_filled(egui::pos2(mark_x, y + row_h * 0.5), 3.5, color);
+        }
+        if let Some((label, fill, ink)) = badge {
+            let badge_w = 28.0;
+            let badge_rect =
+                egui::Rect::from_center_size(egui::pos2(mark_x - 6.0, y + row_h * 0.5), egui::vec2(badge_w, 13.0));
+            painter.rect_filled(badge_rect, 2.0, fill);
+            painter.text(
+                badge_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                label,
+                meter_font(9.0, true),
+                ink,
+            );
+        }
+        y += row_h;
     }
 }
 
-fn paint_thermometer(painter: &egui::Painter, rect: egui::Rect, color: Color32) {
-    let center_x = rect.left() + 4.0;
-    let bulb = egui::pos2(center_x, rect.bottom() - 3.0);
-    painter.line_segment(
-        [egui::pos2(center_x, rect.top() + 1.0), bulb],
-        egui::Stroke::new(2.0, color),
-    );
-    painter.circle_filled(bulb, 3.0, color);
-}
-
-/// Outer width of the left pane: one meter line, the black box, and the panel frame.
+/// Outer width of the left pane: the protocol line, the CC column, and the panel frame.
 fn meter_pane_width() -> f32 {
-    let columns = format_measurement(Some(-99.99999), "W").chars().count() as f32;
-    let text = columns * SPACE_MONO_ADVANCE_EM * METER_VALUE_FONT_SIZE;
-    (text + METER_BOX_MARGIN * 2.0 + SIDE_PANEL_INNER_MARGIN * 2.0 + SIDE_PANEL_SEPARATOR).ceil()
+    let contract = "Pos:8 FIX:28V-5.00A".chars().count() as f32 * SPACE_MONO_ADVANCE_EM * 12.0;
+    let cc = "CC1 3.044V".chars().count() as f32 * SPACE_MONO_ADVANCE_EM * 11.0;
+    let content = contract + 28.0 + cc + 16.0;
+    (content + SIDE_PANEL_INNER_MARGIN * 2.0 + SIDE_PANEL_SEPARATOR).ceil()
+}
+
+fn meter_protocol_line(revision: Option<PdRevision>, watts: Option<f64>) -> String {
+    let revision = revision.map(|revision| protocol_label(Some(revision)));
+    let watts = watts
+        .filter(|watts| watts.is_finite())
+        .map(|watts| format!("{watts:.0}W"));
+    match (revision, watts) {
+        (Some(revision), Some(watts)) => format!("{revision} {watts}"),
+        (Some(revision), None) => revision.to_string(),
+        (None, Some(watts)) => watts,
+        (None, None) => "—".to_string(),
+    }
+}
+
+/// `Pos:8 FIX:28V-5.00A` from the negotiated request, or an em dash when none was seen.
+fn meter_contract_line(request: Option<&str>) -> String {
+    let Some(request) = request else {
+        return "—".to_string();
+    };
+    let Some(position) = request.split("PDO#").nth(1).and_then(|rest| {
+        let digits: String = rest.chars().take_while(|ch| ch.is_ascii_digit()).collect();
+        (!digits.is_empty()).then_some(digits)
+    }) else {
+        return "—".to_string();
+    };
+    let kind = if request.contains("PPS") {
+        "PPS"
+    } else if request.contains("AVS") {
+        "AVS"
+    } else if request.contains("Battery") {
+        "BAT"
+    } else if request.contains("Variable") {
+        "VAR"
+    } else {
+        "FIX"
+    };
+    let volts = first_number_before_unit(request, 'V');
+    let amps = first_number_before_unit(request, 'A');
+    match (volts, amps) {
+        (Some(volts), Some(amps)) => format!("Pos:{position} {kind}:{volts:.0}V-{amps:.2}A"),
+        (Some(volts), None) => format!("Pos:{position} {kind}:{volts:.0}V"),
+        (None, Some(amps)) => format!("Pos:{position} {kind}:{amps:.2}A"),
+        (None, None) => format!("Pos:{position} {kind}"),
+    }
+}
+
+fn first_number_before_unit(text: &str, unit: char) -> Option<f64> {
+    text.match_indices(unit).find_map(|(index, _)| {
+        let start = text[..index]
+            .rfind(|ch: char| !(ch.is_ascii_digit() || ch == '.'))
+            .map_or(0, |found| found + 1);
+        text[start..index].parse().ok()
+    })
 }
 
 fn pane_button(ui: &mut egui::Ui, enabled: bool, label: &str, height: f32) -> egui::Response {
@@ -2230,10 +2450,6 @@ fn pane_button(ui: &mut egui::Ui, enabled: bool, label: &str, height: f32) -> eg
 fn pane_column_width(ui: &egui::Ui) -> f32 {
     let spacing = ui.spacing().item_spacing.x;
     (ui.available_width() - spacing) / 2.0
-}
-
-fn meter_text(text: impl Into<String>, size: f32) -> RichText {
-    RichText::new(text).font(egui::FontId::new(size, egui::FontFamily::Name("Space Mono".into())))
 }
 
 /// How many samples make one meter update. The display refreshes twice a second:
@@ -2251,6 +2467,8 @@ struct MeterAverage {
     power: f64,
     cc1: f64,
     cc2: f64,
+    dp: f64,
+    dm: f64,
 }
 
 #[derive(Debug, PartialEq)]
@@ -2260,6 +2478,8 @@ struct MeterReading {
     power: f64,
     cc1: f64,
     cc2: f64,
+    dp: f64,
+    dm: f64,
 }
 
 impl MeterAverage {
@@ -2276,6 +2496,8 @@ impl MeterAverage {
         power: f64,
         cc1: f64,
         cc2: f64,
+        dp: f64,
+        dm: f64,
     ) -> Option<MeterReading> {
         if self.rate != Some(rate) {
             self.rate = Some(rate);
@@ -2285,12 +2507,16 @@ impl MeterAverage {
             self.power = 0.0;
             self.cc1 = 0.0;
             self.cc2 = 0.0;
+            self.dp = 0.0;
+            self.dm = 0.0;
         }
         self.voltage += voltage;
         self.current += current;
         self.power += power;
         self.cc1 += cc1;
         self.cc2 += cc2;
+        self.dp += dp;
+        self.dm += dm;
         self.count += 1;
         if self.count < samples_per_meter_update(rate) {
             return None;
@@ -2302,6 +2528,8 @@ impl MeterAverage {
             power: self.power / count,
             cc1: self.cc1 / count,
             cc2: self.cc2 / count,
+            dp: self.dp / count,
+            dm: self.dm / count,
         };
         self.count = 0;
         self.voltage = 0.0;
@@ -2309,6 +2537,8 @@ impl MeterAverage {
         self.power = 0.0;
         self.cc1 = 0.0;
         self.cc2 = 0.0;
+        self.dp = 0.0;
+        self.dm = 0.0;
         Some(averaged)
     }
 }
@@ -3771,19 +4001,21 @@ fn rate_label(rate: GraphSampleRate) -> &'static str {
 mod tests {
     use super::{
         AXIS_THICKNESS, CENTRAL_PANEL_MARGIN, EVENT_LANE_GAP, EVENT_LANE_HEIGHT, EVENT_TOOLBAR_HEIGHT, GraphSampleRate,
-        INVALID_TEMPERATURE_C, MAX_PIXELS_PER_SECOND, MAX_SAMPLES, MIN_PIXELS_PER_SECOND, MIN_VOLTAGE_SPAN, MIN_Y_SPAN,
-        MeterAverage, OVERVIEW_HEIGHT, OVERVIEW_LARGE_GAP_SECS, PIXELS_PER_SECOND, STRIP_GAP_BETWEEN, STRIP_HEIGHT,
-        TimelineCategory, TimelineMarkerSpec, Y_MARGIN_FRACTION, accept_temperature, axis_fraction_digits,
-        buffer_fraction, buffer_meter_label, centered_view_end, clamped_cursor, clamped_view_end, clock_grid_steps,
-        crosses_dataset_break, cursor_label_on_left, cursor_value, dataset_ranges, explorer_viewport_size,
-        fitted_cursor_font_size, format_axis_time, format_engineering_tick, format_event_time, format_max_power,
-        format_measurement, format_temperature, host_time_grid_marks, host_time_utc, identity_label,
-        initial_window_size, large_gap_breaks, layer_covers_plots, meter_pane_width, minimum_pixels_for_span,
-        minimum_window_size, overview_centered_view_end, overview_dragged_view_end, overview_map_from_segments,
-        panned_view_end, pd_timeline_marker, pd_timeline_time, pointer_blocks_plots, protocol_label,
-        samples_per_meter_update, scaled_y_range, series, split_series, stored_elapsed_us, time_at_pointer,
-        timeline_origin_utc, timeline_shift_after_gap, trim_to_max_samples, usb_vendor_name, visible_sample_range,
-        wall_gap_us, zoomed_pixels_per_second, zoomed_view_end_at_pointer,
+        INVALID_TEMPERATURE_C, MAX_PIXELS_PER_SECOND, MAX_SAMPLES, METER_LABEL_FONT_SIZE, METER_VALUE_FONT_SIZE,
+        MIN_PIXELS_PER_SECOND, MIN_VOLTAGE_SPAN, MIN_Y_SPAN, MeterAverage, OVERVIEW_HEIGHT, OVERVIEW_LARGE_GAP_SECS,
+        PIXELS_PER_SECOND, SPACE_MONO_ADVANCE_EM, STRIP_GAP_BETWEEN, STRIP_HEIGHT, TimelineCategory,
+        TimelineMarkerSpec, Y_MARGIN_FRACTION, accept_temperature, axis_fraction_digits, buffer_fraction,
+        buffer_meter_label, centered_view_end, clamped_cursor, clamped_view_end, clock_grid_steps,
+        crosses_dataset_break, current_flows_up, cursor_label_on_left, cursor_value, dataset_ranges,
+        explorer_viewport_size, fitted_cursor_font_size, format_axis_time, format_engineering_tick, format_event_time,
+        format_meter_value, format_temperature, host_time_grid_marks, host_time_utc, identity_label,
+        initial_window_size, large_gap_breaks, layer_covers_plots, meter_contract_line, meter_pane_width,
+        meter_protocol_line, meter_value_origin_x, minimum_pixels_for_span, minimum_window_size,
+        overview_centered_view_end, overview_dragged_view_end, overview_map_from_segments, panned_view_end,
+        pd_timeline_marker, pd_timeline_time, pointer_blocks_plots, protocol_label, samples_per_meter_update,
+        scaled_y_range, series, split_series, stored_elapsed_us, time_at_pointer, timeline_origin_utc,
+        timeline_shift_after_gap, trim_to_max_samples, usb_vendor_name, visible_sample_range, wall_gap_us,
+        zoomed_pixels_per_second, zoomed_view_end_at_pointer,
     };
     use km003c_lib::MeasurementSample;
     use km003c_lib::Metric;
@@ -3803,20 +4035,48 @@ mod tests {
     }
 
     #[test]
-    fn meter_decimals_share_one_column() {
-        let samples = [
-            (Some(19.714), "V", " 19.714000 V"),
-            (Some(-3.149), "A", "- 3.149000 A"),
-            (Some(0.00123), "W", "  0.001230 W"),
-            (Some(-62.074), "W", "-62.074000 W"),
-            (None, "V", "           V"),
+    fn meter_shows_three_decimals_and_the_negotiated_position() {
+        let aligned = [
+            format_meter_value(Some(28.01234)),
+            format_meter_value(Some(5.12)),
+            format_meter_value(Some(143.436)),
+            format_meter_value(Some(-5.1)),
+            format_meter_value(Some(-143.436)),
         ];
-        for (value, unit, expected) in samples {
-            let text = format_measurement(value, unit);
-            assert_eq!(text, expected);
-            assert_eq!(text.find('.'), expected.find('.'));
-            assert_eq!(text.chars().count(), 12);
-        }
+        assert_eq!(aligned[0], "  28.012");
+        assert_eq!(aligned[1], "   5.120");
+        assert_eq!(aligned[2], " 143.436");
+        assert_eq!(aligned[3], "  -5.100");
+        assert_eq!(aligned[4], "-143.436");
+        let point = aligned[0].find('.').unwrap();
+        assert!(aligned.iter().all(|text| text.find('.') == Some(point) && point == 4));
+        assert_eq!(format_meter_value(None), "—");
+        let label_right = 8.0 + 4.0 * SPACE_MONO_ADVANCE_EM * METER_LABEL_FONT_SIZE;
+        let sign_width = SPACE_MONO_ADVANCE_EM * METER_VALUE_FONT_SIZE;
+        let origin = meter_value_origin_x(0.0);
+        assert!((origin + sign_width - label_right).abs() < 0.01);
+        assert!(origin < label_right);
+        assert_eq!(
+            meter_protocol_line(Some(PdRevision::Revision3), Some(140.0)),
+            "PD3.0 140W"
+        );
+        assert_eq!(meter_protocol_line(None, None), "—");
+        assert_eq!(
+            meter_contract_line(Some("PDO#8 (Fixed 28V @ 5.0A (140W)) @ 5.0A")),
+            "Pos:8 FIX:28V-5.00A"
+        );
+        assert_eq!(
+            meter_contract_line(Some("Requesting PPS PDO#4 @ 15.00V / 3.00A")),
+            "Pos:4 PPS:15V-3.00A"
+        );
+        assert_eq!(
+            meter_contract_line(Some("EPR Fixed PDO#8 (28.0V) @ 5.00A (Max 5.00A)")),
+            "Pos:8 FIX:28V-5.00A"
+        );
+        assert_eq!(meter_contract_line(None), "—");
+        assert_eq!(current_flows_up(Some(1.0)), Some(true));
+        assert_eq!(current_flows_up(Some(-0.2)), Some(false));
+        assert_eq!(current_flows_up(Some(0.0)), None);
     }
 
     #[test]
@@ -3834,9 +4094,9 @@ mod tests {
         assert_eq!(accept_temperature(Some(30.6), f64::NAN), (Some(30.6), true));
         assert_eq!(protocol_label(Some(PdRevision::Revision3)), "PD3.0");
         assert_eq!(protocol_label(None), "-");
-        assert_eq!(format_max_power(Some(20.0)), "20W");
-        assert_eq!(format_max_power(Some(523.0)), "523W");
-        assert_eq!(format_max_power(None), "-");
+        assert_eq!(meter_protocol_line(None, Some(20.0)), "20W");
+        assert_eq!(meter_protocol_line(None, Some(523.0)), "523W");
+        assert_eq!(meter_protocol_line(None, None), "—");
         assert_eq!(usb_vendor_name(0x413c), Some("Dell Computer Corp."));
         assert_eq!(usb_vendor_name(0x0000), None);
         assert_eq!(
@@ -3949,7 +4209,11 @@ mod tests {
         assert_eq!(samples_per_meter_update(GraphSampleRate::Sps1000), 500);
 
         let mut meter = MeterAverage::default();
-        assert!(meter.push(GraphSampleRate::Sps2, 1.0, 2.0, 3.0, 4.0, 5.0).is_some());
+        assert!(
+            meter
+                .push(GraphSampleRate::Sps2, 1.0, 2.0, 3.0, 4.0, 5.0, 0.6, 0.1)
+                .is_some()
+        );
 
         let mut meter = MeterAverage::default();
         for sample in 0..4 {
@@ -3962,16 +4226,24 @@ mod tests {
                         0.0,
                         f64::from(sample) * 2.0,
                         f64::from(sample) * 3.0,
+                        0.0,
+                        0.0,
                     )
                     .is_none()
             );
         }
-        let reading = meter.push(GraphSampleRate::Sps10, 4.0, 0.0, 0.0, 8.0, 12.0).unwrap();
+        let reading = meter
+            .push(GraphSampleRate::Sps10, 4.0, 0.0, 0.0, 8.0, 12.0, 0.2, 0.4)
+            .unwrap();
         assert!((reading.voltage - 2.0).abs() < 1e-9);
         assert!((reading.cc1 - 4.0).abs() < 1e-9);
         assert!((reading.cc2 - 6.0).abs() < 1e-9);
 
-        assert!(meter.push(GraphSampleRate::Sps50, 10.0, 0.0, 0.0, 0.0, 0.0).is_none());
+        assert!(
+            meter
+                .push(GraphSampleRate::Sps50, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+                .is_none()
+        );
     }
 
     #[test]
