@@ -13,6 +13,10 @@ publish = false
 name = "offline-log"
 path = "src/bin/offline_log.rs"
 
+[[bin]]
+name = "firmware-update"
+path = "src/bin/firmware_update.rs"
+
 [dependencies]
 km003c-lib = { workspace = true, features = ["usbpd"] }
 tokio = { workspace = true, features = ["full"] }
@@ -21,3 +25,4 @@ hex = "0.4"
 serde_json = "1.0.149"
 tracing-subscriber.workspace = true
 tracing.workspace = true
+indicatif = "0.18"

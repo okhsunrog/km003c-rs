@@ -369,6 +369,9 @@ pub enum DeviceSelector {
     /// The address changes across a USB reset, so prefer
     /// [`DeviceSelector::SerialNumber`] together with `skip_reset()`.
     BusAddress { bus_id: String, device_address: u8 },
+    /// Match a physical USB port across a device reboot or DFU transition.
+    /// Available on macOS, Linux and Windows.
+    PortPath { bus_id: String, port_chain: Vec<u8> },
 }
 
 impl DeviceSelector {
@@ -380,9 +383,13 @@ impl DeviceSelector {
             Self::BusAddress { bus_id, device_address } => {
                 device.bus_id() == bus_id && device.device_address() == *device_address
             }
+            #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
+            Self::PortPath { bus_id, port_chain } => device.bus_id() == bus_id && device.port_chain() == port_chain,
             // Android and WebUSB expose no bus topology.
             #[cfg(any(target_os = "android", target_arch = "wasm32"))]
             Self::BusAddress { .. } => false,
+            #[cfg(any(target_os = "android", target_arch = "wasm32"))]
+            Self::PortPath { .. } => false,
         }
     }
 
@@ -391,6 +398,7 @@ impl DeviceSelector {
             Self::First => "the first attached KM003C".to_string(),
             Self::SerialNumber(serial) => format!("KM003C with serial {serial}"),
             Self::BusAddress { bus_id, device_address } => format!("KM003C at bus {bus_id} address {device_address}"),
+            Self::PortPath { bus_id, port_chain } => format!("KM003C at bus {bus_id} port {port_chain:?}"),
         }
     }
 }
@@ -518,6 +526,19 @@ pub struct KM003C {
 }
 
 impl KM003C {
+    /// Open the vendor interface without resetting or initializing the device.
+    ///
+    /// Firmware DFU mode does not support the normal application initialization
+    /// sequence. Use this entry point only with command-specific maintenance APIs.
+    pub async fn open_maintenance(config: DeviceConfig) -> Result<Self, KMError> {
+        if !config.is_vendor() {
+            return Err(KMError::Protocol(
+                "firmware maintenance requires the vendor interface".into(),
+            ));
+        }
+        Self::connect(config.skip_reset()).await
+    }
+
     /// Connect to device with the given configuration
     ///
     /// The config determines the connection mode:
@@ -575,7 +596,7 @@ impl KM003C {
         // unit. Addresses are not stable across a reset, so fall back to the
         // serial number of the device that was just reset.
         let reopen_selector = match &config.selector {
-            DeviceSelector::SerialNumber(_) => config.selector.clone(),
+            DeviceSelector::SerialNumber(_) | DeviceSelector::PortPath { .. } => config.selector.clone(),
             _ => device_info
                 .serial_number()
                 .map(|serial| DeviceSelector::SerialNumber(serial.to_string()))

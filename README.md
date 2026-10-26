@@ -58,6 +58,7 @@ Core library providing:
 - ADC and AdcQueue data parsing
 - CRC-validated read-only device settings
 - Offline recording catalog and encrypted log downloads
+- Verification of official `.mencrypt` firmware packages and a DFU update API
 - USB PD event parsing
 - Optional stateful USB PD semantic decoding through the `usbpd` feature,
   with the PD message log and the negotiated power contract
@@ -75,6 +76,7 @@ Command-line tools:
 - `adc_queue_simple` - AdcQueue streaming demo
 - `test_usbpd` - USB PD negotiation capture
 - `offline-log` - List and export stored recordings as CSV or JSON
+- `firmware-update` - Verify and install an official KM003C firmware package
 
 ### `km003c-egui`
 
@@ -158,6 +160,22 @@ driver. An optional rule automatically releases it; see
 and NixOS installation.
 
 ### Usage Examples
+
+#### Firmware Update
+
+Download a KM003C `.mencrypt` file from [ChargerLAB's support page](https://www.power-z.com/blogs/technical-support/power-z-km003c-km002c-technical-support), then run:
+
+```bash
+cargo run -p km003c-cli --bin firmware-update -- --verify-only /path/to/KM003C_V2.0.7.mencrypt
+cargo run -p km003c-cli --bin firmware-update -- --check /path/to/KM003C_V2.0.7.mencrypt
+cargo run -p km003c-cli --bin firmware-update -- /path/to/KM003C_V2.0.7.mencrypt
+```
+
+The command checks the package CRC, connected model and current version, asks
+for confirmation, then shows erase, write and verify progress. Add
+`--serial SERIAL` if more than one KM003C is connected. See
+[the protocol notes](docs/firmware-update.md) for the reverse-engineering
+evidence and current validation status.
 
 #### ADC Reading
 

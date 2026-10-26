@@ -4,6 +4,7 @@ pub mod auth;
 pub mod constants;
 pub mod device;
 pub mod error;
+pub mod firmware;
 pub mod measurement;
 pub mod message;
 pub mod offline;
@@ -38,6 +39,10 @@ pub use adcqueue::{
 };
 pub use auth::{AuthCredential, DeviceInfo, HardwareId, StreamingAuthResult};
 pub use device::{ConnectionMode, DeviceConfig, DeviceSelector, DeviceState, KM003C, TransferType};
+pub use firmware::{
+    FirmwareImage, FirmwareMetadata, FirmwareUpdateProgress, FirmwareUpdateStage, FirmwareUsbDevice, FirmwareUsbMode,
+    find_firmware_device,
+};
 pub use measurement::{MeasurementAccumulator, MeasurementSample, Metric};
 pub use message::{Packet, PayloadData};
 pub use offline::{LogMetadata, LogMetadataResponse, OfflineLog, OfflineLogSample, OfflineLogSampleRaw};
