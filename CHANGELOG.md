@@ -37,12 +37,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- One clap-based `km003c` executable replaces the six CLI binaries, with
+  `info`, `adc`, `logs`, `pd`, and `debug memory` commands and shared USB,
+  device-selection, and logging options. Existing scripts must use the new
+  subcommands. `logs download` requires `--index` or `--latest`; `--latest`
+  selects the highest numbered `A<number>.d` filename. CSV export now uses
+  the shared 23-column recording schema, Parquet export is available, and
+  the output extension selects the format unless `--format` is supplied.
 - The Python extension is built against the stable ABI (`abi3-py38`). One wheel
   per platform now covers every CPython from 3.8 up, and a new interpreter
   release needs no rebuild.
 
 ### Fixed
 
+- The PD Status contract keeps a fixed two-line row inside the sidebar column.
+  Longer negotiation text is elided and shown on hover, so the sections below
+  no longer jump and the label does not widen the panel.
+- Offline recordings whose catalog charge and energy lead the last sample by
+  at most one logging interval now download. Firmware 2.0.6 writes those header
+  totals when recording stops, and the previous exact comparison rejected the
+  recording.
 - The source distribution now contains the two license files it names in its
   metadata. PyPI rejects an sdist whose `License-File` entries are missing from
   the archive, which is why 0.4.0 reached PyPI as wheels only.

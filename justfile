@@ -42,15 +42,15 @@ ci: fmt-check test lint doc package python-test
 
 # Read one ADC sample from a connected KM003C.
 hardware-adc:
-    cargo run -p km003c-cli --bin adc_simple
+    cargo run -p km003c-cli -- adc read
 
 # Stream from a connected KM003C at RATE SPS for DURATION seconds.
 hardware-stream rate="50" duration="10":
-    cargo run -p km003c-cli --bin adc_queue_simple -- --rate {{rate}} --duration {{duration}}
+    cargo run -p km003c-cli -- adc stream --rate {{rate}} --duration {{duration}}
 
 # Capture USB Power Delivery traffic from a connected KM003C.
 hardware-pd:
-    cargo run -p km003c-cli --bin test_usbpd
+    cargo run -p km003c-cli -- pd capture
 
 # Start the graphical monitor.
 gui:
