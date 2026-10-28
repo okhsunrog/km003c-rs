@@ -276,6 +276,16 @@ region was unchanged. Interrupted-update recovery remains untested. See
 
 #### GUI Application
 
+On NixOS, enter the development shell first. It provides the Wayland, X11 and
+Vulkan libraries needed by the desktop GUI, including runtime library paths:
+
+```bash
+nix develop
+cargo run --release --bin km003c-egui
+```
+
+The Rust version comes from `rust-toolchain.toml` through rustup.
+
 Browser: open the [hosted monitor](https://okhsunrog.github.io/km003c-rs/) and
 click **Start**, then select the KM003C and confirm the browser dialog. To run
 locally, install Trunk 0.21.14 and run `trunk serve --release` from the repository
