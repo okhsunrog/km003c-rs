@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `InstalledFirmwareInfo::validate_application()` checks saved application
+  bytes against their vectors, embedded identity and original CRC, normalizing
+  the bootloader's committed size/CRC fields during CRC calculation.
 - A public firmware mirror in `km003c-resources`, with 21 validated manufacturer
   packages, release notes and unique build IDs. Native and browser library users
   can parse the JSON catalog and validate complete package SHA-256/size as well
@@ -72,6 +75,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- MemoryRead follows each confirmation's encryption flag and splits requests at
+  2528 bytes. The inspected 2.0.5 application marks responses plaintext while
+  encrypting complete 2544-byte blocks; bounded requests avoid that mixed path
+  for initialization, offline logs and application backup/readback. Invalid
+  ranges are rejected before USB traffic; no version-based decoding guesses
+  are made.
+- Firmware preparation validates backup vectors, identity and normalized CRC
+  before exposing a backup or entering DFU. Two identically corrupted reads no
+  longer qualify as a verified application backup.
 - The PD Status contract keeps a fixed two-line row inside the sidebar column.
   Longer negotiation text is elided and shown on hover, so the sections below
   no longer jump and the label does not widen the panel.

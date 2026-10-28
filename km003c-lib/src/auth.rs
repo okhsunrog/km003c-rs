@@ -510,6 +510,8 @@ fn aes_ecb_encrypt(plaintext: &[u8; 32], key: &[u8; 16]) -> [u8; 32] {
 ///
 /// The response payload is AES-encrypted with MEMORY_READ_KEY.
 /// Useful for protocol research and manual memory reads.
+/// Only pass ciphertext here. Live callers should use [`crate::KM003C::read_memory_block`],
+/// which checks each response's encoding and avoids firmware 2.0.5's mixed large replies.
 pub fn decrypt_memory_read_response(ciphertext: &[u8]) -> Option<Vec<u8>> {
     if ciphertext.is_empty() || !ciphertext.len().is_multiple_of(AES_BLOCK_SIZE) {
         return None;

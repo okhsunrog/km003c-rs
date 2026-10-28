@@ -80,7 +80,7 @@ pub enum PacketType {
     DisablePdMonitor = 0x11, // Disable PD sniffer/capture
 
     // Authentication commands
-    MemoryRead = 0x44,    // 68 - Read device memory (encrypted)
+    MemoryRead = 0x44,    // 68 - Read memory; response header flags its encoding
     StreamingAuth = 0x4C, // 76 - Authenticate for AdcQueue streaming
 
     // Error responses

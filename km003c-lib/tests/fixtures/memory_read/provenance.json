@@ -1,0 +1,38 @@
+[
+  {
+    "version": "1.9.9",
+    "image_sha256": "0787c2284d95db50adccdd887dbe137fe0d8e68b056d099d5f848729a6c9358b",
+    "package_sha256": "cdbdd032c49f074510dcb8f746daf227e77ca4c40e63df7161f18a879f4aecdc",
+    "image_size": 453612,
+    "load_base": "0x4000",
+    "mode": "Thumb",
+    "package_file": "KM003C_V1.9.9.mencrypt"
+  },
+  {
+    "version": "2.0.5",
+    "image_sha256": "627b60ea653771e431c532c161ab3bb95a3f0f549daeeba98fe60635ad3cb141",
+    "package_sha256": "b3f6705b14bb959576905b2f4c72a79556c8e1944b2232b60eb6c5900f38bd7b",
+    "image_size": 456424,
+    "load_base": "0x4000",
+    "mode": "Thumb",
+    "package_file": "KM003C_V2.0.5.mencrypt"
+  },
+  {
+    "version": "2.0.6",
+    "image_sha256": "2e2a959aad8cfbda85b88d9f4f1b036bf28bc9d4e0daaa4d3864e51656590aec",
+    "package_sha256": "33e7034cb15c221e6d772389b42b01f37eab55334d04282e4763bb34868a2444",
+    "image_size": 456480,
+    "load_base": "0x4000",
+    "mode": "Thumb",
+    "package_file": "KM003C_V2.0.6.mencrypt"
+  },
+  {
+    "version": "2.0.7",
+    "image_sha256": "1440925005e848ff4d7b17fabb4a015a972b2b4dd519ed7c7a7352f8b236d1bf",
+    "package_sha256": "7a081af887fa8873d9e0cfc9cee9654187ab392f882efed16c1904a184ce8454",
+    "image_size": 456896,
+    "load_base": "0x4000",
+    "mode": "Thumb",
+    "package_file": "KM003C_V2.0.7.mencrypt"
+  }
+]

@@ -255,7 +255,8 @@ Official Windows applications, manuals and source archives are kept as
 including complete historical `orig_app` snapshots.
 
 `check` reads device identity without rebooting or writing flash. `update`
-backs up the current application using two matching reads, switches the same
+backs up the current application using two matching reads and verifies its
+vectors, identity and CRC, then switches the same
 physical USB port into DFU, writes the package, then reboots and checks the
 complete application by reading it back. If already in DFU, application backup
 is unavailable and `--backup` is not required. A failed transfer leaves DFU

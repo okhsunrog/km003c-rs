@@ -17,6 +17,38 @@ pub struct InstalledFirmwareInfo {
 }
 
 impl InstalledFirmwareInfo {
+    /// Validate exact installed application bytes against committed metadata.
+    ///
+    /// Checks vectors, model, embedded identity and CRC. The bootloader patches
+    /// size/CRC at offsets 0x428..0x430 after verifying the original image, so
+    /// those eight bytes are treated as erased when recomputing that CRC.
+    /// Transport padding must be removed before calling this method.
+    pub fn validate_application(&self, data: &[u8]) -> Result<(), KMError> {
+        if !(0x460..=MAX_IMAGE_BYTES).contains(&self.size) || data.len() != self.size {
+            return Err(invalid("application backup has an invalid size"));
+        }
+        super::validate_application_vectors(data)?;
+        let actual = Self::parse(&data[0x420..0x460])?;
+        let model = data[0x430..0x43c].split(|b| *b == 0).next().unwrap_or_default();
+        if actual != *self || model != b"KM003C" {
+            return Err(invalid(
+                "application backup metadata does not match the installed firmware",
+            ));
+        }
+        let mut crc = crc32fast::Hasher::new();
+        crc.update(&data[..super::IMAGE_METADATA_OFFSET]);
+        crc.update(&[0xff; 8]);
+        crc.update(&data[super::IMAGE_METADATA_OFFSET + 8..]);
+        let actual_crc = crc.finalize();
+        if actual_crc != self.crc32 {
+            return Err(invalid(format!(
+                "application backup CRC mismatch: expected {:08X}, got {actual_crc:08X}",
+                self.crc32
+            )));
+        }
+        Ok(())
+    }
+
     fn parse(bytes: &[u8]) -> Result<Self, KMError> {
         let bytes: &[u8; 64] = bytes
             .try_into()
@@ -27,6 +59,12 @@ impl InstalledFirmwareInfo {
         }
         let mut info = DeviceInfo::default();
         info.parse_firmware_info(bytes);
+        if [&info.fw_version, &info.fw_date]
+            .iter()
+            .any(|s| s.is_empty() || !s.is_ascii() || s.len() >= 12)
+        {
+            return Err(invalid("current application metadata has an invalid version or date"));
+        }
         Ok(Self {
             version: info.fw_version,
             date: info.fw_date,
@@ -140,14 +178,12 @@ impl PreparedFirmwareUpdate {
             let first = device.read_memory_block(0x4000, padded).await?;
             report(&mut progress, FirmwareInstallStage::BackingUp, size, size * 2);
             let second = device.read_memory_block(0x4000, padded).await?;
-            if first != second {
-                return Err(invalid("application backup reads disagree; update aborted"));
-            }
+            let data = verified_backup_data(installed, &first, &second)?;
             report(&mut progress, FirmwareInstallStage::BackingUp, size * 2, size * 2);
             Some(FirmwareBackup {
                 device: check.info.clone(),
                 firmware: installed.clone(),
-                data: first[..size].to_vec(),
+                data,
             })
         } else {
             None
@@ -412,6 +448,22 @@ where
     })
 }
 
+fn verified_backup_data(installed: &InstalledFirmwareInfo, first: &[u8], second: &[u8]) -> Result<Vec<u8>, KMError> {
+    if !(0x460..=MAX_IMAGE_BYTES).contains(&installed.size) {
+        return Err(invalid("application backup has an invalid size"));
+    }
+    let padded = installed.size.div_ceil(16) * 16;
+    if first.len() != padded || second.len() != padded {
+        return Err(invalid("application backup reads have an unexpected length"));
+    }
+    if first != second {
+        return Err(invalid("application backup reads disagree; update aborted"));
+    }
+    let data = &first[..installed.size];
+    installed.validate_application(data)?;
+    Ok(data.to_vec())
+}
+
 fn report(
     progress: &mut impl FnMut(FirmwareInstallProgress),
     stage: FirmwareInstallStage,
@@ -432,6 +484,84 @@ fn invalid(message: impl Into<String>) -> KMError {
 mod tests {
     use super::*;
     use std::{cell::RefCell, rc::Rc};
+
+    fn backup_read_fixture() -> (InstalledFirmwareInfo, Vec<u8>) {
+        let image = crate::firmware::tests::image(4156);
+        let mut installed = image.installed_data().unwrap();
+        let info = InstalledFirmwareInfo::parse(&installed[0x420..0x460]).unwrap();
+        assert_ne!(
+            crc32fast::hash(&installed),
+            info.crc32,
+            "committed fields change the raw CRC"
+        );
+        installed.resize(installed.len().div_ceil(16) * 16, 0xa5);
+        (info, installed)
+    }
+
+    #[test]
+    fn backup_validation_restores_uncommitted_crc_fields_and_ignores_transport_padding() {
+        let (info, installed) = backup_read_fixture();
+        let data = verified_backup_data(&info, &installed, &installed).unwrap();
+        assert_eq!(data, installed[..info.size]);
+        assert_eq!(data.len(), info.size);
+        info.validate_application(&data).unwrap();
+    }
+
+    #[test]
+    fn two_identically_corrupted_reads_are_not_a_valid_backup() {
+        let (info, mut bytes) = backup_read_fixture();
+        bytes[0x500] ^= 1;
+        assert!(
+            verified_backup_data(&info, &bytes, &bytes)
+                .unwrap_err()
+                .to_string()
+                .contains("CRC mismatch")
+        );
+    }
+
+    #[test]
+    fn backup_vectors_are_checked_even_when_the_crc_agrees() {
+        let (mut info, mut bytes) = backup_read_fixture();
+        bytes[..4].fill(0);
+        let mut normalized = bytes[..info.size].to_vec();
+        normalized[0x428..0x430].fill(0xff);
+        info.crc32 = crc32fast::hash(&normalized);
+        bytes[0x42c..0x430].copy_from_slice(&info.crc32.to_le_bytes());
+        assert!(
+            verified_backup_data(&info, &bytes, &bytes)
+                .unwrap_err()
+                .to_string()
+                .contains("vectors")
+        );
+    }
+
+    #[test]
+    fn backup_rejects_changed_identity_short_reads_and_disagreement() {
+        let (info, bytes) = backup_read_fixture();
+        for offset in [0x430, 0x43c, 0x448] {
+            let mut changed = bytes.clone();
+            changed[offset] ^= 1;
+            assert!(
+                verified_backup_data(&info, &changed, &changed)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("metadata")
+            );
+        }
+        assert!(verified_backup_data(&info, &bytes[..info.size - 1], &bytes[..info.size - 1]).is_err());
+        let mut changed = bytes.clone();
+        changed[0x500] ^= 1;
+        assert!(
+            verified_backup_data(&info, &bytes, &changed)
+                .unwrap_err()
+                .to_string()
+                .contains("disagree")
+        );
+        let mut invalid = info.clone();
+        invalid.size = usize::MAX;
+        assert!(invalid.validate_application(&bytes).is_err());
+        assert!(verified_backup_data(&invalid, &bytes, &bytes).is_err());
+    }
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn native_frontends_can_use_worker_futures() {

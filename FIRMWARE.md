@@ -14,7 +14,8 @@ parses arguments, formats results/progress and saves bytes to files.
 - `check_firmware_device`: typed USB mode, hardware and installed-firmware
   information without reboot or flash writes.
 - `PreparedFirmwareUpdate::prepare`: pin one device and acquire a verified
-  application backup through two matching reads.
+  application backup through two matching reads, application vectors, embedded
+  identity and normalized image CRC.
 - `PreparedFirmwareUpdate::install`: invoke the frontend's asynchronous backup
   storage callback, switch APP/DFU modes, transfer, restart and compare the full
   installed application. A storage failure aborts before reboot or erase.
@@ -35,6 +36,12 @@ and browser frontends can fetch the same mirror URLs and pass the bytes to
 
 ## Package validation
 
+Application backup validation uses the installed metadata's size, identity and
+CRC. The bootloader changes offsets 0x428..0x430 only after verifying the original
+image, so those eight bytes are treated as 0xff when checking the stored CRC.
+This check runs during preparation, before backup storage, DFU or flash writes;
+two equal responses alone do not establish that a backup is correctly decoded.
+
 `.mencrypt` contains ten Qt big-endian QString fields followed by one QByteArray:
 format labels, model, version, build date, hexadecimal CRC32, plaintext size,
 Chinese release notes and English release notes, followed by encrypted firmware.
@@ -47,6 +54,39 @@ does not. This does not establish a package-format revision.
 application vectors, base address, model/version/date against their embedded
 copies, and erased size/CRC placeholders. The inspected bootloader accepts
 application sizes up to `0x6fffe`. The normal updater always uses base `0x4000`.
+
+## MemoryRead compatibility
+
+The response confirmation's byte 2 bit 0 describes its encoding; the other
+skipped header bits are not the object count or an attribute selector.
+The inspected APP images behave as follows:
+
+| Image | Runtime MemoryRead handler | Flag | Full 2544-byte blocks | Remainder |
+| --- | --- | --- | --- | --- |
+| 1.9.9 (2025.9.22, package SHA256 prefix cdbdd032c49f) | 0x46cac | 1 | AES | AES |
+| 2.0.5 (2026.7.15) | 0x45514 | 0 | AES | Plaintext |
+| 2.0.6 (2026.8.9) | 0x45524 | 1 | AES | AES |
+| 2.0.7 (2026.9.29) | 0x455bc | 1 | AES | AES |
+
+On 2.0.5, the flag does not describe the entire large response. Reading 2544
+bytes yields ciphertext with a plaintext flag; reading 2545 yields 2544
+encrypted bytes followed by a 16-byte padded plaintext remainder. Both always
+decrypting and always trusting flag zero for the whole large reply are wrong.
+
+The library issues requests of at most 0x9e0 (2528) bytes, below the problematic
+0x9f0 boundary, and validates and decodes every confirmation independently.
+The caller receives exactly its requested bytes after each response's padding
+is removed. Request ranges include transport padding in overflow checks, and
+the existing firmware limit of 4,000,000 bytes is preserved for a composed read.
+There is no heuristic based on whether bytes look like readable metadata.
+
+The [replay fixtures](km003c-lib/tests/fixtures/memory_read/README.md) record
+responses from the original Thumb handlers executed in Unicorn, with modeled
+AES/USB services. Unit tests replay 12-byte initialization reads, the unsafe
+2.0.5 boundary reply and composed 8336-byte reads for all four images. Scripted
+transport tests also cover flag changes, id wrap, padding, invalid confirmations
+and transfer failures. These are offline checks; real-device timing and other
+builds/hardware revisions still need validation.
 
 ## Public firmware archive
 
