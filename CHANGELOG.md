@@ -50,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Offline recordings whose catalog charge and energy lead the last sample by
+  at most one logging interval now download. Firmware 2.0.6 writes those header
+  totals when recording stops, and the previous exact comparison rejected the
+  recording.
 - The source distribution now contains the two license files it names in its
   metadata. PyPI rejects an sdist whose `License-File` entries are missing from
   the archive, which is why 0.4.0 reached PyPI as wheels only.
