@@ -50,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The PD Status contract keeps a fixed two-line row inside the sidebar column.
+  Longer negotiation text is elided and shown on hover, so the sections below
+  no longer jump and the label does not widen the panel.
 - Offline recordings whose catalog charge and energy lead the last sample by
   at most one logging interval now download. Firmware 2.0.6 writes those header
   totals when recording stops, and the previous exact comparison rejected the
