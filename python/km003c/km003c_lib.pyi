@@ -130,7 +130,8 @@ class PdStatus:
     def __str__(self) -> str: ...
 
 # One-key dictionary naming the active variant: {"Connect": None},
-# {"Disconnect": None} or {"PdMessage": {"sop": int, "wire_data": list[int]}}.
+# {"Disconnect": None}, {"DeviceStatus": {"code": int, "raw": list[int]}},
+# or {"PdMessage": {"sop": int, "wire_data": list[int]}}.
 PdEventData = dict[str, Any]
 
 class PdEvent:

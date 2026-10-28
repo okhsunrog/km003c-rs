@@ -89,6 +89,8 @@ pub enum SessionCommand {
     },
     /// Change the sample rate (restarts streaming).
     SetSampleRate(GraphSampleRate),
+    /// Start or stop acquisition while retaining the initialized USB session.
+    SetStreaming(bool),
     /// Enable or disable firmware PD trace collection.
     SetPdTraceEnabled(bool),
     /// Fetch the catalog of recordings stored by the device.
@@ -162,6 +164,10 @@ impl Session {
 
     pub fn set_sample_rate(&self, rate: GraphSampleRate) -> Result<(), SessionClosed> {
         self.send(SessionCommand::SetSampleRate(rate))
+    }
+
+    pub fn set_streaming(&self, enabled: bool) -> Result<(), SessionClosed> {
+        self.send(SessionCommand::SetStreaming(enabled))
     }
 
     pub fn set_pd_trace_enabled(&self, enabled: bool) -> Result<(), SessionClosed> {
@@ -389,15 +395,35 @@ async fn stream(
     let mut reconnect_when_present = false;
     let mut terminal_error = None;
     let mut last_samples = Instant::now();
+    let mut acquiring = true;
 
     loop {
         // Check for commands from the UI (non-blocking)
         match cmd_rx.try_recv() {
+            Ok(SessionCommand::SetStreaming(enabled)) => {
+                if enabled != acquiring {
+                    let result = if enabled {
+                        start_streaming(&mut device, current_rate, tx).await
+                    } else {
+                        device.stop_graph_mode().await
+                    };
+                    if let Err(error) = result {
+                        reconnect_when_present = is_device_disconnect(&error);
+                        terminal_error = Some(format!("Could not change acquisition state: {error}"));
+                        break;
+                    }
+                    acquiring = enabled;
+                    last_samples = Instant::now();
+                    if !enabled {
+                        let _ = tx.send(SessionEvent::StreamingStopped);
+                    }
+                }
+            }
             Ok(SessionCommand::SetSampleRate(new_rate)) => {
                 if new_rate != current_rate {
                     info!("Changing sample rate to {:?}", new_rate);
 
-                    if let Err(e) = restart_streaming(&mut device, new_rate, tx).await {
+                    if acquiring && let Err(e) = restart_streaming(&mut device, new_rate, tx).await {
                         error!("Failed to restart streaming: {}", e);
                         reconnect_when_present = is_device_disconnect(&e);
                         terminal_error = Some(format!("Restart failed: {e}"));
@@ -416,13 +442,15 @@ async fn stream(
             }
             Ok(SessionCommand::RequestOfflineCatalog) => {
                 info!("Loading offline recording catalog");
-                if let Err(error) = device.stop_graph_mode().await {
+                if acquiring && let Err(error) = device.stop_graph_mode().await {
                     let _ = tx.send(SessionEvent::OfflineOperationFailed(format!(
                         "Could not pause streaming for offline catalog access: {error}"
                     )));
                     continue;
                 }
-                let _ = tx.send(SessionEvent::StreamingStopped);
+                if acquiring {
+                    let _ = tx.send(SessionEvent::StreamingStopped);
+                }
                 match device.request_log_metadata().await {
                     Ok(catalog) => {
                         let _ = tx.send(SessionEvent::OfflineCatalog(catalog));
@@ -433,7 +461,7 @@ async fn stream(
                         )));
                     }
                 }
-                if let Err(error) = start_streaming(&mut device, current_rate, tx).await {
+                if acquiring && let Err(error) = start_streaming(&mut device, current_rate, tx).await {
                     reconnect_when_present = is_device_disconnect(&error);
                     terminal_error = Some(format!(
                         "Failed to resume streaming after loading offline catalog: {error}"
@@ -448,13 +476,15 @@ async fn stream(
                     samples = metadata.sample_count,
                     "Downloading offline recording"
                 );
-                if let Err(error) = device.stop_graph_mode().await {
+                if acquiring && let Err(error) = device.stop_graph_mode().await {
                     let _ = tx.send(SessionEvent::OfflineOperationFailed(format!(
                         "Could not pause streaming for offline download: {error}"
                     )));
                     continue;
                 }
-                let _ = tx.send(SessionEvent::StreamingStopped);
+                if acquiring {
+                    let _ = tx.send(SessionEvent::StreamingStopped);
+                }
                 match device.download_offline_log(metadata).await {
                     Ok(log) => {
                         let _ = tx.send(SessionEvent::OfflineLogDownloaded(log));
@@ -465,7 +495,7 @@ async fn stream(
                         )));
                     }
                 }
-                if let Err(error) = start_streaming(&mut device, current_rate, tx).await {
+                if acquiring && let Err(error) = start_streaming(&mut device, current_rate, tx).await {
                     reconnect_when_present = is_device_disconnect(&error);
                     terminal_error = Some(format!("Failed to resume streaming after offline download: {error}"));
                     break;
@@ -493,12 +523,13 @@ async fn stream(
         }
 
         // Request the regular streams and the opt-in firmware trace.
-        let mask = streaming_attribute_mask(pd_trace_enabled);
+        let mask = acquisition_attribute_mask(acquiring, pd_trace_enabled);
         match device.request_data(mask).await {
             Ok(packet) => {
                 error_count = 0;
 
-                if let Some(queue_data) = packet.get_adc_queue()
+                if acquiring
+                    && let Some(queue_data) = packet.get_adc_queue()
                     && !queue_data.samples.is_empty()
                 {
                     debug!("Received {} samples", queue_data.samples.len());
@@ -507,7 +538,7 @@ async fn stream(
                         warn!("UI closed, stopping");
                         break;
                     }
-                } else if last_samples.elapsed() >= STALL_TIMEOUT {
+                } else if acquiring && last_samples.elapsed() >= STALL_TIMEOUT {
                     warn!(
                         "No AdcQueue samples for {:.1} s, restarting streaming",
                         last_samples.elapsed().as_secs_f32()
@@ -550,11 +581,15 @@ async fn stream(
         }
 
         // Poll often enough that the device queue never overflows.
-        let delay_ms = match current_rate {
-            GraphSampleRate::Sps2 => 200,  // 5 requests/sec for 2 SPS
-            GraphSampleRate::Sps10 => 50,  // 20 requests/sec for 10 SPS
-            GraphSampleRate::Sps50 => 20,  // 50 requests/sec for 50 SPS
-            GraphSampleRate::Sps1000 => 5, // 200 requests/sec for 1000 SPS
+        let delay_ms = if !acquiring {
+            100
+        } else {
+            match current_rate {
+                GraphSampleRate::Sps2 => 200,  // 5 requests/sec for 2 SPS
+                GraphSampleRate::Sps10 => 50,  // 20 requests/sec for 10 SPS
+                GraphSampleRate::Sps50 => 20,  // 50 requests/sec for 50 SPS
+                GraphSampleRate::Sps1000 => 5, // 200 requests/sec for 1000 SPS
+            }
         };
         crate::runtime::sleep(Duration::from_millis(delay_ms)).await;
     }
@@ -569,8 +604,13 @@ async fn stream(
     }
 }
 
-fn streaming_attribute_mask(pd_trace_enabled: bool) -> AttributeSet {
-    let mask = AttributeSet::single(Attribute::AdcQueue).with(Attribute::PdPacket);
+fn acquisition_attribute_mask(acquiring: bool, pd_trace_enabled: bool) -> AttributeSet {
+    let mask = AttributeSet::single(Attribute::PdPacket);
+    let mask = if acquiring {
+        mask.with(Attribute::AdcQueue)
+    } else {
+        mask
+    };
     if pd_trace_enabled {
         mask.with(Attribute::PdTrace)
     } else {
@@ -605,15 +645,18 @@ mod tests {
 
     #[test]
     fn firmware_trace_is_only_requested_when_enabled() {
-        let disabled = streaming_attribute_mask(false);
+        let disabled = acquisition_attribute_mask(true, false);
         assert!(disabled.contains(Attribute::AdcQueue));
         assert!(disabled.contains(Attribute::PdPacket));
         assert!(!disabled.contains(Attribute::PdTrace));
 
-        let enabled = streaming_attribute_mask(true);
+        let enabled = acquisition_attribute_mask(true, true);
         assert!(enabled.contains(Attribute::AdcQueue));
         assert!(enabled.contains(Attribute::PdPacket));
         assert!(enabled.contains(Attribute::PdTrace));
+        let stopped = acquisition_attribute_mask(false, false);
+        assert!(!stopped.contains(Attribute::AdcQueue));
+        assert!(stopped.contains(Attribute::PdPacket));
     }
 
     #[test]
@@ -662,6 +705,10 @@ mod tests {
             commands.try_recv(),
             Ok(SessionCommand::SetSampleRate(GraphSampleRate::Sps1000))
         ));
+        session.set_streaming(false).unwrap();
+        session.set_streaming(true).unwrap();
+        assert!(matches!(commands.try_recv(), Ok(SessionCommand::SetStreaming(false))));
+        assert!(matches!(commands.try_recv(), Ok(SessionCommand::SetStreaming(true))));
         drop(commands);
         assert_eq!(session.disconnect(), Err(SessionClosed));
     }

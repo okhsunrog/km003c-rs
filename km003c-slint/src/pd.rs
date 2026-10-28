@@ -62,7 +62,7 @@ impl PdState {
                 match event.data {
                     PdEventData::Connect => self.tracker.observe_event(true, now),
                     PdEventData::Disconnect => self.tracker.observe_event(false, now),
-                    PdEventData::PdMessage { .. } => {}
+                    PdEventData::PdMessage { .. } | PdEventData::DeviceStatus { .. } => {}
                 }
                 let entry = self.logger.log_event(event);
                 self.contract.observe(&entry);
@@ -144,7 +144,7 @@ fn category_index(category: PdLogCategory) -> i32 {
         PdLogCategory::Disconnect => 1,
         PdLogCategory::SourceCaps => 2,
         PdLogCategory::Request => 3,
-        PdLogCategory::Control => 4,
+        PdLogCategory::Control | PdLogCategory::Diagnostic => 4,
         PdLogCategory::Extended => 5,
         PdLogCategory::Error => 6,
     }

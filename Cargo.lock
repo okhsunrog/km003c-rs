@@ -2536,6 +2536,7 @@ dependencies = [
  "dirs",
  "eframe",
  "egui_plot",
+ "futures-util",
  "hex",
  "js-sys",
  "km003c-lib",

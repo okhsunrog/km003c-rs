@@ -47,11 +47,51 @@ pub enum Series<'a> {
 }
 
 impl Series<'_> {
-    fn len(self) -> usize {
+    pub fn len(self) -> usize {
         match self {
             Self::Live { samples, .. } => samples.len(),
             Self::Offline(view) => view.map_or(0, |view| view.samples.len()),
         }
+    }
+
+    pub fn time_range(self) -> [f64; 2] {
+        if self.len() == 0 {
+            [0.0, 0.0]
+        } else {
+            [
+                self.point(0, Metric::Voltage).x,
+                self.point(self.len() - 1, Metric::Voltage).x,
+            ]
+        }
+    }
+
+    pub fn nearest(self, time: f64) -> Option<usize> {
+        let [first, last] = self.time_range();
+        if self.len() == 0 || time < first || time > last {
+            return None;
+        }
+        let next = self.lower_bound(time, Metric::Voltage).min(self.len() - 1);
+        Some(
+            if next > 0 && time - self.point(next - 1, Metric::Voltage).x < self.point(next, Metric::Voltage).x - time {
+                next - 1
+            } else {
+                next
+            },
+        )
+    }
+
+    pub fn extent(self, metric: Metric, time: [f64; 2]) -> Option<[f64; 2]> {
+        let start = self.lower_bound(time[0], metric).saturating_sub(1);
+        let end = (self.lower_bound(time[1], metric) + 1).min(self.len());
+        let mut range = [f64::INFINITY, f64::NEG_INFINITY];
+        for i in start..end {
+            let y = self.point(i, metric).y;
+            if y.is_finite() {
+                range[0] = range[0].min(y);
+                range[1] = range[1].max(y);
+            }
+        }
+        range[0].is_finite().then_some(range)
     }
 
     fn first_index(self) -> u64 {
@@ -68,7 +108,7 @@ impl Series<'_> {
         }
     }
 
-    fn point(self, index: usize, metric: Metric) -> PlotPoint {
+    pub fn point(self, index: usize, metric: Metric) -> PlotPoint {
         match self {
             Self::Live { samples, .. } => {
                 let sample = &samples[index];
@@ -85,7 +125,7 @@ impl Series<'_> {
         }
     }
 
-    fn lower_bound(self, x: f64, metric: Metric) -> usize {
+    pub fn lower_bound(self, x: f64, metric: Metric) -> usize {
         let mut lo = 0;
         let mut hi = self.len();
         while lo < hi {
@@ -482,6 +522,10 @@ mod tests {
         assert_eq!(series.point(2, Metric::Voltage).x, 0.010);
         assert_eq!(series.point(1, Metric::SignedCurrent).y, -2.0);
         assert_eq!(series.point(1, Metric::Current).y, 2.0);
+        assert_eq!(series.nearest(0.002), Some(1));
+        assert_eq!(series.nearest(0.009), Some(2));
+        assert_eq!(series.nearest(-1.0), None);
+        assert_eq!(series.extent(Metric::SignedCurrent, [0.0, 0.01]), Some([-2.0, -2.0]));
     }
 
     #[test]

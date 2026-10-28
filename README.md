@@ -97,13 +97,15 @@ GUI application featuring:
 - Shared wgpu core with Slint: line segments and compute min/max envelopes,
   with incremental sample uploads and real timestamps
 - AdcQueue streaming with configurable sample rates
-- Adjustable time window (2s to 5min or all data)
+- Large live V/A/W readings and Charts / USB PD / Recordings tabs
+- Shared X-only zoom/pan, timestamp cursor and stable stepped, fitted or manual Y scales
+- Adjustable time window (2s to 5min or all data), with a separate view pause
 - Live recording and plot-buffer export to Parquet or CSV
 - Device-stored offline recording catalog, download, plotting, and Parquet/CSV export
 - Host-integrated charge and energy with explicit missing-sample quality data
 - Combined wire-message and firmware-state USB PD timeline with source filters
-- Device info panel with auth status
-- Connect/disconnect control
+- Device settings with auth status and browser permission reuse after reload
+- Separate acquisition Start/Stop, file recording, view pause and USB Disconnect
 
 ### `km003c-slint` (experimental)
 A second GUI built with [Slint](https://slint.dev) that also runs on Android
@@ -225,7 +227,7 @@ the corresponding subcommands above. The library's `settings` and
 #### GUI Application
 
 Browser: open the [hosted monitor](https://okhsunrog.github.io/km003c-rs/) and
-click **Connect**, then select the KM003C and confirm the browser dialog. To run
+click **Start**, then select the KM003C and confirm the browser dialog. To run
 locally, install Trunk 0.21.14 and run `trunk serve --release` from the repository
 root. See [browser instructions](km003c-egui/WEB.md).
 

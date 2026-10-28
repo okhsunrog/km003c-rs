@@ -64,6 +64,7 @@ pub struct PdDecodeFailure {
 pub enum DecodedPdEvent {
     Connect { timestamp: Time },
     Disconnect { timestamp: Time },
+    DeviceStatus { timestamp: Time, code: u8, raw: Vec<u8> },
     Message(DecodedPdMessage),
     Chunk(PdChunkStatus),
     Error(PdDecodeFailure),
@@ -119,6 +120,11 @@ impl PdSessionDecoder {
                     timestamp: event.timestamp,
                 }
             }
+            PdEventData::DeviceStatus { code, raw } => DecodedPdEvent::DeviceStatus {
+                timestamp: event.timestamp,
+                code: *code,
+                raw: raw.clone(),
+            },
             PdEventData::PdMessage { sop, wire_data } => self.decode_message(event.timestamp, *sop, wire_data),
         }
     }
