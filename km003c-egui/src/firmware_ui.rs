@@ -6,14 +6,17 @@ use km003c_lib::{
     error::KMError,
     firmware::{
         FirmwareDeviceCheck, FirmwareImage, FirmwareInstallProgress, FirmwareInstallResult, FirmwareInstallStage,
-        PreparedFirmwareUpdate, catalog::FirmwareRelease, check_firmware_device,
+        PreparedFirmwareUpdate,
+        catalog::{FirmwareCatalog, FirmwareDownload, FirmwareRelease},
+        check_firmware_device,
     },
 };
 
 enum Event {
     #[cfg(target_arch = "wasm32")]
     Authorized(Result<Option<String>, String>),
-    Catalog(Result<Vec<FirmwareRelease>, String>),
+    Catalog(Result<FirmwareCatalog, String>),
+    Downloaded(Result<FirmwareDownload, String>),
     Image(Result<Option<FirmwareImage>, String>),
     Checked(Result<FirmwareDeviceCheck, String>),
     Progress(FirmwareInstallProgress),
@@ -26,6 +29,7 @@ pub(super) struct FirmwareUi {
     releases: Vec<FirmwareRelease>,
     selected: Option<usize>,
     image: Option<Arc<FirmwareImage>>,
+    image_source: String,
     checked: Option<FirmwareDeviceCheck>,
     serial: String,
     pub busy: bool,
@@ -45,6 +49,7 @@ impl Default for FirmwareUi {
             releases: Vec::new(),
             selected: None,
             image: None,
+            image_source: String::new(),
             checked: None,
             serial: String::new(),
             busy: false,
@@ -78,15 +83,31 @@ impl FirmwareUi {
                     Ok(None) => self.status = "No meter selected.".into(),
                     Err(error) => self.status = error,
                 },
-                Event::Catalog(Ok(releases)) => {
-                    self.releases = releases;
+                Event::Catalog(Ok(catalog)) => {
+                    self.releases = catalog.releases().to_vec();
                     self.selected = (!self.releases.is_empty()).then_some(0);
-                    self.status = format!("{} firmware builds available", self.releases.len());
+                    self.status = format!("{} firmware builds · {}", self.releases.len(), catalog.source().label());
+                    if let Some(reason) = catalog.fallback_reason() {
+                        self.status
+                            .push_str(&format!(" · official catalog unavailable: {reason}"));
+                    }
                 }
                 Event::Image(Ok(Some(image))) => {
                     self.image = Some(Arc::new(image));
+                    self.image_source = "local package".into();
                     self.checked = None;
                     self.status = "Package validated. Check the meter before installing.".into();
+                }
+                Event::Downloaded(Ok(download)) => {
+                    self.image_source = download.source().label().into();
+                    self.status = "Package validated. Check the meter before installing.".into();
+                    if let Some(reason) = download.fallback_reason() {
+                        self.image_source.push_str(" (fallback)");
+                        self.status
+                            .push_str(&format!(" Official download unavailable: {reason}"));
+                    }
+                    self.image = Some(Arc::new(download.into_parts().1));
+                    self.checked = None;
                 }
                 Event::Image(Ok(None)) => self.status = "File selection canceled.".into(),
                 Event::Checked(Ok(check)) => {
@@ -102,6 +123,7 @@ impl FirmwareUi {
                 }
                 Event::Installed(Ok(None)) => self.status = "Installation canceled before flashing.".into(),
                 Event::Catalog(Err(error))
+                | Event::Downloaded(Err(error))
                 | Event::Image(Err(error))
                 | Event::Checked(Err(error))
                 | Event::Installed(Err(error)) => {
@@ -131,6 +153,7 @@ impl FirmwareUi {
 
     fn load_image(&mut self) -> mpsc::UnboundedSender<Event> {
         self.image = None;
+        self.image_source.clear();
         self.checked = None;
         self.start(false)
     }
@@ -216,7 +239,7 @@ impl PowerMonitorApp {
                         let tx = self.firmware.start(false);
                         self.firmware.status = "Loading firmware catalog...".into();
                         km003c_lib::runtime::spawn(async move {
-                            let result = firmware_io::catalog().await.map(|catalog| catalog.releases().to_vec());
+                            let result = firmware_io::catalog().await;
                             let _ = tx.send(Event::Catalog(result));
                         });
                     }
@@ -256,13 +279,14 @@ impl PowerMonitorApp {
                         let tx = self.firmware.load_image();
                         self.firmware.status = "Downloading and validating package...".into();
                         km003c_lib::runtime::spawn(async move {
-                            let _ = tx.send(Event::Image(firmware_io::download(release).await.map(Some)));
+                            let _ = tx.send(Event::Downloaded(firmware_io::download(release).await));
                         });
                     }
                 }
             });
             ui.separator();
             if let Some(image) = self.firmware.image.clone() {
+                ui.small(format!("Package source: {}", self.firmware.image_source));
                 let metadata = image.metadata();
                 ui.strong(format!(
                     "Target: {} {} · {}",

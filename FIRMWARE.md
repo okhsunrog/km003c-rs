@@ -48,16 +48,17 @@ parses arguments, formats results/progress and saves bytes to files.
   and the verified installation result; no terminal output or file paths.
 - With `firmware-catalog`: `FirmwareCatalog`, `FirmwareRelease` and
   `FirmwareDownload` provide typed catalog/package data and validation.
-  Native frontends use `FirmwareCatalogClient::fetch/download` for the public
-  HTTPS mirror. The feature does not add HTTP dependencies to basic USB users.
+  Native and browser frontends use `FirmwareCatalogClient::fetch/download`
+  for official-first HTTP with validated archive fallback. Basic USB users do
+  not need the firmware HTTP dependencies.
 
 GUI frontends can save a `FirmwareBackup` using their own storage mechanism and
 forward progress to the UI. They do not need to reproduce protocol, backup or
 verification decisions. A live measurement session must release its USB handle
-before maintenance begins. Catalog parsing and downloaded-package validation
-also compile for Wasm; the native HTTPS adapter is not a browser transport,
-and browser frontends can fetch the same mirror URLs and pass the bytes to
-`FirmwareCatalog::parse_json` and `FirmwareRelease::validate_package`.
+before maintenance begins. Catalog parsing, request signing, source selection
+and package validation also compile for Wasm. Browser frontends use the same
+client through Fetch. Custom adapters can
+implement `FirmwareHttpTransport` without reproducing fallback policy.
 
 ## Package validation
 
@@ -115,10 +116,15 @@ builds/hardware revisions still need validation.
 
 ## Public firmware archive
 
-The default catalog is
+The fallback archive catalog is
 [`km003c-resources/catalog.json`](https://okhsunrog.github.io/km003c-resources/catalog.json).
-Packages are served from the same Pages origin. No authorization, vendor EXE
-or OSS credential is used, and the client never automatically falls back to OSS.
+Packages are served from the same Pages origin without authorization. The client
+first tries the official server for catalogs and downloads. HTTP, CORS, parse,
+checksum or identity errors trigger archive fallback. Matching requires version,
+date, application size and CRC; unavailable exact matches fail rather than
+substituting another build. Mirror-selected builds retain their whole-file SHA256
+even if an official object is available. Catalogs and downloads expose `source()`
+and `fallback_reason()` for presentation and diagnostics.
 The publisher validates packages with this library and preserves original bytes.
 Windows applications, manuals and complete source archives are
 [Release assets](https://github.com/okhsunrog/km003c-resources/releases).
@@ -138,13 +144,14 @@ A version is not a unique build selector. The archive file named
 an ambiguous version reports the available IDs instead of picking the first.
 Neither latest nor stable status is inferred from the largest version number.
 
-## Retained official catalog backend
+## Official catalog backend
 
-This path is disabled from normal entry points. The bundled credential receives
-`403 InvalidAccessKeyId`: `The OSS Access Key Id you provided is disabled.`
-The implementation and offline tests are retained for future valid credentials,
-stored using the same encrypted embedded-key mechanism. The following describes
-previously observed service behavior, not a currently working download route.
+The official backend is the primary source on native and browser targets. On
+2026-10-28 the bundled credential initially returned `403 InvalidAccessKeyId`
+with a disabled-key message; later the identical pair successfully fetched the
+catalog and 2.0.7 package with HTTP 200. The cause of the status change is unknown.
+Credentials stay encrypted in the library and decode lazily; no official EXE
+is needed. Network rechecks do not access the USB device.
 
 The official backend reads `expect.xml` and firmware objects from:
 
@@ -174,10 +181,15 @@ All `IsLatest` flags were false, so the CLI requires an explicit version rather
 than inferring one from that flag. Older releases remain available.
 
 Anonymous GET returned 403; an OSS V1 signed GET returned 200. Shared access
-credentials from the official application are included in the client. Requests
+credentials from the official application are included in the client. Native requests
 use the [documented OSS V1 header signature](https://www.alibabacloud.com/help/en/oss/developer-reference/include-signatures-in-the-authorization-header):
 HMAC-SHA1 over method, content headers, Date and canonical bucket/object path,
-then Base64 in `Authorization`. The implementation uses HTTPS, disables
+then Base64 in `Authorization`. Browser Fetch uses the corresponding
+[OSS V1 signed URL](https://www.alibabacloud.com/help/en/oss/developer-reference/ddd-signatures-to-urls),
+with a five-minute expiry instead of a Date header. Browser failures, including
+missing CORS permission, follow the same archive fallback policy. Signed URLs
+and authorization values are excluded from adapter error messages.
+The implementation uses HTTPS, disables
 redirects, bounds response size, masks authorization values in debug output,
 and never performs bucket listing or write operations.
 

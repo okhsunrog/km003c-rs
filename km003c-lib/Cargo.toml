@@ -45,6 +45,8 @@ base64 = { version = "0.23.1", optional = true }
 httpdate = { version = "1.0.3", optional = true }
 roxmltree = { version = "0.21.2", optional = true }
 sha2 = { version = "0.11.1", optional = true }
+cbc = "0.2.1"
+percent-encoding = { version = "2.3.2", optional = true }
 
 [features]
 default = []
@@ -58,8 +60,8 @@ usbpd = ["dep:usbpd"]
 polars = ["dep:polars"]
 # Front-end preferences saved as JSON.
 preferences = ["serde", "dep:serde_json"]
-# Mirrored release catalog, package validation and native HTTPS client.
-firmware-catalog = ["dep:reqwest", "dep:hmac", "dep:sha1", "dep:sha2", "dep:base64", "dep:httpdate", "dep:roxmltree", "dep:serde", "dep:serde_json"]
+# Official-first release catalog, validated archive fallback and platform HTTP.
+firmware-catalog = ["dep:reqwest", "dep:hmac", "dep:sha1", "dep:sha2", "dep:base64", "dep:httpdate", "dep:percent-encoding", "dep:roxmltree", "dep:serde", "dep:serde_json"]
 
 [package.metadata.docs.rs]
 features = ["usbpd", "serde", "polars", "preferences", "firmware-catalog"]

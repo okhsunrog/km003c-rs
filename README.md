@@ -69,7 +69,7 @@ Core library providing:
   interrupted
 - Optional preferences shared by the GUIs through the `preferences` feature
 - Complete firmware maintenance with frontend-supplied backup storage and typed
-  progress; optional `firmware-catalog` for mirrored manufacturer releases
+  progress; optional `firmware-catalog` for official releases with archive fallback
 
 ### `km003c-cli`
 One `km003c` executable with clap subcommands:
@@ -112,7 +112,7 @@ GUI application featuring:
 - Combined wire-message and firmware-state USB PD timeline with source filters
 - Device settings with auth status and browser permission reuse after reload
 - Separate acquisition Start/Stop, file recording, view pause and USB Disconnect
-- Firmware upgrades, downgrades and reinstalls from the mirror or a local
+- Firmware upgrades, downgrades and reinstalls from the official server, archive or a local
   `.mencrypt` package, with confirmation, verified backup and readback progress
 
 ### `km003c-slint` (experimental)
@@ -243,14 +243,15 @@ km003c --serial 007965 firmware check KM003C_V2.0.7.mencrypt
 km003c --serial 007965 firmware update KM003C_V2.0.7.mencrypt --backup current-firmware.bin --yes
 ```
 
-`list`, `download` and `inspect` do not access USB. The catalog and images come
-from the public [km003c-resources mirror](https://okhsunrog.github.io/km003c-resources/),
-without access keys or a Windows executable. Downloads are checked against
-package SHA-256, size, embedded release identity and firmware CRC before saving.
+`list`, `download` and `inspect` do not access USB. The library tries the official
+catalog and objects first, then the public
+[km003c-resources archive](https://okhsunrog.github.io/km003c-resources/) if HTTP,
+catalog parsing or package validation fails. Fallback requires the same version,
+date, size and firmware CRC. Archive-selected packages also retain whole-file
+SHA-256 verification. The CLI reports the source and fallback reason.
+Bundled credentials remain encrypted in the library; no Windows EXE is required.
 Existing output files are never overwritten. If a version has multiple builds,
 pass the build ID printed by `firmware list` in place of the version argument.
-The official OSS backend is retained in the library, disabled from default
-paths while its shared credential is inactive.
 
 Official Windows applications, manuals and source archives are kept as
 [km003c-resources Release assets](https://github.com/okhsunrog/km003c-resources/releases),
@@ -287,6 +288,8 @@ cargo run --release --bin km003c-egui
 ```
 
 The Rust version comes from `rust-toolchain.toml` through rustup.
+The shell also selects a trusted CA bundle for OpenSSL/Python, preserving an
+existing `SSL_CERT_FILE` or Nix CA configuration. TLS verification stays enabled.
 
 Browser: open the [hosted monitor](https://okhsunrog.github.io/km003c-rs/) and
 click **Start**, then select the KM003C and confirm the browser dialog. To run

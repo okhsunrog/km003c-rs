@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- An official-first firmware client shared by CLI, desktop and browser GUI,
+  with archive fallback after HTTP, catalog or package validation errors.
+  Fallback matches version, build date, size and CRC; callers can inspect the
+  actual source and failure reason. Browser requests use OSS V1 signed URLs.
+- Named encrypted-value records and standard CBC decoding for embedded keys,
+  preserving their values and lazy initialization. The Nix shell automatically
+  selects a CA bundle for Python/OpenSSL without disabling TLS verification.
+
 - An egui Firmware tab for catalog/local packages, upgrades, downgrades and
   reinstalls, with device checks, confirmation, verified backup storage and
   library progress. Browser backups await a File System Access write and close.

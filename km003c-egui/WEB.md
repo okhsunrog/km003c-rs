@@ -91,7 +91,11 @@ selects the matching wasm-bindgen CLI. The Cargo target configuration opts into
 web-sys's unstable WebUSB bindings, as required by nusb. No server USB bridge is
 needed.
 
-The **Firmware** tab supports catalog downloads, local `.mencrypt` packages,
+The **Firmware** tab uses the library's official-first catalog and download
+client, with archive fallback on HTTP, CORS, parsing or validation failures.
+The source is shown in the catalog status and loaded package details. Browser
+requests use short-lived OSS V1 signed URLs; signing stays in the library.
+The tab supports local `.mencrypt` packages,
 upgrades, downgrades and reinstalls through the shared library installer. Use
 **Authorize meter**, select a package, then **Check meter** and review the current
 and target builds. Application-mode installation requires a browser with the

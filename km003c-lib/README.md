@@ -67,8 +67,11 @@ deadlines and full installed-image verification. Callers must release any live
 measurement session before opening firmware maintenance.
 
 Enable `firmware-catalog` for official release descriptions and package downloads.
-`FirmwareCatalogClient` is the native HTTPS adapter; `FirmwareCatalog` and
-`FirmwareRelease::validate_package` can also be used with other transports.
+`FirmwareCatalogClient` uses native HTTPS or browser Fetch, trying the official
+server before the archive. HTTP, parsing and validation failures trigger fallback
+to the same version/date/size/CRC. Catalogs and downloads expose their source and
+fallback reason. `FirmwareHttpTransport` supports custom adapters and offline tests;
+`FirmwareCatalog` and `FirmwareRelease::validate_package` remain usable separately.
 
 ```no_run
 # #[cfg(all(feature = "firmware-catalog", not(target_arch = "wasm32")))]
@@ -77,9 +80,7 @@ use std::io::Write;
 use km003c_lib::{DeviceSelector, firmware::{PreparedFirmwareUpdate, catalog::FirmwareCatalogClient}};
 
 let client = FirmwareCatalogClient::new()?;
-let catalog = client.fetch().await?;
-let release = catalog.release("2.0.7").ok_or("release unavailable")?;
-let download = client.download(release).await?;
+let download = client.download_selected("2.0.7").await?;
 let (_, image) = download.into_parts();
 let selected = DeviceSelector::SerialNumber("007965".into());
 let prepared = PreparedFirmwareUpdate::prepare(image, selected, |_event| {}).await?;

@@ -1,7 +1,7 @@
 //! Frontend file dialogs/storage and HTTP transport. Firmware policy lives in the library.
 use km003c_lib::firmware::{
     FirmwareImage,
-    catalog::{FirmwareCatalog, FirmwareRelease},
+    catalog::{FirmwareCatalog, FirmwareCatalogClient, FirmwareDownload, FirmwareRelease},
 };
 
 const MAX_PACKAGE_BYTES: usize = 2 * 1024 * 1024;
@@ -18,9 +18,7 @@ pub fn parse_package(bytes: &[u8]) -> Result<FirmwareImage, String> {
 #[cfg(not(target_arch = "wasm32"))]
 pub struct BackupDestination(std::path::PathBuf);
 
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn catalog() -> Result<FirmwareCatalog, String> {
-    use km003c_lib::firmware::catalog::FirmwareCatalogClient;
     FirmwareCatalogClient::new()
         .map_err(|e| e.to_string())?
         .fetch()
@@ -28,15 +26,12 @@ pub async fn catalog() -> Result<FirmwareCatalog, String> {
         .map_err(|e| e.to_string())
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-pub async fn download(release: FirmwareRelease) -> Result<FirmwareImage, String> {
-    use km003c_lib::firmware::catalog::FirmwareCatalogClient;
-    let download = FirmwareCatalogClient::new()
+pub async fn download(release: FirmwareRelease) -> Result<FirmwareDownload, String> {
+    FirmwareCatalogClient::new()
         .map_err(|e| e.to_string())?
         .download(&release)
         .await
-        .map_err(|e| e.to_string())?;
-    Ok(download.into_parts().1)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -93,22 +88,6 @@ mod browser {
     // File dialogs must start from the button's user activation. The save picker
     // returns a real writable handle: a download click cannot prove backup storage.
     #[wasm_bindgen(inline_js = "
-export async function firmwareFetch(url) {
-    const response = await fetch(url, {redirect: 'error', signal: AbortSignal.timeout(20000)});
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    const reader = response.body.getReader();
-    const chunks = []; let size = 0;
-    while (true) {
-        const {done, value} = await reader.read();
-        if (done) break;
-        size += value.length;
-        if (size > 2097152) { await reader.cancel(); throw new Error('Download exceeds 2 MiB'); }
-        chunks.push(value);
-    }
-    const result = new Uint8Array(size); let offset = 0;
-    for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length; }
-    return result;
-}
 export function firmwareOpen() {
     return new Promise((resolve, reject) => {
         const input = document.createElement('input'); input.type = 'file'; input.accept = '.mencrypt';
@@ -143,8 +122,6 @@ export function firmwareGuard(active) {
 }
 ")]
     extern "C" {
-        #[wasm_bindgen(js_name = firmwareFetch)]
-        fn fetch(url: &str) -> js_sys::Promise;
         #[wasm_bindgen(js_name = firmwareOpen)]
         fn open() -> js_sys::Promise;
         #[wasm_bindgen(js_name = firmwareBackupPicker)]
@@ -156,25 +133,6 @@ export function firmwareGuard(active) {
     }
     fn error(value: JsValue) -> String {
         js_sys::Error::from(value).message().into()
-    }
-    async fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
-        let value = JsFuture::from(fetch(url)).await.map_err(error)?;
-        Ok(js_sys::Uint8Array::new(&value).to_vec())
-    }
-    pub async fn catalog() -> Result<FirmwareCatalog, String> {
-        let url = format!("{}/catalog.json", km003c_lib::firmware::catalog::FIRMWARE_MIRROR_URL);
-        let bytes = fetch_bytes(&url).await?;
-        let text = std::str::from_utf8(&bytes).map_err(|e| e.to_string())?;
-        FirmwareCatalog::parse_json(text).map_err(|e| e.to_string())
-    }
-    pub async fn download(release: FirmwareRelease) -> Result<FirmwareImage, String> {
-        let url = release.download_url().map_err(|e| e.to_string())?;
-        let bytes = fetch_bytes(&url).await?;
-        Ok(release
-            .validate_package(&bytes)
-            .map_err(|e| e.to_string())?
-            .into_parts()
-            .1)
     }
     pub async fn pick_package() -> Result<Option<FirmwareImage>, String> {
         let value = JsFuture::from(open()).await.map_err(error)?;
@@ -196,7 +154,7 @@ export function firmwareGuard(active) {
     }
 }
 #[cfg(target_arch = "wasm32")]
-pub use browser::{catalog, download, guard, pick_backup, pick_package};
+pub use browser::{guard, pick_backup, pick_package};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn guard(_active: bool) {}

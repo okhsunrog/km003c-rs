@@ -132,6 +132,10 @@ fn describe_device(check: &FirmwareDeviceCheck, target: &str) {
 
 async fn list() -> Result {
     let catalog = FirmwareCatalogClient::new()?.fetch().await?;
+    println!("Source: {}", catalog.source().label());
+    if let Some(reason) = catalog.fallback_reason() {
+        eprintln!("Official catalog unavailable: {reason}; using the archive mirror.");
+    }
     for release in catalog.releases() {
         println!(
             "{}  {}  {} bytes  CRC32 {:08X}{}{}\n  Build ID: {}",
@@ -155,16 +159,18 @@ async fn list() -> Result {
 }
 async fn download(version: &str, output: &Path) -> Result {
     let client = FirmwareCatalogClient::new()?;
-    let catalog = client.fetch().await?;
-    let release = catalog.select_release(version)?;
-    let package = client.download(release).await?;
+    let package = client.download_selected(version).await?;
     save_new(output, package.package())?;
     println!(
-        "Downloaded and validated {} to {} (SHA256 {})",
+        "Downloaded and validated {} to {} (source: {}; SHA256 {})",
         package.image().metadata().version,
         output.display(),
+        package.source().label(),
         hex::encode(package.sha256())
     );
+    if let Some(reason) = package.fallback_reason() {
+        eprintln!("Official download unavailable: {reason}; used the archive mirror.");
+    }
     Ok(())
 }
 
