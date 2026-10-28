@@ -37,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- One clap-based `km003c` executable replaces the six CLI binaries, with
+  `info`, `adc`, `logs`, `pd`, and `debug memory` commands and shared USB,
+  device-selection, and logging options. Existing scripts must use the new
+  subcommands. `logs download` requires `--index` or `--latest`; `--latest`
+  selects the highest numbered `A<number>.d` filename. CSV export now uses
+  the shared 23-column recording schema, Parquet export is available, and
+  the output extension selects the format unless `--format` is supplied.
 - The Python extension is built against the stable ABI (`abi3-py38`). One wheel
   per platform now covers every CPython from 3.8 up, and a new interpreter
   release needs no rebuild.

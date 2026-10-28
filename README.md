@@ -2,7 +2,7 @@
 
 <h1 align="center">km003c-rs</h1>
 
-<p align="center">Typed Rust library, CLI tools, GUI monitors, and Python bindings for the ChargerLAB POWER-Z KM003C USB-C power analyzer.</p>
+<p align="center">Typed Rust library, command-line interface, GUI monitors, and Python bindings for the ChargerLAB POWER-Z KM003C USB-C power analyzer.</p>
 
 <p align="center">
   <a href="https://crates.io/crates/km003c-lib"><img alt="crates.io" src="https://img.shields.io/crates/v/km003c-lib.svg"></a>
@@ -70,11 +70,17 @@ Core library providing:
 - Optional preferences shared by the GUIs through the `preferences` feature
 
 ### `km003c-cli`
-Command-line tools:
-- `adc_simple` - Single-shot ADC readings with device info
-- `adc_queue_simple` - AdcQueue streaming demo
-- `test_usbpd` - USB PD negotiation capture
-- `offline-log` - List and export stored recordings as CSV or JSON
+One `km003c` executable with clap subcommands:
+- `info` - Device, firmware, and authentication information
+- `adc read` / `adc stream` - Single-shot measurements or AdcQueue streaming
+- `logs list` / `logs download` - Offline recording catalog and CSV/Parquet/JSON export
+- `pd capture` / `pd trace` - USB PD messages or internal firmware events
+- `debug memory read` / `debug memory scan` - Memory inspection for protocol research
+
+Connection flags (`--interface`, `--serial`, `--no-reset`, `--reset`) and
+`--verbose` are shared and can appear before or after subcommands. HID is
+supported only for `adc read`; other commands require the vendor interface.
+Diagnostic logs go to stderr, keeping `logs list --json` machine-readable.
 
 ### `km003c-egui`
 
@@ -162,30 +168,57 @@ and NixOS installation.
 #### ADC Reading
 
 ```bash
-cargo run --bin adc_simple
+cargo run --bin km003c -- info
+cargo run --bin km003c -- adc read
 ```
 
 #### AdcQueue Streaming
 
 ```bash
-cargo run --bin adc_queue_simple -- --rate 50 --duration 10
+cargo run --bin km003c -- adc stream --rate 50 --duration 10
 
-# Print every sample; current remains in amperes across the CLI tools.
-cargo run --bin adc_queue_simple -- --rate 1000 --duration 10 --every 1
+# Print every sample; current is displayed in amperes.
+cargo run --bin km003c -- adc stream --rate 1000 --duration 10 --every 1
 ```
 
 #### USB PD Capture
 
 ```bash
-cargo run --bin test_usbpd
+cargo run --bin km003c -- pd capture
+cargo run --bin km003c -- pd trace --polls 10
 ```
 
 #### Offline Recordings
 
 ```bash
-cargo run --bin offline-log -- metadata
-cargo run --bin offline-log -- download --index 0 --format csv
+cargo run --bin km003c -- logs list
+cargo run --bin km003c -- logs download --latest --output recording.csv
+cargo run --bin km003c -- logs download --index 0 --output recording.parquet
+cargo run --bin km003c -- logs download --latest --format json
 ```
+
+Choose exactly one of `--index` and `--latest`. The meter does not expose
+recording timestamps: `--latest` selects the highest numbered `A<number>.d`
+filename, and asks for `--index` if it encounters an unfamiliar naming scheme.
+The output format follows the `.csv`, `.parquet`, or `.json` extension;
+without an output path or explicit `--format`, it defaults to CSV.
+CSV and Parquet use the same 23-column recording schema as the GUIs. JSON
+contains the recording metadata and samples in the device's raw units.
+
+#### Command-line Installation and Help
+
+```bash
+cargo install --path km003c-cli --locked
+km003c --help
+km003c logs download --help
+km003c --no-reset logs download --latest --output recording.csv
+km003c debug memory read 0x420 --size 64
+```
+
+`km003c` replaces the former `adc_simple`, `adc_queue_simple`, `test_usbpd`,
+`offline-log`, `pd_trace`, and `memory_scan` executables. Update scripts to use
+the corresponding subcommands above. The library's `settings` and
+`calibration_auth` examples remain available through `cargo run --example`.
 
 #### GUI Application
 
