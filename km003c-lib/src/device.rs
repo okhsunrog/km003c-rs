@@ -155,7 +155,6 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(2);
 const BULK_TRANSFER_SIZE: usize = 2048;
 const INTERRUPT_TRANSFER_SIZE: usize = 64;
 const MAX_PENDING_RESPONSES: usize = 256;
-const AES_BLOCK_SIZE: usize = 16;
 
 /// Find one attached KM003C matching `selector`.
 async fn find_device(selector: &DeviceSelector) -> Result<nusb::DeviceInfo, KMError> {
@@ -185,93 +184,6 @@ fn memory_confirmation_matches(bytes: &[u8], id: u8) -> bool {
                 PacketType::MemoryRead | PacketType::Rejected | PacketType::NotReadable
             )
     })
-}
-
-fn memory_response_size(requested_size: u32) -> usize {
-    (requested_size as usize).div_ceil(AES_BLOCK_SIZE) * AES_BLOCK_SIZE
-}
-
-fn append_memory_chunk(buffer: &mut Vec<u8>, chunk: &[u8], expected_size: usize) -> Result<bool, KMError> {
-    if chunk.is_empty() {
-        return Err(KMError::Protocol(
-            "Received an empty encrypted memory chunk".to_string(),
-        ));
-    }
-
-    let remaining = expected_size.saturating_sub(buffer.len());
-    if chunk.len() > remaining {
-        return Err(KMError::Protocol(format!(
-            "Encrypted memory response exceeded expected size: expected {expected_size} bytes, got at least {}",
-            buffer.len() + chunk.len()
-        )));
-    }
-
-    buffer.extend_from_slice(chunk);
-    Ok(buffer.len() == expected_size)
-}
-
-fn decrypt_memory_response(encrypted: &[u8], requested_size: u32) -> Result<Vec<u8>, KMError> {
-    let expected_size = memory_response_size(requested_size);
-    if encrypted.len() != expected_size {
-        return Err(KMError::Protocol(format!(
-            "Encrypted memory response has the wrong size: expected {expected_size} bytes, got {}",
-            encrypted.len()
-        )));
-    }
-
-    let mut decrypted = crate::auth::aes_ecb_decrypt_blocks(encrypted, &crate::auth::MEMORY_READ_KEY)?;
-    decrypted.truncate(requested_size as usize);
-    Ok(decrypted)
-}
-
-fn validate_memory_read_confirmation(
-    packet: &RawPacket,
-    expected_id: u8,
-    expected_address: u32,
-    expected_size: u32,
-) -> Result<(), KMError> {
-    let RawPacket::SimpleData { header, payload } = packet else {
-        return Err(KMError::Protocol(
-            "MemoryRead confirmation has an unexpected packet layout".to_string(),
-        ));
-    };
-
-    if header.id() != expected_id || PacketType::from(header.packet_type()) != PacketType::MemoryRead {
-        return Err(KMError::Protocol(
-            "MemoryRead confirmation does not match the request".to_string(),
-        ));
-    }
-    if payload.len() != crate::auth::MEMORY_READ_CONFIRMATION_SIZE {
-        return Err(KMError::Protocol(format!(
-            "MemoryRead confirmation must contain {} bytes, got {}",
-            crate::auth::MEMORY_READ_CONFIRMATION_SIZE,
-            payload.len()
-        )));
-    }
-
-    let confirmation = crate::auth::MemoryReadConfirmation::from_bytes(payload)
-        .ok_or_else(|| KMError::Protocol("MemoryRead confirmation body is truncated".to_string()))?;
-
-    if confirmation.address != expected_address || confirmation.size != expected_size {
-        return Err(KMError::Protocol(format!(
-            "MemoryRead confirmation echoed address 0x{:08X} and size {}, expected 0x{expected_address:08X} and {expected_size}",
-            confirmation.address, confirmation.size
-        )));
-    }
-    if confirmation.magic != u32::MAX {
-        return Err(KMError::Protocol(format!(
-            "MemoryRead confirmation has invalid magic 0x{:08X}",
-            confirmation.magic
-        )));
-    }
-    if confirmation.checksum != confirmation.expected_checksum {
-        return Err(KMError::Protocol(format!(
-            "MemoryRead confirmation CRC mismatch: expected 0x{:08X}, got 0x{:08X}",
-            confirmation.expected_checksum, confirmation.checksum
-        )));
-    }
-
-    Ok(())
 }
 
 /// Transfer type for USB communication
@@ -926,28 +838,6 @@ impl KM003C {
         }
     }
 
-    /// Read the unframed ciphertext that follows a MemoryRead confirmation.
-    ///
-    /// These transfers carry no header and AES ciphertext is indistinguishable
-    /// from a protocol frame, so nothing else may be in flight while they are
-    /// read. [`Self::read_memory_block`] enforces that precondition.
-    async fn receive_memory_read_data_exact(&mut self, requested_size: u32) -> Result<Vec<u8>, KMError> {
-        let expected_size = memory_response_size(requested_size);
-        if expected_size == 0 {
-            return Ok(Vec::new());
-        }
-
-        let mut encrypted = Vec::with_capacity(expected_size);
-        while encrypted.len() < expected_size {
-            let chunk = self.read_raw_from_usb().await?;
-            if append_memory_chunk(&mut encrypted, &chunk, expected_size)? {
-                break;
-            }
-        }
-
-        decrypt_memory_response(&encrypted, requested_size)
-    }
-
     /// Request data with a specific attribute set
     pub async fn request_data(&mut self, mask: AttributeSet) -> Result<Packet, KMError> {
         let id = self.send_tracked(Packet::GetData { attributes: mask }).await?;
@@ -1247,11 +1137,14 @@ impl KM003C {
         Ok(result)
     }
 
-    /// Read an encrypted memory block from the device
+    /// Read memory using bounded, individually confirmed transactions.
     ///
-    /// Sends a MemoryRead request, receives the confirmation, then receives
-    /// and decrypts the actual data. Returns exactly `size` decrypted bytes;
-    /// AES block padding received from the device is removed.
+    /// Requests at most 2528 bytes at a time and follows each confirmation's
+    /// encryption flag. This avoids firmware 2.0.5's mixed encrypted/plaintext
+    /// large responses. Returns exactly `size` bytes, removing transport padding
+    /// from each response. An empty read still validates a zero-length request.
+    /// Requests larger than 4,000,000 bytes or overflowing the padded address
+    /// range fail before any USB traffic.
     ///
     /// # Errors
     ///
@@ -1268,25 +1161,7 @@ impl KM003C {
             ));
         }
 
-        let id = self.send_tracked(Packet::MemoryRead { address, size }).await?;
-        let confirmation = self
-            .receive_matching_raw(|bytes| memory_confirmation_matches(bytes, id))
-            .await?;
-
-        let confirmation = RawPacket::try_from(Bytes::from(confirmation))?;
-        match confirmation.packet_type() {
-            PacketType::MemoryRead => {
-                validate_memory_read_confirmation(&confirmation, id, address, size)?;
-                self.receive_memory_read_data_exact(size).await
-            }
-            PacketType::Rejected => Err(KMError::Protocol(format!("MemoryRead at 0x{address:08X} was rejected"))),
-            PacketType::NotReadable => Err(KMError::Protocol(format!(
-                "Memory address 0x{address:08X} is not readable"
-            ))),
-            other => Err(KMError::Protocol(format!(
-                "Expected MemoryRead confirmation, got {other:?}"
-            ))),
-        }
+        crate::memory::read(self, address, size).await
     }
 
     /// Read device information from memory
@@ -1424,6 +1299,20 @@ impl KM003C {
     }
 }
 
+impl crate::memory::MemoryReadIo for KM003C {
+    async fn begin_read(&mut self, address: u32, size: u32) -> Result<(u8, RawPacket), KMError> {
+        let id = self.send_tracked(Packet::MemoryRead { address, size }).await?;
+        let bytes = self
+            .receive_matching_raw(|bytes| memory_confirmation_matches(bytes, id))
+            .await?;
+        Ok((id, RawPacket::try_from(Bytes::from(bytes))?))
+    }
+
+    async fn next_transfer(&mut self) -> Result<Vec<u8>, KMError> {
+        self.read_raw_from_usb().await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1470,67 +1359,5 @@ mod tests {
     #[test]
     fn response_type_matching_supports_fixed_id_protocol_exceptions() {
         assert!(response_type_matches(&[0x4c, 0, 3, 2], PacketType::StreamingAuth));
-    }
-
-    #[test]
-    fn memory_response_size_rounds_to_complete_aes_blocks() {
-        assert_eq!(memory_response_size(1), 16);
-        assert_eq!(memory_response_size(12), 16);
-        assert_eq!(memory_response_size(16), 16);
-        assert_eq!(memory_response_size(17), 32);
-        assert_eq!(memory_response_size(64), 64);
-    }
-
-    #[test]
-    fn decrypted_memory_response_is_trimmed_to_the_requested_size() {
-        let ciphertext = crate::auth::build_memory_read_payload(0x4001_0450, 12);
-        let decrypted = decrypt_memory_response(&ciphertext[..16], 12).unwrap();
-
-        assert_eq!(decrypted.len(), 12);
-        assert_eq!(&decrypted[..4], &0x4001_0450_u32.to_le_bytes());
-        assert_eq!(&decrypted[4..8], &12_u32.to_le_bytes());
-        assert_eq!(&decrypted[8..12], &u32::MAX.to_le_bytes());
-    }
-
-    #[test]
-    fn decrypted_memory_response_rejects_an_incorrect_ciphertext_size() {
-        assert!(decrypt_memory_response(&[0; 32], 12).is_err());
-    }
-
-    #[test]
-    fn memory_chunks_accumulate_across_usb_transfers() {
-        // Source: reading_logs0.11; a requested 8336-byte log arrived as
-        // three 2544-byte USB transfers followed by one 704-byte transfer.
-        let mut response = Vec::new();
-        assert!(!append_memory_chunk(&mut response, &vec![0x11; 2544], 8336).unwrap());
-        assert!(!append_memory_chunk(&mut response, &vec![0x22; 2544], 8336).unwrap());
-        assert!(!append_memory_chunk(&mut response, &vec![0x33; 2544], 8336).unwrap());
-        assert!(append_memory_chunk(&mut response, &vec![0x44; 704], 8336).unwrap());
-        assert_eq!(response.len(), 8336);
-    }
-
-    #[test]
-    fn memory_chunks_reject_empty_and_oversized_transfers() {
-        let mut response = vec![0; 15];
-        assert!(append_memory_chunk(&mut response, &[], 16).is_err());
-        assert!(append_memory_chunk(&mut response, &[1, 2], 16).is_err());
-    }
-
-    #[test]
-    fn validates_recorded_memory_read_confirmation() {
-        // Source: usb_master_dataset.parquet, orig_adc_1000hz.6, frame 264.
-        let bytes = hex::decode("c40201012004000040000000ffffffff1b8c1b24").unwrap();
-        let packet = RawPacket::try_from(Bytes::from(bytes)).unwrap();
-
-        validate_memory_read_confirmation(&packet, 2, 0x420, 64).unwrap();
-    }
-
-    #[test]
-    fn rejects_corrupted_memory_read_confirmation() {
-        let mut bytes = hex::decode("c40201012004000040000000ffffffff1b8c1b24").unwrap();
-        bytes[8] ^= 1;
-        let packet = RawPacket::try_from(Bytes::from(bytes)).unwrap();
-
-        assert!(validate_memory_read_confirmation(&packet, 2, 0x420, 64).is_err());
     }
 }

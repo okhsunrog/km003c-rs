@@ -16,6 +16,10 @@ returns typed `uom` samples.
 Normal vendor initialization authenticates with the device HardwareID at
 level 1. `KM003C::authenticate_calibration()` safely reads the firmware-selected
 calibration credential and requests level 2 without writing device memory.
+MemoryRead follows the encoding flag on each confirmation and requests at most
+2528 bytes at a time. This handles plaintext short replies and avoids the mixed
+encrypted/plaintext large responses in the inspected 2.0.5 firmware. Large
+reads are assembled without exposing transport padding to callers.
 
 `KM003C::request_settings()` validates both persisted settings-block checksums
 and exposes only firmware-confirmed fields semantically. Unknown bytes remain

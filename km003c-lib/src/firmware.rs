@@ -280,18 +280,7 @@ impl FirmwareImage {
             }
         }
         let word = |offset| u32::from_le_bytes(self.data[offset..offset + 4].try_into().expect("validated size"));
-        let sp = word(0);
-        let reset = word(4);
-        let end = APPLICATION_BASE + self.data.len() as u32;
-        if sp <= 0x1fff8000
-            || sp >= 0x20020000
-            || !sp.is_multiple_of(4)
-            || reset & 1 == 0
-            || (reset & !1) < APPLICATION_BASE
-            || (reset & !1) >= end
-        {
-            return Err(invalid("firmware contains invalid application vectors"));
-        }
+        validate_application_vectors(&self.data)?;
         if word(0x420) != APPLICATION_BASE || self.data[IMAGE_METADATA_OFFSET..IMAGE_METADATA_OFFSET + 8] != [0xff; 8] {
             return Err(invalid("firmware application base or uncommitted metadata is invalid"));
         }
@@ -340,6 +329,26 @@ impl FirmwareImage {
             .copy_from_slice(&self.metadata.crc32.to_le_bytes());
         Ok(installed)
     }
+}
+
+fn validate_application_vectors(data: &[u8]) -> Result<(), KMError> {
+    if !(8..=MAX_IMAGE_BYTES).contains(&data.len()) {
+        return Err(invalid("firmware contains invalid application vectors"));
+    }
+    let word = |offset| u32::from_le_bytes(data[offset..offset + 4].try_into().expect("validated vector length"));
+    let sp = word(0);
+    let reset = word(4);
+    let end = APPLICATION_BASE + data.len() as u32;
+    if sp <= 0x1fff8000
+        || sp >= 0x20020000
+        || !sp.is_multiple_of(4)
+        || reset & 1 == 0
+        || (reset & !1) < APPLICATION_BASE
+        || (reset & !1) >= end
+    {
+        return Err(invalid("firmware contains invalid application vectors"));
+    }
+    Ok(())
 }
 
 trait FirmwareTransport {

@@ -7,6 +7,7 @@ mod embedded_keys;
 pub mod error;
 pub mod firmware;
 pub mod measurement;
+mod memory;
 pub mod message;
 pub mod offline;
 pub mod offline_view;
