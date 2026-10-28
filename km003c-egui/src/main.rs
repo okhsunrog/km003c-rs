@@ -1,6 +1,8 @@
 #[cfg(target_arch = "wasm32")]
 mod browser_devices;
 mod chart_view;
+mod firmware_io;
+mod firmware_ui;
 mod gpu_plot;
 mod measurement_ui;
 mod metric_color;
@@ -91,6 +93,7 @@ enum AppTab {
     Charts,
     Pd,
     Recordings,
+    Firmware,
 }
 
 enum PdTimelineEntry<'a> {
@@ -227,6 +230,7 @@ impl TimeWindow {
 }
 
 struct PowerMonitorApp {
+    firmware: firmware_ui::FirmwareUi,
     /// Complete live samples retained for plotting
     data_points: VecDeque<MeasurementSample>,
     /// Unwraps device time and integrates charge and energy
@@ -366,6 +370,7 @@ impl PowerMonitorApp {
             .map_err(|error| warn!("Could not start recording recovery: {error}"))
             .ok();
         Self {
+            firmware: firmware_ui::FirmwareUi::default(),
             data_points: VecDeque::new(),
             measurement_accumulator: MeasurementAccumulator::default(),
             session_events,
@@ -1604,6 +1609,10 @@ impl PowerMonitorApp {
 impl PowerMonitorApp {
     fn render_ui(&mut self, ui: &mut egui::Ui) {
         self.process_messages();
+        self.firmware.poll();
+        if self.firmware.installing && ui.ctx().input(|i| i.viewport().close_requested()) {
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        }
 
         // Request repaints - fast when streaming, slower when idle
         if self.streaming && self.plot_source == PlotSource::Live {
@@ -1615,11 +1624,12 @@ impl PowerMonitorApp {
         egui::Panel::top("header").show(ui, |ui| {
             self.header_bar(ui);
             self.measurement_cards(ui);
-            self.acquisition_controls(ui);
+            ui.add_enabled_ui(!self.firmware.usb_busy, |ui| self.acquisition_controls(ui));
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.active_tab, AppTab::Charts, "Charts");
                 ui.selectable_value(&mut self.active_tab, AppTab::Pd, "USB PD");
                 ui.selectable_value(&mut self.active_tab, AppTab::Recordings, "Recordings");
+                ui.selectable_value(&mut self.active_tab, AppTab::Firmware, "Firmware");
             });
         });
         egui::Panel::bottom("status").show(ui, |ui| {
@@ -1639,13 +1649,18 @@ impl PowerMonitorApp {
                 self.pd_timeline_panel(ui);
             }
             AppTab::Recordings => {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    self.live_capture_section(ui);
-                    self.offline_recordings_section(ui);
+                ui.add_enabled_ui(!self.firmware.usb_busy, |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        self.live_capture_section(ui);
+                        self.offline_recordings_section(ui);
+                    })
                 });
             }
+            AppTab::Firmware => self.firmware_panel(ui),
         });
-        self.settings_window(ui.ctx());
+        if !self.firmware.usb_busy {
+            self.settings_window(ui.ctx());
+        }
     }
 }
 
@@ -1665,9 +1680,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let preferences = dirs.load_preferences();
     let (session, session_events) = Session::spawn();
 
-    // Auto-connect on startup
-    let _ = session.connect(preferences.sample_rate, !cfg!(target_os = "macos"));
-
     // Run egui application
     let options = eframe::NativeOptions {
         renderer: eframe::Renderer::Wgpu,
@@ -1686,6 +1698,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(|cc| {
             configure_appearance(&cc.egui_ctx);
             app.init_gpu(cc);
+            // Open USB only after window initialization succeeds.
+            let _ = app.session.connect(app.current_rate.to_graph_rate(), app.usb_reset);
             Ok(Box::new(app))
         }),
     )
@@ -1700,7 +1714,7 @@ mod tests {
 
     /// An app whose session has no device task behind it. It saves no
     /// preferences and journals into a directory of its own.
-    fn test_app() -> (PowerMonitorApp, mpsc::UnboundedSender<SessionEvent>) {
+    pub(super) fn test_app() -> (PowerMonitorApp, mpsc::UnboundedSender<SessionEvent>) {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let (session, _commands) = Session::detached();
         let dirs = AppDirs {

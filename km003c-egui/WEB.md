@@ -91,6 +91,15 @@ selects the matching wasm-bindgen CLI. The Cargo target configuration opts into
 web-sys's unstable WebUSB bindings, as required by nusb. No server USB bridge is
 needed.
 
+The **Firmware** tab supports catalog downloads, local `.mencrypt` packages,
+upgrades, downgrades and reinstalls through the shared library installer. Use
+**Authorize meter**, select a package, then **Check meter** and review the current
+and target builds. Application-mode installation requires a browser with the
+File System Access API so the verified backup can be written and closed before
+flash is erased. Keep the page and meter connected until readback completes.
+If a DFU-mode meter needs a new permission grant, authorize it again and retry.
+This browser installation flow has not yet been hardware-tested.
+
 Desktop remains: cargo run -p km003c-egui. Native Polars, file dialogs and file
 writer threads are target-specific and are not linked into the browser.
 

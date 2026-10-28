@@ -5,6 +5,31 @@ work contributed in [PR #60](https://github.com/okhsunrog/km003c-rs/pull/60/chan
 an independently decoded successful update capture, official Mtools.exe 2.5.2
 decompilation, and a repeatable read of the connected meter's bootloader.
 
+## GUI installation
+
+The egui monitor has a **Firmware** tab for desktop and browser use. Refresh the
+catalog and download a specific version/date/build, or open a local `.mencrypt`
+package. Older and same-version builds use the same installation flow as upgrades.
+The package identity, size, CRC and release notes are shown before device access.
+
+**Check meter** disconnects measurement acquisition and waits for its USB handle
+to be released before checking the selected meter. **Review installation** shows
+the meter identity and current/target builds; installation requires a separate
+confirmation and a backup destination. A recording or offline transfer must finish
+first. Automatic reconnection stays disabled until the user presses **Start**.
+
+The UI forwards library progress through backup, erase, transfer and complete
+readback verification. It prevents normal window closing during installation.
+Desktop backups are created without overwriting existing files and flushed before
+flash operations. Browser backups require the File System Access API: the file's
+write and close operations must complete before erasure, rather than relying on a
+download notification. Use **Authorize meter** to grant WebUSB permission; a meter
+that reappears in DFU may need permission again before retrying recovery.
+
+The GUI adapter is covered by offline state/rendering/storage tests and native/Wasm
+builds. Device tests of the GUI installation flow remain pending; CLI hardware
+results do not establish browser dialog or WebUSB re-enumeration behavior.
+
 ## Shared library API
 
 The complete maintenance flow belongs to `km003c-lib::firmware`. CLI code only

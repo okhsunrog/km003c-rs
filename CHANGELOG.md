@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- An egui Firmware tab for catalog/local packages, upgrades, downgrades and
+  reinstalls, with device checks, confirmation, verified backup storage and
+  library progress. Browser backups await a File System Access write and close.
+- `Session::disconnect_and_wait()` releases the measurement USB handle before
+  another operation takes ownership.
+- A pinned Nix development shell with desktop GUI runtime libraries and paths.
+
 - `InstalledFirmwareInfo::validate_application()` checks saved application
   bytes against their vectors, embedded identity and original CRC, normalizing
   the bootloader's committed size/CRC fields during CRC calculation.

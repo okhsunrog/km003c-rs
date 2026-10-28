@@ -14,7 +14,7 @@ name = "km003c-egui"
 path = "src/main.rs"
 
 [dependencies]
-km003c-lib = { workspace = true, features = ["usbpd", "preferences"] }
+km003c-lib = { workspace = true, features = ["usbpd", "preferences", "firmware-catalog"] }
 egui_plot = "0.37.0"
 realtime-plot = { path = "../realtime-plot" }
 tracing.workspace = true

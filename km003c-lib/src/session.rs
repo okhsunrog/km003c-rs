@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use futures_util::StreamExt;
 use thiserror::Error;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info, warn};
 
 use crate::device::{PID, VID};
@@ -99,6 +99,9 @@ pub enum SessionCommand {
     DownloadOfflineLog(LogMetadata),
     /// Stop streaming and disconnect.
     Disconnect,
+    /// An idle-loop barrier used after Disconnect. Never acknowledges an open session.
+    #[doc(hidden)]
+    AwaitIdle(oneshot::Sender<()>),
 }
 
 /// The session task has stopped, so the command was not delivered.
@@ -185,6 +188,17 @@ impl Session {
     pub fn disconnect(&self) -> Result<(), SessionClosed> {
         self.send(SessionCommand::Disconnect)
     }
+
+    /// Disconnect and wait until discovery/streaming has returned and released USB.
+    ///
+    /// Frontends must stop sending connection commands until maintenance completes.
+    /// A competing connection fails the barrier rather than granting USB ownership.
+    pub async fn disconnect_and_wait(&self) -> Result<(), SessionClosed> {
+        let (tx, rx) = oneshot::channel();
+        self.disconnect()?;
+        self.send(SessionCommand::AwaitIdle(tx))?;
+        rx.await.map_err(|_| SessionClosed)
+    }
 }
 
 /// The session task. [`Session::spawn`] runs it; call it directly to run the
@@ -226,6 +240,9 @@ pub async fn run(tx: mpsc::UnboundedSender<SessionEvent>, mut cmd_rx: mpsc::Unbo
                 let _ = tx.send(SessionEvent::Disconnected {
                     retry_when_present: false,
                 });
+            }
+            SessionCommand::AwaitIdle(reply) => {
+                let _ = reply.send(());
             }
             command => debug!("Ignoring command while disconnected: {command:?}"),
         }
@@ -507,6 +524,10 @@ async fn stream(
                 reconnect_when_present = false;
                 break;
             }
+            Ok(SessionCommand::AwaitIdle(_)) => {
+                // A competing connection consumed Disconnect. Fail the barrier
+                // instead of letting maintenance race this live USB handle.
+            }
             Ok(
                 command @ (SessionCommand::Connect { .. }
                 | SessionCommand::ConnectDevice { .. }
@@ -596,6 +617,7 @@ async fn stream(
 
     info!("Stopping streaming");
     let _ = device.stop_graph_mode().await;
+    drop(device);
     let _ = tx.send(SessionEvent::Disconnected {
         retry_when_present: reconnect_when_present,
     });
@@ -642,6 +664,40 @@ async fn restart_streaming(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn maintenance_waits_for_the_idle_acknowledgement() {
+        let (session, mut commands) = Session::detached();
+        let release = tokio::spawn(async move { session.disconnect_and_wait().await });
+        assert!(matches!(commands.recv().await, Some(SessionCommand::Disconnect)));
+        let Some(SessionCommand::AwaitIdle(reply)) = commands.recv().await else {
+            panic!("missing idle barrier")
+        };
+        assert!(!release.is_finished(), "disconnect alone must not grant USB ownership");
+        reply.send(()).unwrap();
+        assert_eq!(release.await.unwrap(), Ok(()));
+    }
+
+    #[tokio::test]
+    async fn lost_idle_barrier_fails_maintenance_closed() {
+        let (session, mut commands) = Session::detached();
+        let release = tokio::spawn(async move { session.disconnect_and_wait().await });
+        assert!(matches!(commands.recv().await, Some(SessionCommand::Disconnect)));
+        drop(commands.recv().await);
+        assert_eq!(release.await.unwrap(), Err(SessionClosed));
+    }
+
+    #[tokio::test]
+    async fn idle_worker_releases_without_discovering_hardware() {
+        let (session, mut events) = Session::spawn();
+        session.disconnect_and_wait().await.unwrap();
+        assert!(matches!(
+            events.try_recv(),
+            Ok(SessionEvent::Disconnected {
+                retry_when_present: false
+            })
+        ));
+    }
 
     #[test]
     fn firmware_trace_is_only_requested_when_enabled() {

@@ -103,7 +103,7 @@ GUI application featuring:
 - Shared wgpu core with Slint: line segments and compute min/max envelopes,
   with incremental sample uploads and real timestamps
 - AdcQueue streaming with configurable sample rates
-- Large live V/A/W readings and Charts / USB PD / Recordings tabs
+- Large live V/A/W readings and Charts / USB PD / Recordings / Firmware tabs
 - Shared X-only zoom/pan, timestamp cursor and stable stepped, fitted or manual Y scales
 - Adjustable time window (2s to 5min or all data), with a separate view pause
 - Live recording and plot-buffer export to Parquet or CSV
@@ -112,6 +112,8 @@ GUI application featuring:
 - Combined wire-message and firmware-state USB PD timeline with source filters
 - Device settings with auth status and browser permission reuse after reload
 - Separate acquisition Start/Stop, file recording, view pause and USB Disconnect
+- Firmware upgrades, downgrades and reinstalls from the mirror or a local
+  `.mencrypt` package, with confirmation, verified backup and readback progress
 
 ### `km003c-slint` (experimental)
 A second GUI built with [Slint](https://slint.dev) that also runs on Android
