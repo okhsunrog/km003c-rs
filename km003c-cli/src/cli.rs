@@ -1,7 +1,7 @@
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum, error::ErrorKind};
 use km003c_lib::{DeviceConfig, DeviceSelector};
 
-use crate::{adc, logs, memory, pd};
+use crate::{adc, firmware, logs, memory, pd};
 
 /// Read measurements, download recordings, and inspect a POWER-Z KM003C.
 #[derive(Debug, Parser)]
@@ -63,6 +63,11 @@ impl ConnectionOptions {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Inspect, download, and install firmware, including older releases.
+    Firmware {
+        #[command(subcommand)]
+        command: firmware::Command,
+    },
     /// Display device, firmware, and authentication information.
     Info,
     /// Read one measurement or stream ADC samples.
@@ -99,6 +104,12 @@ pub enum DebugCommand {
 impl Cli {
     /// Reject unsupported combinations before opening or resetting USB.
     pub fn validate(&self) -> std::result::Result<(), clap::Error> {
+        if matches!(self.command, Command::Firmware { .. }) && self.connection.reset {
+            return Err(Self::command().error(
+                ErrorKind::ArgumentConflict,
+                "firmware commands do not reset USB; omit --reset",
+            ));
+        }
         if self.connection.interface == Interface::Hid
             && !matches!(
                 self.command,
@@ -145,6 +156,18 @@ mod tests {
             vec!["pd", "trace", "--polls", "1", "--interval-ms", "10"],
             vec!["debug", "memory", "read", "0x420", "--size", "64"],
             vec!["debug", "memory", "scan", "--full"],
+            vec!["firmware", "inspect", "image.mencrypt"],
+            vec!["firmware", "check", "image.mencrypt"],
+            vec![
+                "firmware",
+                "update",
+                "image.mencrypt",
+                "--yes",
+                "--backup",
+                "backup.bin",
+            ],
+            vec!["firmware", "list"],
+            vec!["firmware", "download", "1.9.7", "-o", "old.mencrypt"],
         ] {
             let cli = Cli::try_parse_from(std::iter::once("km003c").chain(arguments)).unwrap();
             cli.validate().unwrap();
@@ -176,12 +199,14 @@ mod tests {
             vec!["debug", "memory", "read", "0xnope"],
             vec!["debug", "memory", "read", "0x420", "--size", "0"],
             vec!["--reset", "--no-reset", "info"],
+            vec!["firmware", "update", "image.mencrypt"],
         ] {
             assert!(Cli::try_parse_from(std::iter::once("km003c").chain(arguments)).is_err());
         }
         for arguments in [
             vec!["--interface", "hid", "logs", "list"],
             vec!["--interface", "hid", "pd", "capture"],
+            vec!["--reset", "firmware", "check", "image.mencrypt"],
             vec!["logs", "download", "--latest", "-f", "csv", "-o", "recording.json"],
         ] {
             let cli = Cli::try_parse_from(std::iter::once("km003c").chain(arguments)).unwrap();

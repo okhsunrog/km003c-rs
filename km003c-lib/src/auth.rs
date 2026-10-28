@@ -13,11 +13,9 @@
 //! matches the beginning of its selected calibration record. Response
 //! attribute bits 1-2 contain the resulting authentication level.
 //!
-//! # AES Keys
+//! # Embedded keys
 //!
-//! - StreamingAuth encrypt (host→device): `Fa0b4tA25f4R038a`
-//! - StreamingAuth decrypt (device→host): `FX0b4tA25f4R038a`
-//! - MemoryRead: `Lh2yfB7n6X7d9a5Z`
+//! Protocol keys are decoded lazily from encrypted embedded material.
 //!
 //! # Usage
 //!
@@ -38,14 +36,9 @@ const STREAMING_AUTH_LEVEL_MASK: u16 = 0b11 << STREAMING_AUTH_LEVEL_SHIFT;
 const AES_BLOCK_SIZE: usize = 16;
 pub(crate) const STREAMING_AUTH_RESPONSE_ID: u8 = 0;
 
-/// AES-128 key for StreamingAuth encryption (host → device)
-pub const STREAMING_AUTH_KEY_ENC: &[u8; 16] = b"Fa0b4tA25f4R038a";
-
-/// AES-128 key for StreamingAuth decryption (device → host)
-pub const STREAMING_AUTH_KEY_DEC: &[u8; 16] = b"FX0b4tA25f4R038a";
-
-/// AES-128 key for MemoryRead command
-pub const MEMORY_READ_KEY: &[u8; 16] = b"Lh2yfB7n6X7d9a5Z";
+// These are lazy values rather than plaintext constants. Borrow them as
+// `&MEMORY_READ_KEY` (or `&*MEMORY_READ_KEY` for generic conversion APIs).
+pub use crate::embedded_keys::{MEMORY_READ_KEY, STREAMING_AUTH_KEY_DEC, STREAMING_AUTH_KEY_ENC};
 
 /// Memory address where HardwareID is stored
 pub const HARDWARE_ID_ADDRESS: u32 = 0x40010450;
@@ -295,7 +288,7 @@ pub fn build_memory_read_payload(address: u32, size: u32) -> [u8; 32] {
     // Bytes 16-31: Already 0xFF from initialization
 
     // Encrypt with AES-128-ECB
-    aes_ecb_encrypt(&plaintext, MEMORY_READ_KEY)
+    aes_ecb_encrypt(&plaintext, &MEMORY_READ_KEY)
 }
 
 /// Decrypt and validate a 32-byte MemoryRead request payload.
@@ -406,13 +399,13 @@ pub fn build_streaming_auth_payload(credential: &AuthCredential) -> [u8; 32] {
     plaintext[20..32].copy_from_slice(&random_bytes);
 
     // Encrypt with AES-128-ECB
-    aes_ecb_encrypt(&plaintext, STREAMING_AUTH_KEY_ENC)
+    aes_ecb_encrypt(&plaintext, &STREAMING_AUTH_KEY_ENC)
 }
 
 /// Decrypt a host-to-device StreamingAuth request and extract its credential.
 pub fn parse_streaming_auth_request_payload(ciphertext: &[u8]) -> Option<AuthCredential> {
     let encrypted: [u8; STREAMING_AUTH_PAYLOAD_SIZE] = ciphertext.try_into().ok()?;
-    let plaintext = aes_ecb_decrypt(&encrypted, STREAMING_AUTH_KEY_ENC);
+    let plaintext = aes_ecb_decrypt(&encrypted, &STREAMING_AUTH_KEY_ENC);
     Some(AuthCredential::from_bytes(plaintext[8..20].try_into().ok()?))
 }
 
@@ -424,7 +417,7 @@ pub fn parse_streaming_auth_request_payload(ciphertext: &[u8]) -> Option<AuthCre
 /// # Returns
 /// 32-byte AES-encrypted payload
 pub fn encrypt_streaming_auth_response_payload(plaintext: &[u8; 32]) -> [u8; 32] {
-    aes_ecb_encrypt(plaintext, STREAMING_AUTH_KEY_DEC)
+    aes_ecb_encrypt(plaintext, &STREAMING_AUTH_KEY_DEC)
 }
 
 /// Build a StreamingAuth (0x4C) request packet
@@ -490,7 +483,7 @@ pub(crate) fn parse_streaming_auth_response_parts(
 /// Parse and decrypt a StreamingAuth response payload with its raw response attribute.
 pub fn parse_streaming_auth_response_payload(payload: &[u8], attribute: u16) -> Option<StreamingAuthResult> {
     let encrypted: [u8; STREAMING_AUTH_PAYLOAD_SIZE] = payload.get(..STREAMING_AUTH_PAYLOAD_SIZE)?.try_into().ok()?;
-    let decrypted = aes_ecb_decrypt(&encrypted, STREAMING_AUTH_KEY_DEC);
+    let decrypted = aes_ecb_decrypt(&encrypted, &STREAMING_AUTH_KEY_DEC);
     let auth_level = ((attribute & STREAMING_AUTH_LEVEL_MASK) >> STREAMING_AUTH_LEVEL_SHIFT) as u8;
 
     Some(StreamingAuthResult {
@@ -523,7 +516,7 @@ pub fn decrypt_memory_read_response(ciphertext: &[u8]) -> Option<Vec<u8>> {
     }
 
     // Decrypt in 16-byte blocks
-    let cipher = Aes128::new(MEMORY_READ_KEY.into());
+    let cipher = Aes128::new((&*MEMORY_READ_KEY).into());
     let mut output = ciphertext.to_vec();
 
     for block in output.chunks_mut(AES_BLOCK_SIZE) {
@@ -621,7 +614,7 @@ mod tests {
     #[test]
     fn test_aes_roundtrip() {
         let plaintext = [0x42u8; 32];
-        let encrypted = aes_ecb_encrypt(&plaintext, STREAMING_AUTH_KEY_ENC);
+        let encrypted = aes_ecb_encrypt(&plaintext, &STREAMING_AUTH_KEY_ENC);
         // Note: Can't decrypt with same key in real protocol, but can test structure
         assert_ne!(encrypted, plaintext);
         assert_eq!(encrypted.len(), 32);
@@ -662,7 +655,7 @@ mod tests {
         use bytes::Bytes;
 
         let plaintext = [0x5a; STREAMING_AUTH_PAYLOAD_SIZE];
-        let encrypted = aes_ecb_encrypt(&plaintext, STREAMING_AUTH_KEY_DEC);
+        let encrypted = aes_ecb_encrypt(&plaintext, &STREAMING_AUTH_KEY_DEC);
 
         let response = |attribute| {
             let header = StreamingAuthHeader::new()
@@ -725,7 +718,7 @@ mod tests {
 
         // Decrypt payload (bytes 4-35)
         let ciphertext: [u8; 32] = packet[4..36].try_into().unwrap();
-        let plaintext = aes_ecb_decrypt(&ciphertext, MEMORY_READ_KEY);
+        let plaintext = aes_ecb_decrypt(&ciphertext, &MEMORY_READ_KEY);
 
         // Extract address (bytes 0-3, little-endian)
         let address = u32::from_le_bytes([plaintext[0], plaintext[1], plaintext[2], plaintext[3]]);
@@ -753,7 +746,7 @@ mod tests {
 
         // Decrypt and verify address/size
         let ciphertext: [u8; 32] = generated[4..36].try_into().unwrap();
-        let plaintext = aes_ecb_decrypt(&ciphertext, MEMORY_READ_KEY);
+        let plaintext = aes_ecb_decrypt(&ciphertext, &MEMORY_READ_KEY);
 
         let address = u32::from_le_bytes([plaintext[0], plaintext[1], plaintext[2], plaintext[3]]);
         let size = u32::from_le_bytes([plaintext[4], plaintext[5], plaintext[6], plaintext[7]]);
@@ -780,7 +773,7 @@ mod tests {
 
         // Decrypt payload (bytes 4-35) using ENCRYPT key (since host->device uses encrypt key)
         let ciphertext: [u8; 32] = packet[4..36].try_into().unwrap();
-        let plaintext = aes_ecb_decrypt(&ciphertext, STREAMING_AUTH_KEY_ENC);
+        let plaintext = aes_ecb_decrypt(&ciphertext, &STREAMING_AUTH_KEY_ENC);
 
         // Structure: timestamp(8) + HardwareID(12) + padding(12)
         let timestamp = u64::from_le_bytes(plaintext[0..8].try_into().unwrap());
@@ -820,7 +813,7 @@ mod tests {
 
         // Decrypt our generated packet to verify HardwareID is embedded correctly
         let ciphertext: [u8; 32] = packet[4..36].try_into().unwrap();
-        let plaintext = aes_ecb_decrypt(&ciphertext, STREAMING_AUTH_KEY_ENC);
+        let plaintext = aes_ecb_decrypt(&ciphertext, &STREAMING_AUTH_KEY_ENC);
 
         // Extract and verify HardwareID
         let extracted_hw: [u8; 12] = plaintext[8..20].try_into().unwrap();

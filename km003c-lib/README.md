@@ -54,6 +54,49 @@ See the [project repository](https://github.com/okhsunrog/km003c-rs) for the
 CLI tools, GUI monitor, USB permissions, Python bindings, and protocol
 research links.
 
+## Firmware maintenance
+
+`km003c_lib::firmware` exposes package inspection, device checks, verified backups
+and the complete installation sequence. Frontends supply backup storage and
+consume typed progress events; the library owns APP/DFU transitions, transfer
+deadlines and full installed-image verification. Callers must release any live
+measurement session before opening firmware maintenance.
+
+Enable `firmware-catalog` for official release descriptions and package downloads.
+`FirmwareCatalogClient` is the native HTTPS adapter; `FirmwareCatalog` and
+`FirmwareRelease::validate_package` can also be used with other transports.
+
+```no_run
+# #[cfg(all(feature = "firmware-catalog", not(target_arch = "wasm32")))]
+# async fn example() -> Result<(), Box<dyn std::error::Error>> {
+use std::io::Write;
+use km003c_lib::{DeviceSelector, firmware::{PreparedFirmwareUpdate, catalog::FirmwareCatalogClient}};
+
+let client = FirmwareCatalogClient::new()?;
+let catalog = client.fetch().await?;
+let release = catalog.release("2.0.7").ok_or("release unavailable")?;
+let download = client.download(release).await?;
+let (_, image) = download.into_parts();
+let selected = DeviceSelector::SerialNumber("007965".into());
+let prepared = PreparedFirmwareUpdate::prepare(image, selected, |_event| {}).await?;
+
+// The frontend can present prepared.device(), prepared.image() and its backup.
+// Calling install authorizes flash writes; storage must succeed first.
+let result = prepared.install(|backup| async move {
+    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open("current-firmware.bin")?;
+    file.write_all(backup.data())?;
+    file.sync_all()?;
+    Ok(())
+}, |_event| {}).await?;
+assert!(result.bytes_verified > 0);
+# Ok(())
+# }
+```
+
+The CLI is one consumer of this API. See the repository's firmware documentation
+for protocol evidence, hardware-tested upgrade/downgrade results and remaining
+validation limits.
+
 ## License
 
 Licensed under either the Apache License, Version 2.0 or the MIT license, at

@@ -219,7 +219,7 @@ fn decrypt_memory_response(encrypted: &[u8], requested_size: u32) -> Result<Vec<
         )));
     }
 
-    let mut decrypted = crate::auth::aes_ecb_decrypt_blocks(encrypted, crate::auth::MEMORY_READ_KEY)?;
+    let mut decrypted = crate::auth::aes_ecb_decrypt_blocks(encrypted, &crate::auth::MEMORY_READ_KEY)?;
     decrypted.truncate(requested_size as usize);
     Ok(decrypted)
 }
@@ -361,6 +361,9 @@ pub enum DeviceSelector {
     /// The address changes across a USB reset, so prefer
     /// [`DeviceSelector::SerialNumber`] together with `skip_reset()`.
     BusAddress { bus_id: String, device_address: u8 },
+    /// Physical port, stable when rebooting between application and bootloader.
+    /// Available on Linux, macOS and Windows.
+    PortPath { bus_id: String, port_chain: Vec<u8> },
 }
 
 impl DeviceSelector {
@@ -372,9 +375,11 @@ impl DeviceSelector {
             Self::BusAddress { bus_id, device_address } => {
                 device.bus_id() == bus_id && device.device_address() == *device_address
             }
+            #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
+            Self::PortPath { bus_id, port_chain } => device.bus_id() == bus_id && device.port_chain() == port_chain,
             // Android and WebUSB expose no bus topology.
             #[cfg(any(target_os = "android", target_arch = "wasm32"))]
-            Self::BusAddress { .. } => false,
+            Self::BusAddress { .. } | Self::PortPath { .. } => false,
         }
     }
 
@@ -383,6 +388,7 @@ impl DeviceSelector {
             Self::First => "the first attached KM003C".to_string(),
             Self::SerialNumber(serial) => format!("KM003C with serial {serial}"),
             Self::BusAddress { bus_id, device_address } => format!("KM003C at bus {bus_id} address {device_address}"),
+            Self::PortPath { bus_id, port_chain } => format!("KM003C at bus {bus_id} port {port_chain:?}"),
         }
     }
 }
@@ -510,6 +516,19 @@ pub struct KM003C {
 }
 
 impl KM003C {
+    /// Claim the vendor interface without application initialization or USB reset.
+    ///
+    /// Used for firmware maintenance, including when application commands are
+    /// unavailable in DFU. This does not send Connect or change device mode.
+    pub async fn open_maintenance(selector: DeviceSelector) -> Result<Self, KMError> {
+        Self::connect(DeviceConfig::vendor().skip_reset().select(selector)).await
+    }
+
+    pub(crate) fn firmware_transport_available(&self) -> bool {
+        matches!(self.writer, EndpointWriterType::Bulk(_))
+            && matches!(self.mode, ConnectionMode::Basic)
+            && self.pending_responses.is_empty()
+    }
     /// Connect to device with the given configuration
     ///
     /// The config determines the connection mode:
@@ -567,7 +586,7 @@ impl KM003C {
         // unit. Addresses are not stable across a reset, so fall back to the
         // serial number of the device that was just reset.
         let reopen_selector = match &config.selector {
-            DeviceSelector::SerialNumber(_) => config.selector.clone(),
+            DeviceSelector::SerialNumber(_) | DeviceSelector::PortPath { .. } => config.selector.clone(),
             _ => device_info
                 .serial_number()
                 .map(|serial| DeviceSelector::SerialNumber(serial.to_string()))
@@ -781,6 +800,10 @@ impl KM003C {
 
     /// Read one complete response directly from the USB endpoint.
     async fn read_raw_from_usb(&mut self) -> Result<Vec<u8>, KMError> {
+        self.read_raw_with_timeout(DEFAULT_TIMEOUT).await
+    }
+
+    pub(crate) async fn read_raw_with_timeout(&mut self, duration: Duration) -> Result<Vec<u8>, KMError> {
         let mut buffer = Vec::new();
         let bytes_read = match &mut self.reader {
             EndpointReaderType::Bulk(reader) => {
@@ -788,7 +811,7 @@ impl KM003C {
                 // this adapter preserves one complete protocol response even when it
                 // is larger than either the caller's buffer or one 2048-byte transfer.
                 let mut message = reader.until_short_packet();
-                let bytes_read = timeout(DEFAULT_TIMEOUT, message.read_to_end(&mut buffer)).await??;
+                let bytes_read = timeout(duration, message.read_to_end(&mut buffer)).await??;
                 message
                     .consume_end()
                     .map_err(|_| KMError::Protocol("Bulk response ended without a short packet".to_string()))?;
@@ -796,7 +819,7 @@ impl KM003C {
             }
             EndpointReaderType::Interrupt(reader) => {
                 buffer.resize(INTERRUPT_TRANSFER_SIZE, 0);
-                let bytes_read = timeout(DEFAULT_TIMEOUT, reader.read(&mut buffer)).await??;
+                let bytes_read = timeout(duration, reader.read(&mut buffer)).await??;
                 buffer.truncate(bytes_read);
                 bytes_read
             }

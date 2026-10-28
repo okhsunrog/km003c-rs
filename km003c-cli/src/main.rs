@@ -1,5 +1,6 @@
 mod adc;
 mod cli;
+mod firmware;
 mod logs;
 mod memory;
 mod pd;
@@ -38,12 +39,16 @@ async fn main() -> ExitCode {
 }
 
 async fn run(args: Cli) -> Result {
+    if let Command::Firmware { command } = args.command {
+        return firmware::run(args.connection, command).await;
+    }
     let mut device = KM003C::new(args.connection.config()).await?;
     let result = match args.command {
         Command::Info => {
             println!("{}", device.state().ok_or("device information is unavailable")?);
             Ok(())
         }
+        Command::Firmware { .. } => unreachable!("firmware uses its own maintenance connection"),
         Command::Adc { command } => match command {
             adc::Command::Read => adc::read(&mut device).await,
             adc::Command::Stream(args) => adc::stream(&mut device, args).await,

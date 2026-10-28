@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A public firmware mirror in `km003c-resources`, with 21 validated manufacturer
+  packages, release notes and unique build IDs. Native and browser library users
+  can parse the JSON catalog and validate complete package SHA-256/size as well
+  as firmware CRC and identity. Version-only selection rejects ambiguous builds.
+- Experimental firmware package and bootloader APIs, with unified CLI commands
+  for official release listing/download, local inspection, device checks and
+  installation of newer, older or same-version images. Updates preserve an
+  application backup, use a stable USB port across DFU transitions, and verify
+  full readback including the bootloader's final metadata patch. The complete
+  1.9.9 -> 2.0.7 -> original 1.9.9 cycle passed on hardware 2.1, with matching
+  final application bytes and an unchanged acquired bootloader region.
 - The release workflow builds `km003c` wheels for Linux, macOS and Windows on
   both x86-64 and arm64 plus a source distribution, and uploads them to PyPI
   through trusted publishing, so `pip install km003c` no longer requires a Rust
@@ -37,6 +48,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Firmware listing and downloads use the public mirror without authorization.
+  The official OSS backend and encrypted credentials remain in the library,
+  disabled from default paths while the vendor credential is inactive. Original
+  applications, manuals and historical `orig_app` snapshots are archived as
+  `km003c-resources` Release assets, outside the current source tree.
+- Protocol AES keys and official catalog credentials are stored as encrypted
+  embedded values and decoded once in memory, without external files. The
+  wrapping key is bundled too; this conceals plaintext literals rather than
+  preventing extraction. The public `auth` key constants are now
+  `LazyLock<[u8; 16]>` statics: borrow with `&MEMORY_READ_KEY`, or use
+  `&*MEMORY_READ_KEY` where a generic conversion requires the array reference.
 - One clap-based `km003c` executable replaces the six CLI binaries, with
   `info`, `adc`, `logs`, `pd`, and `debug memory` commands and shared USB,
   device-selection, and logging options. Existing scripts must use the new
