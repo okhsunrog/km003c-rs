@@ -26,6 +26,15 @@
             buildInputs = libraries;
             shellHook = ''
               export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath libraries}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+              if [ -z "''${SSL_CERT_FILE:-}" ]; then
+                if [ -n "''${NIX_SSL_CERT_FILE:-}" ]; then
+                  export SSL_CERT_FILE="$NIX_SSL_CERT_FILE"
+                elif [ -r /etc/ssl/certs/ca-certificates.crt ]; then
+                  export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+                else
+                  export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+                fi
+              fi
             '';
           };
         });
