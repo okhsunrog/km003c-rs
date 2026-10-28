@@ -6,10 +6,5 @@ description = "GPU-accelerated real-time plotting for Slint via WGPU"
 license = "MIT"
 
 [dependencies]
-bytemuck = { workspace = true }
-png = { workspace = true }
 slint = { workspace = true }
-wgpu = { workspace = true }
-
-[dev-dependencies]
-pollster = "1.0.1"
+realtime-plot = { path = "../../realtime-plot", features = ["png"] }

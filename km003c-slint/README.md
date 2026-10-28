@@ -11,9 +11,8 @@ the meter plugged into the phone.
 </p>
 
 It plots voltage, current and power from the AdcQueue stream at 2, 10, 50 or
-1000 SPS. The charts are rendered on the GPU through a vendored copy of
-[`slint-realtime-plot`](https://github.com/okhsunrog/slint_realtime_plotting_experiments),
-which draws the samples as anti-aliased line segments when zoomed in and as a
+1000 SPS. The charts use the shared [`realtime-plot`](../realtime-plot)
+GPU core through the local `slint-realtime-plot` adapter. It draws the samples as anti-aliased line segments when zoomed in and as a
 min/max envelope when zoomed out. A 262,144-sample ring per chart holds
 4.4 minutes at 1000 SPS or 87 minutes at 50 SPS.
 
@@ -54,8 +53,9 @@ cd km003c-slint
 cargo run --release
 ```
 
-The crate is its own Cargo workspace, so Slint, wgpu and the patched `nusb`
-below stay out of the main workspace, its lock file and CI.
+The crate is its own Cargo workspace, so Slint and the patched `nusb` below
+stay out of the main workspace, its lock file and CI. The wgpu plotting core is
+shared with the main workspace and the egui/WebGPU frontend.
 
 ## Android
 
@@ -109,7 +109,7 @@ adb logcat 'km003c:V' '*:S'
 
 ## Licenses
 
-The vendored `slint-realtime-plot` is MIT-licensed. Slint is used under its
+The shared plotting core and the `slint-realtime-plot` adapter are MIT-licensed. Slint is used under its
 royalty-free license, which asks for attribution:
 
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-light.svg)](https://slint.dev)

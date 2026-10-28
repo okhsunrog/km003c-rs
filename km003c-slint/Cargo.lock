@@ -1916,6 +1916,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
 
 [[package]]
+name = "gloo-timers"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbb143cf96099802033e0d4f4963b19fd2e0b728bcf076cd9cf7f6634f092994"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "js-sys",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "glow"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3103,7 +3115,10 @@ dependencies = [
  "bytes",
  "crc32fast",
  "futures-util",
+ "getrandom 0.4.3",
+ "gloo-timers",
  "hex",
+ "js-sys",
  "modular-bitfield",
  "num_enum",
  "nusb",
@@ -3117,6 +3132,10 @@ dependencies = [
  "tracing",
  "uom",
  "usbpd",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "web-time",
  "zerocopy",
 ]
 
@@ -5045,12 +5064,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pollster"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc6355899e1c9462875b6757c79f3caa011a1fdae12bbb1a2e72dd1f234f8336"
-
-[[package]]
 name = "polycool"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5264,7 +5277,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5386,6 +5399,15 @@ dependencies = [
  "bytemuck",
  "font-types",
  "once_cell",
+]
+
+[[package]]
+name = "realtime-plot"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "png",
+ "wgpu",
 ]
 
 [[package]]
@@ -6073,11 +6095,8 @@ dependencies = [
 name = "slint-realtime-plot"
 version = "0.1.0"
 dependencies = [
- "bytemuck",
- "png",
- "pollster",
+ "realtime-plot",
  "slint",
- "wgpu",
 ]
 
 [[package]]
@@ -6264,7 +6283,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6609,9 +6628,7 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
- "parking_lot",
  "pin-project-lite",
- "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",

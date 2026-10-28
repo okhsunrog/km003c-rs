@@ -18,6 +18,9 @@
     if (!isSecureContext || !navigator.usb) {
       document.getElementById('notice').textContent =
         'WebUSB requires Chrome or Edge on desktop, with HTTPS or localhost. Firefox and Safari do not support WebUSB.';
+    } else if (!navigator.gpu) {
+      document.getElementById('notice').textContent =
+        'WebGPU is required. Use desktop Chrome or Edge with WebGPU enabled.';
     }
   </script>
 </body>

@@ -18,6 +18,7 @@ pub struct PlotBuffer {
 }
 struct Inner {
     data: Vec<f32>,
+    times: Vec<[f32; 2]>,
     written: u64,
     generation: u64,
     epoch: u64,
@@ -40,6 +41,7 @@ impl PlotBuffer {
             id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             inner: Mutex::new(Inner {
                 data: vec![f32::NAN; capacity.checked_mul(num_channels).unwrap()],
+                times: vec![[0.0; 2]; capacity],
                 written: 0,
                 generation: 0,
                 epoch: 0,
@@ -53,14 +55,26 @@ impl PlotBuffer {
         self.push_batch(values);
     }
     pub fn push_batch(&self, frames: &[f32]) {
+        self.push_impl(None, frames);
+    }
+    /// Append frames with monotonically increasing timestamps in seconds.
+    /// Split timestamps preserve sub-millisecond detail in long recordings.
+    pub fn push_timed_batch(&self, times: &[f64], frames: &[f32]) {
+        assert_eq!(times.len() * self.num_channels, frames.len());
+        self.push_impl(Some(times), frames);
+    }
+    fn push_impl(&self, times: Option<&[f64]>, frames: &[f32]) {
         assert_eq!(frames.len() % self.num_channels, 0);
         if frames.is_empty() {
             return;
         }
         let mut inner = self.inner.lock().unwrap();
-        for frame in frames.chunks_exact(self.num_channels) {
+        for (index, frame) in frames.chunks_exact(self.num_channels).enumerate() {
             let base = (inner.written % self.capacity as u64) as usize * self.num_channels;
             inner.data[base..base + self.num_channels].copy_from_slice(frame);
+            let time = times.map_or(inner.written as f64, |times| times[index]);
+            let hi = time as f32;
+            inner.times[base / self.num_channels] = [hi, (time - f64::from(hi)) as f32];
             inner.written += 1;
         }
         inner.generation += 1;
@@ -68,6 +82,7 @@ impl PlotBuffer {
     pub fn clear(&self) {
         let mut inner = self.inner.lock().unwrap();
         inner.data.fill(f32::NAN);
+        inner.times.fill([0.0; 2]);
         inner.written = 0;
         inner.epoch += 1;
         inner.generation += 1;
@@ -91,7 +106,12 @@ impl PlotBuffer {
     pub fn copy_to(&self, dst: &mut Vec<f32>) {
         dst.clone_from(&self.inner.lock().unwrap().data);
     }
-    pub(crate) fn sync_to(&self, dst: &mut Vec<f32>, snapshot: &mut Snapshot) -> Vec<Range<usize>> {
+    pub(crate) fn sync_to(
+        &self,
+        dst: &mut Vec<f32>,
+        times: &mut Vec<[f32; 2]>,
+        snapshot: &mut Snapshot,
+    ) -> Vec<Range<usize>> {
         let inner = self.inner.lock().unwrap();
         if snapshot.source == self.id && snapshot.initialized && snapshot.generation == inner.generation {
             return Vec::new();
@@ -104,6 +124,7 @@ impl PlotBuffer {
         let mut ranges = Vec::with_capacity(2);
         if full {
             dst.clone_from(&inner.data);
+            times.clone_from(&inner.times);
             ranges.push(0..inner.data.len());
         } else if count > 0 {
             let start = (snapshot.written % self.capacity as u64) as usize;
@@ -114,6 +135,8 @@ impl PlotBuffer {
             }
             for range in &ranges {
                 dst[range.clone()].copy_from_slice(&inner.data[range.clone()]);
+                let frames = range.start / self.num_channels..range.end / self.num_channels;
+                times[frames.clone()].copy_from_slice(&inner.times[frames]);
             }
         }
         *snapshot = Snapshot {
@@ -136,19 +159,20 @@ mod tests {
         let buffer = PlotBuffer::new(1, 4);
         let mut snapshot = Snapshot::default();
         let mut data = Vec::new();
-        assert_eq!(buffer.sync_to(&mut data, &mut snapshot), vec![0..4]);
+        let mut times = Vec::new();
+        assert_eq!(buffer.sync_to(&mut data, &mut times, &mut snapshot), vec![0..4]);
         buffer.push_batch(&[1., 2., 3.]);
-        assert_eq!(buffer.sync_to(&mut data, &mut snapshot), vec![0..3]);
+        assert_eq!(buffer.sync_to(&mut data, &mut times, &mut snapshot), vec![0..3]);
         buffer.push_batch(&[4., 5.]);
-        assert_eq!(buffer.sync_to(&mut data, &mut snapshot), vec![3..4, 0..1]);
+        assert_eq!(buffer.sync_to(&mut data, &mut times, &mut snapshot), vec![3..4, 0..1]);
         assert_eq!(data, vec![5., 2., 3., 4.]);
         assert_eq!(snapshot.write_pos, 1);
         buffer.push_batch(&[6., 7., 8., 9., 10.]);
-        assert_eq!(buffer.sync_to(&mut data, &mut snapshot), vec![0..4]);
+        assert_eq!(buffer.sync_to(&mut data, &mut times, &mut snapshot), vec![0..4]);
         assert_eq!(data, vec![9., 10., 7., 8.]);
-        assert!(buffer.sync_to(&mut data, &mut snapshot).is_empty());
+        assert!(buffer.sync_to(&mut data, &mut times, &mut snapshot).is_empty());
         buffer.clear();
-        assert_eq!(buffer.sync_to(&mut data, &mut snapshot), vec![0..4]);
+        assert_eq!(buffer.sync_to(&mut data, &mut times, &mut snapshot), vec![0..4]);
         assert!(data.iter().all(|v| v.is_nan()));
         assert_eq!(snapshot.available, 0);
     }
@@ -163,8 +187,9 @@ mod tests {
         });
         let mut snapshot = Snapshot::default();
         let mut data = Vec::new();
+        let mut times = Vec::new();
         for _ in 0..2000 {
-            buffer.sync_to(&mut data, &mut snapshot);
+            buffer.sync_to(&mut data, &mut times, &mut snapshot);
             for i in 0..snapshot.available {
                 let index = (snapshot.write_pos as usize + 64 - 1 - i as usize) % 64;
                 let expected = (snapshot.written - 1 - u64::from(i)) as f32;
@@ -172,5 +197,30 @@ mod tests {
             }
         }
         writer.join().unwrap();
+    }
+
+    #[test]
+    fn timed_uploads_wrap_and_clear_with_their_values() {
+        let buffer = PlotBuffer::new(2, 4);
+        let mut snapshot = Snapshot::default();
+        let mut data = Vec::new();
+        let mut times = Vec::new();
+        let epoch = 1_000_000.0;
+        buffer.push_timed_batch(&[epoch, epoch + 0.001, epoch + 0.010], &[1., 2., 3., 4., 5., 6.]);
+        buffer.sync_to(&mut data, &mut times, &mut snapshot);
+        buffer.push_timed_batch(&[epoch + 0.020, epoch + 0.021], &[7., 8., 9., 10.]);
+        assert_eq!(buffer.sync_to(&mut data, &mut times, &mut snapshot), vec![6..8, 0..2]);
+        assert_eq!(data, vec![9., 10., 3., 4., 5., 6., 7., 8.]);
+        for (index, expected) in [epoch + 0.021, epoch + 0.001, epoch + 0.010, epoch + 0.020]
+            .into_iter()
+            .enumerate()
+        {
+            let [hi, lo] = times[index];
+            assert!((f64::from(hi) + f64::from(lo) - expected).abs() < 1e-8);
+        }
+        buffer.clear();
+        buffer.sync_to(&mut data, &mut times, &mut snapshot);
+        assert!(data.iter().all(|value| value.is_nan()));
+        assert!(times.iter().all(|time| *time == [0.0; 2]));
     }
 }
