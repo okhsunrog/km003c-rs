@@ -58,8 +58,8 @@ usbpd = ["dep:usbpd"]
 polars = ["dep:polars"]
 # Front-end preferences saved as JSON.
 preferences = ["serde", "dep:serde_json"]
-# Official release catalog, package download validation and native HTTPS client.
-firmware-catalog = ["dep:reqwest", "dep:hmac", "dep:sha1", "dep:sha2", "dep:base64", "dep:httpdate", "dep:roxmltree"]
+# Mirrored release catalog, package validation and native HTTPS client.
+firmware-catalog = ["dep:reqwest", "dep:hmac", "dep:sha1", "dep:sha2", "dep:base64", "dep:httpdate", "dep:roxmltree", "dep:serde", "dep:serde_json"]
 
 [package.metadata.docs.rs]
 features = ["usbpd", "serde", "polars", "preferences", "firmware-catalog"]

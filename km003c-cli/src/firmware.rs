@@ -28,11 +28,11 @@ pub enum Command {
         #[arg(long, required = true)]
         yes: bool,
     },
-    /// List official releases and descriptions, without USB.
+    /// List archived manufacturer releases and descriptions, without USB.
     List,
-    /// Download and validate an official release, without USB.
+    /// Download and validate a release from the public mirror, without USB.
     Download {
-        /// Exact catalog version, including older releases.
+        /// Catalog version or build ID (required when a version has multiple builds).
         version: String,
         #[arg(short, long)]
         output: PathBuf,
@@ -134,13 +134,14 @@ async fn list() -> Result {
     let catalog = FirmwareCatalogClient::new()?.fetch().await?;
     for release in catalog.releases() {
         println!(
-            "{}  {}  {} bytes  CRC32 {:08X}{}{}",
+            "{}  {}  {} bytes  CRC32 {:08X}{}{}\n  Build ID: {}",
             release.version,
             release.date,
             release.size,
             release.crc32,
             if release.latest { "  latest" } else { "" },
-            if release.stable { "  stable" } else { "" }
+            if release.stable { "  stable" } else { "" },
+            release.id,
         );
         if !release.notes_en.is_empty() {
             println!("{}", release.notes_en);
@@ -155,9 +156,7 @@ async fn list() -> Result {
 async fn download(version: &str, output: &Path) -> Result {
     let client = FirmwareCatalogClient::new()?;
     let catalog = client.fetch().await?;
-    let release = catalog
-        .release(version)
-        .ok_or("version not present in official catalog")?;
+    let release = catalog.select_release(version)?;
     let package = client.download(release).await?;
     save_new(output, package.package())?;
     println!(

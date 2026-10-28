@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A public firmware mirror in `km003c-resources`, with 21 validated manufacturer
+  packages, release notes and unique build IDs. Native and browser library users
+  can parse the JSON catalog and validate complete package SHA-256/size as well
+  as firmware CRC and identity. Version-only selection rejects ambiguous builds.
 - Experimental firmware package and bootloader APIs, with unified CLI commands
   for official release listing/download, local inspection, device checks and
   installation of newer, older or same-version images. Updates preserve an
@@ -44,6 +48,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Firmware listing and downloads use the public mirror without authorization.
+  The official OSS backend and encrypted credentials remain in the library,
+  disabled from default paths while the vendor credential is inactive. Original
+  applications, manuals and historical `orig_app` snapshots are archived as
+  `km003c-resources` Release assets, outside the current source tree.
 - Protocol AES keys and official catalog credentials are stored as encrypted
   embedded values and decoded once in memory, without external files. The
   wrapping key is bundled too; this conceals plaintext literals rather than

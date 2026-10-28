@@ -69,7 +69,7 @@ Core library providing:
   interrupted
 - Optional preferences shared by the GUIs through the `preferences` feature
 - Complete firmware maintenance with frontend-supplied backup storage and typed
-  progress; optional `firmware-catalog` for official release metadata/downloads
+  progress; optional `firmware-catalog` for mirrored manufacturer releases
 
 ### `km003c-cli`
 One `km003c` executable with clap subcommands:
@@ -78,7 +78,7 @@ One `km003c` executable with clap subcommands:
 - `logs list` / `logs download` - Offline recording catalog and CSV/Parquet/JSON export
 - `pd capture` / `pd trace` - USB PD messages or internal firmware events
 - `debug memory read` / `debug memory scan` - Memory inspection for protocol research
-- `firmware list` / `firmware download` - Official releases and release notes
+- `firmware list` / `firmware download` - Mirrored releases and release notes
 - `firmware inspect` / `firmware check` / `firmware update` - Package validation,
   device checks and experimental firmware installation, including downgrades
 
@@ -242,10 +242,17 @@ km003c --serial 007965 firmware update KM003C_V2.0.7.mencrypt --backup current-f
 ```
 
 `list`, `download` and `inspect` do not access USB. The catalog and images come
-from the same Alibaba OSS bucket used by the official application. The client
-includes its shared access configuration; no Windows executable is needed.
-Downloads are checked against the catalog and decrypted package CRC before
-being saved. Existing output files are never overwritten.
+from the public [km003c-resources mirror](https://okhsunrog.github.io/km003c-resources/),
+without access keys or a Windows executable. Downloads are checked against
+package SHA-256, size, embedded release identity and firmware CRC before saving.
+Existing output files are never overwritten. If a version has multiple builds,
+pass the build ID printed by `firmware list` in place of the version argument.
+The official OSS backend is retained in the library, disabled from default
+paths while its shared credential is inactive.
+
+Official Windows applications, manuals and source archives are kept as
+[km003c-resources Release assets](https://github.com/okhsunrog/km003c-resources/releases),
+including complete historical `orig_app` snapshots.
 
 `check` reads device identity without rebooting or writing flash. `update`
 backs up the current application using two matching reads, switches the same
@@ -507,5 +514,6 @@ Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
 
 ## Related Projects
 
+- **[km003c-resources](https://github.com/okhsunrog/km003c-resources)** - Archived firmware, official applications and manuals
 - **[km003c-protocol-research](https://github.com/okhsunrog/km003c-protocol-research)** - Protocol reverse engineering
 - **[usbpd](https://crates.io/crates/usbpd)** - Rust USB PD protocol library

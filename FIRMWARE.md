@@ -22,15 +22,16 @@ parses arguments, formats results/progress and saves bytes to files.
   and the verified installation result; no terminal output or file paths.
 - With `firmware-catalog`: `FirmwareCatalog`, `FirmwareRelease` and
   `FirmwareDownload` provide typed catalog/package data and validation.
-  Native frontends use `FirmwareCatalogClient::fetch/download` for the official
-  HTTPS service. The feature does not add HTTP dependencies to basic USB users.
+  Native frontends use `FirmwareCatalogClient::fetch/download` for the public
+  HTTPS mirror. The feature does not add HTTP dependencies to basic USB users.
 
 GUI frontends can save a `FirmwareBackup` using their own storage mechanism and
 forward progress to the UI. They do not need to reproduce protocol, backup or
 verification decisions. A live measurement session must release its USB handle
 before maintenance begins. Catalog parsing and downloaded-package validation
 also compile for Wasm; the native HTTPS adapter is not a browser transport,
-and browser catalog access still depends on an appropriate CORS/transport path.
+and browser frontends can fetch the same mirror URLs and pass the bytes to
+`FirmwareCatalog::parse_json` and `FirmwareRelease::validate_package`.
 
 ## Package validation
 
@@ -47,9 +48,40 @@ application vectors, base address, model/version/date against their embedded
 copies, and erased size/CRC placeholders. The inspected bootloader accepts
 application sizes up to `0x6fffe`. The normal updater always uses base `0x4000`.
 
-## Official catalog
+## Public firmware archive
 
-The client reads `expect.xml` and firmware objects from:
+The default catalog is
+[`km003c-resources/catalog.json`](https://okhsunrog.github.io/km003c-resources/catalog.json).
+Packages are served from the same Pages origin. No authorization, vendor EXE
+or OSS credential is used, and the client never automatically falls back to OSS.
+The publisher validates packages with this library and preserves original bytes.
+Windows applications, manuals and complete source archives are
+[Release assets](https://github.com/okhsunrog/km003c-resources/releases).
+The `orig_app` directory was already absent from the current source tree;
+complete historical snapshots are now in the resource archive. Git history has
+not been rewritten to move those files.
+
+The version-1 JSON catalog records model, version, build date, full package hash
+and size, firmware CRC and size, both release-note languages and provenance.
+Downloads validate the whole package SHA-256 (including outer trailers) before
+checking firmware CRC and identity. Paths are restricted to this mirror and
+derived from metadata plus the full hash; arbitrary URLs and redirects are rejected.
+
+A version is not a unique build selector. The archive file named
+`KM003C_V2.0.0.mencrypt` identifies itself as 2.0.1 (2026.4.9), while another
+2.0.1 is dated 2026.4.21. `select_release` accepts a unique version or a build ID;
+an ambiguous version reports the available IDs instead of picking the first.
+Neither latest nor stable status is inferred from the largest version number.
+
+## Retained official catalog backend
+
+This path is disabled from normal entry points. The bundled credential receives
+`403 InvalidAccessKeyId`: `The OSS Access Key Id you provided is disabled.`
+The implementation and offline tests are retained for future valid credentials,
+stored using the same encrypted embedded-key mechanism. The following describes
+previously observed service behavior, not a currently working download route.
+
+The official backend reads `expect.xml` and firmware objects from:
 
 ```text
 https://product-km003c.oss-cn-hangzhou.aliyuncs.com/
