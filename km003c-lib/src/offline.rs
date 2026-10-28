@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use tracing::warn;
 use uom::si::electric_charge::microampere_hour;
 use uom::si::electric_current::microampere;
 use uom::si::electric_potential::microvolt;
@@ -13,6 +14,14 @@ use crate::error::KMError;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+/// Current above anything a KM003C records. One sample interval at this current
+/// is the most a trailing partial interval can add when the stored samples never
+/// saw a larger step.
+const OFFLINE_LOG_FULL_SCALE_CURRENT_UA: u64 = 20_000_000;
+/// Power at 50 V and [`OFFLINE_LOG_FULL_SCALE_CURRENT_UA`].
+const OFFLINE_LOG_FULL_SCALE_POWER_UW: u64 = 1_000_000_000;
+const MILLISECONDS_PER_HOUR: u64 = 3_600_000;
 
 /// Device memory address containing the currently selected offline log.
 pub const OFFLINE_LOG_ADDRESS: u32 = 0x9810_0000;
@@ -346,6 +355,12 @@ pub struct OfflineLog {
 }
 
 impl OfflineLog {
+    /// Decode the samples that belong to `metadata`.
+    ///
+    /// The catalog header holds the live charge and energy at the moment
+    /// recording stopped. Samples are written on interval boundaries, so the
+    /// last sample can differ from that header by up to one sample interval.
+    /// A larger gap means these bytes are not this catalog entry.
     pub fn from_bytes(metadata: LogMetadata, bytes: &[u8]) -> Result<Self, KMError> {
         let expected = metadata.data_size() as usize;
         if bytes.len() != expected {
@@ -362,18 +377,7 @@ impl OfflineLog {
             .map(|bytes| OfflineLogSampleRaw::from_wire_bytes(bytes).map(OfflineLogSampleRaw::decode))
             .collect::<Result<Vec<_>, _>>()?;
 
-        if let Some(last) = samples.last() {
-            let raw = last.raw();
-            if raw.charge_uah != metadata.final_charge_raw_uah() || raw.energy_uwh != metadata.final_energy_raw_uwh() {
-                return Err(KMError::InvalidPacket(format!(
-                    "Offline log final accumulators do not match metadata: sample has charge={} µAh and energy={} µWh, metadata has charge={} µAh and energy={} µWh",
-                    raw.charge_uah,
-                    raw.energy_uwh,
-                    metadata.final_charge_raw_uah(),
-                    metadata.final_energy_raw_uwh()
-                )));
-            }
-        }
+        check_final_accumulators(&metadata, &samples)?;
 
         Ok(Self { metadata, samples })
     }
@@ -387,12 +391,85 @@ impl OfflineLog {
     }
 }
 
+/// µAh or µWh accumulated over `interval_ms` at a per-second rate in µA or µW.
+fn micro_hours(rate_micro: u64, interval_ms: u64) -> u64 {
+    rate_micro.saturating_mul(interval_ms).div_ceil(MILLISECONDS_PER_HOUR)
+}
+
+fn interval_milliseconds(interval: Time) -> u64 {
+    let milliseconds = interval.get::<millisecond>().round();
+    if !milliseconds.is_finite() || milliseconds <= 0.0 {
+        return 0;
+    }
+    u64::from(milliseconds.min(f64::from(u16::MAX)) as u16)
+}
+
+/// Charge and energy one sample interval can add at the full-scale ceiling.
+fn full_scale_interval_allowance(interval: Time) -> (u64, u64) {
+    let interval_ms = interval_milliseconds(interval);
+    (
+        micro_hours(OFFLINE_LOG_FULL_SCALE_CURRENT_UA, interval_ms),
+        micro_hours(OFFLINE_LOG_FULL_SCALE_POWER_UW, interval_ms),
+    )
+}
+
+/// Largest charge and energy step already stored between neighboring samples.
+fn max_accumulator_step(samples: &[OfflineLogSample]) -> (u64, u64) {
+    let mut charge = 0;
+    let mut energy = 0;
+    for pair in samples.windows(2) {
+        let previous = pair[0].raw();
+        let current = pair[1].raw();
+        charge = charge.max(u64::from(previous.charge_uah.abs_diff(current.charge_uah)));
+        energy = energy.max(u64::from(previous.energy_uwh.abs_diff(current.energy_uwh)));
+    }
+    (charge, energy)
+}
+
+fn accumulator_totals(sample_charge: i32, sample_energy: i32, metadata_charge: i32, metadata_energy: i32) -> String {
+    format!(
+        "sample has charge={sample_charge} µAh and energy={sample_energy} µWh, metadata has charge={metadata_charge} µAh and energy={metadata_energy} µWh"
+    )
+}
+
+fn check_final_accumulators(metadata: &LogMetadata, samples: &[OfflineLogSample]) -> Result<(), KMError> {
+    let Some(last) = samples.last() else {
+        return Ok(());
+    };
+    let raw = last.raw();
+    let sample_charge = raw.charge_uah;
+    let sample_energy = raw.energy_uwh;
+    let metadata_charge = metadata.final_charge_raw_uah();
+    let metadata_energy = metadata.final_energy_raw_uwh();
+    let charge_gap = u64::from(sample_charge.abs_diff(metadata_charge));
+    let energy_gap = u64::from(sample_energy.abs_diff(metadata_energy));
+    if charge_gap == 0 && energy_gap == 0 {
+        return Ok(());
+    }
+
+    let (step_charge, step_energy) = max_accumulator_step(samples);
+    let (scale_charge, scale_energy) = full_scale_interval_allowance(metadata.interval);
+    if charge_gap > step_charge.max(scale_charge) || energy_gap > step_energy.max(scale_energy) {
+        return Err(KMError::InvalidPacket(format!(
+            "Offline log final accumulators do not match metadata: {}",
+            accumulator_totals(sample_charge, sample_energy, metadata_charge, metadata_energy)
+        )));
+    }
+
+    warn!(
+        "Offline log final accumulators differ from metadata within one sample interval: {}",
+        accumulator_totals(sample_charge, sample_energy, metadata_charge, metadata_energy)
+    );
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use uom::si::electric_charge::milliampere_hour;
+    use uom::si::electric_charge::{microampere_hour, milliampere_hour};
     use uom::si::electric_current::ampere;
     use uom::si::electric_potential::volt;
-    use uom::si::energy::milliwatt_hour;
+    use uom::si::energy::{microwatt_hour, milliwatt_hour};
+    use uom::si::f64::{ElectricCharge, Energy};
     use uom::si::time::{millisecond, second};
 
     use super::*;
@@ -455,12 +532,89 @@ mod tests {
         assert!(OfflineLog::from_bytes(metadata, &[0; OFFLINE_LOG_SAMPLE_SIZE - 1]).is_err());
     }
 
+    fn encode_sample(
+        voltage_uv: i32,
+        current_ua: i32,
+        charge_uah: i32,
+        energy_uwh: i32,
+    ) -> [u8; OFFLINE_LOG_SAMPLE_SIZE] {
+        let wire = OfflineLogSampleWire::from(OfflineLogSampleRaw {
+            voltage_uv,
+            current_ua,
+            charge_uah,
+            energy_uwh,
+        });
+        wire.as_bytes().try_into().unwrap()
+    }
+
+    fn captured_metadata() -> LogMetadata {
+        LogMetadata::from_bytes(&hex::decode(CAPTURED_METADATA).unwrap()).unwrap()
+    }
+
     #[test]
     fn rejects_data_from_the_wrong_catalog_entry() {
-        let mut metadata = LogMetadata::from_bytes(&hex::decode(CAPTURED_METADATA).unwrap()).unwrap();
+        let mut metadata = captured_metadata();
         metadata.sample_count = 1;
         let wrong_sample = hex::decode("81494c0021f0e2ff56ebffffb998ffff").unwrap();
         let error = OfflineLog::from_bytes(metadata, &wrong_sample).unwrap_err();
+        assert!(error.to_string().contains("final accumulators do not match"));
+    }
+
+    #[test]
+    fn accepts_header_ahead_of_the_last_sample_by_a_partial_interval() {
+        // Firmware 2.0.6, recording A01 from issue 53. The header leads the last
+        // sample by 434 µAh and 3880 µWh, about 1.6 s at the recording's average current.
+        let mut metadata = captured_metadata();
+        metadata.sample_count = 1;
+        metadata.final_charge = ElectricCharge::new::<microampere_hour>(-1_475_530.0);
+        metadata.final_energy = Energy::new::<microwatt_hour>(-13_105_070.0);
+        let bytes = encode_sample(8_989_391, -1_000_000, -1_475_096, -13_101_190);
+
+        let log = OfflineLog::from_bytes(metadata, &bytes).unwrap();
+
+        assert_eq!(log.samples[0].raw().charge_uah, -1_475_096);
+        assert_eq!(log.samples[0].raw().energy_uwh, -13_101_190);
+        assert_eq!(log.metadata.final_charge_raw_uah(), -1_475_530);
+        assert_eq!(log.metadata.final_energy_raw_uwh(), -13_105_070);
+    }
+
+    #[test]
+    fn rejects_accumulator_gap_beyond_one_interval() {
+        let mut metadata = captured_metadata();
+        metadata.sample_count = 1;
+        let (charge_allowance, energy_allowance) = full_scale_interval_allowance(metadata.interval);
+        let charge_gap = i32::try_from(charge_allowance).unwrap() + 1;
+        let energy_gap = i32::try_from(energy_allowance).unwrap() + 1;
+
+        metadata.final_charge = ElectricCharge::new::<microampere_hour>(f64::from(-charge_gap));
+        metadata.final_energy = Energy::new::<microwatt_hour>(0.0);
+        let charge_error = OfflineLog::from_bytes(metadata.clone(), &encode_sample(0, 0, 0, 0)).unwrap_err();
+        assert!(charge_error.to_string().contains("final accumulators do not match"));
+
+        metadata.final_charge = ElectricCharge::new::<microampere_hour>(0.0);
+        metadata.final_energy = Energy::new::<microwatt_hour>(f64::from(-energy_gap));
+        let energy_error = OfflineLog::from_bytes(metadata, &encode_sample(0, 0, 0, 0)).unwrap_err();
+        assert!(energy_error.to_string().contains("final accumulators do not match"));
+    }
+
+    #[test]
+    fn accepts_gap_as_large_as_an_earlier_sample_step() {
+        let mut metadata = captured_metadata();
+        metadata.sample_count = 2;
+        let (charge_allowance, _) = full_scale_interval_allowance(metadata.interval);
+        let step = i32::try_from(charge_allowance).unwrap() + 1_000;
+        metadata.final_charge = ElectricCharge::new::<microampere_hour>(f64::from(step * 2));
+        metadata.final_energy = Energy::new::<microwatt_hour>(0.0);
+        let mut bytes = encode_sample(0, 0, 0, 0).to_vec();
+        bytes.extend_from_slice(&encode_sample(0, 0, step, 0));
+
+        let log = OfflineLog::from_bytes(metadata.clone(), &bytes).unwrap();
+
+        assert_eq!(log.samples[1].raw().charge_uah, step);
+        assert_eq!(log.metadata.final_charge_raw_uah(), step * 2);
+
+        metadata.final_charge = ElectricCharge::new::<microampere_hour>(f64::from(step * 2 + 1));
+        let error = OfflineLog::from_bytes(metadata, &bytes).unwrap_err();
         assert!(error.to_string().contains("final accumulators do not match"));
     }
 

@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use clap::Parser;
+use clap::{Args, Subcommand};
 use km003c_lib::pd::PdEventData;
 use km003c_lib::uom::si::electric_current::ampere;
 use km003c_lib::uom::si::electric_potential::volt;
@@ -13,49 +13,42 @@ use km003c_lib::usbpd::protocol_layer::message::data::source_capabilities::{
 use km003c_lib::usbpd::protocol_layer::message::data::{self, Data};
 use km003c_lib::usbpd::protocol_layer::message::extended::Extended;
 use km003c_lib::{
-    DecodedPdEvent, DecodedPdMessage, DeviceConfig, KM003C, Packet, PdChunkState, PdChunkStatus, PdDecodeFailure,
-    PdSessionDecoder,
+    DecodedPdEvent, DecodedPdMessage, KM003C, PdChunkState, PdChunkStatus, PdDecodeFailure, PdSessionDecoder,
 };
 
-/// USB PD negotiation capture for POWER-Z KM003C.
-///
-/// PD capture only works reliably with the vendor interface. The HID interface
-/// can crash the device when attempting PD operations.
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-struct Args {
-    /// Skip USB reset (defaults to true on macOS for compatibility).
-    #[arg(long, default_value_t = cfg!(target_os = "macos"))]
-    no_reset: bool,
+use crate::Result;
+use km003c_lib::uom::si::time::second;
+use km003c_lib::{PdTraceProtocolEvent, PdTraceStateEvent};
 
-    /// Force USB reset even on macOS (overrides --no-reset).
-    #[arg(long)]
-    reset: bool,
-
-    /// Capture duration in seconds.
-    #[arg(short, long, default_value = "20")]
-    duration: u64,
-
-    /// Show raw bytes for each message.
-    #[arg(long)]
-    raw: bool,
+#[derive(Debug, Subcommand)]
+pub enum Command {
+    /// Capture and decode USB Power Delivery messages.
+    Capture(CaptureArgs),
+    /// Read the firmware's internal PD trace queues.
+    Trace(TraceArgs),
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
-    tracing_subscriber::fmt::init();
+#[derive(Debug, Args)]
+pub struct CaptureArgs {
+    /// Capture duration in seconds; Ctrl+C stops early.
+    #[arg(short, long, default_value_t = 20, value_parser = clap::value_parser!(u64).range(1..))]
+    pub duration: u64,
+    /// Include raw message bytes.
+    #[arg(long)]
+    pub raw: bool,
+}
 
-    let config = if args.no_reset && !args.reset {
-        DeviceConfig::vendor().skip_reset()
-    } else {
-        DeviceConfig::vendor()
-    };
+#[derive(Debug, Args)]
+pub struct TraceArgs {
+    /// Number of trace requests.
+    #[arg(short, long, default_value_t = 10, value_parser = clap::value_parser!(u64).range(1..))]
+    pub polls: u64,
+    /// Delay between requests in milliseconds.
+    #[arg(short, long, default_value_t = 1000, value_parser = clap::value_parser!(u64).range(1..))]
+    pub interval_ms: u64,
+}
 
-    let mut device = KM003C::new(config).await?;
-    let state = device.state().expect("vendor interface provides state");
-    println!("{state}\n");
-
+pub async fn capture(device: &mut KM003C, args: CaptureArgs) -> Result {
     device.enable_pd_monitor().await?;
 
     println!("USB PD Negotiation Capture");
@@ -69,37 +62,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let duration = Duration::from_secs(args.duration);
     let mut decoder = PdSessionDecoder::new();
 
-    loop {
-        if start_time.elapsed() >= duration {
-            break;
-        }
-
-        if let Ok(packet) = device.request_pd_data().await
-            && let Some(stream) = KM003C::extract_pd_events(&packet)
-        {
-            for event in &stream.events {
-                if args.raw
-                    && let PdEventData::PdMessage { wire_data, .. } = &event.data
-                {
-                    print_raw(event.timestamp.get::<millisecond>(), wire_data);
+    let interrupted = {
+        let collect = async {
+            loop {
+                if start_time.elapsed() >= duration {
+                    break;
                 }
 
-                let decoded = decoder.decode_event(event);
-                print_decoded(&decoded, decoder.source_capabilities());
-            }
-        }
+                if let Ok(packet) = device.request_pd_data().await
+                    && let Some(stream) = KM003C::extract_pd_events(&packet)
+                {
+                    for event in &stream.events {
+                        if args.raw
+                            && let PdEventData::PdMessage { wire_data, .. } = &event.data
+                        {
+                            print_raw(event.timestamp.get::<millisecond>(), wire_data);
+                        }
 
+                        let decoded = decoder.decode_event(event);
+                        print_decoded(&decoded, decoder.source_capabilities());
+                    }
+                }
+
+                tokio::time::sleep(Duration::from_millis(30)).await;
+            }
+        };
         tokio::select! {
-            _ = tokio::time::sleep(Duration::from_millis(30)) => {},
-            _ = tokio::signal::ctrl_c() => {
-                println!("\nInterrupted by user");
-                break;
-            }
+            () = collect => Ok(()),
+            signal = tokio::signal::ctrl_c() => signal,
         }
-    }
+    };
 
-    device.disable_pd_monitor().await?;
-    device.send(Packet::Disconnect).await?;
+    let stopped = device.disable_pd_monitor().await;
+    interrupted?;
+    stopped?;
     println!("\nCapture complete.");
     Ok(())
 }
@@ -359,5 +355,47 @@ fn print_capabilities(capabilities: &[PowerDataObject], title: &str) {
         } else {
             println!("             PDO[{}]: {}", index + 1, format_pdo(pdo));
         }
+    }
+}
+
+pub async fn trace(device: &mut KM003C, args: TraceArgs) -> Result {
+    for poll in 0..args.polls {
+        let trace = device.request_pd_trace().await?;
+        println!(
+            "poll {}: {} state events, {} protocol events",
+            poll + 1,
+            trace.state_events.len(),
+            trace.protocol_events.len()
+        );
+        print_state_events(&trace.state_events);
+        print_protocol_events(&trace.protocol_events);
+
+        if poll + 1 < args.polls {
+            tokio::time::sleep(Duration::from_millis(args.interval_ms)).await;
+        }
+    }
+
+    Ok(())
+}
+
+fn print_state_events(events: &[PdTraceStateEvent]) {
+    for event in events {
+        println!(
+            "  state    {:?} (0x{:02x}) uptime={:.0}s",
+            event.state,
+            u8::from(event.state),
+            event.timestamp.get::<second>()
+        );
+    }
+}
+
+fn print_protocol_events(events: &[PdTraceProtocolEvent]) {
+    for event in events {
+        println!(
+            "  protocol {:?} (0x{:02x}) uptime={:.0}s",
+            event.kind,
+            u8::from(event.kind),
+            event.timestamp.get::<second>()
+        );
     }
 }
