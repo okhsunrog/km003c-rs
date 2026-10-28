@@ -68,6 +68,8 @@ Core library providing:
   through the `polars` feature, with recovery of recordings a crash
   interrupted
 - Optional preferences shared by the GUIs through the `preferences` feature
+- Complete firmware maintenance with frontend-supplied backup storage and typed
+  progress; optional `firmware-catalog` for official release metadata/downloads
 
 ### `km003c-cli`
 One `km003c` executable with clap subcommands:
@@ -76,11 +78,15 @@ One `km003c` executable with clap subcommands:
 - `logs list` / `logs download` - Offline recording catalog and CSV/Parquet/JSON export
 - `pd capture` / `pd trace` - USB PD messages or internal firmware events
 - `debug memory read` / `debug memory scan` - Memory inspection for protocol research
+- `firmware list` / `firmware download` - Official releases and release notes
+- `firmware inspect` / `firmware check` / `firmware update` - Package validation,
+  device checks and experimental firmware installation, including downgrades
 
 Connection flags (`--interface`, `--serial`, `--no-reset`, `--reset`) and
 `--verbose` are shared and can appear before or after subcommands. HID is
 supported only for `adc read`; other commands require the vendor interface.
 Diagnostic logs go to stderr, keeping `logs list --json` machine-readable.
+Firmware commands never reset USB implicitly and reject `--reset`.
 
 ### `km003c-egui`
 
@@ -223,6 +229,42 @@ km003c debug memory read 0x420 --size 64
 `offline-log`, `pd_trace`, and `memory_scan` executables. Update scripts to use
 the corresponding subcommands above. The library's `settings` and
 `calibration_auth` examples remain available through `cargo run --example`.
+
+#### Firmware
+
+```bash
+km003c firmware list
+km003c firmware download 2.0.7 -o KM003C_V2.0.7.mencrypt
+km003c firmware inspect KM003C_V2.0.7.mencrypt
+km003c --serial 007965 firmware check KM003C_V2.0.7.mencrypt
+# Writes flash; requires an explicit backup path when the application is running:
+km003c --serial 007965 firmware update KM003C_V2.0.7.mencrypt --backup current-firmware.bin --yes
+```
+
+`list`, `download` and `inspect` do not access USB. The catalog and images come
+from the same Alibaba OSS bucket used by the official application. The client
+includes its shared access configuration; no Windows executable is needed.
+Downloads are checked against the catalog and decrypted package CRC before
+being saved. Existing output files are never overwritten.
+
+`check` reads device identity without rebooting or writing flash. `update`
+backs up the current application using two matching reads, switches the same
+physical USB port into DFU, writes the package, then reboots and checks the
+complete application by reading it back. If already in DFU, application backup
+is unavailable and `--backup` is not required. A failed transfer leaves DFU
+available for a fresh update attempt; data blocks are never retried automatically.
+
+Older and same-version packages use the same update command. The inspected
+bootloader has no version-order check, so the client does not prohibit a
+downgrade. A release still needs to support the meter's hardware revision.
+The backup is the installed application, including its committed metadata;
+it is not a `.mencrypt` package or a complete device/calibration backup.
+
+Firmware installation is experimental. On hardware 2.1, the complete cycle
+`1.9.9 (2025.9.22) -> 2.0.7 -> original 1.9.9` passed full readback checks;
+the final application matched its original backup and the acquired bootloader
+region was unchanged. Interrupted-update recovery remains untested. See
+[firmware protocol and hardware validation notes](FIRMWARE.md).
 
 #### GUI Application
 

@@ -15,7 +15,7 @@ name = "km003c"
 path = "src/main.rs"
 
 [dependencies]
-km003c-lib = { workspace = true, features = ["polars", "usbpd"] }
+km003c-lib = { workspace = true, features = ["firmware-catalog", "polars", "usbpd"] }
 tokio = { workspace = true, features = ["full"] }
 clap = { version = "4.6.2", features = ["derive"] }
 hex = "0.4"
