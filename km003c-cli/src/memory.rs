@@ -1,7 +1,52 @@
-use clap::Parser;
-use km003c_lib::{DeviceConfig, KM003C, error::KMError};
+use clap::{Args, Subcommand};
+use km003c_lib::{KM003C, error::KMError};
 use std::collections::BTreeMap;
 use std::time::Duration;
+
+use crate::Result;
+use std::path::PathBuf;
+
+#[derive(Debug, Subcommand)]
+pub enum Command {
+    /// Read and display or save bytes from one memory address.
+    Read(ReadArgs),
+    /// Probe documented memory regions, optionally scanning more addresses.
+    Scan {
+        /// Also probe undocumented address ranges.
+        #[arg(long)]
+        full: bool,
+    },
+}
+
+#[derive(Debug, Args)]
+pub struct ReadArgs {
+    /// Memory address, decimal or 0x-prefixed hexadecimal.
+    #[arg(value_parser = parse_address)]
+    pub address: u32,
+    /// Number of bytes to read.
+    #[arg(short, long, default_value_t = 64, value_parser = clap::value_parser!(u32).range(1..))]
+    pub size: u32,
+    /// Save raw bytes to a file instead of displaying a hex dump.
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
+}
+
+pub async fn read(device: &mut KM003C, args: ReadArgs) -> Result {
+    let data = device.read_memory_block(args.address, args.size).await?;
+    if let Some(path) = args.output {
+        std::fs::write(&path, &data)?;
+        println!("Wrote {} bytes to {}", data.len(), path.display());
+    } else {
+        for (index, chunk) in data.chunks(16).enumerate() {
+            println!(
+                "{:08X}: {}",
+                u64::from(args.address) + index as u64 * 16,
+                hex::encode(chunk)
+            );
+        }
+    }
+    Ok(())
+}
 
 /// Result of a memory read attempt
 #[derive(Debug, Clone)]
@@ -13,32 +58,7 @@ enum ReadResult {
     Error(String),
 }
 
-/// Read documented KM003C memory regions or explicitly scan additional addresses.
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-struct Args {
-    /// Read one address instead of the documented regions (decimal or 0x-prefixed hex).
-    #[arg(long, value_parser = parse_address)]
-    address: Option<u32>,
-
-    /// Number of bytes to read with --address.
-    #[arg(long, default_value_t = 64)]
-    size: u32,
-
-    /// Probe undocumented address ranges after reading documented regions.
-    #[arg(long)]
-    full_scan: bool,
-
-    /// Skip USB reset (defaults to true on macOS for compatibility).
-    #[arg(long, default_value_t = cfg!(target_os = "macos"))]
-    no_reset: bool,
-
-    /// Force USB reset even on macOS (overrides --no-reset).
-    #[arg(long)]
-    reset: bool,
-}
-
-fn parse_address(value: &str) -> Result<u32, String> {
+fn parse_address(value: &str) -> std::result::Result<u32, String> {
     if let Some(hex) = value.strip_prefix("0x").or_else(|| value.strip_prefix("0X")) {
         u32::from_str_radix(hex, 16).map_err(|error| error.to_string())
     } else {
@@ -58,30 +78,7 @@ impl std::fmt::Display for ReadResult {
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
-    tracing_subscriber::fmt::init();
-
-    println!("KM003C Memory Scanner");
-    println!("=====================\n");
-
-    let config = if args.no_reset && !args.reset {
-        DeviceConfig::vendor().skip_reset()
-    } else {
-        DeviceConfig::vendor()
-    };
-    let mut device = KM003C::new(config).await?;
-
-    let state = device.state().expect("device initialized");
-    println!("{}\n", state);
-
-    if let Some(address) = args.address {
-        let result = try_read(&mut device, address, args.size).await;
-        println!("0x{address:08X} ({} bytes requested): {result}", args.size);
-        return Ok(());
-    }
-
+pub async fn scan(device: &mut KM003C, full: bool) -> Result {
     // Track results by address
     let mut results: BTreeMap<u32, ReadResult> = BTreeMap::new();
 
@@ -97,15 +94,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for (addr, size, name) in known_addresses {
-        let result = try_read(&mut device, *addr, *size).await;
+        let result = try_read(device, *addr, *size).await;
         println!("  0x{:08X} ({:16}): {}", addr, name, result);
         results.insert(*addr, result);
         // Small delay to avoid overwhelming the device
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
 
-    if !args.full_scan {
-        println!("\nPass --full-scan to probe undocumented address ranges.");
+    if !full {
+        println!("\nPass --full to probe undocumented address ranges.");
         return Ok(());
     }
 
@@ -123,7 +120,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if results.contains_key(addr) {
             continue;
         }
-        let result = try_read(&mut device, *addr, 64).await;
+        let result = try_read(device, *addr, 64).await;
         println!("  0x{:08X}: {}", addr, result);
         results.insert(*addr, result);
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -137,7 +134,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if results.contains_key(&addr) {
             continue;
         }
-        let result = try_read(&mut device, addr, 16).await;
+        let result = try_read(device, addr, 16).await;
         if !matches!(result, ReadResult::NotReadable) {
             println!("  0x{:08X}: {}", addr, result);
         }
@@ -153,7 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if results.contains_key(&addr) {
             continue;
         }
-        let result = try_read(&mut device, addr, 16).await;
+        let result = try_read(device, addr, 16).await;
         if !matches!(result, ReadResult::NotReadable) {
             println!("  0x{:08X}: {}", addr, result);
         }
