@@ -1,7 +1,9 @@
 //! Platform execution and clocks; protocol and session code stay shared.
 use std::future::Future;
+mod unload;
 #[cfg(target_arch = "wasm32")]
 use std::time::Duration;
+pub use unload::UnloadGuard;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use std::time::{Instant, SystemTime};

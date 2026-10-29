@@ -67,3 +67,7 @@ web-build:
 # Check browser-compatible dependencies and APIs.
 web-check:
     cargo check -p km003c-egui --target wasm32-unknown-unknown --locked
+
+# Requires matching wasm-bindgen-test-runner and a Chrome/Firefox WebDriver.
+web-test:
+    CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner cargo test -p km003c-lib --target wasm32-unknown-unknown --features browser --test browser_recording --locked

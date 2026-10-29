@@ -32,6 +32,7 @@ pub struct Recorder {
     finishing: bool,
     event_rx: Option<mpsc::UnboundedReceiver<RecordingEvent>>,
     interrupted: Option<String>,
+    unload_guard: Option<crate::runtime::UnloadGuard>,
 }
 
 impl Recorder {
@@ -52,6 +53,7 @@ impl Recorder {
             finishing: false,
             event_rx: None,
             interrupted: None,
+            unload_guard: Some(crate::runtime::UnloadGuard::new()),
         })
     }
 
@@ -95,7 +97,11 @@ impl Recorder {
         let metadata = self.metadata.clone();
         let interrupted = self.interrupted.take();
         let summary = self.summary.clone();
+        let unload_guard = self.unload_guard.take();
         wasm_bindgen_futures::spawn_local(async move {
+            // Keep protection through encoding and download even if the caller
+            // drops the Recorder while this task is still running.
+            let _unload_guard = unload_guard;
             let event = match super::web_export::save_live(&summary.path, format, metadata, &rows).await {
                 Ok(()) => match interrupted {
                     Some(reason) => RecordingEvent::Interrupted(summary, RecordingError(reason)),

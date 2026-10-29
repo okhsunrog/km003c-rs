@@ -90,6 +90,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Concurrent recording exports use separate temporary files and replace completed
+  files atomically, preserving the destination when a write or replacement fails.
+- Live measurements, integrals and PD history reset when a different meter or
+  firmware build connects; buffer exports retain their source metadata across detach.
+- Cable-addressed PD messages no longer advance or clear the SOP power contract.
+- Browser recordings and exports hold a shared navigation warning until their
+  work completes, independently of firmware installation.
+- Every attribute-set constructor masks unknown attributes to the 15-bit wire
+  field, avoiding serialization panics for out-of-range values.
 - MemoryRead follows each confirmation's encryption flag and splits requests at
   2528 bytes. The inspected 2.0.5 application marks responses plaintext while
   encrypting complete 2544-byte blocks; bounded requests avoid that mixed path

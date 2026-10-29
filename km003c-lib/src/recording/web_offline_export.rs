@@ -25,7 +25,9 @@ impl OfflineExport {
     ) -> Result<Self, RecordingError> {
         let (tx, events) = mpsc::unbounded_channel();
         let destination = path.clone();
+        let unload_guard = crate::runtime::UnloadGuard::new();
         wasm_bindgen_futures::spawn_local(async move {
+            let _unload_guard = unload_guard;
             let result = super::web_export::save_offline(&destination, format, device, &view).await;
             let event = match result {
                 Ok(()) => OfflineExportEvent::Finished {

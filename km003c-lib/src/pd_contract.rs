@@ -43,6 +43,11 @@ impl PdContract {
     /// Follow one log entry. Connect, Disconnect and Soft_Reset clear the
     /// contract; the negotiation messages advance it.
     pub fn observe(&mut self, entry: &PdLogEntry) {
+        // SOP' and SOP'' address the cable plugs. Their resets and control
+        // responses do not negotiate the source/sink power contract on SOP.
+        if entry.sop.is_some_and(|sop| sop != 0) {
+            return;
+        }
         match (entry.category, entry.title.as_str()) {
             (PdLogCategory::Connect | PdLogCategory::Disconnect, _) | (_, "Soft_Reset") => *self = Self::default(),
             (PdLogCategory::Request, _) => {
@@ -158,6 +163,33 @@ mod tests {
 
         assert_eq!(contract.stage(), PdContractStage::Active);
         assert_eq!(contract.to_string(), "PDO#2 (Fixed 9V @ 3.0A (27W)) @ 2.2A");
+    }
+
+    #[test]
+    fn cable_messages_cannot_advance_or_reset_the_sop_power_contract() {
+        for sop in [1, 2] {
+            let (mut contract, mut logger) = (PdContract::default(), PdLogger::new());
+            let messages = negotiation();
+            follow(&mut contract, &mut logger, &messages[..2]);
+            for hex in ["a305", "a607", "a405", "ad05"] {
+                let mut event = message(hex);
+                if let PdEventData::PdMessage { sop: address, .. } = &mut event.data {
+                    *address = sop;
+                }
+                follow(&mut contract, &mut logger, &[event]);
+                assert_eq!(contract.stage(), PdContractStage::Requested);
+            }
+            follow(&mut contract, &mut logger, &messages[2..]);
+            assert_eq!(contract.stage(), PdContractStage::Active);
+            let mut cable_reset = message("ad05");
+            if let PdEventData::PdMessage { sop: address, .. } = &mut cable_reset.data {
+                *address = sop;
+            }
+            follow(&mut contract, &mut logger, &[cable_reset]);
+            assert_eq!(contract.stage(), PdContractStage::Active);
+            follow(&mut contract, &mut logger, &[message("ad05")]);
+            assert_eq!(contract.stage(), PdContractStage::None);
+        }
     }
 
     #[test]

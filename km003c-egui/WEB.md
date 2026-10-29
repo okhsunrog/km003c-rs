@@ -233,6 +233,12 @@ The library tests with the browser feature include CSV/Parquet round trips with 
 signed values and null offline channels. Library tests cover recorded protocol
 captures, session commands, deadlines and pending-operation cleanup.
 
+Browser recording lifecycle tests run in headless Chrome in CI. Locally, install
+`wasm-bindgen-cli` matching the `wasm-bindgen` version in `Cargo.lock`, put
+`chromedriver` or `geckodriver` on `PATH`, and run `just web-test`. These tests
+check navigation protection during recording and asynchronous export, including
+overlapping operations. They do not open USB devices or download real recordings.
+
 For an optional browser smoke test, install Playwright with `vp add playwright`
 in a disposable JavaScript project, expose its `node_modules` via `NODE_PATH`,
 and run:

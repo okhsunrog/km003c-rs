@@ -152,3 +152,22 @@ fn test_attribute_set_edge_cases() {
     let log_metadata = AttributeSet::single(Attribute::LogMetadata);
     assert_eq!(log_metadata.raw(), 0x0200);
 }
+#[test]
+fn every_attribute_set_constructor_keeps_unknown_bits_inside_the_wire_mask() {
+    use km003c_lib::{Attribute, AttributeSet, Packet};
+    for raw in [0x8000, 0x8001, 0xffff] {
+        let attribute = Attribute::Unknown(raw);
+        for attributes in [
+            AttributeSet::from_raw(raw),
+            AttributeSet::single(attribute),
+            AttributeSet::empty().with(attribute),
+            AttributeSet::from_attributes([attribute]),
+            AttributeSet::from(attribute),
+            [attribute].into_iter().collect(),
+        ] {
+            assert_eq!(attributes.raw(), raw & 0x7fff);
+            let packet = Packet::GetData { attributes }.to_raw_packet(7).unwrap();
+            assert_eq!(packet.get_attribute_set(), Some(attributes));
+        }
+    }
+}

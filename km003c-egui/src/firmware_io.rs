@@ -115,11 +115,6 @@ export async function firmwareSave(handle, bytes) {
     try { await stream.write(copy); await stream.close(); }
     catch (e) { try { await stream.abort(); } catch (_) {} throw e; }
 }
-const guard = event => { event.preventDefault(); event.returnValue = ''; };
-export function firmwareGuard(active) {
-    if (active) window.addEventListener('beforeunload', guard);
-    else window.removeEventListener('beforeunload', guard);
-}
 ")]
     extern "C" {
         #[wasm_bindgen(js_name = firmwareOpen)]
@@ -128,8 +123,6 @@ export function firmwareGuard(active) {
         fn picker(name: &str) -> js_sys::Promise;
         #[wasm_bindgen(js_name = firmwareSave)]
         fn save(handle: &JsValue, bytes: &[u8]) -> js_sys::Promise;
-        #[wasm_bindgen(js_name = firmwareGuard)]
-        pub fn guard(active: bool);
     }
     fn error(value: JsValue) -> String {
         js_sys::Error::from(value).message().into()
@@ -154,10 +147,7 @@ export function firmwareGuard(active) {
     }
 }
 #[cfg(target_arch = "wasm32")]
-pub use browser::{guard, pick_backup, pick_package};
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn guard(_active: bool) {}
+pub use browser::{pick_backup, pick_package};
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {

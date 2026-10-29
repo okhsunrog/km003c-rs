@@ -37,6 +37,8 @@ jobs:
         uses: actions/configure-pages@v6
       - name: Install Trunk
         run: cargo install trunk --version 0.21.14 --locked
+      - name: Install wasm-bindgen matching Cargo.lock
+        run: cargo install wasm-bindgen-cli --version "$(cargo pkgid --package wasm-bindgen --locked | sed 's/.*@//')" --locked
       - name: Build static site
         env:
           PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}

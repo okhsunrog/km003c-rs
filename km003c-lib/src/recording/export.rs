@@ -212,8 +212,8 @@ impl OutputFile {
     }
 }
 
-/// Write `path` through a `.partial` file renamed into place on success, so an
-/// existing file is only replaced by a complete one.
+/// Write through a unique temporary file in the destination directory, then
+/// atomically replace `path`. Concurrent exports never share temporary files.
 pub(crate) fn write_atomically(
     path: &Path,
     write: impl FnOnce(&Path) -> Result<(), RecordingError>,
@@ -225,19 +225,14 @@ pub(crate) fn write_atomically(
     if !parent.is_dir() {
         return Err(RecordingError::MissingDirectory(parent.to_path_buf()));
     }
-    let mut partial = path.as_os_str().to_os_string();
-    partial.push(".partial");
-    let partial = PathBuf::from(partial);
-    let result = write(&partial).and_then(|()| {
-        if path.exists() {
-            std::fs::remove_file(path)?;
-        }
-        Ok(std::fs::rename(&partial, path)?)
-    });
-    if result.is_err() {
-        let _ = std::fs::remove_file(&partial);
-    }
-    result
+    let partial = tempfile::Builder::new()
+        .prefix(".km003c-")
+        .suffix(".partial")
+        .tempfile_in(parent)?;
+    write(partial.path())?;
+    partial.as_file().sync_all()?;
+    partial.persist(path).map_err(|error| error.error)?;
+    Ok(())
 }
 
 /// What an [`OfflineExport`] reports when it ends.
@@ -366,6 +361,7 @@ mod tests {
 
         for format in RecordingFormat::ALL {
             let path = test_path(format.extension());
+            std::fs::write(&path, b"previous recording").unwrap();
             write_offline_recording(&path, format, &metadata, &view).unwrap();
             let frame = read_recording(&path).unwrap();
 
@@ -390,5 +386,52 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "previous");
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn concurrent_exports_keep_independent_temporary_files_and_a_complete_result() {
+        use std::sync::Barrier;
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("recording.csv");
+        std::fs::write(&path, b"original").unwrap();
+        let barrier = Arc::new(Barrier::new(2));
+        let first_path = path.clone();
+        let first_barrier = Arc::clone(&barrier);
+        let first = std::thread::spawn(move || {
+            write_atomically(&first_path, |partial| {
+                std::fs::write(partial, b"first complete recording")?;
+                first_barrier.wait();
+                first_barrier.wait();
+                Ok(())
+            })
+        });
+        barrier.wait();
+        write_atomically(&path, |partial| {
+            std::fs::write(partial, b"second complete recording")?;
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"second complete recording");
+        barrier.wait();
+        first.join().unwrap().unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"first complete recording");
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn failed_replacement_keeps_the_destination_and_cleans_the_temporary_file() {
+        let directory = tempfile::tempdir().unwrap();
+        let destination = directory.path().join("existing-directory");
+        std::fs::create_dir(&destination).unwrap();
+        std::fs::write(destination.join("keep"), b"original").unwrap();
+        assert!(
+            write_atomically(&destination, |partial| {
+                std::fs::write(partial, b"replacement")?;
+                Ok(())
+            })
+            .is_err()
+        );
+        assert_eq!(std::fs::read(destination.join("keep")).unwrap(), b"original");
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
     }
 }

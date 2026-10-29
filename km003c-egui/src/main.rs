@@ -241,6 +241,8 @@ struct PowerMonitorApp {
     session: Session,
     /// Device state (available after connection)
     device_state: Option<Arc<DeviceState>>,
+    /// Identity and firmware associated with live data, retained across detach.
+    measurement_source: Option<Arc<DeviceState>>,
     /// Connection status string
     status: String,
     /// Is streaming active
@@ -376,6 +378,7 @@ impl PowerMonitorApp {
             session_events,
             session,
             device_state: None,
+            measurement_source: None,
             status: if cfg!(target_arch = "wasm32") {
                 "Press Start to begin measuring"
             } else {
@@ -590,6 +593,7 @@ impl PowerMonitorApp {
                     self.status = "Waiting for POWER-Z KM003C...".to_string();
                 }
                 SessionEvent::Connected(state) => {
+                    self.accept_measurement_source(&state);
                     self.pd_wire_messages = 0;
                     self.connection_attempt_in_flight = false;
                     self.reconnect_at = None;
@@ -778,6 +782,24 @@ impl PowerMonitorApp {
         }
     }
 
+    fn accept_measurement_source(&mut self, state: &Arc<DeviceState>) {
+        let same_source = self.measurement_source.as_ref().is_some_and(|previous| {
+            previous.hardware_id == state.hardware_id
+                && RecordingMetadata::from(previous.as_ref()) == RecordingMetadata::from(state.as_ref())
+                && previous.info.fw_date == state.info.fw_date
+        });
+        if !same_source {
+            self.stop_recording();
+            self.clear_data();
+            self.clear_pd_log();
+            self.pd_contract = PdContract::default();
+            self.current_voltage = 0.0;
+            self.current_current = 0.0;
+            self.current_power = 0.0;
+        }
+        self.measurement_source = Some(Arc::clone(state));
+    }
+
     fn clear_data(&mut self) {
         self.reset_view();
         self.data_points.clear();
@@ -830,8 +852,8 @@ impl PowerMonitorApp {
     }
 
     fn export_buffer(&mut self) {
-        let Some(state) = &self.device_state else {
-            self.recording_status = "Connect the KM003C before exporting data".to_string();
+        let Some(state) = &self.measurement_source else {
+            self.recording_status = "No live measurement source is available".to_string();
             return;
         };
         let Some(first) = self.data_points.front().copied() else {
@@ -1805,24 +1827,28 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_contract_survives_a_meter_reconnect() {
-        let (mut app, usb_tx) = test_app();
-        let message = |hex_data: &str| km003c_lib::PdEvent {
+    fn test_negotiation() -> Vec<km003c_lib::PdEvent> {
+        [
+            "a1612c9101082cd102002cc103002cb10400454106003c21dcc0",
+            "8210dc700323",
+            "a305",
+            "a607",
+        ]
+        .into_iter()
+        .map(|hex_data| km003c_lib::PdEvent {
             timestamp: km003c_lib::uom::si::f64::Time::new::<millisecond>(0.0),
             data: PdEventData::PdMessage {
                 sop: 0,
                 wire_data: hex::decode(hex_data).unwrap(),
             },
-        };
-        usb_tx
-            .send(SessionEvent::PdEvents(vec![
-                message("a1612c9101082cd102002cc103002cb10400454106003c21dcc0"),
-                message("8210dc700323"),
-                message("a305"),
-                message("a607"),
-            ]))
-            .unwrap();
+        })
+        .collect()
+    }
+
+    #[test]
+    fn a_contract_survives_a_meter_reconnect() {
+        let (mut app, usb_tx) = test_app();
+        usb_tx.send(SessionEvent::PdEvents(test_negotiation())).unwrap();
         app.process_messages();
         assert_eq!(app.pd_contract.to_string(), "PDO#2 (Fixed 9V @ 3.0A (27W)) @ 2.2A");
 
@@ -1834,6 +1860,117 @@ mod tests {
         app.process_messages();
 
         assert_eq!(app.pd_contract.stage(), km003c_lib::PdContractStage::Active);
+    }
+
+    fn test_device(serial: &str, hardware: u8, version: &str, date: &str) -> Arc<DeviceState> {
+        Arc::new(DeviceState {
+            info: km003c_lib::DeviceInfo {
+                model: "KM003C".into(),
+                serial_id: serial.into(),
+                fw_version: version.into(),
+                fw_date: date.into(),
+                ..Default::default()
+            },
+            hardware_id: km003c_lib::HardwareId::from_bytes([hardware; 12]),
+            auth_level: 1,
+            adcqueue_enabled: true,
+        })
+    }
+
+    fn test_measurement(sequence: u16) -> km003c_lib::AdcQueueSample {
+        km003c_lib::AdcQueueSample::from_raw(
+            km003c_lib::AdcQueueSampleRaw {
+                sequence,
+                marker: 0,
+                vbus_uv: 5_000_000,
+                ibus_ua: 1_000_000,
+                cc1_raw: 0,
+                cc2_raw: 0,
+                vdp_raw: 0,
+                vdm_raw: 0,
+            },
+            GraphSampleRate::Sps50,
+        )
+    }
+
+    #[test]
+    fn different_meter_or_firmware_starts_a_new_measurement_history() {
+        for replacement in [
+            test_device("B", 2, "2.0.7", "2026.1.1"),
+            test_device("A", 2, "2.0.7", "2026.1.1"),
+            test_device("B", 1, "2.0.7", "2026.1.1"),
+            test_device("A", 1, "2.0.6", "2026.1.1"),
+            test_device("A", 1, "2.0.7", "2026.1.2"),
+        ] {
+            let (mut app, tx) = test_app();
+            tx.send(SessionEvent::Connected(test_device("A", 1, "2.0.7", "2026.1.1")))
+                .unwrap();
+            tx.send(SessionEvent::Samples(vec![
+                test_measurement(100),
+                test_measurement(120),
+            ]))
+            .unwrap();
+            tx.send(SessionEvent::PdEvents(test_negotiation())).unwrap();
+            app.process_messages();
+            assert!(app.data_points.back().unwrap().energy_uwh > 0.0);
+            assert_eq!(app.pd_contract.stage(), km003c_lib::PdContractStage::Active);
+            app.toggle_view_pause();
+            tx.send(SessionEvent::Disconnected {
+                retry_when_present: false,
+            })
+            .unwrap();
+            app.process_messages();
+            tx.send(SessionEvent::Connected(Arc::clone(&replacement))).unwrap();
+            app.process_messages();
+            assert!(app.data_points.is_empty());
+            assert!(app.paused_view.is_none());
+            assert_eq!(app.total_samples, 0);
+            assert_eq!(app.current_voltage, 0.0);
+            assert_eq!(app.pd_contract.stage(), km003c_lib::PdContractStage::None);
+            assert!(app.pd_log.is_empty());
+            tx.send(SessionEvent::Samples(vec![test_measurement(500)])).unwrap();
+            app.process_messages();
+            let sample = app.data_points.back().unwrap();
+            assert_eq!(sample.elapsed_us, 0);
+            assert_eq!(sample.sample_index, 0);
+            assert_eq!(sample.energy_uwh, 0.0);
+            assert_eq!(
+                RecordingMetadata::from(app.measurement_source.as_ref().unwrap().as_ref()),
+                RecordingMetadata::from(replacement.as_ref())
+            );
+        }
+    }
+
+    #[test]
+    fn reconnecting_the_same_meter_keeps_the_buffer_identity_and_integrals() {
+        let (mut app, tx) = test_app();
+        let meter = test_device("A", 1, "2.0.7", "2026.1.1");
+        tx.send(SessionEvent::Connected(Arc::clone(&meter))).unwrap();
+        tx.send(SessionEvent::Samples(vec![
+            test_measurement(100),
+            test_measurement(120),
+        ]))
+        .unwrap();
+        tx.send(SessionEvent::PdEvents(test_negotiation())).unwrap();
+        app.process_messages();
+        let last = *app.data_points.back().unwrap();
+        tx.send(SessionEvent::Disconnected {
+            retry_when_present: false,
+        })
+        .unwrap();
+        app.process_messages();
+        assert!(app.measurement_source.is_some());
+        tx.send(SessionEvent::Connected(meter)).unwrap();
+        tx.send(SessionEvent::StreamingStarted(GraphSampleRate::Sps50)).unwrap();
+        tx.send(SessionEvent::Samples(vec![test_measurement(500)])).unwrap();
+        app.process_messages();
+        assert_eq!(app.data_points.len(), 3);
+        assert_eq!(app.pd_contract.stage(), km003c_lib::PdContractStage::Active);
+        assert!(app.pd_contract.is_carried_over());
+        let resumed = app.data_points.back().unwrap();
+        assert_eq!(resumed.elapsed_us, last.elapsed_us);
+        assert_eq!(resumed.energy_uwh, last.energy_uwh);
+        assert_eq!(resumed.sample_index, last.sample_index + 1);
     }
 
     #[test]

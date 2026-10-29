@@ -205,8 +205,8 @@ impl PowerMonitorApp {
         .into();
         let tx = self.firmware.start(true);
         km003c_lib::runtime::spawn(async move {
+            let _unload_guard = km003c_lib::runtime::UnloadGuard::new();
             let result = install(image, check, session, tx.clone()).await;
-            firmware_io::guard(false);
             let _ = tx.send(Event::Installed(result));
         });
     }
@@ -451,7 +451,6 @@ async fn install(
         None
     };
     session.disconnect_and_wait().await.map_err(|e| e.to_string())?;
-    firmware_io::guard(true);
     let progress = |value| {
         let _ = tx.send(Event::Progress(value));
     };

@@ -57,7 +57,7 @@ serde = ["dep:serde", "uom/serde"]
 usbpd = ["dep:usbpd"]
 # Live recording, offline export and DataFrame conversion. The polars version
 # is part of this feature's API; use the re-exported `km003c_lib::polars`.
-polars = ["dep:polars"]
+polars = ["dep:polars", "dep:tempfile"]
 # Front-end preferences saved as JSON.
 preferences = ["serde", "dep:serde_json"]
 # Official-first release catalog, validated archive fallback and platform HTTP.
@@ -68,6 +68,7 @@ features = ["usbpd", "serde", "polars", "preferences", "firmware-catalog"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls"], optional = true }
+tempfile = { version = "3.27.0", optional = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -78,3 +79,6 @@ getrandom = { version = "0.4", features = ["wasm_js"] }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
 web-sys = { version = "0.3", features = ["Window", "Document", "HtmlAnchorElement", "Blob", "Url"] }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3.79"
