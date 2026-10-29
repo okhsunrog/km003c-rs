@@ -28,6 +28,17 @@ pub enum Command {
         #[arg(long, required = true)]
         yes: bool,
     },
+    /// Download and install a release; defaults to the latest available build.
+    Install {
+        /// Catalog version or build ID. Omit to install the latest release.
+        version: Option<String>,
+        /// Save the current application here before flashing (required in APP mode).
+        #[arg(long)]
+        backup: Option<PathBuf>,
+        /// Confirm erasing and flashing the selected meter.
+        #[arg(long, required = true)]
+        yes: bool,
+    },
     /// List archived manufacturer releases and descriptions, without USB.
     List,
     /// Download and validate a release from the public mirror, without USB.
@@ -61,21 +72,48 @@ fn read_image(path: &Path) -> Result<FirmwareImage> {
 }
 
 pub async fn run(connection: ConnectionOptions, command: Command) -> Result {
-    let (package, update) = match command {
+    let (image, update) = match command {
         Command::List => return list().await,
         Command::Download { version, output } => return download(&version, &output).await,
         Command::Inspect(package) => {
             describe(&read_image(&package.file)?);
             return Ok(());
         }
-        Command::Check(package) => (package, None),
+        Command::Check(package) => (read_image(&package.file)?, None),
         Command::Update {
             package,
             backup,
             yes: _,
-        } => (package, Some(backup)),
+        } => (read_image(&package.file)?, Some(backup)),
+        Command::Install {
+            version,
+            backup,
+            yes: _,
+        } => {
+            let client = FirmwareCatalogClient::new()?;
+            let package = if let Some(version) = version {
+                client.download_selected(&version).await?
+            } else {
+                let catalog = client.fetch().await?;
+                if let Some(reason) = catalog.fallback_reason() {
+                    eprintln!("Official catalog unavailable: {reason}; using the archive mirror.");
+                }
+                let release = catalog.latest_release()?;
+                println!("Selected latest release {} (build ID: {})", release.version, release.id);
+                client.download(release).await?
+            };
+            println!(
+                "Downloaded and validated package (source: {}; SHA256 {})",
+                package.source().label(),
+                hex::encode(package.sha256())
+            );
+            if let Some(reason) = package.fallback_reason() {
+                eprintln!("Official download unavailable: {reason}; used the archive mirror.");
+            }
+            let (_, image) = package.into_parts();
+            (image, Some(backup))
+        }
     };
-    let image = read_image(&package.file)?;
     describe(&image);
     let selector = connection.serial.map(DeviceSelector::SerialNumber).unwrap_or_default();
     let Some(backup_path) = update else {
@@ -135,6 +173,10 @@ async fn list() -> Result {
     println!("Source: {}", catalog.source().label());
     if let Some(reason) = catalog.fallback_reason() {
         eprintln!("Official catalog unavailable: {reason}; using the archive mirror.");
+    }
+    match catalog.latest_release() {
+        Ok(release) => println!("Default installation: {} (build ID: {})", release.version, release.id),
+        Err(error) => eprintln!("Cannot select a default release: {error}"),
     }
     for release in catalog.releases() {
         println!(

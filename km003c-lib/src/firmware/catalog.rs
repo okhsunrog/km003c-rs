@@ -192,6 +192,48 @@ impl FirmwareCatalog {
     pub fn releases(&self) -> &[FirmwareRelease] {
         &self.releases
     }
+    /// Select the official latest release, or the newest numbered archive build.
+    pub fn latest_release(&self) -> Result<&FirmwareRelease> {
+        let mut marked = self.releases.iter().filter(|r| r.latest);
+        if let Some(latest) = marked.next() {
+            if marked.next().is_some() {
+                return Err(invalid("catalog marks multiple releases as latest; select a build ID"));
+            }
+            return Ok(latest);
+        }
+        fn numbers(value: &str) -> Option<Vec<u32>> {
+            value.split('.').map(|part| part.parse().ok()).collect()
+        }
+        let mut newest: Option<(&FirmwareRelease, Vec<u32>, Vec<u32>)> = None;
+        let mut ambiguous = false;
+        for release in &self.releases {
+            let version = numbers(release.version.split_whitespace().next().unwrap_or(""))
+                .ok_or_else(|| invalid("cannot order firmware versions; select a build ID"))?;
+            let date = numbers(&release.date)
+                .filter(|date| date.len() == 3)
+                .ok_or_else(|| invalid("cannot order firmware build dates; select a build ID"))?;
+            match &newest {
+                Some((_, v, d)) if (&version, &date) < (v, d) => continue,
+                Some((_, v, d)) if (&version, &date) == (v, d) => {
+                    ambiguous = true;
+                }
+                _ => {
+                    newest = Some((release, version, date));
+                    ambiguous = false;
+                }
+            }
+        }
+        if ambiguous {
+            return Err(invalid("latest firmware build is ambiguous; select a build ID"));
+        }
+        let release = newest
+            .map(|(release, _, _)| release)
+            .ok_or_else(|| invalid("firmware catalog contains no releases"))?;
+        if release.version.split_whitespace().count() != 1 {
+            return Err(invalid("latest firmware has a version suffix; select a build ID"));
+        }
+        Ok(release)
+    }
     /// Find a build ID or an unambiguous version. Duplicate versions return None.
     pub fn release(&self, selector: &str) -> Option<&FirmwareRelease> {
         if let Some(release) = self.releases.iter().find(|r| r.id == selector) {
@@ -873,6 +915,33 @@ mod tests {
     }
 
     const XML: &str = r#"<Updateinfo><DeviceName>KM003C</DeviceName><Title version="1.9.7"><Key>KM003C_V1.9.7.mencrypt</Key><Size>453828</Size><Crc>7C80B54E</Crc><LastModified>2025.9.1</LastModified><Note>修复</Note><Note2>A &amp; B</Note2><IsStable>true</IsStable><IsLatest>false</IsLatest></Title></Updateinfo>"#;
+    #[test]
+    fn latest_selection_honors_official_flag_and_orders_archive_builds() {
+        let mut catalog = FirmwareCatalog::parse_xml(XML).unwrap();
+        let base = catalog.releases[0].clone();
+        let mut newer = base.clone();
+        newer.version = "1.10.0".into();
+        newer.date = "2025.10.2".into();
+        catalog.releases.push(newer.clone());
+        catalog.releases[0].version = "1.9.7 alpha".into();
+        assert_eq!(catalog.latest_release().unwrap(), &newer);
+        let mut later_build = newer.clone();
+        later_build.date = "2025.10.10".into();
+        catalog.releases.push(later_build.clone());
+        assert_eq!(catalog.latest_release().unwrap(), &later_build);
+        catalog.releases[0].latest = true;
+        assert_eq!(catalog.latest_release().unwrap().version, "1.9.7 alpha");
+        catalog.releases[1].latest = true;
+        assert!(catalog.latest_release().is_err());
+    }
+    #[test]
+    fn latest_selection_rejects_ambiguous_or_unorderable_builds() {
+        let mut catalog = FirmwareCatalog::parse_xml(XML).unwrap();
+        catalog.releases.push(catalog.releases[0].clone());
+        assert!(catalog.latest_release().is_err());
+        catalog.releases[1].version = "preview".into();
+        assert!(catalog.latest_release().is_err());
+    }
     #[test]
     fn parses_versions_notes_and_flags_without_discarding_older_releases() {
         let catalog = FirmwareCatalog::parse_xml(XML).unwrap();

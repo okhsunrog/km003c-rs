@@ -236,6 +236,10 @@ the corresponding subcommands above. The library's `settings` and
 
 ```bash
 km003c firmware list
+# From DFU: download and install the latest release, without a local package.
+km003c firmware install --yes
+# Or select a version or build ID:
+km003c firmware install 2.0.7 --yes
 km003c firmware download 2.0.7 -o KM003C_V2.0.7.mencrypt
 km003c firmware inspect KM003C_V2.0.7.mencrypt
 km003c --serial 007965 firmware check KM003C_V2.0.7.mencrypt
@@ -252,6 +256,11 @@ SHA-256 verification. The CLI reports the source and fallback reason.
 Bundled credentials remain encrypted in the library; no Windows EXE is required.
 Existing output files are never overwritten. If a version has multiple builds,
 pass the build ID printed by `firmware list` in place of the version argument.
+`install` downloads the package in memory and uses the same checks and update
+flow as `update`. It selects the release marked latest by the official catalog;
+when using the archive, it selects the highest numeric version and newest build
+date. Ambiguous latest builds must be selected by ID. As with `update`, include
+`--backup PATH` if installing from the stock application rather than DFU.
 
 Official Windows applications, manuals and source archives are kept as
 [km003c-resources Release assets](https://github.com/okhsunrog/km003c-resources/releases),
