@@ -1,6 +1,10 @@
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use clap::{Args, Subcommand};
+use km003c_lib::packet::{Attribute, AttributeSet};
 use km003c_lib::pd::PdEventData;
 use km003c_lib::uom::si::electric_current::ampere;
 use km003c_lib::uom::si::electric_potential::volt;
@@ -13,10 +17,12 @@ use km003c_lib::usbpd::protocol_layer::message::data::source_capabilities::{
 use km003c_lib::usbpd::protocol_layer::message::data::{self, Data};
 use km003c_lib::usbpd::protocol_layer::message::extended::Extended;
 use km003c_lib::{
-    DecodedPdEvent, DecodedPdMessage, KM003C, PdChunkState, PdChunkStatus, PdDecodeFailure, PdSessionDecoder,
+    DecodedPdEvent, DecodedPdMessage, GraphSampleRate, KM003C, MeasurementAccumulator, MeasurementSample, Packet,
+    PdChunkState, PdChunkStatus, PdDecodeFailure, PdSessionDecoder,
 };
 
 use crate::Result;
+use crate::adc::SampleRate;
 use km003c_lib::uom::si::time::second;
 use km003c_lib::{PdTraceProtocolEvent, PdTraceStateEvent};
 
@@ -36,6 +42,18 @@ pub struct CaptureArgs {
     /// Include raw message bytes.
     #[arg(long)]
     pub raw: bool,
+    /// Capture voltage, current and CC measurements alongside PD messages.
+    #[arg(long)]
+    pub adc: bool,
+    /// ADC samples per second (default: 50); requires --adc.
+    #[arg(long, value_enum, requires = "adc")]
+    pub rate: Option<SampleRate>,
+    /// Print every N-th ADC sample; all accepted samples are saved to CSV.
+    #[arg(long, requires = "adc", value_parser = clap::value_parser!(u64).range(1..))]
+    pub every: Option<u64>,
+    /// Save ADC samples to a new CSV file; requires --adc; never overwrites.
+    #[arg(long, requires = "adc")]
+    pub adc_output: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -49,7 +67,22 @@ pub struct TraceArgs {
 }
 
 pub async fn capture(device: &mut KM003C, args: CaptureArgs) -> Result {
+    let rate = GraphSampleRate::from(args.rate.unwrap_or(SampleRate::Sps50));
+    if args.adc && !device.adcqueue_enabled() {
+        return Err("Authentication failed - AdcQueue not enabled".into());
+    }
+    let mut adc = if args.adc {
+        Some(AdcCapture::new(&args, rate)?)
+    } else {
+        None
+    };
     device.enable_pd_monitor().await?;
+    if args.adc
+        && let Err(error) = device.start_graph_mode(rate).await
+    {
+        let _ = device.disable_pd_monitor().await;
+        return Err(error.into());
+    }
 
     println!("USB PD Negotiation Capture");
     println!("NOW: Disconnect and reconnect your USB-C load!");
@@ -69,9 +102,15 @@ pub async fn capture(device: &mut KM003C, args: CaptureArgs) -> Result {
                     break;
                 }
 
-                if let Ok(packet) = device.request_pd_data().await
-                    && let Some(stream) = KM003C::extract_pd_events(&packet)
-                {
+                let packet = device.request_data(capture_mask(args.adc)).await?;
+                let capture_s = start_time.elapsed().as_secs_f64();
+                if let Some(adc) = adc.as_mut() {
+                    adc.observe(&packet, capture_s)?;
+                }
+                if let Some(stream) = KM003C::extract_pd_events(&packet) {
+                    if args.adc && !stream.events.is_empty() {
+                        println!("[capture +{capture_s:.3}s] PD batch");
+                    }
                     for event in &stream.events {
                         if args.raw
                             && let PdEventData::PdMessage { wire_data, .. } = &event.data
@@ -84,20 +123,143 @@ pub async fn capture(device: &mut KM003C, args: CaptureArgs) -> Result {
                     }
                 }
 
-                tokio::time::sleep(Duration::from_millis(30)).await;
+                tokio::time::sleep(Duration::from_millis(15)).await;
             }
+            Ok::<(), Box<dyn std::error::Error>>(())
         };
         tokio::select! {
-            () = collect => Ok(()),
-            signal = tokio::signal::ctrl_c() => signal,
+            result = collect => result,
+            signal = tokio::signal::ctrl_c() => signal.map_err(Into::into),
         }
     };
 
+    // Always stop both streams, including after read/write errors and Ctrl+C.
+    let graph_stopped = if args.adc {
+        device.stop_graph_mode().await
+    } else {
+        Ok(())
+    };
     let stopped = device.disable_pd_monitor().await;
+    let saved = adc.as_mut().map(AdcCapture::finish).transpose();
     interrupted?;
+    saved?;
+    graph_stopped?;
     stopped?;
     println!("\nCapture complete.");
     Ok(())
+}
+
+fn capture_mask(adc: bool) -> AttributeSet {
+    let mask = AttributeSet::single(Attribute::PdPacket);
+    if adc { mask.with(Attribute::AdcQueue) } else { mask }
+}
+
+struct AdcCapture {
+    rate: GraphSampleRate,
+    every: u64,
+    csv: Option<BufWriter<File>>,
+    measurements: MeasurementAccumulator,
+    samples: u64,
+    missing: u64,
+    discarded: u64,
+    voltage_min: f64,
+    voltage_max: f64,
+}
+
+impl AdcCapture {
+    fn new(args: &CaptureArgs, rate: GraphSampleRate) -> Result<Self> {
+        let mut csv = args
+            .adc_output
+            .as_ref()
+            .map(|path| File::create_new(path).map(BufWriter::new))
+            .transpose()?;
+        if let Some(csv) = &mut csv {
+            writeln!(
+                csv,
+                "capture_s,elapsed_us,sequence,vbus_uv,ibus_ua,power_uw,cc1_uv,cc2_uv,dp_uv,dm_uv,missing_samples"
+            )?;
+        }
+        Ok(Self {
+            rate,
+            every: args.every.unwrap_or(match rate {
+                GraphSampleRate::Sps2 | GraphSampleRate::Sps10 => 1,
+                GraphSampleRate::Sps50 => 5,
+                GraphSampleRate::Sps1000 => 100,
+            }),
+            csv,
+            measurements: MeasurementAccumulator::default(),
+            samples: 0,
+            missing: 0,
+            discarded: 0,
+            voltage_min: f64::INFINITY,
+            voltage_max: f64::NEG_INFINITY,
+        })
+    }
+
+    fn observe(&mut self, packet: &Packet, capture_s: f64) -> Result {
+        if let Some(queue) = packet.get_adc_queue() {
+            for sample in &queue.samples {
+                let Some(sample) = self.measurements.push(*sample, self.rate) else {
+                    self.discarded += 1;
+                    continue;
+                };
+                self.samples += 1;
+                self.missing += u64::from(sample.missing_samples);
+                let voltage = sample.vbus_uv as f64 / 1e6;
+                self.voltage_min = self.voltage_min.min(voltage);
+                self.voltage_max = self.voltage_max.max(voltage);
+                if let Some(csv) = &mut self.csv {
+                    write_adc_row(csv, capture_s, sample)?;
+                }
+                if (self.samples - 1).is_multiple_of(self.every) {
+                    println!(
+                        "[capture +{capture_s:.3}s] ADC +{:.3}s seq={} VBUS={voltage:.3}V IBUS={:.3}A CC1={:.3}V CC2={:.3}V missing={}",
+                        sample.elapsed_seconds(),
+                        sample.sequence,
+                        sample.ibus_ua as f64 / 1e6,
+                        sample.cc1_uv as f64 / 1e6,
+                        sample.cc2_uv as f64 / 1e6,
+                        sample.missing_samples,
+                    );
+                }
+            }
+        }
+        if let Some(csv) = &mut self.csv {
+            csv.flush()?;
+        }
+        Ok(())
+    }
+
+    fn finish(&mut self) -> Result {
+        if let Some(csv) = &mut self.csv {
+            csv.flush()?;
+        }
+        println!(
+            "ADC: {} samples, {} missing, {} discarded",
+            self.samples, self.missing, self.discarded
+        );
+        if self.samples > 0 {
+            println!("VBUS range: {:.3}..{:.3} V", self.voltage_min, self.voltage_max);
+        }
+        Ok(())
+    }
+}
+
+fn write_adc_row(output: &mut impl Write, capture_s: f64, sample: MeasurementSample) -> std::io::Result<()> {
+    writeln!(
+        output,
+        "{capture_s:.6},{},{},{},{},{},{},{},{},{},{}",
+        sample.elapsed_us,
+        sample.sequence,
+        sample.vbus_uv,
+        sample.ibus_ua,
+        sample.power_uw,
+        sample.cc1_uv,
+        sample.cc2_uv,
+        sample.dp_uv,
+        sample.dm_uv,
+        sample.missing_samples
+    )
 }
 
 fn print_raw(timestamp_ms: f64, wire_data: &[u8]) {
@@ -403,5 +565,74 @@ fn print_protocol_events(events: &[PdTraceProtocolEvent]) {
             u8::from(event.kind),
             event.timestamp.get::<second>()
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use km003c_lib::uom::si::f64::{ElectricCurrent, ElectricPotential};
+    use km003c_lib::{AdcQueueData, AdcQueueSample, PayloadData};
+
+    #[test]
+    fn combined_capture_keeps_pd_and_adc_and_accounts_for_gaps() {
+        let args = CaptureArgs {
+            duration: 1,
+            raw: false,
+            adc: true,
+            rate: None,
+            every: Some(100),
+            adc_output: None,
+        };
+        let mut capture = AdcCapture::new(&args, GraphSampleRate::Sps50).unwrap();
+        let sample = |sequence| {
+            let vbus = ElectricPotential::new::<volt>(5.125);
+            let ibus = ElectricCurrent::new::<ampere>(-0.015);
+            AdcQueueSample {
+                sequence,
+                marker: 0,
+                vbus,
+                ibus,
+                power: vbus * ibus,
+                cc1: ElectricPotential::new::<volt>(0.8),
+                cc2: ElectricPotential::new::<volt>(0.0),
+                vdp: ElectricPotential::new::<volt>(0.0),
+                vdm: ElectricPotential::new::<volt>(0.0),
+            }
+        };
+        let packet = Packet::DataResponse {
+            payloads: vec![PayloadData::AdcQueue(AdcQueueData {
+                rate: GraphSampleRate::Sps50,
+                samples: vec![sample(65520), sample(4), sample(44), sample(44)],
+            })],
+        };
+        capture.observe(&packet, 1.5).unwrap();
+        assert_eq!((capture.samples, capture.missing, capture.discarded), (3, 1, 1));
+        assert_eq!(capture.voltage_min, 5.125);
+        assert!(capture_mask(true).contains_all([Attribute::PdPacket, Attribute::AdcQueue]));
+        assert!(!capture_mask(false).contains(Attribute::AdcQueue));
+
+        let mut accumulator = MeasurementAccumulator::default();
+        let measured = accumulator.push(sample(1), GraphSampleRate::Sps50).unwrap();
+        let mut row = Vec::new();
+        write_adc_row(&mut row, 1.5, measured).unwrap();
+        assert_eq!(
+            String::from_utf8(row).unwrap(),
+            "1.500000,0,1,5125000,-15000,-76875,800000,0,0,0,0\n"
+        );
+    }
+
+    #[test]
+    fn adc_output_preserves_an_existing_file() {
+        let path = std::env::current_exe().unwrap();
+        let args = CaptureArgs {
+            duration: 1,
+            raw: false,
+            adc: true,
+            rate: None,
+            every: None,
+            adc_output: Some(path),
+        };
+        assert!(AdcCapture::new(&args, GraphSampleRate::Sps50).is_err());
     }
 }

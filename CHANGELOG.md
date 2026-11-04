@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Simultaneous PD and ADC capture in `km003c pd capture --adc`, with selectable
+  sample rates, console decimation and optional CSV output containing every
+  accepted ADC sample, device timing, auxiliary voltages and gap counts.
 - An official-first firmware client shared by CLI, desktop and browser GUI,
   with archive fallback after HTTP, catalog or package validation errors.
   Fallback matches version, build date, size and CRC; callers can inspect the

@@ -197,8 +197,20 @@ cargo run --bin km003c -- adc stream --rate 1000 --duration 10 --every 1
 
 ```bash
 cargo run --bin km003c -- pd capture
+cargo run --bin km003c -- pd capture --adc --rate 1000 --adc-output power.csv --duration 60
 cargo run --bin km003c -- pd trace --polls 10
 ```
+
+`pd capture --adc` polls PD messages and AdcQueue together over one USB
+connection. ADC defaults to 50 SPS; `--rate` accepts 2, 10, 50, or 1000.
+`--every N` limits ADC console output without dropping samples from the CSV.
+The CSV includes host capture time, device time relative to the first ADC
+sample, sequence numbers, VBUS, signed current/power, CC and D-line voltages,
+and missing-sample counts. Electrical columns use the units in their names.
+PD timestamps are meter uptime; the extra capture-time labels identify when
+each PD batch and ADC batch reached the host. They are not wire timestamps.
+`--adc-output` refuses to overwrite an existing file and flushes each batch.
+Ctrl+C stops both streams and preserves the measurements already written.
 
 #### Offline Recordings
 
