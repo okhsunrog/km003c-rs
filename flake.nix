@@ -11,6 +11,9 @@
         let
           pkgs = import nixpkgs { inherit system; };
           libraries = with pkgs; [
+            fontconfig
+            freetype
+            stdenv.cc.cc.lib
             wayland
             libxkbcommon
             vulkan-loader
@@ -22,7 +25,7 @@
           ];
         in {
           default = pkgs.mkShell {
-            packages = with pkgs; [ rustup pkg-config just uv ];
+            packages = with pkgs; [ rustup pkg-config just uv gnumake ];
             buildInputs = libraries;
             shellHook = ''
               export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath libraries}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
