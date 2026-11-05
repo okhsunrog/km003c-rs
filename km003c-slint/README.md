@@ -53,6 +53,20 @@ cd km003c-slint
 cargo run --release
 ```
 
+The crate pins Slint's upstream `master` snapshot `4b48dcb29d` (1.19 development)
+across the application, plot adapter and build compiler. `slint-project.json`
+selects edition 1.19 and supplies the import paths to both the compiler and
+viewer. Use a viewer built from the same revision:
+
+```bash
+slint-viewer --check .
+slint-viewer --screenshot preview.png --size 390x844 .
+SLINT_EMIT_DEBUG_INFO=1 SLINT_MCP_PORT=9315 cargo run --features slint/mcp
+```
+
+The MCP feature is only enabled by the development command. The normal build
+does not start an inspection server.
+
 The crate is its own Cargo workspace, so Slint and the patched `nusb` below
 stay out of the main workspace, its lock file and CI. The wgpu plotting core is
 shared with the main workspace and the egui/WebGPU frontend.

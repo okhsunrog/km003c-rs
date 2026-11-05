@@ -11,9 +11,9 @@ publish = false
 [workspace]
 members = ["slint-realtime-plot"]
 
-# Slint is pinned for its unstable wgpu 30 integration, matching realtime-plot.
+# Pin the upstream snapshot across the application, plot adapter and compiler.
 [workspace.dependencies]
-slint = { version = "=1.18.1", default-features = false, features = ["std", "unstable-wgpu-30", "compat-1-2"] }
+slint = { git = "https://github.com/slint-ui/slint", rev = "4b48dcb29da01bc9f3deca7ba18c3407d4046055", default-features = false, features = ["std", "unstable-wgpu-30", "compat-1-2"] }
 
 [lib]
 crate-type = ["lib", "cdylib"]
@@ -36,7 +36,7 @@ tracing = "0.1.44"
 tracing-subscriber = "0.3.23"
 
 [build-dependencies]
-slint-build = "=1.18.1"
+slint-build = { git = "https://github.com/slint-ui/slint", rev = "4b48dcb29da01bc9f3deca7ba18c3407d4046055", version = "1.19.0" }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.22"

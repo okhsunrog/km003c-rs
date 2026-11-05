@@ -1,0 +1,8 @@
+{
+    "edition": "1.19",
+    "main": "ui/app.slint",
+    "library-paths": {
+        "material": "material/material.slint",
+        "slint-realtime-plot": "slint-realtime-plot/ui"
+    }
+}
