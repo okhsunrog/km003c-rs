@@ -87,7 +87,8 @@ pub struct PlotRenderer {
     snapshot: crate::buffer::Snapshot,
     texture: wgpu::Texture,
     samples_buffer: wgpu::Buffer,
-    _colors_buffer: wgpu::Buffer,
+    colors_buffer: wgpu::Buffer,
+    colors_dirty: bool,
     bind_group: wgpu::BindGroup,
     /// Reused scratch space for the CPU→GPU copy; allocated once.
     scratch: Vec<f32>,
@@ -428,7 +429,8 @@ impl PlotRenderer {
             snapshot: Default::default(),
             texture,
             samples_buffer,
-            _colors_buffer: colors_buffer,
+            colors_buffer,
+            colors_dirty: false,
             bind_group,
             scratch: Vec::with_capacity(config.capacity * config.num_channels),
             config,
@@ -645,7 +647,7 @@ impl PlotRenderer {
             self.texture = Self::make_texture(&self.device, width, height, self.texture_format);
         }
 
-        if !(data_changed || view_changed || needs_resize || scale_changed || range_changed) {
+        if !(data_changed || view_changed || needs_resize || scale_changed || range_changed || self.colors_dirty) {
             return RenderOutput {
                 texture: self.texture.clone(),
                 y_min: self.last_y_min,
@@ -656,6 +658,7 @@ impl PlotRenderer {
         }
 
         self.last_x_range = x_range;
+        self.colors_dirty = false;
         self.last_width = width;
         self.last_height = height;
         self.last_visible = vis;
@@ -739,6 +742,22 @@ impl PlotRenderer {
             y_divisions: divisions,
             rendered: true,
         }
+    }
+
+    /// Change the palette without discarding uploaded samples or cached peaks.
+    pub fn set_channel_colors(&mut self, colors: &[[f32; 4]]) {
+        assert_eq!(colors.len(), self.config.num_channels);
+        if colors == self.config.channel_colors {
+            return;
+        }
+        let mut uniform = ColorsUniform {
+            data: [[0.0; 4]; MAX_CHANNELS],
+        };
+        uniform.data[..colors.len()].copy_from_slice(colors);
+        self.queue
+            .write_buffer(&self.colors_buffer, 0, bytemuck::bytes_of(&uniform));
+        self.config.channel_colors.clone_from_slice(colors);
+        self.colors_dirty = true;
     }
 
     /// Update the Y-axis range at runtime (used when `auto_range` is off).

@@ -215,6 +215,19 @@ impl PowerMonitorApp {
         self.firmware.poll();
         egui::ScrollArea::vertical().show(ui, |ui| {
             ui.heading("Firmware");
+            ui.horizontal_wrapped(|ui| {
+                ui.label(if self.firmware.image.is_some() {
+                    "✓ Package selected"
+                } else {
+                    "1. Select package"
+                });
+                ui.label(if self.firmware.checked.is_some() {
+                    "✓ Meter checked"
+                } else {
+                    "2. Check meter"
+                });
+                ui.label("3. Review & install");
+            });
             ui.label("Install a newer build, downgrade to an older one, or reinstall from a local package.");
             if self.firmware.serial.is_empty()
                 && let Some(state) = &self.device_state
@@ -660,7 +673,7 @@ mod tests {
             let output = ctx.run_ui(input.clone(), |ui| app.render_ui(ui));
             for shape in &output.shapes {
                 if let egui::epaint::Shape::Text(text) = &shape.shape
-                    && text.galley.job.text == "Start"
+                    && text.galley.job.text == "Start capture"
                 {
                     start = Some(text.pos + text.galley.size() * 0.5);
                 }

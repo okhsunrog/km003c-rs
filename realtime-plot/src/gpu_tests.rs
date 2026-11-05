@@ -136,6 +136,12 @@ fn timed_view_preserves_irregular_intervals_precision_and_cache() {
     assert!(alpha(160, 10) < 16, "sample index must not determine the X coordinate");
     assert!(alpha(160, 28) > 64);
     assert!(!renderer.render_view(&buffer, view).rendered);
+    renderer.set_channel_colors(&[[0.0, 1.0, 0.0, 1.0]]);
+    let recolored = renderer.render_view(&buffer, view);
+    assert!(recolored.rendered, "a theme change must repaint unchanged samples");
+    let recolored = pixels(&device, &queue, &recolored.texture);
+    assert!(recolored.as_chunks::<4>().0.iter().any(|p| p[1] > 128 && p[0] == 0));
+    assert!(!renderer.render_view(&buffer, view).rendered);
     view.y_range = Some([-2.0, 2.0]);
     assert!(
         renderer.render_view(&buffer, view).rendered,

@@ -26,6 +26,16 @@ pub enum PlotScaleMode {
     Manual,
 }
 
+/// Theme shared by the desktop frontends. System follows the operating system.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AppearanceTheme {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
 /// Per-chart vertical scale; manual limits use the selected metric's units.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -63,6 +73,9 @@ impl PlotScaleSettings {
 #[serde(default)]
 #[non_exhaustive]
 pub struct Preferences {
+    pub theme: AppearanceTheme,
+    /// User zoom in egui, independent of the display's scale factor.
+    pub ui_scale: f32,
     pub sample_rate: GraphSampleRate,
     /// Width of the plotted time window, `None` for all data.
     pub time_window_seconds: Option<f64>,
@@ -81,6 +94,8 @@ pub struct Preferences {
 impl Default for Preferences {
     fn default() -> Self {
         Self {
+            theme: AppearanceTheme::System,
+            ui_scale: 1.5,
             sample_rate: GraphSampleRate::Sps50,
             time_window_seconds: Some(30.0),
             plot_metrics: [Metric::Voltage, Metric::Current, Metric::Power],
@@ -154,6 +169,8 @@ mod tests {
             recording_format: RecordingFormat::Csv,
             pd_trace_enabled: true,
             pd_hide_good_crc: false,
+            theme: AppearanceTheme::Light,
+            ui_scale: 1.25,
         };
 
         preferences.save(&path).unwrap();

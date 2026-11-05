@@ -151,6 +151,7 @@ pub struct GpuPlot {
     offline: Option<Arc<OfflineRecordingView>>,
     is_live: bool,
     metric: Option<Metric>,
+    color: Option<egui::Color32>,
     loaded_start: u64,
     loaded_end: u64,
     bounds_key: Option<(u64, usize, Option<f64>)>,
@@ -170,6 +171,7 @@ impl GpuPlot {
             offline: None,
             is_live: true,
             metric: None,
+            color: None,
             loaded_start: 0,
             loaded_end: 0,
             bounds_key: None,
@@ -235,6 +237,7 @@ impl GpuPlot {
         min_time: Option<f64>,
         transform: &PlotTransform,
         scale: f32,
+        color: egui::Color32,
     ) -> Result<Option<egui::TextureId>, &'static str> {
         if series.len() < 2 {
             return Ok(None);
@@ -259,14 +262,14 @@ impl GpuPlot {
             return Err("Zoom in to display this recording within the GPU's buffer limit");
         }
         let required = count.max(1024).next_power_of_two().min(max_capacity);
-        if self.buffer.as_ref().is_none_or(|buffer| buffer.capacity < count) {
+        if self.buffer.as_ref().is_none_or(|buffer| buffer.capacity < count) || self.color != Some(color) {
             let config = PlotConfig {
                 num_channels: 1,
                 capacity: required,
                 y_min: -1.0,
                 y_max: 1.0,
                 auto_range: false,
-                channel_colors: vec![metric.color().to_normalized_gamma_f32()],
+                channel_colors: vec![color.to_normalized_gamma_f32()],
             };
             self.renderer = Some(PlotRenderer::with_format(
                 &self.state.device,
@@ -276,6 +279,7 @@ impl GpuPlot {
             ));
             self.buffer = Some(PlotBuffer::new(1, required));
             self.loaded_start = 0;
+            self.color = Some(color);
             self.loaded_end = 0;
             self.texture_size = [0; 2];
         }
@@ -384,6 +388,7 @@ impl PlotItem for GpuPlotItem<'_> {
             self.min_time,
             transform,
             ui.ctx().pixels_per_point(),
+            self.metric.color(ui.visuals().dark_mode),
         ) {
             Ok(Some(id)) => {
                 // Push into egui_plot's shape list to keep grid, line and cursor
@@ -410,7 +415,7 @@ impl PlotItem for GpuPlotItem<'_> {
 
     fn initialize(&mut self, _x_range: RangeInclusive<f64>) {}
     fn color(&self) -> egui::Color32 {
-        self.metric.color()
+        self.metric.color(true)
     }
     fn geometry(&self) -> PlotGeometry<'_> {
         PlotGeometry::None
@@ -562,7 +567,7 @@ mod tests {
         let render = |gpu: &mut GpuPlot, samples: &VecDeque<_>, total, metric, end, width| {
             let series = Series::Live { samples, total };
             gpu.sync_bounds(series, metric, None);
-            gpu.render(series, metric, None, &transform(end, width), 1.0)
+            gpu.render(series, metric, None, &transform(end, width), 1.0, metric.color(true))
                 .unwrap()
                 .unwrap()
         };
@@ -610,8 +615,15 @@ mod tests {
             [false, false],
         );
         assert_eq!(
-            gpu.render(series, Metric::SignedCurrent, None, &offline_transform, 1.0)
-                .unwrap(),
+            gpu.render(
+                series,
+                Metric::SignedCurrent,
+                None,
+                &offline_transform,
+                1.0,
+                Metric::SignedCurrent.color(true)
+            )
+            .unwrap(),
             Some(id)
         );
         assert_eq!(gpu.upload_times, vec![0.0, 10.0, 20.0]);

@@ -104,6 +104,9 @@ GUI application featuring:
   with incremental sample uploads and real timestamps
 - AdcQueue streaming with configurable sample rates
 - Large live V/A/W readings and Charts / USB PD / Recordings / Firmware tabs
+- Remembered light, dark or system theme and interface scale, with matching GPU colours
+- Scrollable charts and an expanded single-chart view for small windows; short windows
+  collect secondary commands in Capture, while stopped readings show their age
 - Shared X-only zoom/pan, timestamp cursor and stable stepped, fitted or manual Y scales
 - Adjustable time window (2s to 5min or all data), with a separate view pause
 - Live recording and plot-buffer export to Parquet or CSV
