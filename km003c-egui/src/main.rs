@@ -1691,10 +1691,25 @@ impl PowerMonitorApp {
         egui::CentralPanel::default().show(ui, |ui| match self.active_tab {
             AppTab::Charts => self.plots_panel(ui),
             AppTab::Pd => {
-                self.pd_status_section(ui);
-                self.pd_timeline_controls_section(ui);
+                let compact = ui.available_height() < 240.0;
+                if compact {
+                    let menu_width = (ui.available_width() - 16.0).min(360.0);
+                    ui.menu_button("Connection & filters", |ui| {
+                        ui.set_max_width(menu_width);
+                        self.pd_status_section(ui);
+                        self.pd_timeline_controls_section(ui);
+                    });
+                } else {
+                    self.pd_status_section(ui);
+                    self.pd_timeline_controls_section(ui);
+                }
                 if self.pd_wire_messages == 0 {
-                    ui.small("No PD messages captured yet. Reconnect the sink to observe negotiation.");
+                    ui.small(if compact {
+                        "No PD messages yet."
+                    } else {
+                        "No PD messages captured yet. Reconnect the sink to observe negotiation."
+                    })
+                    .on_hover_text("Reconnect the sink to observe negotiation.");
                 }
                 self.pd_timeline_panel(ui);
             }
