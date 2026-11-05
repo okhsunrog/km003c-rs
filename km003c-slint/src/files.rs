@@ -30,6 +30,7 @@ pub struct Dirs {
 pub struct FilesUpdate {
     pub recording: Option<bool>,
     pub progress: Option<String>,
+    pub elapsed_seconds: Option<i32>,
     pub status: Option<String>,
     pub offline_busy: Option<bool>,
     pub offline_status: Option<String>,
@@ -253,6 +254,7 @@ impl Files {
                 None => {
                     if !recorder.is_finishing() {
                         let summary = recorder.summary();
+                        update.elapsed_seconds = Some((summary.elapsed_us / 1_000_000).min(i32::MAX as u64) as i32);
                         update.progress = Some(format!(
                             "{} samples · {:.1} s · {:.3}% complete",
                             summary.rows,

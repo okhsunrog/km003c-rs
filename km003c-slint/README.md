@@ -11,7 +11,8 @@ the meter plugged into the phone.
 </p>
 
 It plots voltage, current and power from the AdcQueue stream at 2, 10, 50 or
-1000 SPS. The charts use the shared [`realtime-plot`](../realtime-plot)
+1000 SPS. Current and power preserve their sign, so reverse flow stays visible.
+The charts use the shared [`realtime-plot`](../realtime-plot)
 GPU core through the local `slint-realtime-plot` adapter. It draws the samples as anti-aliased line segments when zoomed in and as a
 min/max envelope when zoomed out. A 262,144-sample ring per chart holds
 4.4 minutes at 1000 SPS or 87 minutes at 50 SPS.
@@ -23,6 +24,12 @@ breaks in the line rather than being joined across.
 - Pinch or scroll to zoom, double tap or double click to pause, drag to pan
   while paused. The time axis stays on the pause moment while data keeps
   arriving.
+- In a short window, the wheel scrolls the page; Ctrl+wheel still zooms time.
+  Shared controls select all charts or one expanded chart. Landscape uses a
+  compact navigation bar and wide desktop windows use a navigation rail.
+- Light, dark and system themes are available from View and remembered between
+  runs. The palette changes both the readings and the GPU lines. A stopped or
+  disconnected stream marks its last reading rather than presenting it as live.
 - The device reconnects on its own when it is replugged.
 - The status line counts received, missing and discarded samples.
 - On Android the screen stays on while the app is in front.

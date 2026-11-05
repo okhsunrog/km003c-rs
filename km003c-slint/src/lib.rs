@@ -19,8 +19,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use km003c_lib::{
-    DeviceState, GraphSampleRate, MeasurementAccumulator, MeasurementSample, Metric, Preferences, RecordingFormat,
-    Session, SessionEvent,
+    AppearanceTheme, DeviceState, GraphSampleRate, MeasurementAccumulator, MeasurementSample, Metric, Preferences,
+    RecordingFormat, Session, SessionEvent,
 };
 use slint::wgpu_30::WGPUConfiguration;
 use slint::{FilterModel, Model, VecModel};
@@ -52,8 +52,8 @@ const PREFERENCES_INTERVAL: Duration = Duration::from_secs(2);
 const USB_RESET: bool = !cfg!(any(target_os = "android", target_os = "macos"));
 
 /// Charts in display order: voltage, current, power.
-/// Current and power are absolute, as in the egui app's default plots.
-const CHART_METRICS: [Metric; 3] = [Metric::Voltage, Metric::Current, Metric::Power];
+/// Signed current and power preserve the meter's direction of flow.
+const CHART_METRICS: [Metric; 3] = [Metric::Voltage, Metric::SignedCurrent, Metric::SignedPower];
 const CHART_COLORS: [[f32; 4]; 3] = [
     [0.133, 0.773, 0.369, 1.0], // #22c55e
     [0.231, 0.510, 0.965, 1.0], // #3b82f6
@@ -133,6 +133,11 @@ fn desktop_dirs() -> Dirs {
 /// The UI's settings as preferences, keeping the fields it has no control for.
 fn current_preferences(app: &App, saved: &Preferences) -> Preferences {
     let mut preferences = saved.clone();
+    preferences.theme = match app.get_theme_index() {
+        1 => AppearanceTheme::Light,
+        2 => AppearanceTheme::Dark,
+        _ => AppearanceTheme::System,
+    };
     if let Some(&rate) = RATES.get(app.get_rate_index().max(0) as usize) {
         preferences.sample_rate = rate;
     }
@@ -162,6 +167,11 @@ fn run(dirs: Dirs, customize: impl FnOnce(&App)) {
 
     let app = App::new().expect("failed to create the window");
     customize(&app);
+    app.set_theme_index(match preferences.theme {
+        AppearanceTheme::System => 0,
+        AppearanceTheme::Light => 1,
+        AppearanceTheme::Dark => 2,
+    });
     app.set_capacity(CAPACITY as i32);
     app.set_rate_index(rate_index(initial_rate) as i32);
     app.set_sample_rate(rate_hz(initial_rate));
@@ -372,8 +382,31 @@ fn install_renderer(app: &App, buffers: Buffers) {
                 ];
 
                 let mut rendered = false;
+                let colors = [app.get_voltage_color(), app.get_current_color(), app.get_power_color()];
                 for (chart, renderer) in renderers.iter_mut().enumerate() {
+                    if app.get_tab() != 0 {
+                        continue;
+                    }
                     let (width, height) = sizes[chart];
+                    if width <= 0 || height <= 0 {
+                        continue;
+                    }
+                    let color = colors[chart];
+                    // The render target is sRGB, so shader colors are linear.
+                    let linear = |v: u8| {
+                        let v = f32::from(v) / 255.0;
+                        if v <= 0.04045 {
+                            v / 12.92
+                        } else {
+                            ((v + 0.055) / 1.055).powf(2.4)
+                        }
+                    };
+                    renderer.set_channel_colors(&[[
+                        linear(color.red()),
+                        linear(color.green()),
+                        linear(color.blue()),
+                        1.0,
+                    ]]);
                     let output = renderer.render(
                         &buffers.buffers[chart],
                         width.max(1) as u32,
@@ -428,12 +461,16 @@ struct Readout {
     device: Option<String>,
     sample_rate: Option<(f32, i32)>,
     measurement: Option<MeasurementSample>,
+    live: Option<bool>,
 }
 
 fn update_ui(app: &slint::Weak<App>, readout: Readout) {
     let _ = app.upgrade_in_event_loop(move |app| {
         if let Some(status) = readout.status {
             app.set_status(status.into());
+        }
+        if let Some(live) = readout.live {
+            app.set_measurement_live(live);
         }
         if let Some(device) = readout.device {
             app.set_device(device.into());
@@ -444,10 +481,13 @@ fn update_ui(app: &slint::Weak<App>, readout: Readout) {
             app.set_view_offset(0);
         }
         if let Some(sample) = readout.measurement {
+            app.set_has_reading(true);
+            app.set_measurement_live(true);
+            app.set_sample_age_seconds(0.0);
             let [voltage, current, power] = CHART_METRICS.map(|metric| metric.value(&sample));
-            app.set_voltage_text(format!("{voltage:.3} V").into());
-            app.set_current_text(format!("{current:.3} A").into());
-            app.set_power_text(format!("{power:.3} W").into());
+            app.set_voltage_text(format!("{voltage:.3}").into());
+            app.set_current_text(format!("{current:.3}").into());
+            app.set_power_text(format!("{power:.3}").into());
             app.set_quality_text(
                 format!(
                     "{:.1} s · {} samples · {} missing · {} discarded",
@@ -467,6 +507,7 @@ fn apply_files(app: &slint::Weak<App>, update: FilesUpdate) {
     let FilesUpdate {
         recording,
         progress,
+        elapsed_seconds,
         status,
         offline_busy,
         offline_status,
@@ -474,6 +515,7 @@ fn apply_files(app: &slint::Weak<App>, update: FilesUpdate) {
     } = update;
     if recording.is_none()
         && progress.is_none()
+        && elapsed_seconds.is_none()
         && status.is_none()
         && offline_busy.is_none()
         && offline_status.is_none()
@@ -487,6 +529,9 @@ fn apply_files(app: &slint::Weak<App>, update: FilesUpdate) {
         }
         if let Some(progress) = progress {
             app.set_recording_progress(progress.into());
+        }
+        if let Some(seconds) = elapsed_seconds {
+            app.set_recording_seconds(seconds);
         }
         if let Some(status) = status {
             app.set_recording_status(status.into());
@@ -649,10 +694,12 @@ impl Pump {
     fn event(&mut self, event: SessionEvent) {
         let status = |text: String| Readout {
             status: Some(text),
+            live: Some(false),
             ..Readout::default()
         };
         match event {
             SessionEvent::Samples(samples) => self.samples(samples),
+            SessionEvent::StreamingStopped => update_ui(&self.app, status("Acquisition stopped".to_string())),
             SessionEvent::StreamingStarted(new_rate) => {
                 // Samples are placed by index, so a new rate starts a new series.
                 if new_rate != self.rate {

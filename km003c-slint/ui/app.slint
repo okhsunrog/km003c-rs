@@ -1,4 +1,4 @@
-import { ListView } from "std-widgets.slint";
+import { ListView, Palette } from "std-widgets.slint";
 import {
     FilledButton,
     FilterChip,
@@ -8,13 +8,17 @@ import {
     MaterialTypography,
     MaterialWindow,
     NavigationBar,
+    NavigationRail,
+    ScrollView,
     SegmentedButton,
+    SecondaryTabBar,
     TextButton,
     TonalButton,
 } from "@material";
 import { PlotWidget } from "@slint-realtime-plot/plot.slint";
 
 // Re-exported so Rust can install the system's dynamic colours on Android.
+export { Palette } from "std-widgets.slint";
 export { MaterialPalette, MaterialScheme, MaterialSchemes } from "@material";
 
 // Icons the Material library does not ship; see icons/README.md.
@@ -27,6 +31,13 @@ global AppIcons {
     out property <image> record: @image-url("icons/fiber_manual_record.svg");
     out property <image> stop: @image-url("icons/stop.svg");
     out property <image> folder: @image-url("icons/folder.svg");
+}
+
+global DataColors {
+    out property <bool> dark: Palette.background.to-hsv().value < 0.5;
+    out property <color> voltage: root.dark ? #53da8f : #007543;
+    out property <color> current: root.dark ? #6dadff : #1f5bc2;
+    out property <color> power: root.dark ? #ffc06a : #9d4f00;
 }
 
 // Dims its content and swallows its input while disabled, for components such
@@ -48,8 +59,13 @@ component Disableable inherits Rectangle {
 // One chart per quantity: they differ in units and range, so each has its own
 // auto-ranged Y axis. Time window, pause and pan are shared.
 component Chart inherits PlotWidget {
-    min-height: 120px;
-    vertical-stretch: 1;
+    in property <bool> shown: true;
+    visible: root.shown;
+    min-height: root.shown ? 120px : 0px;
+    max-height: root.shown ? 100000px : 0px;
+    preferred-height: root.shown ? 180px : 0px;
+    vertical-stretch: root.shown ? 1 : 0;
+    show-controls: false;
     x-divisions: 5;
 }
 
@@ -64,23 +80,44 @@ component Surface inherits Rectangle {
 component Readout inherits Surface {
     in property <string> label;
     in property <string> value;
+    in property <string> unit;
     in property <color> accent;
-
+    in property <bool> live;
     horizontal-stretch: 1;
-
+    min-width: 0px;
+    min-height: 64px;
+    preferred-height: 72px;
+    max-height: 80px;
     VerticalLayout {
-        padding: 10px;
-        spacing: 2px;
-        MaterialText {
-            text: root.label;
-            style: MaterialTypography.label_medium;
-            color: MaterialPalette.on_surface_variant;
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: parent.height;
+        padding: 8px;
+        spacing: 4px;
+        HorizontalLayout {
+            MaterialText {
+                text: root.label;
+                style: MaterialTypography.label_medium;
+                color: MaterialPalette.on_surface_variant;
+            }
+
+            MaterialText {
+                text: root.unit;
+                style: MaterialTypography.label_medium;
+                color: MaterialPalette.on_surface_variant;
+                horizontal-alignment: right;
+            }
         }
 
-        MaterialText {
+        Text {
             text: root.value;
-            style: MaterialTypography.title_large;
-            color: root.accent;
+            font-family: "monospace";
+            font-size: clamp((root.width - 16px) / 5, 14px, 32px);
+            font-weight: 600;
+            color: root.live ? root.accent : MaterialPalette.on_surface_variant;
+            overflow: clip;
+            wrap: no-wrap;
         }
     }
 }
@@ -295,6 +332,32 @@ export component App inherits MaterialWindow {
 
     // 0: charts, 1: PD, 2: files.
     in-out property <int> tab: 0;
+    in-out property <int> focused-chart: -1;
+    private property <int> effective-focus: root.focused-chart < 0 && root.height < 520px ? 0 : root.focused-chart;
+    private property <bool> wide: root.width >= 1100px;
+    in-out property <int> theme-index: 0;
+    in-out property <bool> measurement-live: false;
+    in property <bool> has-reading: false;
+    in-out property <float> sample-age-seconds: 0;
+    out property <string> reading-age: root.sample-age-seconds.to-fixed(1) + " s ago";
+    out property <color> voltage-color: DataColors.voltage;
+    out property <color> current-color: DataColors.current;
+    out property <color> power-color: DataColors.power;
+    in-out property <int> recording-seconds: 0;
+
+    changed theme-index => {
+        Palette.color-scheme = root.theme-index == 1 ? ColorScheme.light : root.theme-index == 2 ? ColorScheme.dark : ColorScheme.unknown;
+    }
+    changed recording => { if root.recording { root.recording-seconds = 0; } }
+
+    Timer {
+        interval: 500ms;
+        running: root.has-reading;
+        triggered => {
+            root.sample-age-seconds += 0.5;
+            if root.sample-age-seconds >= 2 { root.measurement-live = false; }
+        }
+    }
 
     // PD tab. Rows are oldest first, already filtered by pd-hide-good-crc.
     in property <[PdRow]> pd-rows;
@@ -328,7 +391,9 @@ export component App inherits MaterialWindow {
 
     title: "POWER-Z KM003C";
     icon: @image-url("../../assets/km003c-logo.svg");
-    preferred-width: 900px;
+    min-width: 280px;
+    min-height: 240px;
+    preferred-width: 1000px;
     preferred-height: 800px;
 
     changed pd-hide-good-crc => {
@@ -338,362 +403,16 @@ export component App inherits MaterialWindow {
         root.pd-trace-changed(root.pd-trace-enabled);
     }
 
-    VerticalLayout {
+    HorizontalLayout {
         x: root.safe-area-insets.left;
         y: root.safe-area-insets.top;
         width: root.width - root.safe-area-insets.right - root.safe-area-insets.left;
         // Runs to the bottom edge; a strip below the bottom bar fills the inset.
         height: root.height - root.safe-area-insets.top;
 
-        // Compact top bar: the status lines take the place of an app title,
-        // which saves a row of vertical space on a phone.
-        HorizontalLayout {
-            padding-left: 16px;
-            padding-right: 4px;
-            padding-top: 4px;
-            padding-bottom: 4px;
-            spacing: 4px;
-
-            VerticalLayout {
-                alignment: center;
-                horizontal-stretch: 1;
-                MaterialText {
-                    text: root.status;
-                    style: MaterialTypography.title_medium;
-                }
-
-                MaterialText {
-                    text: root.device;
-                    style: MaterialTypography.body_small;
-                    color: MaterialPalette.on_surface_variant;
-                }
-            }
-
-            // Pausing freezes the charts only.
-            if root.tab == 0: IconButton {
-                icon: root.paused ? AppIcons.play : AppIcons.pause;
-                tooltip: root.paused ? "Resume" : "Pause";
-                clicked => {
-                    root.paused = !root.paused;
-                    if (!root.paused) {
-                        root.view-offset = 0;
-                    }
-                }
-            }
-
-            // Recording goes on whichever tab is open.
-            IconButton {
-                icon: root.recording ? AppIcons.stop : AppIcons.record;
-                tooltip: root.recording ? "Stop recording" : "Start recording";
-                has_error: !root.recording;
-                clicked => {
-                    if (root.recording) {
-                        root.stop-recording();
-                    } else {
-                        root.start-recording();
-                    }
-                }
-            }
-
-            IconButton {
-                icon: AppIcons.refresh;
-                tooltip: "Reconnect";
-                clicked => {
-                    root.reconnect();
-                }
-            }
-        }
-
-        VerticalLayout {
-            padding-left: 16px;
-            padding-right: 16px;
-            padding-bottom: 8px;
-            spacing: 10px;
-
-            HorizontalLayout {
-                spacing: 8px;
-                Readout {
-                    label: "Voltage";
-                    value: root.voltage-text;
-                    accent: #16a34a;
-                }
-
-                Readout {
-                    label: "Current";
-                    value: root.current-text;
-                    accent: #2563eb;
-                }
-
-                Readout {
-                    label: "Power";
-                    value: root.power-text;
-                    accent: #d97706;
-                }
-            }
-        }
-
-        // Both pages stay laid out, so the charts keep their texture size
-        // while hidden; only the visible one draws and takes input.
-        Rectangle {
-            vertical-stretch: 1;
-
-            VerticalLayout {
-                visible: root.tab == 0;
-                width: parent.width;
-                height: parent.height;
-                padding-left: 8px;
-                padding-right: 8px;
-                spacing: 6px;
-
-                // The rate only matters for the charts. A recording keeps
-                // one rate from start to end.
-                Disableable {
-                    enabled: !root.recording;
-                    SegmentedButton {
-                        items: [{ text: "2 SPS" }, { text: "10 SPS" }, { text: "50 SPS" }, { text: "1k SPS" }];
-                        current_index <=> root.rate-index;
-                        index_changed(index) => {
-                            root.rate-selected(index);
-                        }
-                    }
-                }
-
-                voltage := Chart {
-                    title: "Voltage (V)";
-                    legend-labels: ["VBUS"];
-                    legend-colors: [#22c55e];
-                    time-window <=> root.time-window;
-                    paused <=> root.paused;
-                    view-offset <=> root.view-offset;
-                    paused-shift: root.paused-shift;
-                    sample-rate: root.sample-rate;
-                    capacity: root.capacity;
-                    max-time-window: root.capacity / root.sample-rate;
-                    available-samples: root.available-samples;
-                }
-
-                current := Chart {
-                    title: "Current (A)";
-                    legend-labels: ["IBUS"];
-                    legend-colors: [#3b82f6];
-                    time-window <=> root.time-window;
-                    paused <=> root.paused;
-                    view-offset <=> root.view-offset;
-                    paused-shift: root.paused-shift;
-                    sample-rate: root.sample-rate;
-                    capacity: root.capacity;
-                    max-time-window: root.capacity / root.sample-rate;
-                    available-samples: root.available-samples;
-                }
-
-                power := Chart {
-                    title: "Power (W)";
-                    legend-labels: ["Power"];
-                    legend-colors: [#f59e0b];
-                    time-window <=> root.time-window;
-                    paused <=> root.paused;
-                    view-offset <=> root.view-offset;
-                    paused-shift: root.paused-shift;
-                    sample-rate: root.sample-rate;
-                    capacity: root.capacity;
-                    max-time-window: root.capacity / root.sample-rate;
-                    available-samples: root.available-samples;
-                }
-
-                MaterialText {
-                    text: root.quality-text;
-                    style: MaterialTypography.label_small;
-                    color: MaterialPalette.on_surface_variant;
-                }
-            }
-
-            VerticalLayout {
-                visible: root.tab == 1;
-                width: parent.width;
-                height: parent.height;
-                padding-left: 16px;
-                padding-right: 16px;
-                spacing: 8px;
-
-                Surface {
-                    VerticalLayout {
-                        padding: 12px;
-                        spacing: 4px;
-                        MaterialText {
-                            text: root.pd-sink;
-                            style: MaterialTypography.title_medium;
-                        }
-
-                        MaterialText {
-                            text: root.pd-lines;
-                            style: MaterialTypography.body_small;
-                            color: MaterialPalette.on_surface_variant;
-                        }
-
-                        MaterialText {
-                            text: "Contract: " + root.pd-contract;
-                            style: MaterialTypography.body_medium;
-                            wrap: word-wrap;
-                            overflow: clip;
-                        }
-                    }
-                }
-
-                HorizontalLayout {
-                    spacing: 8px;
-                    alignment: space-between;
-                    HorizontalLayout {
-                        spacing: 8px;
-                        FilterChip {
-                            text: "Hide GoodCRC";
-                            checked <=> root.pd-hide-good-crc;
-                        }
-
-                        FilterChip {
-                            text: "Firmware trace";
-                            tooltip: "Also read the Type-C and protocol-engine trace of the KM003C firmware";
-                            checked <=> root.pd-trace-enabled;
-                        }
-                    }
-
-                    TextButton {
-                        text: "Clear";
-                        clicked => {
-                            root.pd-clear();
-                        }
-                    }
-                }
-
-                ListView {
-                    // Follow new rows while scrolled to the end; stay put
-                    // while reading older ones.
-                    property <bool> follow: true;
-                    property <length> end-y: min(0px, self.visible-height - self.content-height);
-
-                    vertical-stretch: 1;
-                    changed content-y => {
-                        self.follow = self.content-y <= self.end-y + 24px;
-                    }
-                    changed content-height => {
-                        if (self.follow) {
-                            self.content-y = self.end-y;
-                        }
-                    }
-
-                    for row[index] in root.pd-rows: PdRowView {
-                        entry: row;
-                        toggled => {
-                            root.pd-row-toggled(index);
-                        }
-                    }
-                }
-            }
-
-            VerticalLayout {
-                visible: root.tab == 2;
-                width: parent.width;
-                height: parent.height;
-                padding-left: 16px;
-                padding-right: 16px;
-                spacing: 8px;
-
-                Surface {
-                    VerticalLayout {
-                        padding: 12px;
-                        spacing: 8px;
-                        MaterialText {
-                            text: "Live recording";
-                            style: MaterialTypography.title_medium;
-                        }
-
-                        Disableable {
-                            enabled: !root.recording;
-                            SegmentedButton {
-                                items: [{ text: "Parquet" }, { text: "CSV" }];
-                                current_index <=> root.recording-format-index;
-                                index_changed(index) => {
-                                    root.recording-format-selected(index);
-                                }
-                            }
-                        }
-
-                        HorizontalLayout {
-                            alignment: start;
-                            FilledButton {
-                                text: root.recording ? "Stop recording" : "Start recording";
-                                icon: root.recording ? AppIcons.stop : AppIcons.record;
-                                clicked => {
-                                    if (root.recording) {
-                                        root.stop-recording();
-                                    } else {
-                                        root.start-recording();
-                                    }
-                                }
-                            }
-                        }
-
-                        if root.recording-progress != "": MaterialText {
-                            text: root.recording-progress;
-                            style: MaterialTypography.body_medium;
-                        }
-                        if root.recording-status != "": MaterialText {
-                            text: root.recording-status;
-                            style: MaterialTypography.body_small;
-                            color: MaterialPalette.on_surface_variant;
-                            wrap: word-wrap;
-                        }
-                        MaterialText {
-                            text: "Saved to " + root.recordings-dir;
-                            style: MaterialTypography.label_small;
-                            color: MaterialPalette.on_surface_variant;
-                            wrap: word-wrap;
-                        }
-                    }
-                }
-
-                HorizontalLayout {
-                    spacing: 8px;
-                    VerticalLayout {
-                        alignment: center;
-                        horizontal-stretch: 1;
-                        MaterialText {
-                            text: "Stored on the meter";
-                            style: MaterialTypography.title_medium;
-                        }
-
-                        MaterialText {
-                            text: root.offline-status;
-                            style: MaterialTypography.body_small;
-                            color: MaterialPalette.on_surface_variant;
-                            wrap: word-wrap;
-                        }
-                    }
-
-                    TextButton {
-                        text: "Load";
-                        // Loading pauses the live stream, which a recording
-                        // cannot have.
-                        enabled: !root.offline-busy && !root.recording;
-                        clicked => {
-                            root.offline-load();
-                        }
-                    }
-                }
-
-                ListView {
-                    vertical-stretch: 1;
-                    for row[index] in root.offline-rows: OfflineRowView {
-                        entry: row;
-                        enabled: !root.offline-busy && !root.recording;
-                        export => {
-                            root.offline-export(index);
-                        }
-                    }
-                }
-            }
-        }
-
-        NavigationBar {
+        if root.wide: NavigationRail {
+            width: 88px;
+            alignment: start;
             items: [
                 { icon: AppIcons.chart, selected_icon: AppIcons.chart, text: "Charts" },
                 { icon: AppIcons.bolt, selected_icon: AppIcons.bolt, text: "PD" },
@@ -701,12 +420,502 @@ export component App inherits MaterialWindow {
             ];
             current_index <=> root.tab;
         }
+        VerticalLayout {
+            min-width: 0px;
+            // The status replaces an app title to save a row on a phone.
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 4px;
+                padding-top: 4px;
+                padding-bottom: 4px;
+                spacing: 4px;
 
-        // Edge to edge: the bar's surface continues under the system
-        // navigation, in the bar's own colour.
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+                    MaterialText {
+                        text: root.status;
+                        style: MaterialTypography.title_medium;
+                    }
+
+                    MaterialText {
+                        text: root.device;
+                        style: MaterialTypography.body_small;
+                        color: MaterialPalette.on_surface_variant;
+                    }
+                }
+
+                view-button := TextButton {
+                    text: "View";
+                    clicked => { view-menu.show(); }
+                }
+
+                if root.recording: MaterialText {
+                    text: "REC " + root.recording-seconds + " s";
+                    style: MaterialTypography.label_medium;
+                    color: MaterialPalette.error;
+                    vertical-alignment: center;
+                }
+                // Recording goes on whichever tab is open.
+                IconButton {
+                    icon: root.recording ? AppIcons.stop : AppIcons.record;
+                    tooltip: root.recording ? "Stop recording" : "Start recording";
+                    has_error: root.recording;
+                    clicked => {
+                        if (root.recording) {
+                            root.stop-recording();
+                        } else {
+                            root.start-recording();
+                        }
+                    }
+                }
+
+                IconButton {
+                    icon: AppIcons.refresh;
+                    tooltip: "Reconnect";
+                    clicked => {
+                        root.reconnect();
+                    }
+                }
+            }
+
+            VerticalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                padding-bottom: 8px;
+                spacing: 10px;
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    Readout {
+                        label: "Voltage";
+                        value: root.voltage-text;
+                        unit: "V";
+                        live: root.measurement-live;
+                        accent: DataColors.voltage;
+                    }
+
+                    Readout {
+                        label: "Current ±";
+                        value: root.current-text;
+                        unit: "A";
+                        live: root.measurement-live;
+                        accent: DataColors.current;
+                    }
+
+                    Readout {
+                        label: "Power ±";
+                        value: root.power-text;
+                        unit: "W";
+                        live: root.measurement-live;
+                        accent: DataColors.power;
+                    }
+                }
+            }
+
+            if !root.measurement-live: MaterialText {
+                text: root.has-reading ? "Last reading · " + root.reading-age : "Waiting for the first measurement";
+                style: MaterialTypography.label_medium;
+                color: MaterialPalette.on_surface_variant;
+            }
+
+            // Pages remain instantiated, keeping the chart handles stable.
+            // Only the visible page draws and takes input.
+            Rectangle {
+                vertical-stretch: 1;
+                min-height: 0px;
+                clip: true;
+
+                page-0 := ScrollView {
+                    visible: root.tab == 0;
+                    width: parent.width;
+                    height: parent.height;
+                    horizontal_scrollbar_policy: ScrollBarPolicy.always_off;
+                    content-width: self.visible-width;
+                    content-height: max(self.visible-height, page-content-0.min-height);
+                    page-content-0 := VerticalLayout {
+                        x: (parent.content-width - self.width) / 2;
+                        width: parent.content-width;
+                        height: parent.content-height;
+                        padding-left: 8px;
+                        padding-right: 8px;
+                        spacing: 6px;
+
+                        // The rate only matters for the charts. A recording keeps
+                        // one rate from start to end.
+                        if root.height >= 520px: Disableable {
+                            enabled: !root.recording;
+                            SegmentedButton {
+                                items: [{ text: "2 SPS" }, { text: "10 SPS" }, { text: "50 SPS" }, { text: "1k SPS" }];
+                                current_index <=> root.rate-index;
+                                index_changed(index) => {
+                                    root.rate-selected(index);
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 4px;
+                            if root.height >= 520px: FilterChip {
+                                toggle-on-click: false;
+                                text: "All";
+                                checked: root.effective-focus < 0;
+                                clicked => { root.focused-chart = -1; }
+                            }
+                            for name[index] in ["V", "A", "W"]: FilterChip {
+                                toggle-on-click: false;
+                                text: name;
+                                checked: root.effective-focus == index;
+                                clicked => { root.focused-chart = index; }
+                            }
+                            Rectangle {
+                                horizontal-stretch: 1;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 4px;
+                            TextButton {
+                                text: root.paused ? "Resume view" : "Pause view";
+                                clicked => { root.paused = !root.paused; }
+                            }
+
+                            TextButton {
+                                text: "Live";
+                                clicked => { root.paused = false; root.view-offset = 0; }
+                            }
+
+                            TextButton {
+                                text: "+";
+                                clicked => { root.time-window = max(2 / root.sample-rate, root.time-window * 0.8); }
+                            }
+
+                            TextButton {
+                                text: "−";
+                                clicked => { root.time-window = min(root.capacity / root.sample-rate, root.time-window * 1.25); }
+                            }
+                        }
+
+                        voltage := Chart {
+                            wheel-zoom-enabled: page-0.content-height <= page-0.visible-height;
+                            shown: root.effective-focus < 0 || root.effective-focus == 0;
+                            title: "Voltage (V)";
+                            title-color: DataColors.voltage;
+                            show-time-axis: root.effective-focus == 0;
+                            time-window <=> root.time-window;
+                            paused <=> root.paused;
+                            view-offset <=> root.view-offset;
+                            paused-shift: root.paused-shift;
+                            sample-rate: root.sample-rate;
+                            capacity: root.capacity;
+                            max-time-window: root.capacity / root.sample-rate;
+                            available-samples: root.available-samples;
+                        }
+
+                        current := Chart {
+                            wheel-zoom-enabled: page-0.content-height <= page-0.visible-height;
+                            shown: root.effective-focus < 0 || root.effective-focus == 1;
+                            title: "Current (A, signed)";
+                            title-color: DataColors.current;
+                            show-time-axis: root.effective-focus == 1;
+                            time-window <=> root.time-window;
+                            paused <=> root.paused;
+                            view-offset <=> root.view-offset;
+                            paused-shift: root.paused-shift;
+                            sample-rate: root.sample-rate;
+                            capacity: root.capacity;
+                            max-time-window: root.capacity / root.sample-rate;
+                            available-samples: root.available-samples;
+                        }
+
+                        power := Chart {
+                            wheel-zoom-enabled: page-0.content-height <= page-0.visible-height;
+                            shown: root.effective-focus < 0 || root.effective-focus == 2;
+                            title: "Power (W, signed)";
+                            title-color: DataColors.power;
+                            time-window <=> root.time-window;
+                            paused <=> root.paused;
+                            view-offset <=> root.view-offset;
+                            paused-shift: root.paused-shift;
+                            sample-rate: root.sample-rate;
+                            capacity: root.capacity;
+                            max-time-window: root.capacity / root.sample-rate;
+                            available-samples: root.available-samples;
+                        }
+
+                        MaterialText {
+                            text: root.quality-text;
+                            style: MaterialTypography.label_small;
+                            color: MaterialPalette.on_surface_variant;
+                        }
+                    }
+                }
+
+                page-1 := ScrollView {
+                    visible: root.tab == 1;
+                    width: parent.width;
+                    height: parent.height;
+                    horizontal_scrollbar_policy: ScrollBarPolicy.always_off;
+                    content-width: self.visible-width;
+                    content-height: max(self.visible-height, page-content-1.min-height);
+                    page-content-1 := VerticalLayout {
+                        x: (parent.content-width - self.width) / 2;
+                        width: min(parent.content-width, 960px);
+                        height: parent.content-height;
+                        padding-left: 16px;
+                        padding-right: 16px;
+                        spacing: 8px;
+
+                        Surface {
+                            VerticalLayout {
+                                padding: 12px;
+                                spacing: 4px;
+                                MaterialText {
+                                    text: root.pd-sink;
+                                    style: MaterialTypography.title_medium;
+                                }
+
+                                MaterialText {
+                                    text: root.pd-lines;
+                                    style: MaterialTypography.body_small;
+                                    color: MaterialPalette.on_surface_variant;
+                                }
+
+                                MaterialText {
+                                    text: "Contract: " + root.pd-contract;
+                                    style: MaterialTypography.body_medium;
+                                    wrap: word-wrap;
+                                    overflow: clip;
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: space-between;
+                            HorizontalLayout {
+                                spacing: 8px;
+                                FilterChip {
+                                    text: "Hide GoodCRC";
+                                    checked <=> root.pd-hide-good-crc;
+                                }
+
+                                FilterChip {
+                                    text: "Firmware trace";
+                                    tooltip: "Also read the Type-C and protocol-engine trace of the KM003C firmware";
+                                    checked <=> root.pd-trace-enabled;
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            alignment: end;
+                            TextButton {
+                                text: "Clear";
+                                clicked => {
+                                    root.pd-clear();
+                                }
+                            }
+                        }
+
+                        ListView {
+                            min-height: 120px;
+                    // Follow new rows while scrolled to the end; stay put
+                    // while reading older ones.
+                    property <bool> follow: true;
+                            property <length> end-y: min(0px, self.visible-height - self.content-height);
+
+                            vertical-stretch: 1;
+                            changed content-y => {
+                                self.follow = self.content-y <= self.end-y + 24px;
+                            }
+                            changed content-height => {
+                                if (self.follow) {
+                                    self.content-y = self.end-y;
+                                }
+                            }
+
+                            for row[index] in root.pd-rows: PdRowView {
+                                entry: row;
+                                toggled => {
+                                    root.pd-row-toggled(index);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                page-2 := ScrollView {
+                    visible: root.tab == 2;
+                    width: parent.width;
+                    height: parent.height;
+                    horizontal_scrollbar_policy: ScrollBarPolicy.always_off;
+                    content-width: self.visible-width;
+                    content-height: max(self.visible-height, page-content-2.min-height);
+                    page-content-2 := VerticalLayout {
+                        x: (parent.content-width - self.width) / 2;
+                        width: min(parent.content-width, 960px);
+                        height: parent.content-height;
+                        padding-left: 16px;
+                        padding-right: 16px;
+                        spacing: 8px;
+
+                        Surface {
+                            VerticalLayout {
+                                padding: 12px;
+                                spacing: 8px;
+                                MaterialText {
+                                    text: "Live recording";
+                                    style: MaterialTypography.title_medium;
+                                }
+
+                                Disableable {
+                                    enabled: !root.recording;
+                                    SegmentedButton {
+                                        items: [{ text: "Parquet" }, { text: "CSV" }];
+                                        current_index <=> root.recording-format-index;
+                                        index_changed(index) => {
+                                            root.recording-format-selected(index);
+                                        }
+                                    }
+                                }
+
+                                HorizontalLayout {
+                                    alignment: start;
+                                    FilledButton {
+                                        text: root.recording ? "Stop recording" : "Start recording";
+                                        icon: root.recording ? AppIcons.stop : AppIcons.record;
+                                        clicked => {
+                                            if (root.recording) {
+                                                root.stop-recording();
+                                            } else {
+                                                root.start-recording();
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if root.recording-progress != "": MaterialText {
+                                    text: root.recording-progress;
+                                    style: MaterialTypography.body_medium;
+                                }
+                                if root.recording-status != "": MaterialText {
+                                    text: root.recording-status;
+                                    style: MaterialTypography.body_small;
+                                    color: MaterialPalette.on_surface_variant;
+                                    wrap: word-wrap;
+                                }
+                                MaterialText {
+                                    text: "Saved to " + root.recordings-dir;
+                                    style: MaterialTypography.label_small;
+                                    color: MaterialPalette.on_surface_variant;
+                                    wrap: word-wrap;
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 1;
+                                MaterialText {
+                                    text: "Stored on the meter";
+                                    style: MaterialTypography.title_medium;
+                                }
+
+                                MaterialText {
+                                    text: root.offline-status;
+                                    style: MaterialTypography.body_small;
+                                    color: MaterialPalette.on_surface_variant;
+                                    wrap: word-wrap;
+                                }
+                            }
+
+                            TextButton {
+                                text: "Load";
+                        // Loading pauses the live stream, which a recording
+                        // cannot have.
+                        enabled: !root.offline-busy && !root.recording;
+                                clicked => {
+                                    root.offline-load();
+                                }
+                            }
+                        }
+
+                        ListView {
+                            min-height: 120px;
+                            vertical-stretch: 1;
+                            for row[index] in root.offline-rows: OfflineRowView {
+                                entry: row;
+                                enabled: !root.offline-busy && !root.recording;
+                                export => {
+                                    root.offline-export(index);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !root.wide && root.height >= 520px: NavigationBar {
+                items: [
+                    { icon: AppIcons.chart, selected_icon: AppIcons.chart, text: "Charts" },
+                    { icon: AppIcons.bolt, selected_icon: AppIcons.bolt, text: "PD" },
+                    { icon: AppIcons.folder, selected_icon: AppIcons.folder, text: "Files" },
+                ];
+                current_index <=> root.tab;
+            }
+            if !root.wide && root.height < 520px: SecondaryTabBar {
+                items: [{ text: "Charts" }, { text: "PD" }, { text: "Files" }];
+                current_index <=> root.tab;
+            }
+
+            // Edge to edge: the bar's surface continues under the system
+            // navigation, in the bar's own colour.
+            Rectangle {
+                height: root.safe-area-insets.bottom;
+                background: MaterialPalette.surface_container;
+            }
+        }
+    }
+
+    view-menu := PopupWindow {
+        x: max(8px, min(root.width - self.width - 8px, view-button.absolute-position.x));
+        y: view-button.absolute-position.y + view-button.height;
+        width: min(root.width - 16px, 300px);
+        height: view-menu-content.preferred-height;
         Rectangle {
-            height: root.safe-area-insets.bottom;
-            background: MaterialPalette.surface_container;
+            background: MaterialPalette.surface_container_high;
+            border-radius: 12px;
+        }
+
+        view-menu-content := VerticalLayout {
+            padding: 12px;
+            spacing: 8px;
+            MaterialText {
+                text: "Appearance";
+                style: MaterialTypography.title_medium;
+            }
+
+            for name[index] in ["System", "Light", "Dark"]: FilterChip {
+                toggle-on-click: false;
+                text: name;
+                checked: root.theme-index == index;
+                clicked => { root.theme-index = index; }
+            }
+            if root.height < 520px: MaterialText {
+                text: "Sample rate";
+                style: MaterialTypography.title_medium;
+            }
+            if root.height < 520px: Disableable {
+                enabled: !root.recording;
+                SegmentedButton {
+                    items: [{ text: "2" }, { text: "10" }, { text: "50" }, { text: "1k" }];
+                    current_index <=> root.rate-index;
+                    index_changed(index) => { root.rate-selected(index); }
+                }
+            }
         }
     }
 }

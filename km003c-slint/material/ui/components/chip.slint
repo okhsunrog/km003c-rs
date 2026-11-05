@@ -58,6 +58,8 @@ export component FilterChip {
     in property <bool> enabled <=> base.enabled;
     in property <string> tooltip <=> base.tooltip;
     in_out property <bool> checked;
+    in property <bool> toggle-on-click: true;
+    callback clicked();
 
     forward-focus: base;
     accessible-role: button;
@@ -85,7 +87,8 @@ export component FilterChip {
             avatar_size: MaterialStyleMetrics.size_18;
 
             clicked => {
-                root.toggle();
+                if root.toggle-on-click { root.toggle(); }
+                root.clicked();
             }
         }
 

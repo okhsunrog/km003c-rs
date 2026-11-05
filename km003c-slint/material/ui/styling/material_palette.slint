@@ -169,5 +169,5 @@ export global MaterialPalette {
         },
     };
 
-    property <MaterialScheme> scheme: Palette.color_scheme == ColorScheme.dark ? root.schemes.dark : root.schemes.light;
+    property <MaterialScheme> scheme: Palette.background.to-hsv().value < 0.5 ? root.schemes.dark : root.schemes.light;
 }
