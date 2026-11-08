@@ -56,6 +56,15 @@ hardware-pd:
 gui:
     cargo run -p km003c-egui
 
+# Inspect the running Slint GUI with MCP (normal GPU/window backend).
+slint-mcp port="9315":
+    SLINT_EMIT_DEBUG_INFO=1 SLINT_MCP_PORT={{port}} cargo run --manifest-path km003c-slint/Cargo.toml --features mcp --locked
+
+# Build and exercise the real Slint application without a display or USB meter.
+slint-mcp-test:
+    SLINT_EMIT_DEBUG_INFO=1 cargo build --manifest-path km003c-slint/Cargo.toml --features mcp --locked
+    uv run --no-project python km003c-slint/scripts/mcp_smoke.py --binary km003c-slint/target/debug/km003c-slint
+
 # Serve the browser egui monitor on http://localhost:8080 (Trunk 0.21.14).
 web:
     trunk serve

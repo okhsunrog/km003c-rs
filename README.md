@@ -149,7 +149,7 @@ suffixes such as `vbus_v`, `ibus_a`, and `power_w`.
 ## Quick Start
 
 ### Prerequisites
-- Rust 1.97+
+- Rust 1.99.1+
 - USB access permissions (udev rules on Linux)
 - POWER-Z KM003C device
 
@@ -539,7 +539,7 @@ Hardware commands are deliberately separate from the offline CI gate; use
 
 ## Requirements
 
-- **Rust**: 1.97 or newer
+- **Rust**: 1.99.1 or newer
 - **Platforms**: Linux, Windows, macOS; Android for the experimental `km003c-slint`
 - **Hardware**: POWER-Z KM003C
 

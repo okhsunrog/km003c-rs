@@ -8,6 +8,7 @@
 
 slint::include_modules!();
 
+mod backend;
 mod dynamic_colors;
 mod files;
 mod pd;
@@ -156,16 +157,22 @@ fn run(dirs: Dirs, customize: impl FnOnce(&App)) {
         .build()
         .expect("failed to start the Tokio runtime");
 
-    slint::BackendSelector::new()
-        .require_wgpu_30(WGPUConfiguration::Automatic(required_wgpu_settings(CAPACITY, 1)))
-        .select()
-        .expect("Unable to create Slint backend with WGPU renderer");
+    let headless = backend::is_headless(std::env::var("SLINT_BACKEND").ok().as_deref());
+    if !headless {
+        slint::BackendSelector::new()
+            .require_wgpu_30(WGPUConfiguration::Automatic(required_wgpu_settings(CAPACITY, 1)))
+            .select()
+            .expect("Unable to create Slint backend with WGPU renderer");
+    }
+    // Slint's automatic selector supports the MCP headless backend. Its
+    // rasterizer is software-only, so it cannot satisfy a WGPU request.
 
     let dirs = Arc::new(dirs);
     let preferences = Preferences::load(&dirs.preferences);
     let initial_rate = preferences.sample_rate;
 
     let app = App::new().expect("failed to create the window");
+    app.set_gpu_charts_available(!headless);
     customize(&app);
     app.set_theme_index(match preferences.theme {
         AppearanceTheme::System => 0,
@@ -202,7 +209,11 @@ fn run(dirs: Dirs, customize: impl FnOnce(&App)) {
         preferences.pd_trace_enabled,
     );
     runtime.spawn(pump.run(events, command_rx));
-    let _ = session.connect(initial_rate, USB_RESET);
+    if backend::auto_connect(std::env::var("KM003C_AUTO_CONNECT").ok().as_deref()) {
+        let _ = session.connect(initial_rate, USB_RESET);
+    } else {
+        app.set_status("Connect the KM003C to start measuring".into());
+    }
 
     {
         let session = session.clone();
@@ -321,7 +332,11 @@ fn run(dirs: Dirs, customize: impl FnOnce(&App)) {
         save_preferences.clone(),
     );
 
-    install_renderer(&app, buffers);
+    if !headless {
+        install_renderer(&app, buffers);
+    } else {
+        info!("Headless MCP inspection uses software rendering; GPU charts require a windowed backend");
+    }
     app.run().expect("event loop failed");
 
     save_preferences();

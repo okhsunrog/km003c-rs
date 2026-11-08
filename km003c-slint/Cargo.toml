@@ -2,18 +2,23 @@
 name = "km003c-slint"
 version = "0.1.0"
 edition = "2024"
+rust-version.workspace = true
 description = "Experimental Slint monitor for the ChargerLAB POWER-Z KM003C"
 license = "MIT OR Apache-2.0"
 publish = false
 
 # Kept out of the main workspace while it is an experiment, so Slint
-# stays out of the shared lock file and CI. The plot core is shared.
+# stays out of the shared lock file. CI checks it separately; the plot core is shared.
 [workspace]
+resolver = "3"
 members = ["slint-realtime-plot"]
+
+[workspace.package]
+rust-version = "1.99.1"
 
 # Pin the upstream snapshot across the application, plot adapter and compiler.
 [workspace.dependencies]
-slint = { git = "https://github.com/slint-ui/slint", rev = "4b48dcb29da01bc9f3deca7ba18c3407d4046055", default-features = false, features = ["std", "unstable-wgpu-30", "compat-1-2"] }
+slint = { git = "https://github.com/slint-ui/slint", rev = "aebe3dd580ce0594de272bc5797b7444a2aa18fd", default-features = false, features = ["std", "unstable-wgpu-30", "compat-1-2"] }
 
 [lib]
 crate-type = ["lib", "cdylib"]
@@ -26,6 +31,7 @@ path = "src/main.rs"
 default = ["desktop"]
 desktop = ["slint/backend-winit", "slint/renderer-skia"]
 android = ["slint/backend-android-activity-06"]
+mcp = ["slint/mcp"]
 
 [dependencies]
 km003c-lib = { version = "0.4.0", path = "../km003c-lib", features = ["usbpd", "polars", "preferences"] }
@@ -36,7 +42,7 @@ tracing = "0.1.44"
 tracing-subscriber = "0.3.23"
 
 [build-dependencies]
-slint-build = { git = "https://github.com/slint-ui/slint", rev = "4b48dcb29da01bc9f3deca7ba18c3407d4046055", version = "1.19.0" }
+slint-build = { git = "https://github.com/slint-ui/slint", rev = "aebe3dd580ce0594de272bc5797b7444a2aa18fd", version = "1.20.0" }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.22"

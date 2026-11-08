@@ -60,7 +60,9 @@ cd km003c-slint
 cargo run --release
 ```
 
-The crate pins Slint's upstream `master` snapshot `4b48dcb29d` (1.19 development)
+Requires Rust 1.99.1 or newer, matching the main workspace.
+
+The crate pins Slint's upstream `master` snapshot `aebe3dd580` (1.20 development)
 across the application, plot adapter and build compiler. `slint-project.json`
 selects edition 1.19 and supplies the import paths to both the compiler and
 viewer. Use a viewer built from the same revision:
@@ -68,14 +70,62 @@ viewer. Use a viewer built from the same revision:
 ```bash
 slint-viewer --check .
 slint-viewer --screenshot preview.png --size 390x844 .
-SLINT_EMIT_DEBUG_INFO=1 SLINT_MCP_PORT=9315 cargo run --features slint/mcp
+SLINT_EMIT_DEBUG_INFO=1 SLINT_MCP_PORT=9315 cargo run --features mcp --locked
 ```
 
 The MCP feature is only enabled by the development command. The normal build
 does not start an inspection server.
 
+For inspection without a display, select the headless software backend:
+
+```bash
+SLINT_BACKEND=headless-software KM003C_AUTO_CONNECT=0 \
+SLINT_EMIT_DEBUG_INFO=1 SLINT_MCP_PORT=9315 cargo run --features mcp --locked
+```
+
+The app lets Slint initialize that backend automatically, without requesting
+WGPU or installing a GPU rendering notifier. Headless mode supports the real
+UI, callbacks, settings, and MCP screenshots; custom GPU chart textures require
+the windowed backend. The Charts page labels this limitation. Use a windowed
+MCP session to validate GPU chart rendering.
+
+`KM003C_AUTO_CONNECT=0` disables discovery and capture at startup; Reconnect
+still connects explicitly. This keeps UI tests from resetting an attached
+meter. It does not change the normal startup behaviour.
+
+`query_element_descendants` takes a pipeline of instructions. Each object in
+`queryStack` must have exactly one field:
+
+```json
+{
+  "elementHandle": { "index": "1", "generation": "1" },
+  "queryStack": [
+    { "matchDescendants": true },
+    { "matchElementAccessibleRole": "Button" },
+    { "matchElementAccessibleLabel": "View" }
+  ],
+  "findAll": true
+}
+```
+
+Obtain the actual root element handle from `get_window_properties`; the handle
+above is illustrative. Combining the three instructions in one object is
+invalid and causes a `duplicate field` error.
+
+From the repository root, `just slint-mcp` launches the windowed inspector.
+`just slint-mcp-test` builds the application and checks headless startup, query
+pipelines, theme changes, chart selection, PD filtering, tab navigation,
+screenshots and saved preferences. The test isolates HOME/XDG paths and
+disables automatic USB discovery. To retain its screenshots and log, run:
+
+```bash
+uv run --no-project python km003c-slint/scripts/mcp_smoke.py \
+  --binary km003c-slint/target/debug/km003c-slint --output-dir /path/to/results
+```
+
 The crate is its own Cargo workspace, so Slint and the patched `nusb` below
-stay out of the main workspace, its lock file and CI. The wgpu plotting core is
+stay out of the main workspace and its lock file. A separate CI job checks the
+Slint workspace and headless MCP interactions. The wgpu plotting core is
 shared with the main workspace and the egui/WebGPU frontend.
 
 ## Android

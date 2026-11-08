@@ -44,9 +44,9 @@ jobs:
       - run: cargo package -p km003c-lib --locked
 
   msrv:
-    name: Rust 1.97 compatibility
+    name: Rust 1.99.1 compatibility
     env:
-      RUSTUP_TOOLCHAIN: 1.97.0
+      RUSTUP_TOOLCHAIN: 1.99.1
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -54,12 +54,44 @@ jobs:
         run: sudo apt-get update && sudo apt-get install --yes libwayland-dev libxkbcommon-dev
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.97.0
+          toolchain: 1.99.1
       - uses: Swatinem/rust-cache@v2
         with:
-          key: rust-1.97
+          key: rust-1.99.1
       - run: cargo check --workspace --all-targets --locked
       - run: cargo check --workspace --all-targets --all-features --locked
+
+  slint:
+    name: Slint desktop and headless MCP
+    runs-on: ubuntu-latest
+    env:
+      SLINT_EMIT_DEBUG_INFO: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Linux build dependencies
+        run: sudo apt-get update && sudo apt-get install --yes libfontconfig1-dev libfreetype6-dev libwayland-dev libxkbcommon-dev
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.1
+          components: clippy, rustfmt
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "3.13"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: km003c-slint -> target
+          key: slint-rust-1.99.1
+      - run: cargo fmt --manifest-path km003c-slint/Cargo.toml --all --check
+      - run: cargo test --manifest-path km003c-slint/Cargo.toml --all-targets --features mcp --locked
+      - run: cargo clippy --manifest-path km003c-slint/Cargo.toml --all-targets --features mcp --locked -- -D warnings
+      - run: cargo build --manifest-path km003c-slint/Cargo.toml --features mcp --locked
+      - run: uv run --no-project python km003c-slint/scripts/mcp_smoke.py --binary km003c-slint/target/debug/km003c-slint --output-dir mcp-results
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: slint-mcp-results
+          path: mcp-results
+          if-no-files-found: ignore
 
   platforms:
     name: Check ${{ matrix.os }}

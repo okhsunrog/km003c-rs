@@ -287,6 +287,7 @@ component PdRowView inherits Rectangle {
 }
 
 export component App inherits MaterialWindow {
+    in property <bool> gpu-charts-available: true;
     // Per-chart render targets, read by Rust before each frame.
     out property <int> voltage-texture-width: voltage.requested-texture-width / 1phx;
     out property <int> voltage-texture-height: voltage.requested-texture-height / 1phx;
@@ -540,6 +541,12 @@ export component App inherits MaterialWindow {
                         padding-left: 8px;
                         padding-right: 8px;
                         spacing: 6px;
+
+                        if !root.gpu-charts-available: MaterialText {
+                            text: "GPU charts are available in the windowed app.";
+                            style: MaterialTypography.body_small;
+                            color: MaterialPalette.on_surface_variant;
+                        }
 
                         // The rate only matters for the charts. A recording keeps
                         // one rate from start to end.
