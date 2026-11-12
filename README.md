@@ -41,6 +41,8 @@ values in the Rust API are type-safe [`uom`](https://docs.rs/uom) quantities.
 - Full PD message parsing using the `usbpd` crate
 - Support for SPR and EPR source capabilities
 - Chunked message reassembly for EPR
+- Cable e-marker identity (vendor, product, current and voltage rating, USB
+  speed, EPR) decoded from the Discover Identity answer on SOP'
 - Typed firmware Type-C and protocol-engine state traces
 
 ### Device Information
@@ -59,6 +61,8 @@ Core library providing:
 - CRC-validated read-only device settings
 - Offline recording catalog and encrypted log downloads
 - USB PD event parsing
+- `CableIdentity`, the cable e-marker's Discover Identity answer decoded into
+  typed fields
 - Optional stateful USB PD semantic decoding through the `usbpd` feature,
   with the PD message log and the negotiated power contract
 - Typed firmware PD state-trace parsing and display entries
@@ -77,6 +81,8 @@ One `km003c` executable with clap subcommands:
 - `adc read` / `adc stream` - Single-shot measurements or AdcQueue streaming
 - `logs list` / `logs download` - Offline recording catalog and CSV/Parquet/JSON export
 - `pd capture` / `pd trace` - USB PD messages or internal firmware events
+- `cable` - The seated cable's e-marker identity, as text or `--json`, while the
+  meter's own *Application > Modules > USB-C eMarker* module queries it
 - `debug memory read` / `debug memory scan` - Memory inspection for protocol research
 - `firmware list` / `firmware download` - Mirrored releases and release notes
 - `firmware inspect` / `firmware check` / `firmware update` - Package validation,

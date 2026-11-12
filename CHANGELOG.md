@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `CableIdentity` decodes a cable e-marker's Discover Identity answer on SOP'
+  or SOP'' into typed fields: product type, vendor and product IDs, XID, and
+  the Cable VDO's USB speed, VBUS current and voltage rating, latency code,
+  EPR capability and hardware/firmware versions, following the USB PD 3.1
+  passive and active cable layouts. The meter sends the request itself when
+  its *USB-C eMarker* module runs with a cable seated (observed with firmware
+  1.9.5), so the answer appears in the PD stream. `pd capture` and the PD
+  message log describe the answer instead of listing raw VDM words, and
+  `km003c cable` waits for one and prints it as text or `--json`.
 - Simultaneous PD and ADC capture in `km003c pd capture --adc`, with selectable
   sample rates, console decimation and optional CSV output containing every
   accepted ADC sample, device timing, auxiliary voltages and gap counts.
