@@ -1,6 +1,7 @@
 pub mod adc;
 pub mod adcqueue;
 pub mod auth;
+pub mod cable_identity;
 pub mod constants;
 pub mod device;
 mod embedded_keys;
@@ -38,6 +39,7 @@ pub use adcqueue::{
     AdcQueueData, AdcQueueRawData, AdcQueueSample, AdcQueueSampleRaw, GraphSampleRate, sequence_elapsed,
 };
 pub use auth::{AuthCredential, DeviceInfo, HardwareId, StreamingAuthResult};
+pub use cable_identity::{CableIdentity, CableProductType, CableVdo, UsbHighestSpeed};
 pub use device::{ConnectionMode, DeviceConfig, DeviceSelector, DeviceState, KM003C, TransferType};
 pub use measurement::{MeasurementAccumulator, MeasurementSample, Metric};
 pub use message::{Packet, PayloadData};

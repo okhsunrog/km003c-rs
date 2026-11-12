@@ -19,6 +19,7 @@ use usbpd::protocol_layer::message::header::{
 };
 use usbpd::units::{ElectricCurrent, ElectricPotential, Power};
 
+use crate::cable_identity::CableIdentity;
 use crate::pd::PdEvent;
 use crate::pd_decode::{
     DecodedPdEvent, DecodedPdMessage, PdChunkState, PdChunkStatus, PdDecodeFailure, PdSessionDecoder,
@@ -156,6 +157,22 @@ impl PdLogger {
                 format_request(request, self.session.source_capabilities()),
             ),
             Some(Payload::Data(Data::EprMode(mode))) => (PdLogCategory::Extended, vec![format!("EPR Mode: {mode:?}")]),
+            Some(Payload::Data(Data::VendorDefined((header, objects)))) => {
+                let mut words = vec![u32::from(*header)];
+                words.extend_from_slice(objects);
+                let details = match CableIdentity::from_vdm_words(decoded.sop, &words) {
+                    Some(identity) => identity.describe(),
+                    None => vec![format!(
+                        "VDM: {}",
+                        words
+                            .iter()
+                            .map(|word| format!("0x{word:08X}"))
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    )],
+                };
+                (PdLogCategory::Control, details)
+            }
             Some(Payload::Data(Data::Unknown)) => (PdLogCategory::Control, vec!["Unknown Data Message".to_string()]),
             Some(Payload::Data(data)) => (PdLogCategory::Control, vec![format!("Data: {data:?}")]),
             Some(Payload::Extended(Extended::EprSourceCapabilities(pdos))) => (
@@ -576,6 +593,41 @@ mod tests {
             let stream = crate::pd::PdEventStream::from_bytes(bytes.into()).unwrap();
             assert_eq!(logger.log_event(&stream.events[0]).category, category);
         }
+    }
+
+    // A cable's Discover Identity ACK on SOP', captured from a KM003C
+    // (firmware 1.9.5) running its USB-C eMarker module.
+    const CABLE_IDENTITY_ACK: &str = "8f5141a000ff3e16001800010000b602e90c41480800";
+
+    #[test]
+    fn a_cable_identity_ack_is_described() {
+        let mut event = message(3_000.0, CABLE_IDENTITY_ACK);
+        if let PdEventData::PdMessage { sop, .. } = &mut event.data {
+            *sop = 1;
+        }
+        let entry = PdLogger::new().log_event(&event);
+
+        assert_eq!(entry.title, "Vendor_Defined");
+        assert_eq!(entry.sop, Some(1));
+        assert_eq!(
+            entry.details,
+            vec![
+                "Discover Identity ACK: Passive cable, VID 0x163E, PID 0x0CE9, XID 0x00000100".to_string(),
+                "Cable VDO 0x00084841: USB 3.2 Gen 1 (5 Gb/s), 5 A, 20 V max, latency code 2, EPR no, HW 0 FW 0"
+                    .to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn other_vdms_list_their_words() {
+        // The tester's own Discover Identity request.
+        let mut event = message(3_000.0, "8f1041a000ff");
+        if let PdEventData::PdMessage { sop, .. } = &mut event.data {
+            *sop = 1;
+        }
+        let entry = PdLogger::new().log_event(&event);
+        assert_eq!(entry.details, vec!["VDM: 0xFF00A041".to_string()]);
     }
 
     #[test]
