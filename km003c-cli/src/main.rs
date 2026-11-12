@@ -1,4 +1,5 @@
 mod adc;
+mod cable;
 mod cli;
 mod firmware;
 mod logs;
@@ -58,6 +59,7 @@ async fn run(args: Cli) -> Result {
             pd::Command::Capture(args) => pd::capture(&mut device, args).await,
             pd::Command::Trace(args) => pd::trace(&mut device, args).await,
         },
+        Command::Cable(args) => cable::identify(&mut device, args).await,
         Command::Debug { command } => match command {
             DebugCommand::Memory { command } => match command {
                 memory::Command::Read(args) => memory::read(&mut device, args).await,

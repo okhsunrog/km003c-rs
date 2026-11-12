@@ -17,8 +17,8 @@ use km003c_lib::usbpd::protocol_layer::message::data::source_capabilities::{
 use km003c_lib::usbpd::protocol_layer::message::data::{self, Data};
 use km003c_lib::usbpd::protocol_layer::message::extended::Extended;
 use km003c_lib::{
-    DecodedPdEvent, DecodedPdMessage, GraphSampleRate, KM003C, MeasurementAccumulator, MeasurementSample, Packet,
-    PdChunkState, PdChunkStatus, PdDecodeFailure, PdSessionDecoder,
+    CableIdentity, DecodedPdEvent, DecodedPdMessage, GraphSampleRate, KM003C, MeasurementAccumulator,
+    MeasurementSample, Packet, PdChunkState, PdChunkStatus, PdDecodeFailure, PdSessionDecoder,
 };
 
 use crate::Result;
@@ -311,6 +311,25 @@ fn print_message(decoded: &DecodedPdMessage, source_caps: Option<&SourceCapabili
         }
         Some(Payload::Data(Data::Request(request))) => print_request(request, source_caps),
         Some(Payload::Data(Data::EprMode(mode))) => println!("             EPR Mode: {mode:?}"),
+        Some(Payload::Data(Data::VendorDefined((header, objects)))) => {
+            let mut words = vec![u32::from(*header)];
+            words.extend_from_slice(objects);
+            match CableIdentity::from_vdm_words(decoded.sop, &words) {
+                Some(identity) => {
+                    for line in identity.describe() {
+                        println!("             {line}");
+                    }
+                }
+                None => println!(
+                    "             VDM: {}",
+                    words
+                        .iter()
+                        .map(|word| format!("0x{word:08X}"))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                ),
+            }
+        }
         Some(Payload::Data(Data::Unknown)) => println!("             Unknown Data Message"),
         Some(Payload::Data(data)) => println!("             Data: {data:?}"),
         Some(Payload::Extended(Extended::EprSourceCapabilities(pdos))) => {
