@@ -1,7 +1,7 @@
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum, error::ErrorKind};
 use km003c_lib::{DeviceConfig, DeviceSelector};
 
-use crate::{adc, firmware, logs, memory, pd};
+use crate::{adc, cable, firmware, logs, memory, pd};
 
 /// Read measurements, download recordings, and inspect a POWER-Z KM003C.
 #[derive(Debug, Parser)]
@@ -85,6 +85,8 @@ pub enum Command {
         #[command(subcommand)]
         command: pd::Command,
     },
+    /// Read the seated cable's e-marker identity while the meter's USB-C eMarker module runs.
+    Cable(cable::CableArgs),
     /// Inspect device memory for protocol research.
     Debug {
         #[command(subcommand)]
@@ -165,6 +167,8 @@ mod tests {
                 "power.csv",
             ],
             vec!["pd", "trace", "--polls", "1", "--interval-ms", "10"],
+            vec!["cable"],
+            vec!["cable", "--timeout", "5", "--json"],
             vec!["debug", "memory", "read", "0x420", "--size", "64"],
             vec!["debug", "memory", "scan", "--full"],
             vec!["firmware", "inspect", "image.mencrypt"],
@@ -207,6 +211,7 @@ mod tests {
             vec!["adc", "stream", "--every", "0"],
             vec!["adc", "stream", "--duration", "0"],
             vec!["pd", "trace", "--polls", "0"],
+            vec!["cable", "--timeout", "0"],
             vec!["pd", "capture", "--rate", "1000"],
             vec!["pd", "capture", "--every", "1"],
             vec!["pd", "capture", "--adc-output", "power.csv"],
@@ -222,6 +227,7 @@ mod tests {
         for arguments in [
             vec!["--interface", "hid", "logs", "list"],
             vec!["--interface", "hid", "pd", "capture"],
+            vec!["--interface", "hid", "cable"],
             vec!["--reset", "firmware", "check", "image.mencrypt"],
             vec!["logs", "download", "--latest", "-f", "csv", "-o", "recording.json"],
         ] {
